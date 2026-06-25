@@ -1,0 +1,26 @@
+{
+  "name": "amey-journal-backend",
+  "version": "0.1.0",
+  "description": "Trade tracker backend: ingest MT5 trades, store in Postgres, broadcast over WebSocket",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:setup": "node scripts/setup-db.js",
+    "db:migrate": "node scripts/migrate.js",
+    "smoke": "node scripts/smoke-ingest.js",
+    "test:ea": "node scripts/test-ea-payload.js",
+    "import:sheet": "node scripts/import-sheet.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "pg": "^8.13.1",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

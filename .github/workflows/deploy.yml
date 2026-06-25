@@ -1,0 +1,61 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two deploys at once; let an in-flight deploy finish.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20' # match the production box
+          cache: 'npm'
+
+      - name: Build frontend
+        env:
+          VITE_BACKEND_URL: https://journal.anishdevlops.xyz
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync code to server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          # App code (no --delete: leaves .env, node_modules, logs on the box untouched)
+          rsync -az -e "ssh -i ~/.ssh/deploy_key" \
+            package.json package-lock.json src db scripts ea \
+            "$SSH_USER@$SSH_HOST:/opt/amey-journal/"
+          # Built UI (--delete clears stale hashed Vite assets)
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+            frontend/dist/ \
+            "$SSH_USER@$SSH_HOST:/opt/amey-journal/frontend/dist/"
+
+      - name: Install deps, migrate DB, restart backend
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" 'set -e
+            cd /opt/amey-journal
+            npm install --omit=dev
+            node scripts/migrate.js
+            pm2 restart amey-backend'
