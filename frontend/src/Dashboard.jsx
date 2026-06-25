@@ -123,6 +123,7 @@ export default function Dashboard() {
         <BreakdownTable title="By Session" rows={stats.bySession} />
         <BreakdownTable title="By Day" rows={stats.byDay} />
         <BreakdownTable title="By Month" rows={stats.byMonth} />
+        <BreakdownTable title="By Week" rows={stats.byWeek} />
       </div>
 
       {/* Yearly: monthly performance by strategy */}

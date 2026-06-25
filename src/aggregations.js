@@ -8,6 +8,15 @@ const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Monday-anchored week label for a close Date, e.g. "30 Jun 2026".
+function weekKey(d) {
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const monday = new Date(Date.UTC(
+    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - (day === 0 ? 6 : day - 1)
+  ));
+  return `${monday.getUTCDate()} ${MONTHS[monday.getUTCMonth()]} ${monday.getUTCFullYear()}`;
+}
+
 // performance of an arbitrary subset of trades (trades / strike rate / R)
 function perf(list) {
   const scored = list.filter((t) => t.fixed_r != null);
@@ -121,6 +130,7 @@ export async function computeStats() {
     bySession: groupPerf(trades, (t) => t.session, ['LDN', 'NY', 'ASIA']),
     byDay: groupPerf(trades, (t) => DOW[t.close.getUTCDay()], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']),
     byMonth: groupPerf(trades, (t) => `${MONTHS[t.close.getUTCMonth()]} ${t.close.getUTCFullYear()}`),
+    byWeek: groupPerf(trades, (t) => weekKey(t.close)),
     equityCurve,
     rDistribution,
     mfeEfficiency,

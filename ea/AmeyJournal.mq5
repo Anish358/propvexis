@@ -2,16 +2,15 @@
 //|                                                  AmeyJournal.mq5  |
 //|   Pushes every closed trade to the Amey Journal backend.         |
 //|                                                                  |
-//|   MFE (Max Favorable Excursion) is the maximum the price ran in  |
-//|   your favor, measured FROM ENTRY UNTIL price returns to break-  |
-//|   even (your entry price) — regardless of when you actually      |
-//|   exited. A winner that hits 2R and keeps running is captured at |
-//|   its true peak, not the TP. This can only be known after the    |
+//|   MFE (Max Favorable Excursion) is the most a trade ran in your   |
+//|   favor over its whole life — from entry until the trade closes   |
+//|   (TP, SL, or manual exit), in pips and floored at 0 (if it      |
+//|   never went green, MFE is 0). The peak is known only after the  |
 //|   move completes, so the EA:                                      |
 //|     1. sends the trade immediately on close (SL Size + Fixed R), |
 //|        with MFE pending;                                          |
-//|     2. re-reads M1 history from entry and, once price returns to  |
-//|        breakeven (or InpMfeMaxHours elapses), finalizes MFE/MaxR. |
+//|     2. re-reads M1 over [entry, close] and reports the peak     |
+//|        favorable excursion (MFE) and Max R for that trade.       |
 //|                                                                  |
 //|   Failed sends are queued to a file and retried.                 |
 //|                                                                  |
@@ -226,36 +225,28 @@ void AddMfeWatch(ulong ticket, string symbol, string direction,
    SaveMfeWatch();
   }
 
-// Walk M1 bars from entry; MFE = peak favorable excursion until price first
-// returns to entry (breakeven). Returns true when final (BE hit or cap reached).
-bool ComputeMfeUntilBE(const MfeWatch &w, double &mfePrice)
+// Walk M1 bars over the trade's life [openTime, closeTime]; MFE = the peak
+// favorable excursion from entry (buy: max high - entry; sell: entry - min low),
+// floored at 0. The whole window is in the past once the trade closes, so this
+// finalizes on the first successful read; the cap is only a fallback for when M1
+// history never loads locally.
+bool ComputeMfeFullLife(const MfeWatch &w, double &mfePrice)
   {
    MqlRates rates[];
-   int n = CopyRates(w.symbol, PERIOD_M1, w.openTime, TimeCurrent(), rates);
+   int n = CopyRates(w.symbol, PERIOD_M1, w.openTime, w.closeTime, rates);
    bool capReached = (TimeCurrent() - w.closeTime >= (datetime)InpMfeMaxHours * 3600);
    if(n <= 0)
      { if(capReached) { mfePrice = 0; return true; } return false; }
 
    bool   isBuy = (w.direction == "buy");
    double best  = w.entry;
-   bool   wentFav = false, beHit = false;
    for(int i = 0; i < n; i++)
      {
       if(rates[i].time < w.openTime) continue;
-      if(isBuy)
-        {
-         if(rates[i].high > best) best = rates[i].high;
-         if(rates[i].high > w.entry) wentFav = true;
-         if(wentFav && rates[i].low <= w.entry) { beHit = true; break; }
-        }
-      else
-        {
-         if(rates[i].low < best) best = rates[i].low;
-         if(rates[i].low < w.entry) wentFav = true;
-         if(wentFav && rates[i].high >= w.entry) { beHit = true; break; }
-        }
+      if(rates[i].time > w.closeTime) break;
+      if(isBuy) { if(rates[i].high > best) best = rates[i].high; }
+      else      { if(rates[i].low  < best) best = rates[i].low;  }
      }
-   if(!beHit && !capReached) return false; // price may still be extending
 
    mfePrice = isBuy ? (best - w.entry) : (w.entry - best);
    if(mfePrice < 0) mfePrice = 0;
@@ -268,7 +259,7 @@ void FinalizePendingMfe()
    for(int i = ArraySize(g_mfe) - 1; i >= 0; i--)
      {
       double mfePrice = 0;
-      if(!ComputeMfeUntilBE(g_mfe[i], mfePrice))
+      if(!ComputeMfeFullLife(g_mfe[i], mfePrice))
          continue; // not ready yet
 
       string json = BuildJson(g_mfe[i].ticket, g_mfe[i].symbol, g_mfe[i].direction,
