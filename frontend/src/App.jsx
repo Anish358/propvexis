@@ -1,19 +1,21 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchTrades, tagTrade, connectSocket } from './api.js';
-import TradesTable from './TradesTable.jsx';
-import TagModal from './TagModal.jsx';
+import React, { useEffect, useRef, useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import { fetchTrades, fetchAccount, connectSocket, tagTrade, deleteTrade } from './api.js';
+import Layout from './Layout.jsx';
 import Dashboard from './Dashboard.jsx';
+import TradeLog from './TradeLog.jsx';
+import Analytics from './Analytics.jsx';
+import Calendar from './Calendar.jsx';
 
 export default function App() {
   const [trades, setTrades] = useState([]);
+  const [account, setAccount] = useState(null);
   const [connected, setConnected] = useState(false);
-  const [selected, setSelected] = useState(null);
-  const [flashId, setFlashId] = useState(null);
   const [loadError, setLoadError] = useState(null);
-  const [view, setView] = useState('trades');
+  const [flashId, setFlashId] = useState(null);
   const flashTimer = useRef(null);
 
-  // merge a trade into state (insert or replace), keeping newest-first by close_time
+  // merge a trade into state (insert or replace), newest-first by close_time
   function upsertLocal(trade) {
     setTrades((prev) => {
       const others = prev.filter((t) => t.id !== trade.id);
@@ -21,6 +23,10 @@ export default function App() {
       next.sort((a, b) => new Date(b.close_time) - new Date(a.close_time));
       return next;
     });
+  }
+
+  function removeLocal(id) {
+    setTrades((prev) => prev.filter((t) => t.id !== id));
   }
 
   function flash(id) {
@@ -31,49 +37,39 @@ export default function App() {
 
   useEffect(() => {
     fetchTrades().then(setTrades).catch((e) => setLoadError(e.message));
-
+    fetchAccount().then(setAccount).catch(() => {});
     const socket = connectSocket(
-      (trade) => { upsertLocal(trade); flash(trade.id); },   // trade:upserted
-      (trade) => { upsertLocal(trade); }                      // trade:updated
+      (trade) => { upsertLocal(trade); flash(trade.id); },  // trade:upserted
+      (trade) => upsertLocal(trade),                         // trade:updated
     );
+    socket.on('account:updated', setAccount);
+    socket.on('trade:deleted', ({ id }) => removeLocal(id));
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
     return () => socket.close();
   }, []);
 
-  async function handleSave(id, fields) {
+  async function saveTrade(id, fields) {
     const updated = await tagTrade(id, fields);
     upsertLocal(updated);
   }
 
-  const untagged = useMemo(() => trades.filter((t) => !t.tagged).length, [trades]);
+  async function removeTrade(id) {
+    await deleteTrade(id);
+    removeLocal(id);
+  }
 
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand">Patil <span>TRADES</span></div>
-        <nav className="nav">
-          <button className={view === 'trades' ? 'on' : ''} onClick={() => setView('trades')}>Trades</button>
-          <button className={view === 'dashboard' ? 'on' : ''} onClick={() => setView('dashboard')}>Dashboard</button>
-        </nav>
-        <div className="stats">
-          <span className="stat">{trades.length} trades</span>
-          {untagged > 0 && <span className="stat warn">{untagged} to tag</span>}
-          <span className={`conn ${connected ? 'on' : 'off'}`}>
-            {connected ? 'live' : 'offline'}
-          </span>
-        </div>
-      </header>
-
       {loadError && <div className="banner error">Could not reach backend: {loadError}</div>}
-
-      {view === 'trades' ? (
-        <TradesTable trades={trades} onRowClick={setSelected} highlightId={flashId} />
-      ) : (
-        <Dashboard />
-      )}
-
-      <TagModal trade={selected} onClose={() => setSelected(null)} onSave={handleSave} />
+      <Routes>
+        <Route element={<Layout trades={trades} account={account} connected={connected} flashId={flashId} saveTrade={saveTrade} removeTrade={removeTrade} />}>
+          <Route index element={<Dashboard />} />
+          <Route path="trades" element={<TradeLog />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="calendar" element={<Calendar />} />
+        </Route>
+      </Routes>
     </div>
   );
 }

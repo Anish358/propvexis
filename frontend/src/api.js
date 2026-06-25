@@ -8,6 +8,12 @@ export async function fetchTrades() {
   return res.json();
 }
 
+export async function fetchAccount() {
+  const res = await fetch(`${BACKEND_URL}/api/account`);
+  if (!res.ok) throw new Error(`fetchAccount ${res.status}`);
+  return res.json();
+}
+
 export async function fetchStats() {
   const res = await fetch(`${BACKEND_URL}/api/stats`);
   if (!res.ok) throw new Error(`fetchStats ${res.status}`);
@@ -27,6 +33,12 @@ export async function tagTrade(id, fields) {
     body: JSON.stringify(fields),
   });
   if (!res.ok) throw new Error(`tagTrade ${res.status}`);
+  return res.json();
+}
+
+export async function deleteTrade(id) {
+  const res = await fetch(`${BACKEND_URL}/api/trades/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteTrade ${res.status}`);
   return res.json();
 }
 

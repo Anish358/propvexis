@@ -1,11 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { SETUP_OPTIONS, PROBABILITY_OPTIONS, MTF_OPTIONS, fmtDate, fmtNum } from './constants.js';
 
-const EMPTY = { setup: '', probability: '', mtf_phase: '', m15_url: '', h1_url: '', h4_url: '', comments: '' };
+const TAG_KEYS = ['setup', 'probability', 'mtf_phase', 'm15_url', 'h1_url', 'h4_url', 'comments'];
+const METRIC_KEYS = ['sl_size_pips', 'mfe_pips'];
+const EMPTY = { setup: '', probability: '', mtf_phase: '', m15_url: '', h1_url: '', h4_url: '', comments: '', sl_size_pips: '', mfe_pips: '' };
 
-export default function TagModal({ trade, onClose, onSave }) {
+// stringify a DB value for an input (null -> '')
+const s = (v) => (v == null ? '' : String(v));
+
+export default function TagModal({ trade, onClose, onSave, onDelete }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -18,8 +25,11 @@ export default function TagModal({ trade, onClose, onSave }) {
       h1_url: trade.h1_url || '',
       h4_url: trade.h4_url || '',
       comments: trade.comments || '',
+      sl_size_pips: s(trade.sl_size_pips),
+      mfe_pips: s(trade.mfe_pips),
     });
     setError(null);
+    setConfirmDelete(false);
   }, [trade]);
 
   if (!trade) return null;
@@ -30,10 +40,13 @@ export default function TagModal({ trade, onClose, onSave }) {
     setSaving(true);
     setError(null);
     try {
-      // send only fields with a value; empty strings -> null so they clear
-      const payload = Object.fromEntries(
-        Object.entries(form).map(([k, v]) => [k, v === '' ? null : v])
-      );
+      // tags: always sent (empty string -> null clears the field)
+      const payload = {};
+      for (const k of TAG_KEYS) payload[k] = form[k] === '' ? null : form[k];
+      // metrics: sent only when changed, so tag-only edits don't recompute Max R
+      for (const k of METRIC_KEYS) {
+        if (form[k] !== s(trade[k])) payload[k] = form[k] === '' ? null : Number(form[k]);
+      }
       await onSave(trade.id, payload);
       onClose();
     } catch (err) {
@@ -43,11 +56,29 @@ export default function TagModal({ trade, onClose, onSave }) {
     }
   }
 
+  async function remove() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await onDelete(trade.id);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  }
+
+  const sl = Number(form.sl_size_pips);
+  const mfe = Number(form.mfe_pips);
+  const maxRPreview = form.sl_size_pips !== '' && form.mfe_pips !== '' && sl > 0
+    ? (Math.round((mfe / sl) * 100) / 100).toFixed(2)
+    : '—';
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <header>
-          <h2>Tag trade</h2>
+          <h2>Edit trade</h2>
           <button className="x" onClick={onClose}>×</button>
         </header>
 
@@ -86,6 +117,21 @@ export default function TagModal({ trade, onClose, onSave }) {
         </div>
 
         <div className="field-row">
+          <label>
+            SL Size (pips)
+            <input type="number" min="0" step="0.1" value={form.sl_size_pips} onChange={set('sl_size_pips')} placeholder="—" />
+          </label>
+          <label>
+            MFE (pips)
+            <input type="number" min="0" step="0.1" value={form.mfe_pips} onChange={set('mfe_pips')} placeholder="—" />
+          </label>
+          <label>
+            Max R <span className="auto-hint">auto</span>
+            <input value={maxRPreview} readOnly disabled />
+          </label>
+        </div>
+
+        <div className="field-row">
           <label>M15 link<input value={form.m15_url} onChange={set('m15_url')} placeholder="https://…" /></label>
           <label>H1 link<input value={form.h1_url} onChange={set('h1_url')} placeholder="https://…" /></label>
           <label>H4 link<input value={form.h4_url} onChange={set('h4_url')} placeholder="https://…" /></label>
@@ -99,8 +145,20 @@ export default function TagModal({ trade, onClose, onSave }) {
         {error && <p className="error">{error}</p>}
 
         <footer>
-          <button className="secondary" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          {onDelete && (
+            confirmDelete ? (
+              <div className="delete-confirm">
+                <span>Delete this trade?</span>
+                <button className="danger" onClick={remove} disabled={deleting}>{deleting ? 'Deleting…' : 'Yes, delete'}</button>
+                <button className="secondary" onClick={() => setConfirmDelete(false)} disabled={deleting}>No</button>
+              </div>
+            ) : (
+              <button className="danger-link" onClick={() => setConfirmDelete(true)} disabled={saving || deleting}>Delete</button>
+            )
+          )}
+          <span className="footer-spacer" />
+          <button className="secondary" onClick={onClose} disabled={saving || deleting}>Cancel</button>
+          <button className="primary" onClick={save} disabled={saving || deleting}>{saving ? 'Saving…' : 'Save'}</button>
         </footer>
       </div>
     </div>

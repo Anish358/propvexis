@@ -1,171 +1,194 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
-  BarChart, Bar, ReferenceLine, Cell,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
+  BarChart, Bar, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from 'recharts';
-import { fetchStats, fetchYearly } from './api.js';
+import PageHeader from './PageHeader.jsx';
+import MonthCalendar from './MonthCalendar.jsx';
+import { GaugeArc, Ring, SplitBar } from './DashWidgets.jsx';
+import { computeMetrics, fmtR, fmtRShort, weekStart } from './metrics.js';
 
-const rColor = (r) => (r > 0 ? '#6bd58a' : r < 0 ? '#e0918d' : '#9a9aa2');
+const GREEN = '#39d98a';
+const RED = '#e0615b';
 
-function Kpi({ label, value, sub, tone }) {
+function tone(n) { return n > 0 ? 'win' : n < 0 ? 'loss' : ''; }
+
+function Card({ label, badge, children }) {
   return (
-    <div className="kpi">
-      <div className="kpi-label">{label}</div>
-      <div className={`kpi-value ${tone || ''}`}>{value}</div>
-      {sub && <div className="kpi-sub">{sub}</div>}
-    </div>
-  );
-}
-
-function BreakdownTable({ title, rows }) {
-  return (
-    <div className="bd">
-      <h3>{title}</h3>
-      <table>
-        <thead><tr><th></th><th># Trades</th><th>SR</th><th>R</th></tr></thead>
-        <tbody>
-          {rows.map((g) => (
-            <tr key={g.key}>
-              <td>{g.key}</td>
-              <td className="num">{g.trades}</td>
-              <td className="num">{g.sr == null ? '—' : `${g.sr}%`}</td>
-              <td className="num" style={{ color: rColor(g.r) }}>{g.r}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="kcard">
+      <div className="kcard-top">
+        <span className="kcard-label">{label}</span>
+        {badge}
+      </div>
+      {children}
     </div>
   );
 }
 
 export default function Dashboard() {
-  const [stats, setStats] = useState(null);
-  const [yearly, setYearly] = useState(null);
-  const [err, setErr] = useState(null);
-  const year = 2026;
+  const { trades = [], connected, toggleSidebar } = useOutletContext();
+  const m = useMemo(() => computeMetrics(trades), [trades]);
+  const now = new Date();
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth());
 
-  useEffect(() => {
-    fetchStats().then(setStats).catch((e) => setErr(e.message));
-    fetchYearly(year).then(setYearly).catch((e) => setErr(e.message));
-  }, []);
+  const dayMap = useMemo(() => {
+    const map = new Map();
+    for (const d of m.days) map.set(d.key, { pnl: d.pnl, trades: d.trades });
+    return map;
+  }, [m.days]);
 
-  if (err) return <div className="banner error">Could not load stats: {err}</div>;
-  if (!stats) return <div className="dash-loading">Loading analytics…</div>;
+  // current week P&L (Mon-anchored)
+  const week = useMemo(() => {
+    const start = weekStart(now);
+    const end = new Date(start); end.setDate(start.getDate() + 7);
+    const inWeek = m.days.filter((d) => d.date >= start && d.date < end);
+    const pnl = inWeek.reduce((a, d) => a + d.pnl, 0);
+    const trades = inWeek.reduce((a, d) => a + d.trades, 0);
+    const wins = inWeek.filter((d) => d.pnl > 0).length;
+    const label = `${start.getDate()}–${new Date(end - 1).getDate()} ${['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][start.getMonth()]}`;
+    return { pnl, trades, winPct: trades ? Math.round((100 * wins) / inWeek.length) : 0, label };
+  }, [m.days]);
 
-  const h = stats.headline;
+  const winShare = m.grossProfit + m.grossLoss > 0 ? m.grossProfit / (m.grossProfit + m.grossLoss) : 1;
 
   return (
-    <div className="dashboard">
-      {/* KPI row */}
-      <div className="kpi-row">
-        <Kpi label="Total Return" value={`${h.totalReturn}R`} tone={h.totalReturn >= 0 ? 'win' : 'loss'} />
-        <Kpi label="Strike Rate" value={`${h.strikeRate}%`} sub={`${h.wins}W · ${h.losses}L · ${h.breakeven}BE`} />
-        <Kpi label="Profit Factor" value={h.profitFactor ?? '—'} />
-        <Kpi label="Expectancy" value={`${h.expectancy}R`} sub="per trade" />
-        <Kpi label="# Trades" value={h.trades} />
-        <Kpi label="Avg Win / Loss" value={`${h.avgWin} / ${h.avgLoss}`} />
-        <Kpi label="Win / Loss Streak" value={`${h.winStreak} / ${h.lossStreak}`} />
-      </div>
+    <div className="page">
+      <PageHeader title="Dashboard" connected={connected} onMenu={toggleSidebar} />
 
-      {/* Equity curve */}
-      <div className="panel">
-        <h3>Equity Curve (cumulative R)</h3>
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={stats.equityCurve} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
-            <CartesianGrid stroke="#23232a" />
-            <XAxis dataKey="i" stroke="#6f6f78" fontSize={11} />
-            <YAxis stroke="#6f6f78" fontSize={11} />
-            <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30' }} />
-            <ReferenceLine y={0} stroke="#3a3a42" />
-            <Line type="monotone" dataKey="cumR" stroke="#6ea8fe" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <div className="page-body">
+        {/* ---- KPI cards ---- */}
+        <div className="kpi-cards">
+          <Card label={`NET P&L · ${m.tradeCount}T`}>
+            <div className={`kcard-big ${tone(m.net)}`}>{fmtR(m.net)}</div>
+            <div className="kcard-foot">
+              <span className="win">{fmtRShort(m.grossProfit)}</span>
+              <span className={tone(m.expectancy)}>{fmtR(m.expectancy)}/t</span>
+              <span className="loss">{fmtRShort(-m.grossLoss)}</span>
+            </div>
+            <SplitBar winShare={winShare} />
+          </Card>
 
-      <div className="two-col">
-        {/* R distribution */}
-        <div className="panel">
-          <h3>R-Outcome Distribution</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={stats.rDistribution} margin={{ top: 8, right: 8, bottom: 4, left: -20 }}>
-              <CartesianGrid stroke="#23232a" vertical={false} />
-              <XAxis dataKey="label" stroke="#6f6f78" fontSize={10} />
-              <YAxis stroke="#6f6f78" fontSize={11} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30' }} cursor={{ fill: '#ffffff08' }} />
-              <Bar dataKey="count">
-                {stats.rDistribution.map((b, i) => (
-                  <Cell key={i} fill={b.label.includes('-') || b.label === 'BE' ? '#7a4a47' : '#3a7a52'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <Card label="Trade Win %">
+            <div className="kcard-split">
+              <div>
+                <div className={`kcard-big ${tone(1)}`}>{m.winRate.toFixed(1)}%</div>
+                <div className="winloss-chips">
+                  <span className="chip win">{m.wins}</span>
+                  <span className="chip loss">{m.losses}</span>
+                </div>
+              </div>
+              <GaugeArc value={m.winRate / 100} />
+            </div>
+          </Card>
+
+          <Card label="Profit Factor">
+            <div className="kcard-split">
+              <div className={`kcard-big ${tone(m.profitFactor - 1)}`}>{m.profitFactor.toFixed(2)}</div>
+              <Ring value={Math.min(1, m.profitFactor / 3)} color={GREEN} />
+            </div>
+          </Card>
+
+          <Card label="Win Streak" badge={<span className="streak-best">⚡ Best: <b>{m.streak.bestWin}W</b><br /><span className="muted">Win streak</span></span>}>
+            <div className="kcard-split">
+              <div className={`kcard-big ${tone(m.streak.current)}`}>{m.streak.current >= 0 ? '+' : ''}{m.streak.current}</div>
+              <Ring value={Math.min(1, Math.abs(m.streak.current) / 5)} color={m.streak.current >= 0 ? GREEN : RED} />
+            </div>
+          </Card>
+
+          <Card label="Avg Win/Loss">
+            <div className={`kcard-big ${tone(1)}`}>{m.avgWinLoss === Infinity ? '∞' : m.avgWinLoss.toFixed(2)}</div>
+            <div className="kcard-foot">
+              <span className="win">{fmtRShort(m.avgWin)}</span>
+              <span className="loss">{fmtRShort(-m.avgLoss)}</span>
+            </div>
+            <SplitBar winShare={m.avgWin + m.avgLoss > 0 ? m.avgWin / (m.avgWin + m.avgLoss) : 1} />
+          </Card>
         </div>
 
-        {/* MFE efficiency */}
-        <div className="panel">
-          <h3>MFE Efficiency <span className="tag-new">insight</span></h3>
-          <p className="insight-line">
-            Your trades run on average <b>{stats.mfeEfficiency.avgMaxR}R</b> in your favor (Max R),
-            but you realize <b>{stats.mfeEfficiency.avgRealized}R</b> per trade.
-          </p>
-          <p className="insight-line">
-            That's a <b>{Math.round((stats.mfeEfficiency.capture ?? 0) * 100)}%</b> capture of the
-            average favorable excursion — a measure of how much you leave on the table with the fixed 2R target.
-          </p>
-        </div>
-      </div>
+        {/* ---- Thunder score + charts ---- */}
+        <div className="dash-mid">
+          <div className="panel thunder">
+            <div className="panel-title">⚡ THUNDER SCORE</div>
+            <ResponsiveContainer width="100%" height={230}>
+              <RadarChart data={m.thunderAxes} outerRadius="72%">
+                <PolarGrid stroke="#2a2a32" />
+                <PolarAngleAxis dataKey="key" tick={{ fill: '#8a8a93', fontSize: 11 }} />
+                <Radar dataKey="value" stroke="#7c5cff" fill="#7c5cff" fillOpacity={0.45} />
+              </RadarChart>
+            </ResponsiveContainer>
+            <div className="rr-slider">
+              <div className="rr-label">Avg RR</div>
+              <div className="rr-track">
+                <div className="rr-knob" style={{ left: `${Math.min(100, (m.avgRR / 3) * 100)}%` }} />
+              </div>
+            </div>
+            <div className="thunder-score">{m.thunder}</div>
+            <div className="thunder-cap">THUNDER SCORE</div>
+          </div>
 
-      {/* Breakdowns */}
-      <div className="bd-grid">
-        <BreakdownTable title="By Setup" rows={stats.bySetup} />
-        <BreakdownTable title="By Instrument" rows={stats.byInstrument} />
-        <BreakdownTable title="By Probability" rows={stats.byProbability} />
-        <BreakdownTable title="By Session" rows={stats.bySession} />
-        <BreakdownTable title="By Day" rows={stats.byDay} />
-        <BreakdownTable title="By Month" rows={stats.byMonth} />
-        <BreakdownTable title="By Week" rows={stats.byWeek} />
-      </div>
+          <div className="panel">
+            <div className="panel-head">
+              <div className="panel-title">Cumulative P&L</div>
+              <div className="panel-meta">
+                <span className={`pct-pill ${tone(m.expectancy)}`}>{fmtR(m.expectancy)}/trade</span>
+                <span className={tone(m.net)}>{fmtR(m.net)}</span>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={m.cumulative} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
+                <CartesianGrid stroke="#1d1d23" vertical={false} />
+                <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
+                <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}R`} />
+                <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30', borderRadius: 8 }} formatter={(v) => fmtR(v)} />
+                <ReferenceLine y={0} stroke="#33333b" />
+                <Line type="monotone" dataKey="cum" stroke={GREEN} strokeWidth={2} dot={{ r: 3, fill: GREEN }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
-      {/* Yearly: monthly performance by strategy */}
-      {yearly && (
-        <div className="panel">
-          <h3>Yearly Analysis — {yearly.year} (Monthly performance by strategy)</h3>
-          <div className="grid-wrap">
-            <table className="yearly">
-              <thead>
-                <tr>
-                  <th>Month</th>
-                  <th>Overall</th>
-                  {yearly.setups.map((s) => <th key={s}>{s}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {yearly.months.filter((m) => m.overall.trades > 0).map((m) => (
-                  <tr key={m.month}>
-                    <td>{m.month}</td>
-                    <td className="num">{cell(m.overall)}</td>
-                    {yearly.setups.map((s) => <td key={s} className="num">{cell(m[s])}</td>)}
-                  </tr>
-                ))}
-                <tr className="total-row">
-                  <td>TOTAL</td>
-                  <td className="num">{cell(yearly.total.overall)}</td>
-                  {yearly.setups.map((s) => <td key={s} className="num">{cell(yearly.total[s])}</td>)}
-                </tr>
-              </tbody>
-            </table>
+          <div className="panel">
+            <div className="panel-head">
+              <div className="panel-title">Daily P&L</div>
+              <div className="panel-meta muted">{m.daily.length}/{m.daily.length}</div>
+            </div>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={m.daily} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
+                <CartesianGrid stroke="#1d1d23" vertical={false} />
+                <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
+                <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}R`} />
+                <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30', borderRadius: 8 }} cursor={{ fill: '#ffffff08' }} formatter={(v) => fmtR(v)} />
+                <ReferenceLine y={0} stroke="#33333b" />
+                <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                  {m.daily.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? GREEN : RED} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
 
-function cell(p) {
-  if (!p || p.trades === 0) return <span className="muted">—</span>;
-  return (
-    <span>
-      {p.trades} · {p.sr}% · <span style={{ color: rColor(p.r) }}>{p.r}R</span>
-    </span>
+        {/* ---- Month calendar + weekly ---- */}
+        <div className="dash-bottom">
+          <div className="panel">
+            <MonthCalendar
+              year={calYear}
+              month={calMonth}
+              dayMap={dayMap}
+              onPrev={() => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+              onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+            />
+          </div>
+
+          <div className="panel weekly">
+            <div className="panel-title">WEEKLY P&L</div>
+            <div className="weekly-range">{week.label}</div>
+            <div className={`weekly-pnl ${tone(week.pnl)}`}>{fmtR(week.pnl)}</div>
+            <div className="weekly-sub">{week.winPct}% · {week.trades}t</div>
+            <SplitBar winShare={week.pnl >= 0 ? 1 : 0} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

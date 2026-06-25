@@ -1,0 +1,67 @@
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { ACCOUNT_START, fmtMoney, fmtR } from './metrics.js';
+
+const IconDashboard = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+  </svg>
+);
+const IconLog = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+    <path d="M8 13h8M8 17h8M8 9h2" />
+  </svg>
+);
+const IconAnalytics = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3v18h18" /><rect x="7" y="11" width="3" height="6" /><rect x="12" y="7" width="3" height="10" /><rect x="17" y="13" width="3" height="4" />
+  </svg>
+);
+const IconCalendar = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+  </svg>
+);
+
+const NAV = [
+  { to: '/', label: 'Dashboard', Icon: IconDashboard, end: true },
+  { to: '/trades', label: 'Trade Log', Icon: IconLog },
+  { to: '/analytics', label: 'Analytics', Icon: IconAnalytics },
+  { to: '/calendar', label: 'Calendar', Icon: IconCalendar },
+];
+
+export default function Sidebar({ trades = [], account = null }) {
+  const totalR = trades.reduce((a, t) => a + Number(t.fixed_r ?? 0), 0);
+  const live = account?.balance != null;
+  const balance = live ? account.balance : ACCOUNT_START;
+
+  return (
+    <aside className="sidebar">
+      <div className="sb-brand">PATIL TRADES</div>
+
+      <nav className="sb-nav">
+        <div className="sb-section">NAVIGATION</div>
+        {NAV.map(({ to, label, Icon, end }) => (
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`}>
+            <Icon /><span>{label}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="sb-account">
+        <div className="sb-account-label">
+          ACCOUNT
+          <span className={`sb-account-tag ${live ? 'live' : ''}`} title={live ? 'Live balance from MT5' : 'No live balance reported yet — showing prop account size'}>
+            {live ? 'LIVE' : 'START'}
+          </span>
+        </div>
+        <div className="sb-account-balance">{fmtMoney(balance)}</div>
+        <div className="sb-account-start">
+          Total: <span className={totalR > 0 ? 'win' : totalR < 0 ? 'loss' : ''}>{fmtR(totalR)}</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
