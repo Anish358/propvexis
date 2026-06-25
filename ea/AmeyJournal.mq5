@@ -358,7 +358,10 @@ string BuildJson(ulong ticket, string symbol, string direction,
    json += "\"exit_price\":"   + D(exit, digits) + ",";
    json += "\"volume\":"       + DoubleToString(volume, 2) + ",";
    json += "\"commission\":"   + DoubleToString(commission, 2) + ",";
-   json += "\"pnl_money\":"    + DoubleToString(pnl, 2);
+   json += "\"pnl_money\":"    + DoubleToString(pnl, 2) + ",";
+   json += "\"account_balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",";
+   json += "\"account_equity\":"  + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",";
+   json += "\"account_currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\"";
    if(mfePrice >= 0)
       json += ",\"mfe_price\":" + D(mfePrice, digits);
    json += "}";

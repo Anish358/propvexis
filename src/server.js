@@ -76,6 +76,9 @@ const ingestSchema = {
       mfe_pips: { type: ['number', 'null'] },
       mfe_price: { type: ['number', 'null'] }, // raw favorable price excursion; converted to pips here
       session: { type: ['string', 'null'], enum: ['ASIA', 'LDN', 'NY', null] },
+      account_balance: { type: ['number', 'null'] },  // live MT5 balance at close
+      account_equity: { type: ['number', 'null'] },    // live MT5 equity at close
+      account_currency: { type: ['string', 'null'] },
     },
   },
 };
@@ -155,6 +158,23 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
   const trade = rows[0];
 
   io.emit('trade:upserted', trade);
+
+  // Snapshot live account balance/equity if the EA sent it (latest wins).
+  if (b.account_balance != null || b.account_equity != null) {
+    const { rows: accRows } = await query(
+      `INSERT INTO accounts (account_id, balance, equity, currency, updated_at)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (account_id) DO UPDATE SET
+         balance = COALESCE(EXCLUDED.balance, accounts.balance),
+         equity = COALESCE(EXCLUDED.equity, accounts.equity),
+         currency = COALESCE(EXCLUDED.currency, accounts.currency),
+         updated_at = now()
+       RETURNING *;`,
+      [b.account_id, b.account_balance ?? null, b.account_equity ?? null, b.account_currency ?? null]
+    );
+    io.emit('account:updated', accRows[0]);
+  }
+
   return reply.code(201).send(trade);
 });
 
@@ -183,18 +203,43 @@ app.get('/api/trades', async (req) => {
 // ---------------------------------------------------------------------------
 // Tag a trade (user fills discretionary fields). Marks tagged = true.
 // ---------------------------------------------------------------------------
+// Editable numeric metrics. Editing either recomputes max_r = mfe / sl.
+const METRIC_FIELDS = ['sl_size_pips', 'mfe_pips'];
+
 app.patch('/api/trades/:id', async (req, reply) => {
   const id = Number(req.params.id);
   const updates = [];
   const params = [];
+
   for (const f of TAG_FIELDS) {
     if (f in req.body) {
       params.push(req.body[f]);
       updates.push(`${f} = $${params.length}`);
     }
   }
+
+  // SL size / MFE edits: validate, then recompute Max R from the merged values.
+  if (METRIC_FIELDS.some((f) => f in req.body)) {
+    const { rows: cur } = await query('SELECT sl_size_pips, mfe_pips FROM trades WHERE id = $1', [id]);
+    if (!cur.length) return reply.code(404).send({ error: 'trade not found' });
+    const merged = { sl_size_pips: cur[0].sl_size_pips, mfe_pips: cur[0].mfe_pips };
+    for (const f of METRIC_FIELDS) {
+      if (!(f in req.body)) continue;
+      const raw = req.body[f];
+      const v = raw === '' || raw === null ? null : Number(raw);
+      if (v != null && (Number.isNaN(v) || v < 0)) {
+        return reply.code(400).send({ error: `${f} must be a non-negative number` });
+      }
+      merged[f] = v == null ? null : round2(v);
+      params.push(merged[f]);
+      updates.push(`${f} = $${params.length}`);
+    }
+    params.push(deriveMaxR(merged));
+    updates.push(`max_r = $${params.length}`);
+  }
+
   if (!updates.length) {
-    return reply.code(400).send({ error: 'no taggable fields provided' });
+    return reply.code(400).send({ error: 'no editable fields provided' });
   }
   updates.push('tagged = TRUE');
   params.push(id);
@@ -205,6 +250,27 @@ app.patch('/api/trades/:id', async (req, reply) => {
 
   io.emit('trade:updated', rows[0]);
   return rows[0];
+});
+
+// ---------------------------------------------------------------------------
+// Delete a trade.
+// ---------------------------------------------------------------------------
+app.delete('/api/trades/:id', async (req, reply) => {
+  const id = Number(req.params.id);
+  const { rows } = await query('DELETE FROM trades WHERE id = $1 RETURNING id', [id]);
+  if (!rows.length) return reply.code(404).send({ error: 'trade not found' });
+
+  io.emit('trade:deleted', { id });
+  return { id, deleted: true };
+});
+
+// ---------------------------------------------------------------------------
+// Account — latest live balance/equity snapshot (single prop account).
+// Returns null when the EA hasn't reported a balance yet.
+// ---------------------------------------------------------------------------
+app.get('/api/account', async () => {
+  const { rows } = await query('SELECT * FROM accounts ORDER BY updated_at DESC LIMIT 1');
+  return rows[0] ?? null;
 });
 
 // ---------------------------------------------------------------------------
