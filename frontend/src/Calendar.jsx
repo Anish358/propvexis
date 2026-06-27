@@ -2,9 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
-import ActivityHeatmap from './ActivityHeatmap.jsx';
+import MonthSummary from './MonthSummary.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
-import { SplitBar } from './DashWidgets.jsx';
 import { computeMetrics, fmtR, weekStart, dayKey } from './metrics.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -34,22 +33,27 @@ function group(trades, keyFn) {
 function SummaryTable({ rows }) {
   if (!rows.length) return <div className="panel placeholder-panel">No trades yet.</div>;
   return (
-    <div className="panel log-panel">
-      <div className="grid-wrap">
-        <table className="grid">
-          <thead><tr><th>Period</th><th className="num">Trades</th><th className="num">Win %</th><th className="num">R</th></tr></thead>
-          <tbody>
-            {rows.map((g) => (
-              <tr key={g.key}>
-                <td>{g.label}</td>
-                <td className="num">{g.trades}</td>
-                <td className="num">{g.winRate}%</td>
-                <td className={`num ${tone(g.r)}`} style={{ fontWeight: 700 }}>{fmtR(g.r)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="panel summary-panel">
+      <table className="summary-table">
+        <thead>
+          <tr>
+            <th className="t-left">Period</th>
+            <th className="t-right">Trades</th>
+            <th className="t-right">Win %</th>
+            <th className="t-right">R</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((g) => (
+            <tr key={g.key}>
+              <td className="t-left">{g.label}</td>
+              <td className="t-right">{g.trades}</td>
+              <td className="t-right">{g.winRate}%</td>
+              <td className={`t-right ${tone(g.r)}`} style={{ fontWeight: 700 }}>{fmtR(g.r)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -67,17 +71,6 @@ export default function Calendar() {
     const map = new Map();
     for (const d of m.days) map.set(d.key, { pnl: d.pnl, trades: d.trades });
     return map;
-  }, [m.days]);
-
-  const week = useMemo(() => {
-    const start = weekStart(now);
-    const end = new Date(start); end.setDate(start.getDate() + 7);
-    const inWeek = m.days.filter((d) => d.date >= start && d.date < end);
-    const pnl = inWeek.reduce((a, d) => a + d.pnl, 0);
-    const trades = inWeek.reduce((a, d) => a + d.trades, 0);
-    const wins = inWeek.filter((d) => d.pnl > 0).length;
-    const label = `${start.getDate()}–${new Date(end - 1).getDate()} ${MONTHS[start.getMonth()].toUpperCase()}`;
-    return { pnl, trades, winPct: inWeek.length ? Math.round((100 * wins) / inWeek.length) : 0, label };
   }, [m.days]);
 
   const byMonth = useMemo(() => group(trades, (d) => ({ key: `${d.getFullYear()}-${d.getMonth()}`, label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, sortDate: new Date(d.getFullYear(), d.getMonth(), 1) })), [trades]);
@@ -110,19 +103,7 @@ export default function Calendar() {
                   onSelectDay={(c) => setSelectedDay(c.key)}
                 />
               </div>
-              <div className="panel weekly">
-                <div className="panel-title">WEEKLY P&L</div>
-                <div className="weekly-range">{week.label}</div>
-                <div className={`weekly-pnl ${tone(week.pnl)}`}>{fmtR(week.pnl)}</div>
-                <div className="weekly-sub">{week.winPct}% · {week.trades}t</div>
-                <SplitBar winShare={week.pnl >= 0 ? 1 : 0} />
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-title">🟩 Activity Heatmap</div>
-              <div className="hm-subtitle">Last 16 weeks · Mon → Sun · click any cell to see trades</div>
-              <ActivityHeatmap dayMap={dayMap} onSelectDay={(c) => setSelectedDay(c.key)} />
+              <MonthSummary trades={trades} year={calYear} month={calMonth} />
             </div>
           </>
         )}

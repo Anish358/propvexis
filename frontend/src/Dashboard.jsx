@@ -6,8 +6,9 @@ import {
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
+import MonthSummary from './MonthSummary.jsx';
 import { GaugeArc, Ring, SplitBar } from './DashWidgets.jsx';
-import { computeMetrics, fmtR, fmtRShort, weekStart } from './metrics.js';
+import { computeMetrics, fmtR, fmtRShort } from './metrics.js';
 
 const GREEN = '#39d98a';
 const RED = '#e0615b';
@@ -37,18 +38,6 @@ export default function Dashboard() {
     const map = new Map();
     for (const d of m.days) map.set(d.key, { pnl: d.pnl, trades: d.trades });
     return map;
-  }, [m.days]);
-
-  // current week P&L (Mon-anchored)
-  const week = useMemo(() => {
-    const start = weekStart(now);
-    const end = new Date(start); end.setDate(start.getDate() + 7);
-    const inWeek = m.days.filter((d) => d.date >= start && d.date < end);
-    const pnl = inWeek.reduce((a, d) => a + d.pnl, 0);
-    const trades = inWeek.reduce((a, d) => a + d.trades, 0);
-    const wins = inWeek.filter((d) => d.pnl > 0).length;
-    const label = `${start.getDate()}–${new Date(end - 1).getDate()} ${['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][start.getMonth()]}`;
-    return { pnl, trades, winPct: trades ? Math.round((100 * wins) / inWeek.length) : 0, label };
   }, [m.days]);
 
   const winShare = m.grossProfit + m.grossLoss > 0 ? m.grossProfit / (m.grossProfit + m.grossLoss) : 1;
@@ -180,13 +169,7 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="panel weekly">
-            <div className="panel-title">WEEKLY P&L</div>
-            <div className="weekly-range">{week.label}</div>
-            <div className={`weekly-pnl ${tone(week.pnl)}`}>{fmtR(week.pnl)}</div>
-            <div className="weekly-sub">{week.winPct}% · {week.trades}t</div>
-            <SplitBar winShare={week.pnl >= 0 ? 1 : 0} />
-          </div>
+          <MonthSummary trades={trades} year={calYear} month={calMonth} />
         </div>
       </div>
     </div>

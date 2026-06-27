@@ -92,37 +92,22 @@ export default function Analytics() {
         </ResponsiveContainer>
       </div>
 
-      <div className="two-col">
-        {/* R distribution */}
-        <div className="panel">
-          <h3>R-Outcome Distribution</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={stats.rDistribution} margin={{ top: 8, right: 8, bottom: 4, left: -20 }}>
-              <CartesianGrid stroke="#23232a" vertical={false} />
-              <XAxis dataKey="label" stroke="#6f6f78" fontSize={10} />
-              <YAxis stroke="#6f6f78" fontSize={11} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30' }} cursor={{ fill: '#ffffff08' }} />
-              <Bar dataKey="count">
-                {stats.rDistribution.map((b, i) => (
-                  <Cell key={i} fill={b.label.includes('-') || b.label === 'BE' ? '#7a4a47' : '#3a7a52'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* MFE efficiency */}
-        <div className="panel">
-          <h3>MFE Efficiency <span className="tag-new">insight</span></h3>
-          <p className="insight-line">
-            Your trades run on average <b>{stats.mfeEfficiency.avgMaxR}R</b> in your favor (Max R),
-            but you realize <b>{stats.mfeEfficiency.avgRealized}R</b> per trade.
-          </p>
-          <p className="insight-line">
-            That's a <b>{Math.round((stats.mfeEfficiency.capture ?? 0) * 100)}%</b> capture of the
-            average favorable excursion — a measure of how much you leave on the table with the fixed 2R target.
-          </p>
-        </div>
+      {/* R distribution */}
+      <div className="panel">
+        <h3>R-Outcome Distribution</h3>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={stats.rDistribution} margin={{ top: 8, right: 8, bottom: 4, left: -20 }}>
+            <CartesianGrid stroke="#23232a" vertical={false} />
+            <XAxis dataKey="label" stroke="#6f6f78" fontSize={10} />
+            <YAxis stroke="#6f6f78" fontSize={11} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30' }} cursor={{ fill: '#ffffff08' }} />
+            <Bar dataKey="count">
+              {stats.rDistribution.map((b, i) => (
+                <Cell key={i} fill={b.label.includes('-') || b.label === 'BE' ? '#7a4a47' : '#3a7a52'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Breakdowns */}

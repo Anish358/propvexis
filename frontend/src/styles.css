@@ -150,9 +150,6 @@ label.full { margin-bottom: 14px; }
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
 .panel h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
-.tag-new { background: #1d2740; color: #8fb4ff; font-size: 10px; padding: 1px 7px; border-radius: 10px; margin-left: 8px; text-transform: uppercase; letter-spacing: 1px; }
-.insight-line { color: #c4c4cc; line-height: 1.6; margin: 6px 0; }
-.insight-line b { color: #fff; }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .bd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
@@ -263,6 +260,19 @@ label.full { margin-bottom: 14px; }
 .weekly-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .weekly .splitbar { margin-top: 14px; }
 
+/* ---- month summary side panel (monthly R + by-week R) ---- */
+.month-summary { display: flex; flex-direction: column; }
+.ms-weeks { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.ms-weeks-title { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 10px; }
+.ms-week { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #1b1b20; }
+.ms-week:last-child { border-bottom: none; }
+.ms-week-label { font-size: 12px; color: #c4c4cc; }
+.ms-week-meta { display: flex; align-items: center; gap: 10px; }
+.ms-week-t { font-size: 11px; color: var(--muted); }
+.ms-week-r { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ms-week-r.win { color: #39d98a; } .ms-week-r.loss { color: #e0615b; }
+.ms-week.ms-empty .ms-week-label, .ms-week.ms-empty .ms-week-r { opacity: 0.45; }
+
 @media (max-width: 1100px) {
   .kpi-cards { grid-template-columns: repeat(2, 1fr); }
   .dash-mid { grid-template-columns: 1fr; }
@@ -321,27 +331,19 @@ label.full { margin-bottom: 14px; }
 
 .cal-layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; }
 
-.hm-subtitle { color: var(--muted); font-size: 12px; margin: -6px 0 16px; }
-
-/* ---- activity heatmap ---- */
-.heatmap { overflow-x: auto; }
-.hm-months { display: grid; gap: 4px; margin-left: 40px; margin-bottom: 4px; }
-.hm-month { font-size: 10px; color: var(--muted); }
-.hm-body { display: flex; gap: 6px; }
-.hm-rowlabels { display: flex; flex-direction: column; gap: 4px; width: 34px; flex-shrink: 0; }
-.hm-rowlabel { font-size: 9px; color: var(--muted); height: 14px; line-height: 14px; }
-.hm-grid { display: grid; gap: 4px; flex: 1; min-width: 520px; }
-.hm-col { display: flex; flex-direction: column; gap: 4px; }
-.hm-cell { width: 14px; height: 14px; border-radius: 3px; background: #1b1b20; }
-.hm-future { background: transparent; }
-.hm-clickable { cursor: pointer; }
-.hm-clickable:hover { outline: 1px solid #ffffff55; }
-.hm-win-1 { background: #1d4630; } .hm-win-2 { background: #2a7a4e; } .hm-win-3 { background: #39d98a; }
-.hm-loss-1 { background: #4a1f1f; } .hm-loss-2 { background: #8a3530; } .hm-loss-3 { background: #e0615b; }
-.hm-be { background: #2a4a6e; }
-.hm-legend { display: flex; align-items: center; gap: 5px; margin-top: 16px; font-size: 11px; color: var(--muted); }
-.hm-legend .hm-cell { width: 12px; height: 12px; }
-.hm-sep { color: var(--line); margin: 0 4px; }
+/* ---- monthly / weekly / daily summary table ---- */
+.summary-panel { padding: 0; overflow: hidden; }
+.summary-table { width: 100%; border-collapse: collapse; }
+.summary-table th {
+  background: #1b1b1f; color: #cfcfd4; font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; font-weight: 600; padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.summary-table td { padding: 12px 16px; border-bottom: 1px solid #1b1b20; font-size: 14px; }
+.summary-table tr:last-child td { border-bottom: none; }
+.summary-table tbody tr:hover { background: #15151a; }
+.summary-table .t-left { text-align: left; }
+.summary-table .t-right { text-align: right; font-variant-numeric: tabular-nums; }
+.summary-table td.win { color: #39d98a; } .summary-table td.loss { color: #e0615b; }
 
 /* ---- day-detail modal ---- */
 .day-modal { width: 520px; }
