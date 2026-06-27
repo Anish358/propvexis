@@ -4,6 +4,7 @@ import { Server as IOServer } from 'socket.io';
 import { config } from './config.js';
 import { pool, query } from './db.js';
 import { registerAuth } from './auth.js';
+import { resolveScope, listAccounts, tradeOwnerUserId, ownedLogins } from './accounts.js';
 import { computeStats, computeYearly } from './aggregations.js';
 import {
   priceToPips,
@@ -27,11 +28,33 @@ await app.register(cors, {
 // Auth: cookie + JWT plugins, the `requireAuth` guard, and /api/auth/* routes.
 await registerAuth(app);
 
-// Socket.IO shares Fastify's underlying HTTP server.
-const io = new IOServer(app.server, { cors: { origin: config.corsOrigin } });
-io.on('connection', (socket) => {
-  app.log.info({ id: socket.id }, 'client connected');
+// Socket.IO shares Fastify's underlying HTTP server. Credentials enabled so the
+// session cookie rides along (same-origin in prod; Vite proxy in dev).
+const io = new IOServer(app.server, {
+  cors: { origin: config.corsOrigin === '*' ? true : config.corsOrigin, credentials: true },
 });
+
+// Authenticate each socket from the session cookie and join it to a room per
+// account the user owns, so trade events are delivered only to their owner —
+// never broadcast to every connected client.
+io.on('connection', async (socket) => {
+  try {
+    const raw = socket.handshake.headers.cookie;
+    const token = raw ? app.parseCookie(raw).session : null;
+    if (!token) throw new Error('no session cookie');
+    const payload = app.jwt.verify(token);
+    socket.data.uid = payload.uid;
+    const logins = await ownedLogins(payload.uid);
+    for (const l of logins) socket.join(`acct:${l}`);
+    app.log.info({ id: socket.id, uid: payload.uid, rooms: logins.length }, 'socket authenticated');
+  } catch (err) {
+    // Unauthenticated socket: connected but in no rooms, so it receives nothing.
+    app.log.info({ id: socket.id, reason: err.message }, 'socket unauthenticated');
+  }
+});
+
+// Emit a trade event only to the room of the account that owns it.
+const emitTrade = (event, trade) => io.to(`acct:${trade.account_id}`).emit(event, trade);
 
 // ---- columns the user may set when tagging a trade ----
 const TAG_FIELDS = [
@@ -167,7 +190,7 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
   const { rows } = await query(sql, values);
   const trade = rows[0];
 
-  io.emit('trade:upserted', trade);
+  emitTrade('trade:upserted', trade);
 
   // Snapshot live account balance/equity if the EA sent it (latest wins).
   if (b.account_balance != null || b.account_equity != null) {
@@ -182,7 +205,7 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
        RETURNING *;`,
       [b.account_id, b.account_balance ?? null, b.account_equity ?? null, b.account_currency ?? null]
     );
-    io.emit('account:updated', accRows[0]);
+    io.to(`acct:${b.account_id}`).emit('account:updated', accRows[0]);
   }
 
   return reply.code(201).send(trade);
@@ -191,10 +214,13 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
 // ---------------------------------------------------------------------------
 // List trades (newest first). Optional filters: ?tagged=false&limit=100
 // ---------------------------------------------------------------------------
-app.get('/api/trades', async (req) => {
+app.get('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+
   const { tagged, limit = 200 } = req.query;
-  const where = [];
-  const params = [];
+  const params = [scope.logins];
+  const where = ['account_id = ANY($1)'];
   if (tagged === 'true' || tagged === 'false') {
     params.push(tagged === 'true');
     where.push(`tagged = $${params.length}`);
@@ -202,7 +228,7 @@ app.get('/api/trades', async (req) => {
   params.push(Math.min(Number(limit) || 200, 1000));
   const sql = `
     SELECT * FROM trades
-    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    WHERE ${where.join(' AND ')}
     ORDER BY close_time DESC
     LIMIT $${params.length};
   `;
@@ -216,8 +242,14 @@ app.get('/api/trades', async (req) => {
 // Editable numeric metrics. Editing either recomputes max_r = mfe / sl.
 const METRIC_FIELDS = ['sl_size_pips', 'mfe_pips'];
 
-app.patch('/api/trades/:id', async (req, reply) => {
+app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const id = Number(req.params.id);
+
+  // Ownership: the trade's account must belong to the requesting user.
+  const ownerId = await tradeOwnerUserId(id);
+  if (ownerId == null) return reply.code(404).send({ error: 'trade not found' });
+  if (ownerId !== Number(req.user.uid)) return reply.code(403).send({ error: 'forbidden' });
+
   const updates = [];
   const params = [];
 
@@ -258,39 +290,74 @@ app.patch('/api/trades/:id', async (req, reply) => {
   const { rows } = await query(sql, params);
   if (!rows.length) return reply.code(404).send({ error: 'trade not found' });
 
-  io.emit('trade:updated', rows[0]);
+  emitTrade('trade:updated', rows[0]);
   return rows[0];
 });
 
 // ---------------------------------------------------------------------------
 // Delete a trade.
 // ---------------------------------------------------------------------------
-app.delete('/api/trades/:id', async (req, reply) => {
+app.delete('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const id = Number(req.params.id);
-  const { rows } = await query('DELETE FROM trades WHERE id = $1 RETURNING id', [id]);
+
+  const ownerId = await tradeOwnerUserId(id);
+  if (ownerId == null) return reply.code(404).send({ error: 'trade not found' });
+  if (ownerId !== Number(req.user.uid)) return reply.code(403).send({ error: 'forbidden' });
+
+  const { rows } = await query('DELETE FROM trades WHERE id = $1 RETURNING id, account_id', [id]);
   if (!rows.length) return reply.code(404).send({ error: 'trade not found' });
 
-  io.emit('trade:deleted', { id });
+  io.to(`acct:${rows[0].account_id}`).emit('trade:deleted', { id });
   return { id, deleted: true };
 });
 
 // ---------------------------------------------------------------------------
-// Account — latest live balance/equity snapshot (single prop account).
-// Returns null when the EA hasn't reported a balance yet.
+// Accounts — the user's MT5 accounts (for the switcher + account box).
 // ---------------------------------------------------------------------------
-app.get('/api/account', async () => {
-  const { rows } = await query('SELECT * FROM accounts ORDER BY updated_at DESC LIMIT 1');
-  return rows[0] ?? null;
+app.get('/api/accounts', { preHandler: app.requireAuth }, async (req) =>
+  listAccounts(req.user.uid)
+);
+
+// ---------------------------------------------------------------------------
+// Account — balance/equity for the selected account, or an aggregate for the
+// god view. Returns null when the user has no accounts in scope.
+// ---------------------------------------------------------------------------
+app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+
+  const inScope = (await listAccounts(req.user.uid)).filter((a) => scope.logins.includes(a.mt5_login));
+  if (!inScope.length) return null;
+
+  // A single selected account: return its snapshot directly.
+  if (!scope.god && inScope.length === 1) return inScope[0];
+
+  // God / multi-account: aggregate. Balances summed only if any are live.
+  const sum = (f) => inScope.reduce((s, a) => s + (Number(a[f]) || 0), 0);
+  const anyLive = inScope.some((a) => a.balance != null);
+  return {
+    god: true,
+    accounts: inScope,
+    start_balance: sum('start_balance'),
+    balance: anyLive ? sum('balance') : null,
+    equity: anyLive ? sum('equity') : null,
+  };
 });
 
 // ---------------------------------------------------------------------------
-// Dashboard analytics
+// Dashboard analytics — scoped to the selected account (or all owned = god).
 // ---------------------------------------------------------------------------
-app.get('/api/stats', async () => computeStats());
+app.get('/api/stats', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  return computeStats(scope.logins);
+});
 
-app.get('/api/yearly', async (req) => {
+app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
   const year = Number(req.query.year) || new Date().getUTCFullYear();
-  return computeYearly(year);
+  return computeYearly(year, scope.logins);
 });
 
 // ---------------------------------------------------------------------------

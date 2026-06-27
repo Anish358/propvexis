@@ -1,6 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ACCOUNT_START, fmtMoney, fmtR } from './metrics.js';
+import { useAuth } from './AuthContext.jsx';
+
+const GOD = 'all';
+const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
+
+// Account selector: "All accounts (God)" + one entry per MT5 account.
+function AccountSwitcher({ accounts = [], accountId, setAccountId }) {
+  const [open, setOpen] = useState(false);
+  const current =
+    accountId === GOD
+      ? 'All accounts'
+      : acctLabel(accounts.find((a) => String(a.mt5_login) === String(accountId)) || {});
+  const pick = (id) => { setAccountId(id); setOpen(false); };
+
+  return (
+    <div className="acct-switch">
+      <button className="acct-switch-btn" onClick={() => setOpen((o) => !o)}>
+        <span className="acct-switch-cur">{current || 'Select account'}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="acct-menu">
+          <button className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => pick(GOD)}>
+            ★ All accounts <span className="acct-opt-sub">God view</span>
+          </button>
+          {accounts.map((a) => (
+            <button
+              key={a.mt5_login}
+              className={`acct-opt ${String(accountId) === String(a.mt5_login) ? 'sel' : ''}`}
+              onClick={() => pick(String(a.mt5_login))}
+            >
+              {acctLabel(a)} <span className="acct-opt-sub">{a.mt5_login}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const IconDashboard = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -32,10 +71,13 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', Icon: IconCalendar },
 ];
 
-export default function Sidebar({ trades = [], account = null }) {
+export default function Sidebar({ trades = [], account = null, accounts = [], accountId = 'all', setAccountId = () => {} }) {
+  const { user, logout } = useAuth();
   const totalR = trades.reduce((a, t) => a + Number(t.fixed_r ?? 0), 0);
   const live = account?.balance != null;
-  const balance = live ? account.balance : ACCOUNT_START;
+  // Scoped snapshot: live balance if reported, else the account's start balance,
+  // else the legacy constant. (god aggregate also carries start_balance/balance.)
+  const balance = live ? account.balance : account?.start_balance ?? ACCOUNT_START;
 
   return (
     <aside className="sidebar">
@@ -51,9 +93,10 @@ export default function Sidebar({ trades = [], account = null }) {
       </nav>
 
       <div className="sb-account">
+        <AccountSwitcher accounts={accounts} accountId={accountId} setAccountId={setAccountId} />
         <div className="sb-account-label">
-          ACCOUNT
-          <span className={`sb-account-tag ${live ? 'live' : ''}`} title={live ? 'Live balance from MT5' : 'No live balance reported yet — showing prop account size'}>
+          {accountId === 'all' ? 'ALL ACCOUNTS' : 'ACCOUNT'}
+          <span className={`sb-account-tag ${live ? 'live' : ''}`} title={live ? 'Live balance from MT5' : 'No live balance reported yet — showing start balance'}>
             {live ? 'LIVE' : 'START'}
           </span>
         </div>
@@ -62,6 +105,17 @@ export default function Sidebar({ trades = [], account = null }) {
           Total: <span className={totalR > 0 ? 'win' : totalR < 0 ? 'loss' : ''}>{fmtR(totalR)}</span>
         </div>
       </div>
+
+      {user && (
+        <div className="sb-user">
+          {user.picture && <img className="sb-user-pic" src={user.picture} alt="" referrerPolicy="no-referrer" />}
+          <div className="sb-user-meta">
+            <div className="sb-user-name">{user.name || user.email}</div>
+            <div className="sb-user-email">{user.email}</div>
+          </div>
+          <button className="sb-logout" onClick={logout} title="Sign out">Sign out</button>
+        </div>
+      )}
     </aside>
   );
 }

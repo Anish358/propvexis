@@ -141,7 +141,7 @@ export async function registerAuth(app) {
       picture: payload.picture ?? null,
     });
 
-    const token = await reply.jwtSign({ uid: user.id, email: user.email, name: user.name });
+    const token = await reply.jwtSign({ uid: Number(user.id), email: user.email, name: user.name });
     reply.setCookie(COOKIE_NAME, token, sessionCookieOpts());
     return { user };
   });

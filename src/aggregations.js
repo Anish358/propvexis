@@ -61,8 +61,12 @@ function streaks(scoredOrdered) {
   return { winStreak: maxWin, lossStreak: maxLoss };
 }
 
-export async function computeStats() {
-  const { rows } = await query('SELECT * FROM trades ORDER BY close_time ASC, id ASC');
+// `accountIds` scopes the stats to one user's accounts (array of MT5 logins).
+// An empty array => no trades (a user with no accounts); undefined => unscoped.
+export async function computeStats(accountIds) {
+  const where = accountIds ? 'WHERE account_id = ANY($1)' : '';
+  const params = accountIds ? [accountIds] : [];
+  const { rows } = await query(`SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`, params);
   const trades = rows.map((r) => ({ ...r, close: new Date(r.close_time) }));
   const scored = trades.filter((t) => t.fixed_r != null);
 
@@ -138,10 +142,16 @@ export async function computeStats() {
 }
 
 // Yearly view: monthly performance (overall + per setup) for one year.
-export async function computeYearly(year) {
+export async function computeYearly(year, accountIds) {
+  const params = [year];
+  let extra = '';
+  if (accountIds) {
+    params.push(accountIds);
+    extra = `AND account_id = ANY($${params.length})`;
+  }
   const { rows } = await query(
-    'SELECT * FROM trades WHERE EXTRACT(YEAR FROM close_time) = $1 ORDER BY close_time ASC, id ASC',
-    [year]
+    `SELECT * FROM trades WHERE EXTRACT(YEAR FROM close_time) = $1 ${extra} ORDER BY close_time ASC, id ASC`,
+    params
   );
   const trades = rows.map((r) => ({ ...r, close: new Date(r.close_time) }));
   const setups = ['Continue', 'Liq-run', 'Fractal', 'SMC'];

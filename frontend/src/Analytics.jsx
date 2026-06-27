@@ -41,16 +41,17 @@ function BreakdownTable({ title, rows = [] }) {
 }
 
 export default function Analytics() {
-  const { connected, toggleSidebar } = useOutletContext();
+  const { connected, toggleSidebar, accountId } = useOutletContext();
   const [stats, setStats] = useState(null);
   const [yearly, setYearly] = useState(null);
   const [err, setErr] = useState(null);
   const year = 2026;
 
+  // Refetch when the selected account changes (god view = all owned accounts).
   useEffect(() => {
-    fetchStats().then(setStats).catch((e) => setErr(e.message));
-    fetchYearly(year).then(setYearly).catch((e) => setErr(e.message));
-  }, []);
+    fetchStats(accountId).then(setStats).catch((e) => setErr(e.message));
+    fetchYearly(year, accountId).then(setYearly).catch((e) => setErr(e.message));
+  }, [accountId]);
 
   const page = (body) => (
     <div className="page">
