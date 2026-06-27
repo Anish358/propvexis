@@ -2,7 +2,7 @@ import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import { OAuth2Client } from 'google-auth-library';
 import { config } from './config.js';
-import { query } from './db.js';
+import { pool, query } from './db.js';
 
 const COOKIE_NAME = 'session';
 const googleClient = new OAuth2Client(config.googleClientId);
@@ -15,6 +15,56 @@ async function verifyGoogleIdToken(credential) {
     audience: config.googleClientId,
   });
   return ticket.getPayload(); // { sub, email, email_verified, name, picture, ... }
+}
+
+// Find-or-create the user for a verified Google login.
+// Identity key is Google's stable `sub`, but we also reconcile by email: a row
+// can be pre-seeded by email with a placeholder `sub` (e.g. to assign existing
+// trades to an owner before they've ever logged in); on first real login we
+// link that row to the actual Google `sub`. Done in a transaction so concurrent
+// logins can't create duplicates.
+async function findOrCreateUser({ sub, email, name, picture }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let { rows } = await client.query(
+      'SELECT id FROM users WHERE google_sub = $1 FOR UPDATE',
+      [sub]
+    );
+
+    if (rows.length) {
+      ({ rows } = await client.query(
+        `UPDATE users SET email = $2, name = $3, picture = $4, last_login_at = now()
+         WHERE id = $1 RETURNING id, email, name, picture;`,
+        [rows[0].id, email, name, picture]
+      ));
+    } else {
+      // No row for this sub — maybe a pre-seeded row exists for this email.
+      ({ rows } = await client.query('SELECT id FROM users WHERE email = $1 FOR UPDATE', [email]));
+      if (rows.length) {
+        ({ rows } = await client.query(
+          `UPDATE users SET google_sub = $2, name = $3, picture = $4, last_login_at = now()
+           WHERE id = $1 RETURNING id, email, name, picture;`,
+          [rows[0].id, sub, name, picture]
+        ));
+      } else {
+        ({ rows } = await client.query(
+          `INSERT INTO users (google_sub, email, name, picture)
+           VALUES ($1, $2, $3, $4) RETURNING id, email, name, picture;`,
+          [sub, email, name, picture]
+        ));
+      }
+    }
+
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Cookie attributes for the session JWT. httpOnly so JS can't read it; secure
@@ -84,19 +134,12 @@ export async function registerAuth(app) {
       return reply.code(403).send({ error: 'this account is not allowed' });
     }
 
-    // Upsert the user, keyed by Google's stable `sub`.
-    const { rows } = await query(
-      `INSERT INTO users (google_sub, email, name, picture)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (google_sub) DO UPDATE SET
-         email = EXCLUDED.email,
-         name = EXCLUDED.name,
-         picture = EXCLUDED.picture,
-         last_login_at = now()
-       RETURNING id, email, name, picture;`,
-      [payload.sub, email, payload.name ?? null, payload.picture ?? null]
-    );
-    const user = rows[0];
+    const user = await findOrCreateUser({
+      sub: payload.sub,
+      email,
+      name: payload.name ?? null,
+      picture: payload.picture ?? null,
+    });
 
     const token = await reply.jwtSign({ uid: user.id, email: user.email, name: user.name });
     reply.setCookie(COOKIE_NAME, token, sessionCookieOpts());
