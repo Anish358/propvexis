@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { Server as IOServer } from 'socket.io';
 import { config } from './config.js';
 import { pool, query } from './db.js';
+import { registerAuth } from './auth.js';
 import { computeStats, computeYearly } from './aggregations.js';
 import {
   priceToPips,
@@ -15,7 +16,16 @@ import {
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: config.corsOrigin });
+// Credentialed CORS: the session cookie can't be sent with `origin: '*'`, so
+// when CORS_ORIGIN is unset/* we reflect the request origin (valid with
+// credentials), otherwise we use the configured allowlist.
+await app.register(cors, {
+  origin: config.corsOrigin === '*' ? true : config.corsOrigin,
+  credentials: true,
+});
+
+// Auth: cookie + JWT plugins, the `requireAuth` guard, and /api/auth/* routes.
+await registerAuth(app);
 
 // Socket.IO shares Fastify's underlying HTTP server.
 const io = new IOServer(app.server, { cors: { origin: config.corsOrigin } });
