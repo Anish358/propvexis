@@ -64,10 +64,12 @@ function streaks(scoredOrdered) {
 
 // `accountIds` scopes the stats to one user's accounts (array of MT5 logins).
 // An empty array => no trades (a user with no accounts); undefined => unscoped.
-export async function computeStats(accountIds, unit = 'R') {
+// `scope` = { filterCol, filterVal } from resolveScope: god -> user_id = me,
+// single account -> account_id = login. filterCol is code-controlled (safe).
+export async function computeStats(scope, unit = 'R') {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const where = accountIds ? 'WHERE account_id = ANY($1)' : '';
-  const params = accountIds ? [accountIds] : [];
+  const where = scope ? `WHERE ${scope.filterCol} = $1` : '';
+  const params = scope ? [scope.filterVal] : [];
   const { rows } = await query(`SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`, params);
   const trades = rows.map((r) => ({ ...r, close: new Date(r.close_time) }));
   // P&L-based stats use the selected unit; R-distribution + MFE always use R.
@@ -151,13 +153,13 @@ export async function computeStats(accountIds, unit = 'R') {
 }
 
 // Yearly view: monthly performance (overall + per setup) for one year.
-export async function computeYearly(year, accountIds, unit = 'R') {
+export async function computeYearly(year, scope, unit = 'R') {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
   const params = [year];
   let extra = '';
-  if (accountIds) {
-    params.push(accountIds);
-    extra = `AND account_id = ANY($${params.length})`;
+  if (scope) {
+    params.push(scope.filterVal);
+    extra = `AND ${scope.filterCol} = $${params.length}`;
   }
   const { rows } = await query(
     `SELECT * FROM trades WHERE EXTRACT(YEAR FROM close_time) = $1 ${extra} ORDER BY close_time ASC, id ASC`,

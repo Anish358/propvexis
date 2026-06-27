@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, connectSocket, tagTrade, deleteTrade } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
@@ -92,9 +92,10 @@ export default function App() {
     if (!user) return;
     const socket = connectSocket(
       (trade) => {
-        // A trade from an account we don't know yet = a pending account just
-        // auto-bound on its first trade — refresh the account list.
-        if (!accountsRef.current.some((a) => String(a.mt5_login) === String(trade.account_id))) {
+        // A trade from an account-linked login we don't know yet = a pending
+        // account just auto-bound on its first trade — refresh the account list.
+        if (trade.account_id != null &&
+            !accountsRef.current.some((a) => String(a.mt5_login) === String(trade.account_id))) {
           reloadAccounts();
         }
         if (inView(trade.account_id)) { upsertLocal(trade); flash(trade.id); }
@@ -116,6 +117,14 @@ export default function App() {
   async function removeTrade(id) {
     await deleteTrade(id);
     removeLocal(id);
+  }
+
+  // Manual strategy trade (god view only): account-less, owned by the user.
+  async function addManualTrade(fields) {
+    const created = await createManualTrade(fields);
+    upsertLocal(created);
+    flash(created.id);
+    return created;
   }
 
   if (loading) {
@@ -141,6 +150,7 @@ export default function App() {
                 flashId={flashId}
                 saveTrade={saveTrade}
                 removeTrade={removeTrade}
+                addManualTrade={addManualTrade}
               />
             }
           >

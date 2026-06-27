@@ -3,10 +3,13 @@ import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import TradesTable from './TradesTable.jsx';
 import TagModal from './TagModal.jsx';
+import AddTradeModal from './AddTradeModal.jsx';
 
 export default function TradeLog() {
-  const { trades = [], connected, flashId, saveTrade, removeTrade, toggleSidebar } = useOutletContext();
+  const { trades = [], connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, accountId = 'all' } = useOutletContext();
   const [selected, setSelected] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const isGod = accountId === 'all';
 
   const untagged = useMemo(() => trades.filter((t) => !t.tagged).length, [trades]);
 
@@ -18,6 +21,9 @@ export default function TradeLog() {
         <div className="log-toolbar">
           <span className="log-count">{trades.length} trade{trades.length === 1 ? '' : 's'}</span>
           {untagged > 0 && <span className="log-untagged">{untagged} to tag</span>}
+          {isGod && (
+            <button className="add-trade-btn" onClick={() => setAdding(true)}>+ Add strategy trade</button>
+          )}
         </div>
 
         <div className="panel log-panel">
@@ -26,6 +32,7 @@ export default function TradeLog() {
       </div>
 
       <TagModal trade={selected} onClose={() => setSelected(null)} onSave={saveTrade} onDelete={removeTrade} />
+      {adding && <AddTradeModal onClose={() => setAdding(false)} onAdd={addManualTrade} />}
     </div>
   );
 }

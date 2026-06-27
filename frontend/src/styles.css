@@ -316,6 +316,29 @@ label.full { margin-bottom: 14px; }
 .sb-account-start .win { color: #39d98a; font-weight: 700; }
 .sb-account-start .loss { color: #e0615b; font-weight: 700; }
 
+/* Add strategy trade */
+.add-trade-btn {
+  margin-left: auto; background: #112a1c; border: 1px solid #1d4730; color: #39d98a;
+  border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.add-trade-btn:hover { background: #16361f; }
+.add-trade-modal { max-width: 540px; }
+.at-note { color: var(--muted); font-size: 12px; padding: 10px 20px 0; }
+.at-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 20px 4px; }
+.at-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.at-form input, .at-form select {
+  background: #0a0a0c; border: 1px solid var(--line); color: var(--text);
+  border-radius: 7px; padding: 8px 10px; font-size: 13px;
+}
+.at-wide { grid-column: 1 / -1; }
+.at-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+.at-actions button {
+  border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: #112a1c; border: 1px solid #1d4730; color: #39d98a;
+}
+.at-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.at-cancel { background: transparent !important; border-color: var(--line) !important; color: #8a8a93 !important; }
+
 /* Manage-accounts modal */
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 2147483000;

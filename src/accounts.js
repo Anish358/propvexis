@@ -24,11 +24,14 @@ export async function ownedLogins(userId) {
 export async function resolveScope(userId, requested) {
   const owned = await ownedLogins(userId);
   if (requested == null || requested === '' || requested === 'all') {
-    return { logins: owned, god: true };
+    // God / strategy view = EVERY trade the user owns (account-linked OR not).
+    // Filter by user_id so account-less trades (imports + manual) are included.
+    return { god: true, userId, logins: owned, filterCol: 'user_id', filterVal: userId };
   }
   const want = Number(requested);
   if (Number.isNaN(want) || !owned.includes(want)) return null;
-  return { logins: [want], god: false };
+  // Single account = only that account's trades (account-less ones excluded).
+  return { god: false, userId, logins: [want], filterCol: 'account_id', filterVal: want };
 }
 
 // The user's accounts with their latest live balance (LEFT JOIN so accounts
@@ -121,15 +124,9 @@ export async function bindOrCheckLogin(account, login) {
   }
 }
 
-// The user id that owns a given trade (via its account_id -> mt5_accounts),
-// or null if the trade doesn't exist or its account is unclaimed.
+// The user id that owns a given trade (direct user_id; covers account-less
+// strategy/manual trades). Null if the trade doesn't exist or is unowned.
 export async function tradeOwnerUserId(tradeId) {
-  const { rows } = await query(
-    `SELECT m.user_id
-       FROM trades t
-       JOIN mt5_accounts m ON m.mt5_login = t.account_id
-      WHERE t.id = $1;`,
-    [tradeId]
-  );
-  return rows.length ? Number(rows[0].user_id) : null;
+  const { rows } = await query('SELECT user_id FROM trades WHERE id = $1', [tradeId]);
+  return rows.length && rows[0].user_id != null ? Number(rows[0].user_id) : null;
 }

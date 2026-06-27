@@ -107,6 +107,19 @@ export async function fetchYearly(year, accountId) {
   return getJson(`/api/yearly?year=${year}${acctq(accountId)}`);
 }
 
+export async function createManualTrade(fields) {
+  const res = await apiFetch('/api/trades', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const msg = await res.json().catch(() => ({}));
+    throw new Error(msg.error || `createManualTrade ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function tagTrade(id, fields) {
   const res = await apiFetch(`/api/trades/${id}`, {
     method: 'PATCH',
