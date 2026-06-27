@@ -4,7 +4,17 @@ import { Server as IOServer } from 'socket.io';
 import { config } from './config.js';
 import { pool, query } from './db.js';
 import { registerAuth } from './auth.js';
-import { resolveScope, listAccounts, tradeOwnerUserId, ownedLogins } from './accounts.js';
+import {
+  resolveScope,
+  listAccounts,
+  tradeOwnerUserId,
+  ownedLogins,
+  accountByToken,
+  bindOrCheckLogin,
+  createAccount,
+  updateAccount,
+  deleteAccount,
+} from './accounts.js';
 import { computeStats, computeYearly } from './aggregations.js';
 import {
   priceToPips,
@@ -117,12 +127,30 @@ const ingestSchema = {
 };
 
 app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
-  // Auth: shared secret from the EA.
-  if (req.headers['x-ingest-token'] !== config.ingestToken) {
+  const b = req.body;
+
+  // Auth: prefer a per-account token (auto-binds the MT5 login on first trade);
+  // fall back to the legacy global token during the cutover (grace period).
+  const token = req.headers['x-ingest-token'];
+  if (!token) return reply.code(401).send({ error: 'missing ingest token' });
+
+  const acct = await accountByToken(token);
+  if (acct) {
+    const result = await bindOrCheckLogin(acct, b.account_id);
+    if (result === 'mismatch') {
+      return reply.code(403).send({ error: 'token does not match this MT5 account' });
+    }
+    if (result === 'conflict') {
+      return reply.code(409).send({ error: 'this MT5 login is already registered to another account' });
+    }
+    if (result === 'bound') {
+      req.log.info({ account: acct.id, login: b.account_id }, 'auto-bound MT5 login to account');
+    }
+  } else if (token !== config.ingestToken) {
     return reply.code(401).send({ error: 'invalid ingest token' });
   }
+  // (legacy global token: accepted, no ownership binding — grace period only)
 
-  const b = req.body;
 
   // Normalize broker suffixes (EURUSD.r -> EURUSD) so pip math + grouping are correct.
   const symbol_base = normalizeSymbol(b.symbol);
@@ -317,6 +345,28 @@ app.delete('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply
 app.get('/api/accounts', { preHandler: app.requireAuth }, async (req) =>
   listAccounts(req.user.uid)
 );
+
+// Create a pending account (label only) + ingest token for the EA. The MT5
+// login auto-binds on the first trade sent with that token.
+app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
+  const { label, broker, currency, start_balance } = req.body ?? {};
+  const acct = await createAccount(req.user.uid, { label, broker, currency, start_balance });
+  return reply.code(201).send(acct);
+});
+
+// Edit account metadata (label / broker / currency / start_balance).
+app.patch('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+  const acct = await updateAccount(req.user.uid, Number(req.params.id), req.body ?? {});
+  if (!acct) return reply.code(404).send({ error: 'account not found' });
+  return acct;
+});
+
+// Delete an account (its trades keep account_id but become unowned).
+app.delete('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+  const ok = await deleteAccount(req.user.uid, Number(req.params.id));
+  if (!ok) return reply.code(404).send({ error: 'account not found' });
+  return { id: Number(req.params.id), deleted: true };
+});
 
 // ---------------------------------------------------------------------------
 // Account — balance/equity for the selected account, or an aggregate for the

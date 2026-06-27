@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ACCOUNT_START, fmtMoney, fmtR } from './metrics.js';
 import { useAuth } from './AuthContext.jsx';
+import AccountsModal from './AccountsModal.jsx';
 
 const GOD = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 
-// Account selector: "All accounts (God)" + one entry per MT5 account.
-function AccountSwitcher({ accounts = [], accountId, setAccountId }) {
+// Account selector: "All accounts (God)" + each BOUND account, plus a
+// "Manage accounts" entry. Pending accounts (no trades yet) live in the modal.
+function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   const [open, setOpen] = useState(false);
+  const bound = accounts.filter((a) => !a.pending);
+  const pendingCount = accounts.length - bound.length;
   const current =
     accountId === GOD
       ? 'All accounts'
@@ -26,15 +30,19 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId }) {
           <button className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => pick(GOD)}>
             ★ All accounts <span className="acct-opt-sub">God view</span>
           </button>
-          {accounts.map((a) => (
+          {bound.map((a) => (
             <button
-              key={a.mt5_login}
+              key={a.id}
               className={`acct-opt ${String(accountId) === String(a.mt5_login) ? 'sel' : ''}`}
               onClick={() => pick(String(a.mt5_login))}
             >
               {acctLabel(a)} <span className="acct-opt-sub">{a.mt5_login}</span>
             </button>
           ))}
+          <div className="acct-menu-sep" />
+          <button className="acct-opt manage" onClick={() => { setOpen(false); onManage(); }}>
+            ⚙ Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
+          </button>
         </div>
       )}
     </div>
@@ -71,8 +79,9 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', Icon: IconCalendar },
 ];
 
-export default function Sidebar({ trades = [], account = null, accounts = [], accountId = 'all', setAccountId = () => {} }) {
+export default function Sidebar({ trades = [], account = null, accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {} }) {
   const { user, logout } = useAuth();
+  const [manageOpen, setManageOpen] = useState(false);
   const totalR = trades.reduce((a, t) => a + Number(t.fixed_r ?? 0), 0);
   const live = account?.balance != null;
   // Scoped snapshot: live balance if reported, else the account's start balance,
@@ -93,7 +102,7 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
       </nav>
 
       <div className="sb-account">
-        <AccountSwitcher accounts={accounts} accountId={accountId} setAccountId={setAccountId} />
+        <AccountSwitcher accounts={accounts} accountId={accountId} setAccountId={setAccountId} onManage={() => setManageOpen(true)} />
         <div className="sb-account-label">
           {accountId === 'all' ? 'ALL ACCOUNTS' : 'ACCOUNT'}
           <span className={`sb-account-tag ${live ? 'live' : ''}`} title={live ? 'Live balance from MT5' : 'No live balance reported yet — showing start balance'}>
@@ -115,6 +124,14 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
           </div>
           <button className="sb-logout" onClick={logout} title="Sign out">Sign out</button>
         </div>
+      )}
+
+      {manageOpen && (
+        <AccountsModal
+          accounts={accounts}
+          onClose={() => setManageOpen(false)}
+          onChanged={reloadAccounts}
+        />
       )}
     </aside>
   );

@@ -1,4 +1,10 @@
+import crypto from 'node:crypto';
 import { query } from './db.js';
+
+const genToken = () => crypto.randomBytes(24).toString('hex'); // 48 hex chars
+// mt5_login is BIGINT (pg returns string) and nullable until bound — keep null
+// as null (Number(null) is 0, which would collide with the imported-history id).
+const loginNum = (v) => (v == null ? null : Number(v));
 
 // Account scoping helpers for the multi-tenant layer. An "account" is an MT5
 // login (== trades.account_id); ownership lives in mt5_accounts.user_id.
@@ -30,7 +36,7 @@ export async function resolveScope(userId, requested) {
 export async function listAccounts(userId) {
   const { rows } = await query(
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
-            a.is_active, a.created_at,
+            a.ingest_token, a.is_active, a.created_at,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
        LEFT JOIN accounts acc ON acc.account_id = a.mt5_login
@@ -38,7 +44,81 @@ export async function listAccounts(userId) {
       ORDER BY a.created_at ASC, a.id ASC;`,
     [userId]
   );
-  return rows.map((r) => ({ ...r, mt5_login: Number(r.mt5_login) }));
+  // `pending` = no first trade yet (login not bound). Tokens are the user's own
+  // secret, returned behind auth so the EA setup screen can display them.
+  return rows.map((r) => ({ ...r, mt5_login: loginNum(r.mt5_login), pending: r.mt5_login == null }));
+}
+
+// Create a pending account (no login yet) with a fresh ingest token.
+export async function createAccount(userId, { label, broker, currency, start_balance }) {
+  const { rows } = await query(
+    `INSERT INTO mt5_accounts (user_id, label, broker, currency, start_balance, ingest_token)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, mt5_login, label, broker, currency, start_balance, ingest_token, is_active, created_at;`,
+    [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null, genToken()]
+  );
+  return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login), pending: rows[0].mt5_login == null };
+}
+
+// Update editable metadata on the user's own account.
+export async function updateAccount(userId, id, fields) {
+  const allowed = ['label', 'broker', 'currency', 'start_balance'];
+  const sets = [];
+  const params = [];
+  for (const f of allowed) {
+    if (f in fields) { params.push(fields[f]); sets.push(`${f} = $${params.length}`); }
+  }
+  if (!sets.length) return null;
+  params.push(id, userId);
+  const { rows } = await query(
+    `UPDATE mt5_accounts SET ${sets.join(', ')}
+      WHERE id = $${params.length - 1} AND user_id = $${params.length}
+      RETURNING id, mt5_login, label, broker, currency, start_balance, ingest_token, is_active, created_at;`,
+    params
+  );
+  if (!rows.length) return null;
+  return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login), pending: rows[0].mt5_login == null };
+}
+
+// Delete the user's own account (trades keep their account_id; just unowned).
+export async function deleteAccount(userId, id) {
+  const { rows } = await query(
+    'DELETE FROM mt5_accounts WHERE id = $1 AND user_id = $2 RETURNING id',
+    [id, userId]
+  );
+  return rows.length > 0;
+}
+
+// Look up an account by its ingest token (for the EA ingest path).
+export async function accountByToken(token) {
+  const { rows } = await query('SELECT * FROM mt5_accounts WHERE ingest_token = $1', [token]);
+  return rows[0] ?? null;
+}
+
+// Bind a pending account to the MT5 login from its first trade. Returns:
+//  'bound'    – just bound to this login
+//  'ok'       – already bound to this login
+//  'mismatch' – bound to a different login (reject)
+//  'conflict' – that login already belongs to another account (reject)
+export async function bindOrCheckLogin(account, login) {
+  if (account.mt5_login != null) {
+    return Number(account.mt5_login) === Number(login) ? 'ok' : 'mismatch';
+  }
+  try {
+    const { rows } = await query(
+      `UPDATE mt5_accounts SET mt5_login = $2
+        WHERE id = $1 AND mt5_login IS NULL
+        RETURNING mt5_login;`,
+      [account.id, login]
+    );
+    if (rows.length) return 'bound';
+    // Lost a race — re-read and compare.
+    const { rows: cur } = await query('SELECT mt5_login FROM mt5_accounts WHERE id = $1', [account.id]);
+    return cur.length && Number(cur[0].mt5_login) === Number(login) ? 'ok' : 'mismatch';
+  } catch (err) {
+    if (err.code === '23505') return 'conflict'; // unique_violation on mt5_login
+    throw err;
+  }
 }
 
 // The user id that owns a given trade (via its account_id -> mt5_accounts),

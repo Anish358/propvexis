@@ -54,17 +54,25 @@ export default function App() {
     flashTimer.current = setTimeout(() => setFlashId(null), 2000);
   }
 
-  // Load the user's accounts on login; drop a stale selection that isn't owned.
-  useEffect(() => {
-    if (!user) { setAccounts([]); return; }
-    fetchAccounts()
+  const accountsRef = useRef([]);
+  useEffect(() => { accountsRef.current = accounts; }, [accounts]);
+
+  // Load the user's accounts; drop a stale selection that isn't owned.
+  function reloadAccounts() {
+    return fetchAccounts()
       .then((list) => {
         setAccounts(list);
         setAccountIdState((cur) =>
           cur === 'all' || list.some((a) => String(a.mt5_login) === String(cur)) ? cur : 'all'
         );
+        return list;
       })
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    if (!user) { setAccounts([]); return; }
+    reloadAccounts();
   }, [user]);
 
   // Load trades + account snapshot for the selected scope. Waits until accounts
@@ -83,8 +91,15 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const socket = connectSocket(
-      (trade) => { if (inView(trade.account_id)) { upsertLocal(trade); flash(trade.id); } }, // upserted
-      (trade) => { if (inView(trade.account_id)) upsertLocal(trade); },                       // updated
+      (trade) => {
+        // A trade from an account we don't know yet = a pending account just
+        // auto-bound on its first trade — refresh the account list.
+        if (!accountsRef.current.some((a) => String(a.mt5_login) === String(trade.account_id))) {
+          reloadAccounts();
+        }
+        if (inView(trade.account_id)) { upsertLocal(trade); flash(trade.id); }
+      },
+      (trade) => { if (inView(trade.account_id)) upsertLocal(trade); },
     );
     socket.on('account:updated', () => fetchAccount(accountIdRef.current).then(setAccount).catch(() => {}));
     socket.on('trade:deleted', ({ id }) => removeLocal(id));
@@ -121,6 +136,7 @@ export default function App() {
                 accounts={accounts}
                 accountId={accountId}
                 setAccountId={setAccountId}
+                reloadAccounts={reloadAccounts}
                 connected={connected}
                 flashId={flashId}
                 saveTrade={saveTrade}

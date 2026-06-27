@@ -62,6 +62,35 @@ export async function fetchAccounts() {
   return getJson('/api/accounts');
 }
 
+export async function createAccount(fields) {
+  const res = await apiFetch('/api/accounts', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error(`createAccount ${res.status}`);
+  return res.json();
+}
+
+export async function updateAccount(id, fields) {
+  const res = await apiFetch(`/api/accounts/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error(`updateAccount ${res.status}`);
+  return res.json();
+}
+
+export async function deleteAccount(id) {
+  const res = await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteAccount ${res.status}`);
+  return res.json();
+}
+
+// Full ingest URL to show in the EA setup instructions.
+export const INGEST_URL = `${BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/api/trades/ingest`;
+
 export async function fetchTrades(accountId) {
   return getJson(`/api/trades?limit=1000${acctq(accountId)}`);
 }
