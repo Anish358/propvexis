@@ -9,6 +9,9 @@ export default function Layout({ trades, account, accounts, accountId, setAccoun
   const [collapsed, setCollapsed] = useState(false);
   const toggleSidebar = () => setCollapsed((c) => !c);
 
+  // god / all-accounts view shows R; a single account shows account currency ($)
+  const unit = accountId === 'all' ? 'R' : 'USD';
+
   return (
     <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
       {!collapsed && (
@@ -19,10 +22,11 @@ export default function Layout({ trades, account, accounts, accountId, setAccoun
           accountId={accountId}
           setAccountId={setAccountId}
           reloadAccounts={reloadAccounts}
+          unit={unit}
         />
       )}
       <main className="shell-main">
-        <Outlet context={{ trades, accountId, accounts, connected, flashId, saveTrade, removeTrade, toggleSidebar }} />
+        <Outlet context={{ trades, accountId, accounts, unit, connected, flashId, saveTrade, removeTrade, toggleSidebar }} />
       </main>
     </div>
   );

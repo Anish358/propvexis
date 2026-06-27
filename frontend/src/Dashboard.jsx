@@ -8,7 +8,7 @@ import PageHeader from './PageHeader.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
 import MonthSummary from './MonthSummary.jsx';
 import { GaugeArc, Ring, SplitBar } from './DashWidgets.jsx';
-import { computeMetrics, fmtR, fmtRShort } from './metrics.js';
+import { computeMetrics, fmtVal, fmtValShort, fmtAxis } from './metrics.js';
 
 const GREEN = '#39d98a';
 const RED = '#e0615b';
@@ -28,8 +28,8 @@ function Card({ label, badge, children }) {
 }
 
 export default function Dashboard() {
-  const { trades = [], connected, toggleSidebar } = useOutletContext();
-  const m = useMemo(() => computeMetrics(trades), [trades]);
+  const { trades = [], connected, toggleSidebar, unit = 'R' } = useOutletContext();
+  const m = useMemo(() => computeMetrics(trades, unit), [trades, unit]);
   const now = new Date();
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
@@ -50,11 +50,11 @@ export default function Dashboard() {
         {/* ---- KPI cards ---- */}
         <div className="kpi-cards">
           <Card label={`NET P&L · ${m.tradeCount}T`}>
-            <div className={`kcard-big ${tone(m.net)}`}>{fmtR(m.net)}</div>
+            <div className={`kcard-big ${tone(m.net)}`}>{fmtVal(m.net, unit)}</div>
             <div className="kcard-foot">
-              <span className="win">{fmtRShort(m.grossProfit)}</span>
-              <span className={tone(m.expectancy)}>{fmtR(m.expectancy)}/t</span>
-              <span className="loss">{fmtRShort(-m.grossLoss)}</span>
+              <span className="win">{fmtValShort(m.grossProfit, unit)}</span>
+              <span className={tone(m.expectancy)}>{fmtVal(m.expectancy, unit)}/t</span>
+              <span className="loss">{fmtValShort(-m.grossLoss, unit)}</span>
             </div>
             <SplitBar winShare={winShare} />
           </Card>
@@ -89,8 +89,8 @@ export default function Dashboard() {
           <Card label="Avg Win/Loss">
             <div className={`kcard-big ${tone(1)}`}>{m.avgWinLoss === Infinity ? '∞' : m.avgWinLoss.toFixed(2)}</div>
             <div className="kcard-foot">
-              <span className="win">{fmtRShort(m.avgWin)}</span>
-              <span className="loss">{fmtRShort(-m.avgLoss)}</span>
+              <span className="win">{fmtValShort(m.avgWin, unit)}</span>
+              <span className="loss">{fmtValShort(-m.avgLoss, unit)}</span>
             </div>
             <SplitBar winShare={m.avgWin + m.avgLoss > 0 ? m.avgWin / (m.avgWin + m.avgLoss) : 1} />
           </Card>
@@ -121,16 +121,16 @@ export default function Dashboard() {
             <div className="panel-head">
               <div className="panel-title">Cumulative P&L</div>
               <div className="panel-meta">
-                <span className={`pct-pill ${tone(m.expectancy)}`}>{fmtR(m.expectancy)}/trade</span>
-                <span className={tone(m.net)}>{fmtR(m.net)}</span>
+                <span className={`pct-pill ${tone(m.expectancy)}`}>{fmtVal(m.expectancy, unit)}/trade</span>
+                <span className={tone(m.net)}>{fmtVal(m.net, unit)}</span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={m.cumulative} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
                 <CartesianGrid stroke="#1d1d23" vertical={false} />
                 <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
-                <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}R`} />
-                <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30', borderRadius: 8 }} formatter={(v) => fmtR(v)} />
+                <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtAxis(v, unit)} />
+                <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30', borderRadius: 8 }} formatter={(v) => fmtVal(v, unit)} />
                 <ReferenceLine y={0} stroke="#33333b" />
                 <Line type="monotone" dataKey="cum" stroke={GREEN} strokeWidth={2} dot={{ r: 3, fill: GREEN }} />
               </LineChart>
@@ -146,8 +146,8 @@ export default function Dashboard() {
               <BarChart data={m.daily} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
                 <CartesianGrid stroke="#1d1d23" vertical={false} />
                 <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
-                <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}R`} />
-                <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30', borderRadius: 8 }} cursor={{ fill: '#ffffff08' }} formatter={(v) => fmtR(v)} />
+                <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtAxis(v, unit)} />
+                <Tooltip contentStyle={{ background: '#151518', border: '1px solid #2a2a30', borderRadius: 8 }} cursor={{ fill: '#ffffff08' }} formatter={(v) => fmtVal(v, unit)} />
                 <ReferenceLine y={0} stroke="#33333b" />
                 <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
                   {m.daily.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? GREEN : RED} />)}
@@ -164,12 +164,13 @@ export default function Dashboard() {
               year={calYear}
               month={calMonth}
               dayMap={dayMap}
+              unit={unit}
               onPrev={() => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
               onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
             />
           </div>
 
-          <MonthSummary trades={trades} year={calYear} month={calMonth} />
+          <MonthSummary trades={trades} year={calYear} month={calMonth} unit={unit} />
         </div>
       </div>
     </div>

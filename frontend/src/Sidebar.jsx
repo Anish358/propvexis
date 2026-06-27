@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ACCOUNT_START, fmtMoney, fmtR } from './metrics.js';
+import { ACCOUNT_START, fmtMoney, fmtVal, valueField } from './metrics.js';
 import { useAuth } from './AuthContext.jsx';
 import AccountsModal from './AccountsModal.jsx';
 
@@ -79,10 +79,12 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', Icon: IconCalendar },
 ];
 
-export default function Sidebar({ trades = [], account = null, accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {} }) {
+export default function Sidebar({ trades = [], account = null, accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {}, unit = 'R' }) {
   const { user, logout } = useAuth();
   const [manageOpen, setManageOpen] = useState(false);
-  const totalR = trades.reduce((a, t) => a + Number(t.fixed_r ?? 0), 0);
+  // Total in the active unit: R across all accounts, account currency per account.
+  const field = valueField(unit);
+  const total = trades.reduce((a, t) => a + Number(t[field] ?? 0), 0);
   const live = account?.balance != null;
   // Scoped snapshot: live balance if reported, else the account's start balance,
   // else the legacy constant. (god aggregate also carries start_balance/balance.)
@@ -111,7 +113,7 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
         </div>
         <div className="sb-account-balance">{fmtMoney(balance)}</div>
         <div className="sb-account-start">
-          Total: <span className={totalR > 0 ? 'win' : totalR < 0 ? 'loss' : ''}>{fmtR(totalR)}</span>
+          Total: <span className={total > 0 ? 'win' : total < 0 ? 'loss' : ''}>{fmtVal(total, unit)}</span>
         </div>
       </div>
 

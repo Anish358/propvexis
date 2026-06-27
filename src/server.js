@@ -397,17 +397,18 @@ app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
 // ---------------------------------------------------------------------------
 // Dashboard analytics — scoped to the selected account (or all owned = god).
 // ---------------------------------------------------------------------------
+// god / all-accounts view reports R; a single account reports its currency ($).
 app.get('/api/stats', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
-  return computeStats(scope.logins);
+  return computeStats(scope.logins, scope.god ? 'R' : 'USD');
 });
 
 app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
   const year = Number(req.query.year) || new Date().getUTCFullYear();
-  return computeYearly(year, scope.logins);
+  return computeYearly(year, scope.logins, scope.god ? 'R' : 'USD');
 });
 
 // ---------------------------------------------------------------------------

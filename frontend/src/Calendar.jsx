@@ -4,7 +4,7 @@ import PageHeader from './PageHeader.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
 import MonthSummary from './MonthSummary.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
-import { computeMetrics, fmtR, weekStart, dayKey } from './metrics.js';
+import { computeMetrics, fmtVal, weekStart, dayKey, valueField } from './metrics.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const VIEWS = ['Calendar', 'Monthly', 'Weekly', 'Daily'];
@@ -12,25 +12,26 @@ const VIEWS = ['Calendar', 'Monthly', 'Weekly', 'Daily'];
 function tone(n) { return n > 0 ? 'win' : n < 0 ? 'loss' : ''; }
 
 // group scored trades by a key fn -> [{ key, label, trades, winRate, r, sortDate }]
-function group(trades, keyFn) {
+// `field` selects the P&L unit (fixed_r for R, pnl_money for $).
+function group(trades, keyFn, field) {
   const m = new Map();
   for (const t of trades) {
-    if (t.fixed_r == null) continue;
+    if (t[field] == null) continue;
     const { key, label, sortDate } = keyFn(new Date(t.close_time));
     if (!m.has(key)) m.set(key, { key, label, sortDate, list: [] });
     m.get(key).list.push(t);
   }
   return [...m.values()]
     .map((g) => {
-      const wins = g.list.filter((t) => t.fixed_r > 0).length;
-      const losses = g.list.filter((t) => t.fixed_r < 0).length;
-      const r = g.list.reduce((a, t) => a + Number(t.fixed_r), 0);
+      const wins = g.list.filter((t) => t[field] > 0).length;
+      const losses = g.list.filter((t) => t[field] < 0).length;
+      const r = g.list.reduce((a, t) => a + Number(t[field]), 0);
       return { ...g, trades: g.list.length, winRate: wins + losses ? Math.round((100 * wins) / (wins + losses)) : 0, r: Math.round(r * 100) / 100 };
     })
     .sort((a, b) => b.sortDate - a.sortDate);
 }
 
-function SummaryTable({ rows }) {
+function SummaryTable({ rows, unit }) {
   if (!rows.length) return <div className="panel placeholder-panel">No trades yet.</div>;
   return (
     <div className="panel summary-panel">
@@ -40,7 +41,7 @@ function SummaryTable({ rows }) {
             <th className="t-left">Period</th>
             <th className="t-right">Trades</th>
             <th className="t-right">Win %</th>
-            <th className="t-right">R</th>
+            <th className="t-right">{unit === 'USD' ? 'P&L' : 'R'}</th>
           </tr>
         </thead>
         <tbody>
@@ -49,7 +50,7 @@ function SummaryTable({ rows }) {
               <td className="t-left">{g.label}</td>
               <td className="t-right">{g.trades}</td>
               <td className="t-right">{g.winRate}%</td>
-              <td className={`t-right ${tone(g.r)}`} style={{ fontWeight: 700 }}>{fmtR(g.r)}</td>
+              <td className={`t-right ${tone(g.r)}`} style={{ fontWeight: 700 }}>{fmtVal(g.r, unit)}</td>
             </tr>
           ))}
         </tbody>
@@ -59,8 +60,9 @@ function SummaryTable({ rows }) {
 }
 
 export default function Calendar() {
-  const { trades = [], connected, toggleSidebar } = useOutletContext();
-  const m = useMemo(() => computeMetrics(trades), [trades]);
+  const { trades = [], connected, toggleSidebar, unit = 'R' } = useOutletContext();
+  const field = valueField(unit);
+  const m = useMemo(() => computeMetrics(trades, unit), [trades, unit]);
   const now = new Date();
   const [view, setView] = useState('Calendar');
   const [calYear, setCalYear] = useState(now.getFullYear());
@@ -73,9 +75,9 @@ export default function Calendar() {
     return map;
   }, [m.days]);
 
-  const byMonth = useMemo(() => group(trades, (d) => ({ key: `${d.getFullYear()}-${d.getMonth()}`, label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, sortDate: new Date(d.getFullYear(), d.getMonth(), 1) })), [trades]);
-  const byWeek = useMemo(() => group(trades, (d) => { const s = weekStart(d); const e = new Date(s); e.setDate(s.getDate() + 6); return { key: dayKey(s), label: `${s.getDate()} ${MONTHS[s.getMonth()]} – ${e.getDate()} ${MONTHS[e.getMonth()]} ${e.getFullYear()}`, sortDate: s }; }), [trades]);
-  const byDay = useMemo(() => group(trades, (d) => { const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return { key: dayKey(day), label: `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][day.getDay()]}, ${day.getDate()} ${MONTHS[day.getMonth()]} ${day.getFullYear()}`, sortDate: day }; }), [trades]);
+  const byMonth = useMemo(() => group(trades, (d) => ({ key: `${d.getFullYear()}-${d.getMonth()}`, label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, sortDate: new Date(d.getFullYear(), d.getMonth(), 1) }), field), [trades, field]);
+  const byWeek = useMemo(() => group(trades, (d) => { const s = weekStart(d); const e = new Date(s); e.setDate(s.getDate() + 6); return { key: dayKey(s), label: `${s.getDate()} ${MONTHS[s.getMonth()]} – ${e.getDate()} ${MONTHS[e.getMonth()]} ${e.getFullYear()}`, sortDate: s }; }, field), [trades, field]);
+  const byDay = useMemo(() => group(trades, (d) => { const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return { key: dayKey(day), label: `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][day.getDay()]}, ${day.getDate()} ${MONTHS[day.getMonth()]} ${day.getFullYear()}`, sortDate: day }; }, field), [trades, field]);
 
   const prevMonth = () => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); };
   const nextMonth = () => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); };
@@ -98,22 +100,22 @@ export default function Calendar() {
             <div className="cal-layout">
               <div className="panel">
                 <MonthCalendar
-                  year={calYear} month={calMonth} dayMap={dayMap}
+                  year={calYear} month={calMonth} dayMap={dayMap} unit={unit}
                   onPrev={prevMonth} onNext={nextMonth}
                   onSelectDay={(c) => setSelectedDay(c.key)}
                 />
               </div>
-              <MonthSummary trades={trades} year={calYear} month={calMonth} />
+              <MonthSummary trades={trades} year={calYear} month={calMonth} unit={unit} />
             </div>
           </>
         )}
 
-        {view === 'Monthly' && <SummaryTable rows={byMonth} />}
-        {view === 'Weekly' && <SummaryTable rows={byWeek} />}
-        {view === 'Daily' && <SummaryTable rows={byDay} />}
+        {view === 'Monthly' && <SummaryTable rows={byMonth} unit={unit} />}
+        {view === 'Weekly' && <SummaryTable rows={byWeek} unit={unit} />}
+        {view === 'Daily' && <SummaryTable rows={byDay} unit={unit} />}
       </div>
 
-      <DayTradesModal dayKeyStr={selectedDay} trades={trades} onClose={() => setSelectedDay(null)} />
+      <DayTradesModal dayKeyStr={selectedDay} trades={trades} unit={unit} onClose={() => setSelectedDay(null)} />
     </div>
   );
 }

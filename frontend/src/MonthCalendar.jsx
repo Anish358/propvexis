@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
-import { dayKey, fmtRShort } from './metrics.js';
+import { dayKey, fmtValShort } from './metrics.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Monthly P&L calendar. `days` is a Map keyed by YYYY-MM-DD -> { pnl, trades }.
-export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onSelectDay }) {
+export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onSelectDay, unit = 'R' }) {
   const { cells, summary } = useMemo(() => {
     const first = new Date(year, month, 1);
     const startPad = first.getDay(); // leading blanks (Sun-start grid)
@@ -61,7 +61,7 @@ export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onS
               <div className="cal-daynum">{c.day}</div>
               {c.data && (
                 <div className="cal-cell-body">
-                  <div className="cal-pnl">{fmtRShort(c.data.pnl)}</div>
+                  <div className="cal-pnl">{fmtValShort(c.data.pnl, unit)}</div>
                   <div className="cal-tcount">{c.data.trades}t</div>
                 </div>
               )}

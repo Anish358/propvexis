@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { weekStart, fmtR } from './metrics.js';
+import { weekStart, fmtVal, valueField } from './metrics.js';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -16,11 +16,12 @@ function weekLabel(s, e) {
 
 // Side panel: total R for the displayed month, then each week's R below.
 // Driven by year/month so it updates as the user navigates the calendar.
-export default function MonthSummary({ trades = [], year, month }) {
+export default function MonthSummary({ trades = [], year, month, unit = 'R' }) {
+  const field = valueField(unit);
   const data = useMemo(() => {
     const scored = trades
-      .filter((t) => t.fixed_r != null)
-      .map((t) => ({ r: Number(t.fixed_r), d: new Date(t.close_time) }));
+      .filter((t) => t[field] != null)
+      .map((t) => ({ r: Number(t[field]), d: new Date(t.close_time) }));
     const inMonth = scored.filter((t) => sameMonth(t.d, year, month));
 
     const monthR = inMonth.reduce((a, t) => a + t.r, 0);
@@ -46,13 +47,13 @@ export default function MonthSummary({ trades = [], year, month }) {
       cursor = next;
     }
     return { monthR: r2(monthR), winPct, total: inMonth.length, weeks };
-  }, [trades, year, month]);
+  }, [trades, year, month, field]);
 
   return (
     <div className="panel month-summary">
       <div className="panel-title">MONTHLY P&L</div>
       <div className="weekly-range">{FULL[month].toUpperCase()} {year}</div>
-      <div className={`weekly-pnl ${tone(data.monthR)}`}>{fmtR(data.monthR)}</div>
+      <div className={`weekly-pnl ${tone(data.monthR)}`}>{fmtVal(data.monthR, unit)}</div>
       <div className="weekly-sub">{data.winPct}% · {data.total}t</div>
 
       <div className="ms-weeks">
@@ -62,7 +63,7 @@ export default function MonthSummary({ trades = [], year, month }) {
             <span className="ms-week-label">{w.label}</span>
             <span className="ms-week-meta">
               <span className="ms-week-t">{w.trades}t</span>
-              <span className={`ms-week-r ${tone(w.r)}`}>{fmtR(w.r)}</span>
+              <span className={`ms-week-r ${tone(w.r)}`}>{fmtVal(w.r, unit)}</span>
             </span>
           </div>
         ))}
