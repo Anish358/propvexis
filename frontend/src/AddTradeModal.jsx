@@ -1,0 +1,87 @@
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+
+const SETUPS = ['', 'Continue', 'Liq-run', 'Fractal', 'SMC'];
+const SESSIONS = ['', 'ASIA', 'LDN', 'NY'];
+
+// Manual strategy-trade entry. Account-less (god view only). Result is entered
+// directly in R; SL/MFE pips are optional (used to derive Max R).
+export default function AddTradeModal({ onClose, onAdd }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [f, setF] = useState({
+    close_date: today, symbol: '', direction: '', fixed_r: '',
+    sl_size_pips: '', mfe_pips: '', setup: '', session: '', comments: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+
+  async function submit(e) {
+    e.preventDefault();
+    if (f.fixed_r === '' || Number.isNaN(Number(f.fixed_r))) { setErr('Enter the result in R (e.g. 2 or -1).'); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      await onAdd({
+        close_time: `${f.close_date}T12:00:00Z`,
+        open_time: `${f.close_date}T12:00:00Z`,
+        symbol: f.symbol.trim() || 'MANUAL',
+        direction: f.direction || null,
+        fixed_r: Number(f.fixed_r),
+        sl_size_pips: f.sl_size_pips === '' ? null : Number(f.sl_size_pips),
+        mfe_pips: f.mfe_pips === '' ? null : Number(f.mfe_pips),
+        setup: f.setup || null,
+        session: f.session || null,
+        comments: f.comments.trim() || null,
+      });
+      onClose();
+    } catch (e2) {
+      setErr(e2.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal add-trade-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>Add strategy trade</h3>
+          <button className="modal-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="at-note">Not linked to any account — appears only in the All-accounts (strategy) view.</div>
+
+        <form className="at-form" onSubmit={submit}>
+          <label>Date<input type="date" value={f.close_date} onChange={set('close_date')} required /></label>
+          <label>Result (R)<input type="number" step="0.01" placeholder="e.g. 2 or -1" value={f.fixed_r} onChange={set('fixed_r')} required /></label>
+          <label>Symbol<input placeholder="EURUSD" value={f.symbol} onChange={set('symbol')} /></label>
+          <label>Direction
+            <select value={f.direction} onChange={set('direction')}>
+              <option value="">—</option><option value="buy">Buy</option><option value="sell">Sell</option>
+            </select>
+          </label>
+          <label>Setup
+            <select value={f.setup} onChange={set('setup')}>
+              {SETUPS.map((s) => <option key={s} value={s}>{s || '—'}</option>)}
+            </select>
+          </label>
+          <label>Session
+            <select value={f.session} onChange={set('session')}>
+              {SESSIONS.map((s) => <option key={s} value={s}>{s || '—'}</option>)}
+            </select>
+          </label>
+          <label>SL size (pips)<input type="number" step="0.1" placeholder="optional" value={f.sl_size_pips} onChange={set('sl_size_pips')} /></label>
+          <label>MFE (pips)<input type="number" step="0.1" placeholder="optional" value={f.mfe_pips} onChange={set('mfe_pips')} /></label>
+          <label className="at-wide">Comments<input placeholder="optional" value={f.comments} onChange={set('comments')} /></label>
+
+          {err && <div className="login-error at-wide">{err}</div>}
+          <div className="at-actions at-wide">
+            <button type="button" className="at-cancel" onClick={onClose}>Cancel</button>
+            <button type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add trade'}</button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}

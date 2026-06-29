@@ -28,6 +28,7 @@ input int    InpRetrySecs    = 15;                                         // Re
 input int    InpMfeCheckSecs = 60;                                         // How often to try finalizing MFE (s)
 input int    InpMfeMaxHours  = 72;                                         // Stop waiting for breakeven after N hours
 input int    InpBackfillDays = 0;                                          // On start, backfill closes from last N days (0 = off)
+input int    InpSlCaptureSecs = 120;                                       // Capture the stop loss this many secs after open, then freeze it
 
 //--- per-open-position tracking (to capture entry/SL while the trade is live)
 struct PosTrack
@@ -40,6 +41,7 @@ struct PosTrack
    double   tp;
    double   volume;
    datetime openTime;
+   bool     slLocked;   // once true, sl is frozen (captured at openTime + InpSlCaptureSecs)
   };
 PosTrack g_pos[];
 
@@ -135,6 +137,7 @@ void TrackPosition(ulong ticket)
    g_pos[n].tp       = PositionGetDouble(POSITION_TP);
    g_pos[n].volume   = PositionGetDouble(POSITION_VOLUME);
    g_pos[n].openTime = (datetime)PositionGetInteger(POSITION_TIME);
+   g_pos[n].slLocked = false;   // sl tracks live until InpSlCaptureSecs after open
    SymbolSelect(g_pos[n].symbol, true);
   }
 
@@ -156,7 +159,16 @@ void DiscoverNewPositions()
       if(idx < 0) TrackPosition(t);
       else
         {
-         g_pos[idx].sl = PositionGetDouble(POSITION_SL);
+         // Track the live stop until InpSlCaptureSecs after open, then freeze
+         // it — so the logged SL is the stop in force ~2 min in, not a later
+         // breakeven/trail move. (If the trade closes before then, the last
+         // tracked value is used.)
+         if(!g_pos[idx].slLocked)
+           {
+            g_pos[idx].sl = PositionGetDouble(POSITION_SL);
+            if(TimeCurrent() - g_pos[idx].openTime >= (datetime)InpSlCaptureSecs)
+               g_pos[idx].slLocked = true;
+           }
          g_pos[idx].tp = PositionGetDouble(POSITION_TP);
         }
      }

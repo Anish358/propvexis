@@ -1,8 +1,13 @@
-// Client-side dashboard metrics, computed in R from the raw trade list.
-// Every P&L figure on the dashboard + calendar is in R multiples (fixed_r),
-// not account currency — pnl_money is no longer used here.
+// Client-side dashboard metrics. The P&L unit is selectable:
+//   'R'   (god / all-accounts view)  -> uses fixed_r   (risk multiples)
+//   'USD' (single-account view)      -> uses pnl_money (account currency)
+// Win/loss classification follows the chosen value's sign. Reward (Avg RR / Max
+// R) is always a ratio in R regardless of unit.
 
 export const ACCOUNT_START = 50000; // GoatFundedTrader prop account size (display only)
+
+// the trade P&L field for a given display unit
+export const valueField = (unit) => (unit === 'USD' ? 'pnl_money' : 'fixed_r');
 
 const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 const round = (n, dp = 2) => (n == null || Number.isNaN(n) ? 0 : Math.round(n * 10 ** dp) / 10 ** dp);
@@ -23,16 +28,16 @@ export function weekStart(d) {
   return monday;
 }
 
-// R sign classification of a trade (fixed_r is the realized result in R)
-const rval = (t) => Number(t.fixed_r ?? 0);
-const isWin = (t) => rval(t) > 0;
-const isLoss = (t) => rval(t) < 0;
+export function computeMetrics(trades, unit = 'R') {
+  // P&L comes from fixed_r (R) or pnl_money (USD) depending on the view.
+  const field = valueField(unit);
+  const isWin = (t) => t._pnl > 0;
+  const isLoss = (t) => t._pnl < 0;
 
-export function computeMetrics(trades) {
-  // only trades with a realized R result participate in stats
+  // only trades with a realized result in the chosen unit participate
   const ts = trades
-    .filter((t) => t.fixed_r != null)
-    .map((t) => ({ ...t, _pnl: rval(t), _close: new Date(t.close_time) }))
+    .filter((t) => t[field] != null)
+    .map((t) => ({ ...t, _pnl: Number(t[field]), _close: new Date(t.close_time) }))
     .sort((a, b) => a._close - b._close);
 
   const wins = ts.filter(isWin);
@@ -164,8 +169,31 @@ export function fmtRShort(n) {
   return v > 0 ? `+${s}` : s;
 }
 
-// $ formatter retained only for the static prop-account size in the sidebar.
-export function fmtMoney(n) {
+// $ formatter. `sign` adds +/- (for P&L); without it, plain currency (balance).
+export function fmtMoney(n, { sign = false } = {}) {
   const v = Number(n || 0);
-  return `$${v.toLocaleString('en-US')}`;
+  const s = `$${Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  if (v < 0) return `-${s}`;
+  return sign && v > 0 ? `+${s}` : s;
+}
+
+// compact signed money for tight cells (e.g. +$120, -$1.2k)
+export function fmtMoneyShort(n) {
+  const v = Number(n || 0);
+  const a = Math.abs(v);
+  const s = a >= 1000 ? `$${(a / 1000).toFixed(a % 1000 === 0 ? 0 : 1)}k` : `$${a.toFixed(0)}`;
+  if (v < 0) return `-${s}`;
+  return v > 0 ? `+${s}` : s;
+}
+
+// Unit-aware dispatchers: pick R or $ formatting based on the active view.
+export function fmtVal(n, unit, opts) {
+  return unit === 'USD' ? fmtMoney(n, { sign: true, ...opts }) : fmtR(n, opts);
+}
+export function fmtValShort(n, unit) {
+  return unit === 'USD' ? fmtMoneyShort(n) : fmtRShort(n);
+}
+// chart axis tick label
+export function fmtAxis(v, unit) {
+  return unit === 'USD' ? `$${v}` : `${v}R`;
 }

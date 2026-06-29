@@ -3,6 +3,18 @@ import cors from '@fastify/cors';
 import { Server as IOServer } from 'socket.io';
 import { config } from './config.js';
 import { pool, query } from './db.js';
+import { registerAuth } from './auth.js';
+import {
+  resolveScope,
+  listAccounts,
+  tradeOwnerUserId,
+  ownedLogins,
+  accountByToken,
+  bindOrCheckLogin,
+  createAccount,
+  updateAccount,
+  deleteAccount,
+} from './accounts.js';
 import { computeStats, computeYearly } from './aggregations.js';
 import {
   priceToPips,
@@ -15,13 +27,50 @@ import {
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: config.corsOrigin });
-
-// Socket.IO shares Fastify's underlying HTTP server.
-const io = new IOServer(app.server, { cors: { origin: config.corsOrigin } });
-io.on('connection', (socket) => {
-  app.log.info({ id: socket.id }, 'client connected');
+// Credentialed CORS: the session cookie can't be sent with `origin: '*'`, so
+// when CORS_ORIGIN is unset/* we reflect the request origin (valid with
+// credentials), otherwise we use the configured allowlist.
+await app.register(cors, {
+  origin: config.corsOrigin === '*' ? true : config.corsOrigin,
+  credentials: true,
 });
+
+// Auth: cookie + JWT plugins, the `requireAuth` guard, and /api/auth/* routes.
+await registerAuth(app);
+
+// Socket.IO shares Fastify's underlying HTTP server. Credentials enabled so the
+// session cookie rides along (same-origin in prod; Vite proxy in dev).
+const io = new IOServer(app.server, {
+  cors: { origin: config.corsOrigin === '*' ? true : config.corsOrigin, credentials: true },
+});
+
+// Authenticate each socket from the session cookie and join it to a room per
+// account the user owns, so trade events are delivered only to their owner —
+// never broadcast to every connected client.
+io.on('connection', async (socket) => {
+  try {
+    const raw = socket.handshake.headers.cookie;
+    const token = raw ? app.parseCookie(raw).session : null;
+    if (!token) throw new Error('no session cookie');
+    const payload = app.jwt.verify(token);
+    socket.data.uid = payload.uid;
+    socket.join(`user:${payload.uid}`); // for account-less (strategy/manual) trade events
+    const logins = await ownedLogins(payload.uid);
+    for (const l of logins) socket.join(`acct:${l}`);
+    app.log.info({ id: socket.id, uid: payload.uid, rooms: logins.length }, 'socket authenticated');
+  } catch (err) {
+    // Unauthenticated socket: connected but in no rooms, so it receives nothing.
+    app.log.info({ id: socket.id, reason: err.message }, 'socket unauthenticated');
+  }
+});
+
+// Emit a trade event to its owner. Prefer the per-user room (covers account-less
+// strategy/manual trades and reaches every view); fall back to the account room
+// for legacy grace-period ingests that have no owner yet.
+const emitTrade = (event, trade) => {
+  const room = trade.user_id != null ? `user:${trade.user_id}` : `acct:${trade.account_id}`;
+  io.to(room).emit(event, trade);
+};
 
 // ---- columns the user may set when tagging a trade ----
 const TAG_FIELDS = [
@@ -84,12 +133,30 @@ const ingestSchema = {
 };
 
 app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
-  // Auth: shared secret from the EA.
-  if (req.headers['x-ingest-token'] !== config.ingestToken) {
+  const b = req.body;
+
+  // Auth: prefer a per-account token (auto-binds the MT5 login on first trade);
+  // fall back to the legacy global token during the cutover (grace period).
+  const token = req.headers['x-ingest-token'];
+  if (!token) return reply.code(401).send({ error: 'missing ingest token' });
+
+  const acct = await accountByToken(token);
+  if (acct) {
+    const result = await bindOrCheckLogin(acct, b.account_id);
+    if (result === 'mismatch') {
+      return reply.code(403).send({ error: 'token does not match this MT5 account' });
+    }
+    if (result === 'conflict') {
+      return reply.code(409).send({ error: 'this MT5 login is already registered to another account' });
+    }
+    if (result === 'bound') {
+      req.log.info({ account: acct.id, login: b.account_id }, 'auto-bound MT5 login to account');
+    }
+  } else if (token !== config.ingestToken) {
     return reply.code(401).send({ error: 'invalid ingest token' });
   }
+  // (legacy global token: accepted, no ownership binding — grace period only)
 
-  const b = req.body;
 
   // Normalize broker suffixes (EURUSD.r -> EURUSD) so pip math + grouping are correct.
   const symbol_base = normalizeSymbol(b.symbol);
@@ -109,6 +176,7 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
   const row = {
     mt5_ticket: b.mt5_ticket,
     account_id: b.account_id,
+    user_id: acct ? Number(acct.user_id) : null, // owner (from the account's token)
     symbol: b.symbol,
     symbol_base,
     direction: b.direction,
@@ -136,7 +204,7 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
   // discretionary tags the user already added. MFE is finalized later (from
   // price history), so once known it must NOT be wiped by a later metric-less
   // send (the immediate close payload or a backfill) — preserve it via COALESCE.
-  const PRESERVE_IF_NULL = new Set(['mfe_pips', 'max_r']);
+  const PRESERVE_IF_NULL = new Set(['mfe_pips', 'max_r', 'user_id']);
   const updates = cols
     .filter((c) => !['mt5_ticket', 'account_id'].includes(c))
     .map((c) =>
@@ -157,7 +225,7 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
   const { rows } = await query(sql, values);
   const trade = rows[0];
 
-  io.emit('trade:upserted', trade);
+  emitTrade('trade:upserted', trade);
 
   // Snapshot live account balance/equity if the EA sent it (latest wins).
   if (b.account_balance != null || b.account_equity != null) {
@@ -172,7 +240,7 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
        RETURNING *;`,
       [b.account_id, b.account_balance ?? null, b.account_equity ?? null, b.account_currency ?? null]
     );
-    io.emit('account:updated', accRows[0]);
+    io.to(`acct:${b.account_id}`).emit('account:updated', accRows[0]);
   }
 
   return reply.code(201).send(trade);
@@ -181,10 +249,13 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
 // ---------------------------------------------------------------------------
 // List trades (newest first). Optional filters: ?tagged=false&limit=100
 // ---------------------------------------------------------------------------
-app.get('/api/trades', async (req) => {
+app.get('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+
   const { tagged, limit = 200 } = req.query;
-  const where = [];
-  const params = [];
+  const params = [scope.filterVal];
+  const where = [`${scope.filterCol} = $1`];
   if (tagged === 'true' || tagged === 'false') {
     params.push(tagged === 'true');
     where.push(`tagged = $${params.length}`);
@@ -192,7 +263,7 @@ app.get('/api/trades', async (req) => {
   params.push(Math.min(Number(limit) || 200, 1000));
   const sql = `
     SELECT * FROM trades
-    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    WHERE ${where.join(' AND ')}
     ORDER BY close_time DESC
     LIMIT $${params.length};
   `;
@@ -201,13 +272,74 @@ app.get('/api/trades', async (req) => {
 });
 
 // ---------------------------------------------------------------------------
+// Manual trade entry — strategy-level, NOT linked to any account (account_id
+// NULL). Owned by the user, so it shows only in the god/strategy view. Result
+// is entered directly in R (fixed_r); price-derived fields are skipped.
+// ---------------------------------------------------------------------------
+app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
+  const b = req.body ?? {};
+  if (!b.close_time) return reply.code(400).send({ error: 'close_time is required' });
+  const fixed_r = b.fixed_r == null || b.fixed_r === '' ? null : Number(b.fixed_r);
+  if (fixed_r == null || Number.isNaN(fixed_r)) {
+    return reply.code(400).send({ error: 'fixed_r (R result) is required' });
+  }
+  if (b.direction != null && !['buy', 'sell'].includes(b.direction)) {
+    return reply.code(400).send({ error: 'direction must be buy, sell, or omitted' });
+  }
+
+  const symbol = b.symbol || 'MANUAL';
+  const symbol_base = normalizeSymbol(symbol);
+  const open_time = b.open_time || b.close_time;
+  const num = (v) => (v == null || v === '' ? null : round2(Number(v)));
+  const sl_size_pips = num(b.sl_size_pips);
+  const mfe_pips = num(b.mfe_pips);
+
+  const row = {
+    mt5_ticket: null,
+    account_id: null,
+    user_id: Number(req.user.uid),
+    source: 'manual',
+    symbol,
+    symbol_base,
+    direction: b.direction ?? null,
+    open_time,
+    close_time: b.close_time,
+    session: b.session ?? deriveSession(open_time),
+    pnl_money: b.pnl_money == null || b.pnl_money === '' ? null : Number(b.pnl_money),
+    sl_size_pips,
+    mfe_pips,
+    max_r: deriveMaxR({ mfe_pips, sl_size_pips }),
+    fixed_r: round2(fixed_r),
+    setup: b.setup ?? null,
+    probability: b.probability ?? null,
+    mtf_phase: b.mtf_phase ?? null,
+    comments: b.comments ?? null,
+    tagged: true,
+  };
+  const cols = Object.keys(row);
+  const sql = `INSERT INTO trades (${cols.join(', ')})
+               VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *;`;
+  const { rows } = await query(sql, cols.map((c) => row[c]));
+  const trade = rows[0];
+
+  emitTrade('trade:upserted', trade);
+  return reply.code(201).send(trade);
+});
+
+// ---------------------------------------------------------------------------
 // Tag a trade (user fills discretionary fields). Marks tagged = true.
 // ---------------------------------------------------------------------------
 // Editable numeric metrics. Editing either recomputes max_r = mfe / sl.
 const METRIC_FIELDS = ['sl_size_pips', 'mfe_pips'];
 
-app.patch('/api/trades/:id', async (req, reply) => {
+app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const id = Number(req.params.id);
+
+  // Ownership: the trade's account must belong to the requesting user.
+  const ownerId = await tradeOwnerUserId(id);
+  if (ownerId == null) return reply.code(404).send({ error: 'trade not found' });
+  if (ownerId !== Number(req.user.uid)) return reply.code(403).send({ error: 'forbidden' });
+
   const updates = [];
   const params = [];
 
@@ -215,6 +347,18 @@ app.patch('/api/trades/:id', async (req, reply) => {
     if (f in req.body) {
       params.push(req.body[f]);
       updates.push(`${f} = $${params.length}`);
+    }
+  }
+
+  // fixed_r is editable ONLY for manual trades (EA/import trades derive it from
+  // prices). Lets a strategy trade's R result be corrected after entry.
+  if ('fixed_r' in req.body) {
+    const { rows: src } = await query('SELECT source FROM trades WHERE id = $1', [id]);
+    if (src.length && src[0].source === 'manual') {
+      const v = req.body.fixed_r === '' || req.body.fixed_r === null ? null : Number(req.body.fixed_r);
+      if (v == null || Number.isNaN(v)) return reply.code(400).send({ error: 'fixed_r must be a number' });
+      params.push(round2(v));
+      updates.push(`fixed_r = $${params.length}`);
     }
   }
 
@@ -248,39 +392,99 @@ app.patch('/api/trades/:id', async (req, reply) => {
   const { rows } = await query(sql, params);
   if (!rows.length) return reply.code(404).send({ error: 'trade not found' });
 
-  io.emit('trade:updated', rows[0]);
+  emitTrade('trade:updated', rows[0]);
   return rows[0];
 });
 
 // ---------------------------------------------------------------------------
 // Delete a trade.
 // ---------------------------------------------------------------------------
-app.delete('/api/trades/:id', async (req, reply) => {
+app.delete('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const id = Number(req.params.id);
-  const { rows } = await query('DELETE FROM trades WHERE id = $1 RETURNING id', [id]);
+
+  const ownerId = await tradeOwnerUserId(id);
+  if (ownerId == null) return reply.code(404).send({ error: 'trade not found' });
+  if (ownerId !== Number(req.user.uid)) return reply.code(403).send({ error: 'forbidden' });
+
+  const { rows } = await query('DELETE FROM trades WHERE id = $1 RETURNING id, user_id, account_id', [id]);
   if (!rows.length) return reply.code(404).send({ error: 'trade not found' });
 
-  io.emit('trade:deleted', { id });
+  const t = rows[0];
+  const room = t.user_id != null ? `user:${t.user_id}` : `acct:${t.account_id}`;
+  io.to(room).emit('trade:deleted', { id });
   return { id, deleted: true };
 });
 
 // ---------------------------------------------------------------------------
-// Account — latest live balance/equity snapshot (single prop account).
-// Returns null when the EA hasn't reported a balance yet.
+// Accounts — the user's MT5 accounts (for the switcher + account box).
 // ---------------------------------------------------------------------------
-app.get('/api/account', async () => {
-  const { rows } = await query('SELECT * FROM accounts ORDER BY updated_at DESC LIMIT 1');
-  return rows[0] ?? null;
+app.get('/api/accounts', { preHandler: app.requireAuth }, async (req) =>
+  listAccounts(req.user.uid)
+);
+
+// Create a pending account (label only) + ingest token for the EA. The MT5
+// login auto-binds on the first trade sent with that token.
+app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
+  const { label, broker, currency, start_balance } = req.body ?? {};
+  const acct = await createAccount(req.user.uid, { label, broker, currency, start_balance });
+  return reply.code(201).send(acct);
+});
+
+// Edit account metadata (label / broker / currency / start_balance).
+app.patch('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+  const acct = await updateAccount(req.user.uid, Number(req.params.id), req.body ?? {});
+  if (!acct) return reply.code(404).send({ error: 'account not found' });
+  return acct;
+});
+
+// Delete an account (its trades keep account_id but become unowned).
+app.delete('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+  const ok = await deleteAccount(req.user.uid, Number(req.params.id));
+  if (!ok) return reply.code(404).send({ error: 'account not found' });
+  return { id: Number(req.params.id), deleted: true };
 });
 
 // ---------------------------------------------------------------------------
-// Dashboard analytics
+// Account — balance/equity for the selected account, or an aggregate for the
+// god view. Returns null when the user has no accounts in scope.
 // ---------------------------------------------------------------------------
-app.get('/api/stats', async () => computeStats());
+app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
 
-app.get('/api/yearly', async (req) => {
+  const inScope = (await listAccounts(req.user.uid)).filter((a) => scope.logins.includes(a.mt5_login));
+  if (!inScope.length) return null;
+
+  // A single selected account: return its snapshot directly.
+  if (!scope.god && inScope.length === 1) return inScope[0];
+
+  // God / multi-account: aggregate. Balances summed only if any are live.
+  const sum = (f) => inScope.reduce((s, a) => s + (Number(a[f]) || 0), 0);
+  const anyLive = inScope.some((a) => a.balance != null);
+  return {
+    god: true,
+    accounts: inScope,
+    start_balance: sum('start_balance'),
+    balance: anyLive ? sum('balance') : null,
+    equity: anyLive ? sum('equity') : null,
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Dashboard analytics — scoped to the selected account (or all owned = god).
+// ---------------------------------------------------------------------------
+// god / all-accounts view reports R; a single account reports its currency ($).
+app.get('/api/stats', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  return computeStats(scope, scope.god ? 'R' : 'USD');
+});
+
+app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
   const year = Number(req.query.year) || new Date().getUTCFullYear();
-  return computeYearly(year);
+  return computeYearly(year, scope, scope.god ? 'R' : 'USD');
 });
 
 // ---------------------------------------------------------------------------
