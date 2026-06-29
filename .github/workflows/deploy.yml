@@ -24,6 +24,7 @@ jobs:
       - name: Build frontend
         env:
           VITE_BACKEND_URL: https://journal.anishdevlops.xyz
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
         run: |
           npm --prefix frontend ci
           npm --prefix frontend run build
