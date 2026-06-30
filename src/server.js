@@ -21,6 +21,7 @@ import {
 import { computeStats, computeYearly } from './aggregations.js';
 import {
   priceToPips,
+  pipSize,
   deriveSession,
   deriveFixedR,
   deriveMaxR,
@@ -368,7 +369,12 @@ app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply)
 
   // SL size / MFE edits: validate, then recompute Max R from the merged values.
   if (METRIC_FIELDS.some((f) => f in req.body)) {
-    const { rows: cur } = await query('SELECT sl_size_pips, mfe_pips, fixed_r, source FROM trades WHERE id = $1', [id]);
+    const { rows: cur } = await query(
+      `SELECT sl_size_pips, mfe_pips, fixed_r, source, direction,
+              entry_price, exit_price, symbol, symbol_base
+         FROM trades WHERE id = $1`,
+      [id]
+    );
     if (!cur.length) return reply.code(404).send({ error: 'trade not found' });
     const merged = { sl_size_pips: cur[0].sl_size_pips, mfe_pips: cur[0].mfe_pips };
     for (const f of METRIC_FIELDS) {
@@ -385,15 +391,23 @@ app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply)
     params.push(deriveMaxR(merged));
     updates.push(`max_r = $${params.length}`);
 
-    // Changing the SL size rescales Fixed R for price-derived (EA/import) trades:
-    // the realized reward in pips is unchanged, only the risk denominator moves,
-    // so newFixedR = oldFixedR * oldSl / newSl. Manual trades keep their entered R.
+    // Changing the SL size recomputes Fixed R. Prefer ACTUAL PRICES — realized
+    // reward in pips ÷ new SL — which is robust even if a prior edit left
+    // fixed_r and SL out of sync. Fall back to scaling only when prices are
+    // absent (e.g. sheet imports). Manual trades keep their entered R.
     if ('sl_size_pips' in req.body && cur[0].source !== 'manual') {
-      const oldSl = Number(cur[0].sl_size_pips);
+      const c = cur[0];
       const newSl = Number(merged.sl_size_pips);
-      const oldFr = cur[0].fixed_r;
-      if (oldFr != null && oldSl > 0 && newSl > 0) {
-        params.push(round2(Number(oldFr) * oldSl / newSl));
+      const pip = pipSize(c.symbol_base || c.symbol);
+      let fr;
+      if (newSl > 0 && c.entry_price != null && c.exit_price != null && c.direction && pip) {
+        const reward = c.direction === 'buy' ? c.exit_price - c.entry_price : c.entry_price - c.exit_price;
+        fr = round2((reward / pip) / newSl);
+      } else if (c.fixed_r != null && Number(c.sl_size_pips) > 0 && newSl > 0) {
+        fr = round2(Number(c.fixed_r) * Number(c.sl_size_pips) / newSl);
+      }
+      if (fr !== undefined) {
+        params.push(fr);
         updates.push(`fixed_r = $${params.length}`);
       }
     }
