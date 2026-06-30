@@ -1,48 +1,159 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { createAccount, deleteAccount, INGEST_URL } from './api.js';
+import { createAccount, updateAccount, deleteAccount, INGEST_URL, EA_DOWNLOAD_URL } from './api.js';
 
-// EA setup card shown for an account (token + step-by-step). The MT5 login
-// auto-binds from the first trade, so there's nothing to type but the token.
+// EA setup card shown for an account. The downloaded EA is pre-filled with this
+// account's ingest endpoint + token (injected client-side), so the user just
+// downloads and attaches — no in-MT5 configuration. The MT5 login auto-binds
+// from the first trade.
 function SetupCard({ account }) {
   const [copied, setCopied] = useState(null);
+  const [preparing, setPreparing] = useState(false);
+  const [dlError, setDlError] = useState(null);
   const copy = (text, what) => {
     navigator.clipboard?.writeText(text);
     setCopied(what);
     setTimeout(() => setCopied(null), 1500);
   };
+
+  // Fetch the raw EA source and inject this account's endpoint + token into the
+  // input defaults, then download the personalized file.
+  async function downloadEA() {
+    setPreparing(true);
+    setDlError(null);
+    try {
+      const res = await fetch(EA_DOWNLOAD_URL);
+      if (!res.ok) throw new Error(`download failed (${res.status})`);
+      let text = await res.text();
+      text = text
+        .replace(/(input string InpBackendUrl\s*=\s*")[^"]*(")/, `$1${INGEST_URL}$2`)
+        .replace(/(input string InpIngestToken\s*=\s*")[^"]*(")/, `$1${account.ingest_token}$2`);
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'AmeyJournal.mq5';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDlError(e.message);
+    } finally {
+      setPreparing(false);
+    }
+  }
+
   return (
     <div className="acct-setup">
       <ol className="acct-steps">
-        <li>Attach the <b>AmeyJournal</b> EA to any chart on this MT5 account.</li>
         <li>
-          Set <code>InpBackendUrl</code> to:
+          <b>Download</b> the EA — it's already pre-filled with this account's endpoint and token. Drop it into your MT5 <code>MQL5/Experts</code> folder (compile in MetaEditor if needed) and attach it to any chart.
+          <div className="acct-copy">
+            <button className="ea-download" onClick={downloadEA} disabled={preparing}>
+              {preparing ? 'Preparing…' : '⬇ Download AmeyJournal.mq5'}
+            </button>
+          </div>
+          {dlError && <div className="login-error">{dlError}</div>}
+        </li>
+        <li>
+          In MT5: Tools → Options → Expert Advisors → tick <b>Allow WebRequest</b> and add this URL:
           <div className="acct-copy">
             <code>{INGEST_URL}</code>
             <button onClick={() => copy(INGEST_URL, 'url')}>{copied === 'url' ? 'Copied' : 'Copy'}</button>
           </div>
         </li>
-        <li>
-          Set <code>InpIngestToken</code> to:
-          <div className="acct-copy">
-            <code className="acct-token">{account.ingest_token}</code>
-            <button onClick={() => copy(account.ingest_token, 'tok')}>{copied === 'tok' ? 'Copied' : 'Copy'}</button>
-          </div>
-        </li>
-        <li>In MT5: Tools → Options → Expert Advisors → tick <b>Allow WebRequest</b> and add the URL above.</li>
         <li><b>Place your first trade</b> — it auto-links this MT5 account and tracking begins.</li>
       </ol>
     </div>
   );
 }
 
+// Prop-firm config fields shared by the add + edit forms. `v` holds the current
+// values; `set(field, value)` updates one. Limits are percentages of the start
+// balance; profit target only applies to eval accounts.
+function PropFields({ v, set }) {
+  return (
+    <div className="acct-prop">
+      <label>
+        <span>Type</span>
+        <select value={v.account_type} onChange={(e) => set('account_type', e.target.value)}>
+          <option value="eval">Evaluation</option>
+          <option value="funded">Funded</option>
+        </select>
+      </label>
+      <label>
+        <span>Start balance ($)</span>
+        <input type="number" value={v.start_balance} onChange={(e) => set('start_balance', e.target.value)} placeholder="50000" />
+      </label>
+      <label>
+        <span>Daily DD (%)</span>
+        <input type="number" step="0.1" value={v.daily_dd_pct} onChange={(e) => set('daily_dd_pct', e.target.value)} placeholder="5" />
+      </label>
+      <label>
+        <span>Max DD (%)</span>
+        <input type="number" step="0.1" value={v.max_dd_pct} onChange={(e) => set('max_dd_pct', e.target.value)} placeholder="10" />
+      </label>
+      {v.account_type === 'eval' && (
+        <label>
+          <span>Profit target (%)</span>
+          <input type="number" step="0.1" value={v.profit_target_pct} onChange={(e) => set('profit_target_pct', e.target.value)} placeholder="8" />
+        </label>
+      )}
+    </div>
+  );
+}
+
+// Turn form strings into the numeric/typed payload the API expects.
+const toPayload = (v) => ({
+  account_type: v.account_type,
+  start_balance: v.start_balance === '' ? null : Number(v.start_balance),
+  daily_dd_pct: v.daily_dd_pct === '' ? null : Number(v.daily_dd_pct),
+  max_dd_pct: v.max_dd_pct === '' ? null : Number(v.max_dd_pct),
+  profit_target_pct: v.profit_target_pct === '' ? null : Number(v.profit_target_pct),
+});
+
+const formFrom = (a) => ({
+  account_type: a?.account_type || 'eval',
+  start_balance: a?.start_balance ?? '',
+  daily_dd_pct: a?.daily_dd_pct ?? '',
+  max_dd_pct: a?.max_dd_pct ?? '',
+  profit_target_pct: a?.profit_target_pct ?? '',
+});
+
+// Inline editor for an existing account's prop-firm config.
+function EditForm({ account, onSaved, onCancel }) {
+  const [v, setV] = useState(formFrom(account));
+  const [busy, setBusy] = useState(false);
+  const set = (f, val) => setV((p) => ({ ...p, [f]: val }));
+  async function save() {
+    setBusy(true);
+    try {
+      await updateAccount(account.id, toPayload(v));
+      onSaved?.();
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="acct-edit">
+      <PropFields v={v} set={set} />
+      <div className="acct-edit-actions">
+        <button onClick={onCancel}>Cancel</button>
+        <button className="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function AccountsModal({ accounts = [], onClose, onChanged }) {
   const [label, setLabel] = useState('');
-  const [startBalance, setStartBalance] = useState('');
+  const [v, setV] = useState(formFrom(null));
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState(null); // freshly created account -> show its setup
   const [openSetupId, setOpenSetupId] = useState(null);
+  const [editId, setEditId] = useState(null);
   const [err, setErr] = useState(null);
+  const set = (f, val) => setV((p) => ({ ...p, [f]: val }));
 
   async function add(e) {
     e.preventDefault();
@@ -50,13 +161,10 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
     setBusy(true);
     setErr(null);
     try {
-      const acct = await createAccount({
-        label: label.trim(),
-        start_balance: startBalance === '' ? null : Number(startBalance),
-      });
+      const acct = await createAccount({ label: label.trim(), ...toPayload(v) });
       setCreated(acct);
       setLabel('');
-      setStartBalance('');
+      setV(formFrom(null));
       onChanged?.();
     } catch (e2) {
       setErr(e2.message);
@@ -71,6 +179,8 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
     if (created?.id === id) setCreated(null);
     onChanged?.();
   }
+
+  const acctType = (a) => (a.account_type === 'funded' ? 'Funded' : 'Eval');
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
@@ -93,14 +203,21 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
                   ) : (
                     <span className="acct-badge bound">MT5 {a.mt5_login}</span>
                   )}
+                  <span className="acct-badge type">{acctType(a)}</span>
                 </div>
               </div>
               <div className="acct-row-actions">
-                <button onClick={() => setOpenSetupId(openSetupId === a.id ? null : a.id)}>
+                <button onClick={() => { setEditId(editId === a.id ? null : a.id); setOpenSetupId(null); }}>
+                  {editId === a.id ? 'Close' : 'Edit'}
+                </button>
+                <button onClick={() => { setOpenSetupId(openSetupId === a.id ? null : a.id); setEditId(null); }}>
                   {openSetupId === a.id ? 'Hide setup' : 'Setup'}
                 </button>
                 <button className="danger" onClick={() => remove(a.id)}>Delete</button>
               </div>
+              {editId === a.id && (
+                <EditForm account={a} onCancel={() => setEditId(null)} onSaved={() => { setEditId(null); onChanged?.(); }} />
+              )}
               {openSetupId === a.id && <SetupCard account={a} />}
             </div>
           ))}
@@ -122,14 +239,9 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
               value={label}
               onChange={(e) => setLabel(e.target.value)}
             />
-            <input
-              type="number"
-              placeholder="Start balance"
-              value={startBalance}
-              onChange={(e) => setStartBalance(e.target.value)}
-            />
             <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
           </div>
+          <PropFields v={v} set={set} />
           {err && <div className="login-error">{err}</div>}
         </form>
       </div>

@@ -21,8 +21,8 @@
 #property version   "1.10"
 #property strict
 
-input string InpBackendUrl   = "http://127.0.0.1:3000/api/trades/ingest"; // Ingest endpoint
-input string InpIngestToken  = "dev-token-please-change";                  // Must match backend INGEST_TOKEN
+input string InpBackendUrl   = "http://127.0.0.1:3000/api/trades/ingest"; // Ingest Endpoint
+input string InpIngestToken  = "dev-token-please-change";                  // Ingest Token
 input int    InpPollMs       = 500;                                        // Position-discovery poll interval (ms)
 input int    InpRetrySecs    = 15;                                         // Retry queue flush interval (s)
 input int    InpMfeCheckSecs = 60;                                         // How often to try finalizing MFE (s)

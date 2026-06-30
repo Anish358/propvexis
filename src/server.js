@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { Server as IOServer } from 'socket.io';
@@ -329,7 +332,8 @@ app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
 // ---------------------------------------------------------------------------
 // Tag a trade (user fills discretionary fields). Marks tagged = true.
 // ---------------------------------------------------------------------------
-// Editable numeric metrics. Editing either recomputes max_r = mfe / sl.
+// Editable numeric metrics. Editing either recomputes max_r = mfe / sl; editing
+// the SL size also rescales fixed_r (see below).
 const METRIC_FIELDS = ['sl_size_pips', 'mfe_pips'];
 
 app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply) => {
@@ -364,7 +368,7 @@ app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply)
 
   // SL size / MFE edits: validate, then recompute Max R from the merged values.
   if (METRIC_FIELDS.some((f) => f in req.body)) {
-    const { rows: cur } = await query('SELECT sl_size_pips, mfe_pips FROM trades WHERE id = $1', [id]);
+    const { rows: cur } = await query('SELECT sl_size_pips, mfe_pips, fixed_r, source FROM trades WHERE id = $1', [id]);
     if (!cur.length) return reply.code(404).send({ error: 'trade not found' });
     const merged = { sl_size_pips: cur[0].sl_size_pips, mfe_pips: cur[0].mfe_pips };
     for (const f of METRIC_FIELDS) {
@@ -380,6 +384,19 @@ app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply)
     }
     params.push(deriveMaxR(merged));
     updates.push(`max_r = $${params.length}`);
+
+    // Changing the SL size rescales Fixed R for price-derived (EA/import) trades:
+    // the realized reward in pips is unchanged, only the risk denominator moves,
+    // so newFixedR = oldFixedR * oldSl / newSl. Manual trades keep their entered R.
+    if ('sl_size_pips' in req.body && cur[0].source !== 'manual') {
+      const oldSl = Number(cur[0].sl_size_pips);
+      const newSl = Number(merged.sl_size_pips);
+      const oldFr = cur[0].fixed_r;
+      if (oldFr != null && oldSl > 0 && newSl > 0) {
+        params.push(round2(Number(oldFr) * oldSl / newSl));
+        updates.push(`fixed_r = $${params.length}`);
+      }
+    }
   }
 
   if (!updates.length) {
@@ -416,6 +433,23 @@ app.delete('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply
 });
 
 // ---------------------------------------------------------------------------
+// EA download — serves the MQL5 source so users can grab the EA straight from
+// the setup card. No secret in the file (the ingest token is entered per
+// account in MT5), so this is public. `ea/` is deployed alongside the backend.
+// ---------------------------------------------------------------------------
+const EA_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ea', 'AmeyJournal.mq5');
+app.get('/api/ea/download', async (req, reply) => {
+  try {
+    const src = await readFile(EA_FILE, 'utf8');
+    reply.header('Content-Type', 'text/plain; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="AmeyJournal.mq5"');
+    return src;
+  } catch {
+    return reply.code(404).send({ error: 'EA file not available' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Accounts — the user's MT5 accounts (for the switcher + account box).
 // ---------------------------------------------------------------------------
 app.get('/api/accounts', { preHandler: app.requireAuth }, async (req) =>
@@ -425,8 +459,10 @@ app.get('/api/accounts', { preHandler: app.requireAuth }, async (req) =>
 // Create a pending account (label only) + ingest token for the EA. The MT5
 // login auto-binds on the first trade sent with that token.
 app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
-  const { label, broker, currency, start_balance } = req.body ?? {};
-  const acct = await createAccount(req.user.uid, { label, broker, currency, start_balance });
+  const { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct } = req.body ?? {};
+  const acct = await createAccount(req.user.uid, {
+    label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct,
+  });
   return reply.code(201).send(acct);
 });
 
@@ -474,17 +510,32 @@ app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
 // Dashboard analytics — scoped to the selected account (or all owned = god).
 // ---------------------------------------------------------------------------
 // god / all-accounts view reports R; a single account reports its currency ($).
+// Display unit + global data filters are chosen by the client (per scope), not
+// derived from the account. Unit is normalized to R/USD; filter values are
+// parameterized in buildTradeWhere.
+const parseUnit = (q) => (q.unit === 'USD' ? 'USD' : 'R');
+const csv = (v) => (v ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : []);
+const parseFilters = (q) => ({
+  setups: csv(q.setups),
+  symbols: csv(q.symbols),
+  sessions: csv(q.sessions),
+  probability: csv(q.probability),
+  outcome: csv(q.outcome),
+  from: q.from || null,
+  to: q.to || null,
+});
+
 app.get('/api/stats', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
-  return computeStats(scope, scope.god ? 'R' : 'USD');
+  return computeStats(scope, parseUnit(req.query), parseFilters(req.query));
 });
 
 app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
   const year = Number(req.query.year) || new Date().getUTCFullYear();
-  return computeYearly(year, scope, scope.god ? 'R' : 'USD');
+  return computeYearly(year, scope, parseUnit(req.query), parseFilters(req.query));
 });
 
 // ---------------------------------------------------------------------------

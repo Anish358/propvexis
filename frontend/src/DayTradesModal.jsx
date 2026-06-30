@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { dayKey, fmtVal, valueField } from './metrics.js';
-import { slug } from './constants.js';
+import { slug, fmtTime } from './constants.js';
 
 const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -37,10 +37,11 @@ export default function DayTradesModal({ dayKeyStr, trades, onClose, unit = 'R' 
           <p className="muted">No trades on this day.</p>
         ) : (
           <table className="day-table">
-            <thead><tr><th>Pair</th><th>Setup</th><th>Session</th><th className="num">{unit === 'USD' ? 'P&L' : 'R'}</th></tr></thead>
+            <thead><tr><th>Time</th><th>Pair</th><th>Setup</th><th>Session</th><th className="num">{unit === 'USD' ? 'P&L' : 'R'}</th></tr></thead>
             <tbody>
               {list.map((t) => (
                 <tr key={t.id}>
+                  <td>{fmtTime(t.close_time)}</td>
                   <td><span className={`pill pair-${slug(t.symbol_base || t.symbol)}`}>{t.symbol_base || t.symbol}</span></td>
                   <td>{t.setup ? <span className={`pill setup-${slug(t.setup)}`}>{t.setup}</span> : <span className="muted">—</span>}</td>
                   <td>{t.session ? <span className={`pill session-${slug(t.session)}`}>{t.session}</span> : <span className="muted">—</span>}</td>

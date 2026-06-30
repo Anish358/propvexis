@@ -39,6 +39,7 @@ export async function resolveScope(userId, requested) {
 export async function listAccounts(userId) {
   const { rows } = await query(
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
+            a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct,
             a.ingest_token, a.is_active, a.created_at,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
@@ -52,20 +53,26 @@ export async function listAccounts(userId) {
   return rows.map((r) => ({ ...r, mt5_login: loginNum(r.mt5_login), pending: r.mt5_login == null }));
 }
 
+// Columns selected/returned for an account (kept in sync across queries).
+const ACCT_COLS =
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, ingest_token, is_active, created_at';
+
 // Create a pending account (no login yet) with a fresh ingest token.
-export async function createAccount(userId, { label, broker, currency, start_balance }) {
+export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct }) {
   const { rows } = await query(
-    `INSERT INTO mt5_accounts (user_id, label, broker, currency, start_balance, ingest_token)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, mt5_login, label, broker, currency, start_balance, ingest_token, is_active, created_at;`,
-    [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null, genToken()]
+    `INSERT INTO mt5_accounts
+       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, ingest_token)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), $10)
+     RETURNING ${ACCT_COLS};`,
+    [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null,
+     account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, genToken()]
   );
   return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login), pending: rows[0].mt5_login == null };
 }
 
 // Update editable metadata on the user's own account.
 export async function updateAccount(userId, id, fields) {
-  const allowed = ['label', 'broker', 'currency', 'start_balance'];
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct'];
   const sets = [];
   const params = [];
   for (const f of allowed) {
@@ -76,7 +83,7 @@ export async function updateAccount(userId, id, fields) {
   const { rows } = await query(
     `UPDATE mt5_accounts SET ${sets.join(', ')}
       WHERE id = $${params.length - 1} AND user_id = $${params.length}
-      RETURNING id, mt5_login, label, broker, currency, start_balance, ingest_token, is_active, created_at;`,
+      RETURNING ${ACCT_COLS};`,
     params
   );
   if (!rows.length) return null;
