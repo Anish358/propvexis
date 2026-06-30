@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
+import FilterBar from './FilterBar.jsx';
 
-// App shell: fixed left sidebar + routed page area. The header hamburger
-// (PageHeader onMenu) toggles the sidebar, collapsing back to the full-width
-// layout from step 1.
-export default function Layout({ trades, account, accounts, accountId, setAccountId, reloadAccounts, connected, flashId, saveTrade, removeTrade, addManualTrade }) {
+// App shell: fixed left sidebar + a global filter bar + the routed page area.
+// The display unit and data filters come from the active scope's ViewConfig
+// (owned by App); they are no longer derived from the selected account.
+export default function Layout({
+  trades, account, accounts, accountId, setAccountId, reloadAccounts,
+  connected, flashId, saveTrade, removeTrade, addManualTrade,
+  unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
+  widgetOverrides, setWidgetVisible, resetWidgets,
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const toggleSidebar = () => setCollapsed((c) => !c);
-
-  // god / all-accounts view shows R; a single account shows account currency ($)
-  const unit = accountId === 'all' ? 'R' : 'USD';
 
   return (
     <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
@@ -26,7 +29,15 @@ export default function Layout({ trades, account, accounts, accountId, setAccoun
         />
       )}
       <main className="shell-main">
-        <Outlet context={{ trades, accountId, accounts, unit, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar }} />
+        <FilterBar
+          unit={unit}
+          filters={filters}
+          options={filterOptions}
+          setUnit={setUnit}
+          patchFilters={patchFilters}
+          clearFilters={clearFilters}
+        />
+        <Outlet context={{ trades, account, accountId, accounts, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets }} />
       </main>
     </div>
   );

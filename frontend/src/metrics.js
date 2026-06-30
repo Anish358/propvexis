@@ -129,6 +129,62 @@ export function computeMetrics(trades, unit = 'R') {
   };
 }
 
+// Prop-firm account metrics in account currency ($), derived from realized
+// pnl_money + the account's starting balance. Used by the single-account
+// dashboard (drawdown / profit-target trackers + a balance-based equity curve).
+export function computeProp(trades, account) {
+  const start = Number(account?.start_balance) || ACCOUNT_START;
+  const dailyPct = Number(account?.daily_dd_pct) || 0;
+  const maxPct = Number(account?.max_dd_pct) || 0;
+  const targetPct = Number(account?.profit_target_pct) || 0;
+
+  const ts = trades
+    .filter((t) => t.pnl_money != null)
+    .map((t) => ({ pnl: Number(t.pnl_money), close: new Date(t.close_time) }))
+    .sort((a, b) => a.close - b.close);
+
+  const todayKey = dayKey(new Date());
+  let equity = start, peak = start, maxDD = 0;
+  let dayStart = null, dailyLow = Infinity; // for today's drawdown
+  const curve = [{ label: 'Start', equity: round(start), date: ts[0]?.close ?? new Date() }];
+  for (const t of ts) {
+    if (dayKey(t.close) === todayKey && dayStart == null) dayStart = equity;
+    equity += t.pnl;
+    peak = Math.max(peak, equity);
+    maxDD = Math.max(maxDD, peak - equity);
+    if (dayKey(t.close) === todayKey) dailyLow = Math.min(dailyLow, equity);
+    curve.push({ label: `${t.close.getDate()} ${MONTHS[t.close.getMonth()]}`, equity: round(equity), date: t.close });
+  }
+  const netPnl = equity - start;
+  const dailyDD = dayStart == null ? 0 : Math.max(0, dayStart - dailyLow);
+  const live = account?.balance != null;
+  const currentBalance = live ? Number(account.balance) : equity;
+  // The balance the current trading day opened at (drives the daily-loss floor).
+  const dayStartBalance = dayStart != null ? dayStart : currentBalance;
+
+  // Limits in $ (derived from the % rules + start balance).
+  const dailyLimit = (dailyPct / 100) * start;
+  const maxLimit = (maxPct / 100) * start;
+  const target = (targetPct / 100) * start;
+
+  // Equity floors for the chart: breaching either = a blown account. Max loss is
+  // an absolute floor off the start balance; daily loss resets to today's open.
+  const maxLossFloor = start - maxLimit;
+  const dailyLossFloor = dayStartBalance - dailyLimit;
+
+  return {
+    start,
+    live,
+    currentBalance: round(currentBalance),
+    netPnl: round(netPnl),
+    curve,
+    isEval: (account?.account_type || 'eval') === 'eval',
+    daily: { used: round(dailyDD), limit: round(dailyLimit), pct: dailyPct, floor: round(dailyLossFloor) },
+    max: { used: round(maxDD), limit: round(maxLimit), pct: maxPct, floor: round(maxLossFloor) },
+    target: { reached: round(Math.max(0, netPnl)), goal: round(target), pct: targetPct },
+  };
+}
+
 // Each axis maps a raw metric onto 0..100. Empty/early datasets land high so a
 // clean, winning record reads as a strong score (matches the reference 93).
 function thunderAxes({ winRate, profitFactor, avgWinLoss, ts, recoveryFactor, avgRR }) {

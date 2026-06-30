@@ -42,17 +42,20 @@ function BreakdownTable({ title, rows = [], unit = 'R' }) {
 }
 
 export default function Analytics() {
-  const { connected, toggleSidebar, accountId, unit = 'R' } = useOutletContext();
+  const { connected, toggleSidebar, accountId, unit = 'R', filters } = useOutletContext();
   const [stats, setStats] = useState(null);
   const [yearly, setYearly] = useState(null);
   const [err, setErr] = useState(null);
-  const year = 2026;
+  const year = new Date().getFullYear();
 
-  // Refetch when the selected account changes (god view = all owned accounts).
+  // Refetch when the scope, display unit, or any filter changes. Filters are
+  // applied server-side so the aggregates match the rest of the app.
+  const filterKey = JSON.stringify(filters);
   useEffect(() => {
-    fetchStats(accountId).then(setStats).catch((e) => setErr(e.message));
-    fetchYearly(year, accountId).then(setYearly).catch((e) => setErr(e.message));
-  }, [accountId]);
+    setErr(null);
+    fetchStats(accountId, unit, filters).then(setStats).catch((e) => setErr(e.message));
+    fetchYearly(year, accountId, unit, filters).then(setYearly).catch((e) => setErr(e.message));
+  }, [accountId, unit, filterKey, year]);
 
   const page = (body) => (
     <div className="page">
@@ -71,7 +74,7 @@ export default function Analytics() {
       {/* KPI row */}
       <div className="kpi-row">
         <Kpi label="Total Return" value={fmtVal(h.totalReturn, unit)} tone={h.totalReturn >= 0 ? 'win' : 'loss'} />
-        <Kpi label="Strike Rate" value={`${h.strikeRate}%`} sub={`${h.wins}W · ${h.losses}L · ${h.breakeven}BE`} />
+        <Kpi label="Strike Rate" value={`${h.strikeRate ?? 0}%`} sub={`${h.wins}W · ${h.losses}L · ${h.breakeven}BE`} />
         <Kpi label="Profit Factor" value={h.profitFactor ?? '—'} />
         <Kpi label="Expectancy" value={fmtVal(h.expectancy, unit)} sub="per trade" />
         <Kpi label="# Trades" value={h.trades} />

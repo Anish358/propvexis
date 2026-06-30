@@ -62,14 +62,41 @@ function streaks(scoredOrdered) {
   return { winStreak: maxWin, lossStreak: maxLoss };
 }
 
-// `accountIds` scopes the stats to one user's accounts (array of MT5 logins).
-// An empty array => no trades (a user with no accounts); undefined => unscoped.
+// Build the WHERE clause for a trade query from the scope + global data filters
+// (+ an optional year). `scope.filterCol` and the field used for outcome are
+// code-controlled; every user-supplied value is parameterized. Returns
+// { where, params } with params positioned for the returned placeholders.
+export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null) {
+  const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
+  const conds = [];
+  const params = [];
+  const add = (val) => { params.push(val); return `$${params.length}`; };
+
+  if (year != null) conds.push(`EXTRACT(YEAR FROM close_time) = ${add(year)}`);
+  if (scope) conds.push(`${scope.filterCol} = ${add(scope.filterVal)}`);
+  if (filters.setups?.length) conds.push(`setup = ANY(${add(filters.setups)})`);
+  if (filters.symbols?.length) conds.push(`COALESCE(symbol_base, symbol) = ANY(${add(filters.symbols)})`);
+  if (filters.sessions?.length) conds.push(`session = ANY(${add(filters.sessions)})`);
+  if (filters.probability?.length) conds.push(`probability = ANY(${add(filters.probability)})`);
+  if (filters.from) conds.push(`close_time >= ${add(filters.from)}`);
+  if (filters.to) conds.push(`close_time <= ${add(`${filters.to} 23:59:59`)}`);
+  if (filters.outcome?.length) {
+    const parts = [];
+    if (filters.outcome.includes('win')) parts.push(`${field} > 0`);
+    if (filters.outcome.includes('loss')) parts.push(`${field} < 0`);
+    if (filters.outcome.includes('be')) parts.push(`${field} = 0`);
+    if (parts.length) conds.push(`(${parts.join(' OR ')})`);
+  }
+  return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
+}
+
 // `scope` = { filterCol, filterVal } from resolveScope: god -> user_id = me,
 // single account -> account_id = login. filterCol is code-controlled (safe).
-export async function computeStats(scope, unit = 'R') {
+// `filters` are the global data filters (setups/symbols/sessions/probability/
+// outcome/date range) applied app-wide.
+export async function computeStats(scope, unit = 'R', filters = {}) {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const where = scope ? `WHERE ${scope.filterCol} = $1` : '';
-  const params = scope ? [scope.filterVal] : [];
+  const { where, params } = buildTradeWhere(scope, unit, filters);
   const { rows } = await query(`SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`, params);
   const trades = rows.map((r) => ({ ...r, close: new Date(r.close_time) }));
   // P&L-based stats use the selected unit; R-distribution + MFE always use R.
@@ -153,16 +180,11 @@ export async function computeStats(scope, unit = 'R') {
 }
 
 // Yearly view: monthly performance (overall + per setup) for one year.
-export async function computeYearly(year, scope, unit = 'R') {
+export async function computeYearly(year, scope, unit = 'R', filters = {}) {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const params = [year];
-  let extra = '';
-  if (scope) {
-    params.push(scope.filterVal);
-    extra = `AND ${scope.filterCol} = $${params.length}`;
-  }
+  const { where, params } = buildTradeWhere(scope, unit, filters, year);
   const { rows } = await query(
-    `SELECT * FROM trades WHERE EXTRACT(YEAR FROM close_time) = $1 ${extra} ORDER BY close_time ASC, id ASC`,
+    `SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`,
     params
   );
   const trades = rows.map((r) => ({ ...r, close: new Date(r.close_time) }));

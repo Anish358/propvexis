@@ -85,10 +85,10 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
   // Total in the active unit: R across all accounts, account currency per account.
   const field = valueField(unit);
   const total = trades.reduce((a, t) => a + Number(t[field] ?? 0), 0);
-  const live = account?.balance != null;
-  // Scoped snapshot: live balance if reported, else the account's start balance,
-  // else the legacy constant. (god aggregate also carries start_balance/balance.)
-  const balance = live ? account.balance : account?.start_balance ?? ACCOUNT_START;
+  const isGod = accountId === 'all';
+  // The box always shows the account's STARTING balance (the dashboard is where
+  // the live/current balance lives). God view shows no figure — just a label.
+  const startBalance = account?.start_balance ?? ACCOUNT_START;
 
   return (
     <aside className="sidebar">
@@ -106,15 +106,14 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
       <div className="sb-account">
         <AccountSwitcher accounts={accounts} accountId={accountId} setAccountId={setAccountId} onManage={() => setManageOpen(true)} />
         <div className="sb-account-label">
-          {accountId === 'all' ? 'ALL ACCOUNTS' : 'ACCOUNT'}
-          <span className={`sb-account-tag ${live ? 'live' : ''}`} title={live ? 'Live balance from MT5' : 'No live balance reported yet — showing start balance'}>
-            {live ? 'LIVE' : 'START'}
-          </span>
+          {isGod ? '' : 'ACCOUNT'}
+          {!isGod && <span className="sb-account-tag" title="Starting balance — see the dashboard for the current balance">START</span>}
         </div>
-        <div className="sb-account-balance">{fmtMoney(balance)}</div>
-        <div className="sb-account-start">
-          Total: <span className={total > 0 ? 'win' : total < 0 ? 'loss' : ''}>{fmtVal(total, unit)}</span>
-        </div>
+        {isGod ? (
+          <div className="sb-account-balance god"></div>
+        ) : (
+          <div className="sb-account-balance">{fmtMoney(startBalance)}</div>
+        )}
       </div>
 
       {user && (

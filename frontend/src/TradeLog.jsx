@@ -6,7 +6,7 @@ import TagModal from './TagModal.jsx';
 import AddTradeModal from './AddTradeModal.jsx';
 
 export default function TradeLog() {
-  const { trades = [], connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, accountId = 'all' } = useOutletContext();
+  const { trades = [], connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, accountId = 'all', unit = 'R' } = useOutletContext();
   const [selected, setSelected] = useState(null);
   const [adding, setAdding] = useState(false);
   const isGod = accountId === 'all';
@@ -27,7 +27,7 @@ export default function TradeLog() {
         </div>
 
         <div className="panel log-panel">
-          <TradesTable trades={trades} onRowClick={setSelected} highlightId={flashId} />
+          <TradesTable trades={trades} onRowClick={setSelected} highlightId={flashId} unit={unit} />
         </div>
       </div>
 

@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
 import { useAuth } from './AuthContext.jsx';
+import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
 import Dashboard from './Dashboard.jsx';
@@ -9,7 +10,8 @@ import TradeLog from './TradeLog.jsx';
 import Analytics from './Analytics.jsx';
 import Calendar from './Calendar.jsx';
 
-const ACCT_KEY = 'amey.accountId'; // 'all' (god) or a specific mt5_login
+const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
+const VIEWCFG_KEY = 'amey.viewConfigs'; // per-scope { unit, filters } map
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -28,6 +30,38 @@ export default function App() {
     localStorage.setItem(ACCT_KEY, id);
     setAccountIdState(id);
   }
+
+  // Per-scope view config (display unit + data filters), persisted. The active
+  // scope is the god view or the selected account.
+  const [viewConfigs, setViewConfigs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(VIEWCFG_KEY)) || {}; } catch { return {}; }
+  });
+  useEffect(() => { localStorage.setItem(VIEWCFG_KEY, JSON.stringify(viewConfigs)); }, [viewConfigs]);
+
+  const sk = scopeKey(accountId);
+  // Merge over defaults so configs persisted before a field existed (e.g. the
+  // pre-widget Phase A configs) still get sane values.
+  const config = { ...defaultConfig(accountId), ...(viewConfigs[sk] || {}) };
+  const { unit, filters } = config;
+  const widgetOverrides = config.widgets?.overrides || {};
+
+  const mutateConfig = (fn) => setViewConfigs((prev) => {
+    const cur = { ...defaultConfig(accountId), ...(prev[sk] || {}) };
+    return { ...prev, [sk]: fn(cur) };
+  });
+  const setUnit = (u) => mutateConfig((c) => ({ ...c, unit: u }));
+  const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...c.filters, ...p } }));
+  const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
+  // Explicit per-scope widget choice; absent ids fall back to the widget default.
+  const setWidgetVisible = (id, visible) => mutateConfig((c) => ({
+    ...c, widgets: { ...c.widgets, overrides: { ...(c.widgets?.overrides || {}), [id]: visible } },
+  }));
+  const resetWidgets = () => mutateConfig((c) => ({ ...c, widgets: { overrides: {} } }));
+
+  // Filters apply to every component: the in-memory pages read the filtered set;
+  // the dropdown choices come from the full (unfiltered) scoped trades.
+  const filteredTrades = useMemo(() => filterTrades(trades, filters, unit), [trades, filters, unit]);
+  const filterOptions = useMemo(() => availableOptions(trades), [trades]);
 
   // does an incoming socket event belong to the account currently in view?
   const inView = (acctId) => {
@@ -140,7 +174,7 @@ export default function App() {
           <Route
             element={
               <Layout
-                trades={trades}
+                trades={filteredTrades}
                 account={account}
                 accounts={accounts}
                 accountId={accountId}
@@ -151,6 +185,15 @@ export default function App() {
                 saveTrade={saveTrade}
                 removeTrade={removeTrade}
                 addManualTrade={addManualTrade}
+                unit={unit}
+                filters={filters}
+                filterOptions={filterOptions}
+                setUnit={setUnit}
+                patchFilters={patchFilters}
+                clearFilters={clearFilters}
+                widgetOverrides={widgetOverrides}
+                setWidgetVisible={setWidgetVisible}
+                resetWidgets={resetWidgets}
               />
             }
           >

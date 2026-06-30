@@ -1,9 +1,12 @@
 import React from 'react';
-import { fmtDate, fmtNum, slug } from './constants.js';
+import { fmtDate, fmtTime, fmtNum, slug } from './constants.js';
+import { fmtMoney } from './metrics.js';
 
-const COLS = [
-  'DATE', 'SESSION', 'PAIR', 'SETUP', 'PROBABILITY', 'MTF PHASE',
-  'SL Size', 'MFE', 'MAX R', 'FIXED R TARGET', 'M15', 'H1', 'H4', 'COMMENTS',
+// The result column is R (Fixed R) in the god/strategy view, but real $ profit
+// (pnl_money) when a single prop account is selected.
+const cols = (unit) => [
+  'DATE / TIME', 'SESSION', 'PAIR', 'SETUP', 'PROBABILITY', 'MTF PHASE',
+  'SL Size', 'MFE', 'MAX R', unit === 'USD' ? 'PROFIT' : 'FIXED R TARGET', 'M15', 'H1', 'H4', 'COMMENTS',
 ];
 
 function Pill({ value, kind }) {
@@ -20,7 +23,9 @@ function ChartLink({ url, label }) {
   );
 }
 
-export default function TradesTable({ trades, onRowClick, highlightId }) {
+export default function TradesTable({ trades, onRowClick, highlightId, unit = 'R' }) {
+  const COLS = cols(unit);
+  const usd = unit === 'USD';
   return (
     <div className="grid-wrap">
       <table className="grid">
@@ -32,15 +37,17 @@ export default function TradesTable({ trades, onRowClick, highlightId }) {
             <tr><td className="empty" colSpan={COLS.length}>No trades yet — close a trade in MT5 and it appears here instantly.</td></tr>
           )}
           {trades.map((t) => {
-            const fixed = t.fixed_r;
-            const fixedClass = fixed == null ? '' : fixed > 0 ? 'cell-win' : fixed < 0 ? 'cell-loss' : 'cell-be';
+            // Result cell: $ profit (pnl_money) per account, else Fixed R.
+            const result = usd ? t.pnl_money : t.fixed_r;
+            const resultClass = result == null ? '' : result > 0 ? 'cell-win' : result < 0 ? 'cell-loss' : 'cell-be';
+            const resultText = result == null ? '' : usd ? fmtMoney(result, { sign: true }) : fmtNum(result);
             const rowClass = [
               !t.tagged ? 'row-untagged' : '',
               t.id === highlightId ? 'row-flash' : '',
             ].join(' ').trim();
             return (
               <tr key={t.id} className={rowClass} onClick={() => onRowClick(t)} title={t.tagged ? 'Edit tags' : 'Click to tag this trade'}>
-                <td>{fmtDate(t.close_time)}</td>
+                <td className="cell-dt">{fmtDate(t.close_time)}<span className="cell-time">{fmtTime(t.close_time)}</span></td>
                 <td><Pill value={t.session} kind="session" /></td>
                 <td><Pill value={t.symbol_base || t.symbol} kind="pair" /></td>
                 <td><Pill value={t.setup} kind="setup" /></td>
@@ -49,7 +56,7 @@ export default function TradesTable({ trades, onRowClick, highlightId }) {
                 <td className="num">{fmtNum(t.sl_size_pips, 1)}</td>
                 <td className="num">{fmtNum(t.mfe_pips, 1)}</td>
                 <td className="num max-r">{fmtNum(t.max_r)}</td>
-                <td className={`num ${fixedClass}`}>{fmtNum(t.fixed_r)}</td>
+                <td className={`num ${resultClass}`}>{resultText}</td>
                 <td><ChartLink url={t.m15_url} label="M15" /></td>
                 <td><ChartLink url={t.h1_url} label="H1" /></td>
                 <td><ChartLink url={t.h4_url} label="H4" /></td>

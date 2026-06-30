@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { filtersToQuery } from './filters.js';
 
 // Empty default => relative same-origin URLs, so the session cookie is sent.
 // Dev: Vite proxies /api + /socket.io to :3000. Prod: Caddy serves UI + API on
@@ -91,6 +92,9 @@ export async function deleteAccount(id) {
 // Full ingest URL to show in the EA setup instructions.
 export const INGEST_URL = `${BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/api/trades/ingest`;
 
+// Direct download for the MQL5 EA source (served by the backend).
+export const EA_DOWNLOAD_URL = `${BACKEND_URL}/api/ea/download`;
+
 export async function fetchTrades(accountId) {
   return getJson(`/api/trades?limit=1000${acctq(accountId)}`);
 }
@@ -99,12 +103,12 @@ export async function fetchAccount(accountId) {
   return getJson(`/api/account?_=1${acctq(accountId)}`);
 }
 
-export async function fetchStats(accountId) {
-  return getJson(`/api/stats?_=1${acctq(accountId)}`);
+export async function fetchStats(accountId, unit = 'R', filters) {
+  return getJson(`/api/stats?_=1&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}`);
 }
 
-export async function fetchYearly(year, accountId) {
-  return getJson(`/api/yearly?year=${year}${acctq(accountId)}`);
+export async function fetchYearly(year, accountId, unit = 'R', filters) {
+  return getJson(`/api/yearly?year=${year}&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}`);
 }
 
 export async function createManualTrade(fields) {

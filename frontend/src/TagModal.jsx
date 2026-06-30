@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SETUP_OPTIONS, PROBABILITY_OPTIONS, MTF_OPTIONS, fmtDate, fmtNum } from './constants.js';
+import { SETUP_OPTIONS, PROBABILITY_OPTIONS, MTF_OPTIONS, fmtDateTime, fmtNum } from './constants.js';
 
 const TAG_KEYS = ['setup', 'probability', 'mtf_phase', 'm15_url', 'h1_url', 'h4_url', 'comments'];
 const METRIC_KEYS = ['sl_size_pips', 'mfe_pips'];
@@ -30,6 +30,10 @@ export default function TagModal({ trade, onClose, onSave, onDelete }) {
     });
     setError(null);
     setConfirmDelete(false);
+    // Reset transient flags — otherwise a successful delete leaves `deleting`
+    // true (remove() only clears it on error), disabling delete for the next trade.
+    setDeleting(false);
+    setSaving(false);
   }, [trade]);
 
   if (!trade) return null;
@@ -73,6 +77,13 @@ export default function TagModal({ trade, onClose, onSave, onDelete }) {
   const maxRPreview = form.sl_size_pips !== '' && form.mfe_pips !== '' && sl > 0
     ? (Math.round((mfe / sl) * 100) / 100).toFixed(2)
     : '—';
+  // Fixed R scales inversely with SL size (the realized reward in pips is fixed,
+  // only the risk denominator moves). For price-derived (EA/import) trades, show
+  // a live preview as the user edits SL; the backend recomputes the same on save.
+  const canScaleFixedR = trade.source !== 'manual' && trade.fixed_r != null && Number(trade.sl_size_pips) > 0;
+  const fixedRPreview = canScaleFixedR && sl > 0
+    ? Math.round((Number(trade.fixed_r) * Number(trade.sl_size_pips) / sl) * 100) / 100
+    : trade.fixed_r;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -84,11 +95,11 @@ export default function TagModal({ trade, onClose, onSave, onDelete }) {
 
         <div className="trade-meta">
           <span><b>{trade.symbol}</b> {trade.direction}</span>
-          <span>{fmtDate(trade.close_time)}</span>
+          <span>{fmtDateTime(trade.close_time)}</span>
           <span>SL {fmtNum(trade.sl_size_pips, 1)}p</span>
-          <span>MaxR {fmtNum(trade.max_r)}</span>
-          <span className={trade.fixed_r > 0 ? 'win' : trade.fixed_r < 0 ? 'loss' : ''}>
-            FixedR {fmtNum(trade.fixed_r)}
+          <span>MaxR {maxRPreview}</span>
+          <span className={fixedRPreview > 0 ? 'win' : fixedRPreview < 0 ? 'loss' : ''}>
+            FixedR {fmtNum(fixedRPreview)}
           </span>
         </div>
 
