@@ -47,9 +47,11 @@ export default function TagModal({ trade, onClose, onSave, onDelete }) {
       // tags: always sent (empty string -> null clears the field)
       const payload = {};
       for (const k of TAG_KEYS) payload[k] = form[k] === '' ? null : form[k];
-      // metrics: sent only when changed, so tag-only edits don't recompute Max R
+      // metrics: always sent so the backend re-derives Max R AND Fixed R from the
+      // current SL/MFE. This makes saving self-healing — e.g. a trade whose SL was
+      // corrected before the fixed_r fix shipped gets its Fixed R recomputed on save.
       for (const k of METRIC_KEYS) {
-        if (form[k] !== s(trade[k])) payload[k] = form[k] === '' ? null : Number(form[k]);
+        payload[k] = form[k] === '' ? null : Number(form[k]);
       }
       await onSave(trade.id, payload);
       onClose();

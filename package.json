@@ -11,6 +11,7 @@
     "db:migrate": "node scripts/migrate.js",
     "db:seed-accounts": "node scripts/seed-accounts.js",
     "db:backfill-ownership": "node scripts/backfill-trade-ownership.js",
+    "db:recompute-fixed-r": "node scripts/recompute-fixed-r.js",
     "smoke": "node scripts/smoke-ingest.js",
     "test:ea": "node scripts/test-ea-payload.js",
     "import:sheet": "node scripts/import-sheet.js"
