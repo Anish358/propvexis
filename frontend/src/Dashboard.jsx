@@ -12,11 +12,12 @@ import { DASH_WIDGETS, BANDS, WidgetCustomizer, widgetBlockReason, balancedCols 
 export default function Dashboard() {
   const {
     trades = [], account, accountId = 'all', connected, toggleSidebar, unit = 'R',
-    widgetOverrides = {}, setWidgetVisible, resetWidgets,
+    widgetOverrides = {}, setWidgetVisible, resetWidgets, tradeSettings = {},
   } = useOutletContext();
 
   const scope = accountId === 'all' ? 'god' : 'account';
-  const m = useMemo(() => computeMetrics(trades, unit), [trades, unit]);
+  const beRounding = !!tradeSettings.beRounding;
+  const m = useMemo(() => computeMetrics(trades, unit, beRounding), [trades, unit, beRounding]);
   const p = useMemo(() => computeProp(trades, account), [trades, account]);
 
   const now = new Date();

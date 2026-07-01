@@ -80,7 +80,7 @@ export default function App() {
   );
   // Filters apply to every component: the in-memory pages read the filtered set;
   // the dropdown choices come from the full (unfiltered) scoped trades.
-  const filteredTrades = useMemo(() => filterTrades(normalizedTrades, filters, unit), [normalizedTrades, filters, unit]);
+  const filteredTrades = useMemo(() => filterTrades(normalizedTrades, filters, unit, tradeSettings.beRounding), [normalizedTrades, filters, unit, tradeSettings.beRounding]);
   const filterOptions = useMemo(() => availableOptions(trades), [trades]);
 
   // does an incoming socket event belong to the account currently in view?

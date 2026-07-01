@@ -34,6 +34,10 @@ export default function TradeSettingsModal({
               <span className="ts-toggle-sub">
                 Treat any trade with a Fixed R between −{BE_THRESHOLD} and +{BE_THRESHOLD} as a
                 breakeven (0R). Applies everywhere — dashboard, calendar, analytics and the trade log.
+                <br /><br />
+                This holds in the <b>$ view</b> too: such trades are counted as breakeven (not wins or
+                losses) in win rate, streaks and profit factor. Their actual dollar P&amp;L is
+                <b> kept as-is</b> in balance and totals — a small $ loss is not rounded to $0.
               </span>
             </div>
             <span className={`switch ${beRounding ? 'on' : ''}`} role="switch" aria-checked={beRounding}>

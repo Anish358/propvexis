@@ -60,9 +60,9 @@ function SummaryTable({ rows, unit }) {
 }
 
 export default function Calendar() {
-  const { trades = [], connected, toggleSidebar, unit = 'R' } = useOutletContext();
+  const { trades = [], connected, toggleSidebar, unit = 'R', tradeSettings = {} } = useOutletContext();
   const field = valueField(unit);
-  const m = useMemo(() => computeMetrics(trades, unit), [trades, unit]);
+  const m = useMemo(() => computeMetrics(trades, unit, !!tradeSettings.beRounding), [trades, unit, tradeSettings.beRounding]);
   const now = new Date();
   const [view, setView] = useState('Calendar');
   const [calYear, setCalYear] = useState(now.getFullYear());
@@ -115,7 +115,7 @@ export default function Calendar() {
         {view === 'Daily' && <SummaryTable rows={byDay} unit={unit} />}
       </div>
 
-      <DayTradesModal dayKeyStr={selectedDay} trades={trades} unit={unit} onClose={() => setSelectedDay(null)} />
+      <DayTradesModal dayKeyStr={selectedDay} trades={trades} unit={unit} beRounding={!!tradeSettings.beRounding} onClose={() => setSelectedDay(null)} />
     </div>
   );
 }

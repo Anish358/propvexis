@@ -3,7 +3,7 @@
 // a set of data filters applied to EVERY component (dashboard, calendar, trade
 // log, analytics). The same filters drive the in-memory pages and the backend
 // stats endpoints, so the two always agree.
-import { valueField } from './metrics.js';
+import { tradeOutcome } from './metrics.js';
 
 // Known orderings so dropdowns read naturally; unknown values sort after.
 export const SETUP_ORDER = ['Continue', 'Liq-run', 'Fractal', 'SMC'];
@@ -32,16 +32,9 @@ export const defaultConfig = (accountId) => ({
   widgets: { overrides: {} },
 });
 
-// Trade outcome (win/loss/be) by the sign of the active unit's value, falling
-// back to R when the unit's field is absent (e.g. $ requested but no pnl_money).
-function outcomeOf(t, unit) {
-  const v = t[valueField(unit)] ?? t.fixed_r;
-  if (v == null) return null;
-  return v > 0 ? 'win' : v < 0 ? 'loss' : 'be';
-}
-
-// Apply the data filters to a trade list (display unit only affects outcome).
-export function filterTrades(trades = [], f = emptyFilters(), unit = 'R') {
+// Apply the data filters to a trade list. The display unit + precision setting
+// only affect the outcome (win/loss/be) classification via `tradeOutcome`.
+export function filterTrades(trades = [], f = emptyFilters(), unit = 'R', beRounding = false) {
   const has = (arr) => Array.isArray(arr) && arr.length > 0;
   const to = f.to ? new Date(`${f.to}T23:59:59`) : null;
   const from = f.from ? new Date(`${f.from}T00:00:00`) : null;
@@ -50,7 +43,7 @@ export function filterTrades(trades = [], f = emptyFilters(), unit = 'R') {
     if (has(f.symbols) && !f.symbols.includes(t.symbol_base || t.symbol)) return false;
     if (has(f.sessions) && !f.sessions.includes(t.session)) return false;
     if (has(f.probability) && !f.probability.includes(t.probability)) return false;
-    if (has(f.outcome) && !f.outcome.includes(outcomeOf(t, unit))) return false;
+    if (has(f.outcome) && !f.outcome.includes(tradeOutcome(t, unit, beRounding))) return false;
     if (from || to) {
       const c = new Date(t.close_time);
       if (from && c < from) return false;

@@ -5,6 +5,7 @@ import TradesTable from './TradesTable.jsx';
 import TagModal from './TagModal.jsx';
 import AddTradeModal from './AddTradeModal.jsx';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
+import TradePreview from './TradePreview.jsx';
 import Explain from './Explain.jsx';
 
 export default function TradeLog() {
@@ -13,13 +14,23 @@ export default function TradeLog() {
     toggleSidebar, accountId = 'all', unit = 'R',
     tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   } = useOutletContext();
-  const [selected, setSelected] = useState(null);
+  // Clicking a row opens the read-only preview panel; its edit icon opens the
+  // TagModal editor. `previewId` (not a snapshot) so the panel reflects live edits
+  // and closes itself if the trade is deleted or filtered out.
+  const [previewId, setPreviewId] = useState(null);
+  const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const isGod = accountId === 'all';
 
   const untagged = useMemo(() => trades.filter((t) => !t.tagged).length, [trades]);
   const columnOverrides = tradeSettings.columns || {};
+  const previewTrade = useMemo(() => trades.find((t) => t.id === previewId) || null, [trades, previewId]);
+
+  async function deleteFromPreview(id) {
+    await removeTrade(id);
+    setPreviewId(null);
+  }
 
   return (
     <div className="page">
@@ -50,11 +61,19 @@ export default function TradeLog() {
         </div>
 
         <div className="panel log-panel">
-          <TradesTable trades={trades} onRowClick={setSelected} highlightId={flashId} unit={unit} columnOverrides={columnOverrides} />
+          <TradesTable trades={trades} onRowClick={(t) => setPreviewId(t.id)} highlightId={flashId} unit={unit} columnOverrides={columnOverrides} beRounding={!!tradeSettings.beRounding} />
         </div>
       </div>
 
-      <TagModal trade={selected} onClose={() => setSelected(null)} onSave={saveTrade} onDelete={removeTrade} />
+      <TradePreview
+        trade={previewTrade}
+        unit={unit}
+        beRounding={!!tradeSettings.beRounding}
+        onClose={() => setPreviewId(null)}
+        onEdit={(t) => setEditing(t)}
+        onDelete={deleteFromPreview}
+      />
+      <TagModal trade={editing} onClose={() => setEditing(null)} onSave={saveTrade} onDelete={removeTrade} />
       {adding && <AddTradeModal onClose={() => setAdding(false)} onAdd={addManualTrade} />}
       <TradeSettingsModal
         open={settingsOpen}

@@ -29,25 +29,39 @@ function weekKey(d) {
   return `${monday.getUTCDate()} ${MONTHS[monday.getUTCMonth()]} ${monday.getUTCFullYear()}`;
 }
 
+// Win/loss/breakeven for a trade under the display unit + precision setting —
+// mirrors the client's tradeOutcome (metrics.js). With breakeven rounding on, a
+// trade whose Fixed R is within ±BE_THRESHOLD is breakeven in EVERY unit ($ too),
+// though its real $ value is still summed into totals. `field` is the unit's value
+// column. Returns 'win' | 'loss' | 'be' | null.
+function outcomeOf(t, field, beRound) {
+  const v = t[field];
+  if (v == null) return null;
+  if (beRound && t.fixed_r != null && Math.abs(Number(t.fixed_r)) <= BE_THRESHOLD) return 'be';
+  const n = Number(v);
+  return n > 0 ? 'win' : n < 0 ? 'loss' : 'be';
+}
+
 // performance of an arbitrary subset of trades (trades / strike rate / P&L).
 // `field` selects the P&L unit: 'fixed_r' (R) or 'pnl_money' (account currency).
-function perf(list, field = 'fixed_r') {
+function perf(list, field = 'fixed_r', beRound = false) {
   const scored = list.filter((t) => t[field] != null);
-  const wins = scored.filter((t) => t[field] > 0);
-  const losses = scored.filter((t) => t[field] < 0);
-  const r = sum(scored.map((t) => Number(t[field])));
+  const wins = scored.filter((t) => outcomeOf(t, field, beRound) === 'win');
+  const losses = scored.filter((t) => outcomeOf(t, field, beRound) === 'loss');
+  const breakeven = scored.filter((t) => outcomeOf(t, field, beRound) === 'be');
+  const r = sum(scored.map((t) => Number(t[field]))); // real value — BE $ preserved
   return {
     trades: scored.length,
     wins: wins.length,
     losses: losses.length,
-    breakeven: scored.filter((t) => Number(t[field]) === 0).length,
+    breakeven: breakeven.length,
     sr: scored.length ? round((100 * wins.length) / scored.length) : null, // wins / all trades
     r: round(r),
   };
 }
 
 // group trades by a key function -> [{ key, ...perf }] sorted by descending P&L
-function groupPerf(list, keyFn, order, field = 'fixed_r') {
+function groupPerf(list, keyFn, order, field = 'fixed_r', beRound = false) {
   const m = new Map();
   for (const t of list) {
     const k = keyFn(t);
@@ -55,18 +69,19 @@ function groupPerf(list, keyFn, order, field = 'fixed_r') {
     if (!m.has(k)) m.set(k, []);
     m.get(k).push(t);
   }
-  let out = [...m.entries()].map(([key, ts]) => ({ key, ...perf(ts, field) }));
+  let out = [...m.entries()].map(([key, ts]) => ({ key, ...perf(ts, field, beRound) }));
   if (order) out.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
   else out.sort((a, b) => (b.r ?? 0) - (a.r ?? 0));
   return out;
 }
 
 // longest run of consecutive wins / losses (breakeven resets both)
-function streaks(scoredOrdered) {
+function streaks(orderedTrades, field, beRound) {
   let win = 0, loss = 0, maxWin = 0, maxLoss = 0;
-  for (const t of scoredOrdered) {
-    if (t.fixed_r > 0) { win++; loss = 0; }
-    else if (t.fixed_r < 0) { loss++; win = 0; }
+  for (const t of orderedTrades) {
+    const o = outcomeOf(t, field, beRound);
+    if (o === 'win') { win++; loss = 0; }
+    else if (o === 'loss') { loss++; win = 0; }
     else { win = 0; loss = 0; }
     maxWin = Math.max(maxWin, win);
     maxLoss = Math.max(maxLoss, loss);
@@ -93,15 +108,16 @@ export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null, be
   if (filters.from) conds.push(`close_time >= ${add(filters.from)}`);
   if (filters.to) conds.push(`close_time <= ${add(`${filters.to} 23:59:59`)}`);
   if (filters.outcome?.length) {
-    // With breakeven rounding on, a near-zero Fixed R counts as BE. Widen the
-    // win/loss/be bands by BE_THRESHOLD to match the client's snapped view.
-    // (BE_THRESHOLD is a code constant, so it's safe to inline in SQL.) Only the
-    // R field is snapped — USD outcomes stay on an exact-zero pivot.
-    const rBE = beRound && field === 'fixed_r';
+    // Match the client's tradeOutcome. With breakeven rounding on, a trade whose
+    // Fixed R is within ±BE_THRESHOLD is breakeven in EITHER unit ($ too); wins and
+    // losses are then the sign of the unit's value AMONG non-rounded trades.
+    // (BE_THRESHOLD is a code constant, so it's safe to inline in SQL.)
+    const beByR = 'fixed_r IS NOT NULL AND abs(fixed_r) <= ' + BE_THRESHOLD;
+    const notBeByR = '(fixed_r IS NULL OR abs(fixed_r) > ' + BE_THRESHOLD + ')';
     const parts = [];
-    if (filters.outcome.includes('win')) parts.push(rBE ? `${field} > ${BE_THRESHOLD}` : `${field} > 0`);
-    if (filters.outcome.includes('loss')) parts.push(rBE ? `${field} < ${-BE_THRESHOLD}` : `${field} < 0`);
-    if (filters.outcome.includes('be')) parts.push(rBE ? `(${field} >= ${-BE_THRESHOLD} AND ${field} <= ${BE_THRESHOLD})` : `${field} = 0`);
+    if (filters.outcome.includes('win')) parts.push(beRound ? `(${field} > 0 AND ${notBeByR})` : `${field} > 0`);
+    if (filters.outcome.includes('loss')) parts.push(beRound ? `(${field} < 0 AND ${notBeByR})` : `${field} < 0`);
+    if (filters.outcome.includes('be')) parts.push(beRound ? `(${field} IS NOT NULL AND ((${beByR}) OR ${field} = 0))` : `${field} = 0`);
     if (parts.length) conds.push(`(${parts.join(' OR ')})`);
   }
   return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
@@ -120,13 +136,14 @@ export async function computeStats(scope, unit = 'R', filters = {}, beRound = fa
   const scored = trades.filter((t) => t[field] != null);
   const rScored = trades.filter((t) => t.fixed_r != null);
 
-  const base = perf(trades, field);
-  const winsR = sum(scored.filter((t) => t[field] > 0).map((t) => Number(t[field])));
-  const lossR = sum(scored.filter((t) => t[field] < 0).map((t) => Number(t[field])));
+  const base = perf(trades, field, beRound);
+  // Win/loss sums exclude breakeven trades (their $ stays in totalReturn, not here).
+  const winsR = sum(scored.filter((t) => outcomeOf(t, field, beRound) === 'win').map((t) => Number(t[field])));
+  const lossR = sum(scored.filter((t) => outcomeOf(t, field, beRound) === 'loss').map((t) => Number(t[field])));
   const avgWin = base.wins ? round(winsR / base.wins) : null;
   const avgLoss = base.losses ? round(lossR / base.losses) : null;
   const pf = lossR !== 0 ? round(winsR / Math.abs(lossR)) : null;
-  const { winStreak, lossStreak } = streaks(scored.map((t) => ({ fixed_r: Number(t[field]) })));
+  const { winStreak, lossStreak } = streaks(scored, field, beRound);
 
   const headline = {
     unit,
@@ -183,13 +200,13 @@ export async function computeStats(scope, unit = 'R', filters = {}, beRound = fa
 
   return {
     headline,
-    bySetup: groupPerf(trades, (t) => t.setup, ['Continue', 'Liq-run', 'Fractal', 'SMC'], field),
-    byInstrument: groupPerf(trades, (t) => t.symbol_base || t.symbol, null, field),
-    byProbability: groupPerf(trades, (t) => t.probability, ['HIGH', 'MED', 'LOW'], field),
-    bySession: groupPerf(trades, (t) => t.session, ['LDN', 'NY', 'ASIA'], field),
-    byDay: groupPerf(trades, (t) => DOW[t.close.getUTCDay()], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], field),
-    byMonth: groupPerf(trades, (t) => `${MONTHS[t.close.getUTCMonth()]} ${t.close.getUTCFullYear()}`, null, field),
-    byWeek: groupPerf(trades, (t) => weekKey(t.close), null, field),
+    bySetup: groupPerf(trades, (t) => t.setup, ['Continue', 'Liq-run', 'Fractal', 'SMC'], field, beRound),
+    byInstrument: groupPerf(trades, (t) => t.symbol_base || t.symbol, null, field, beRound),
+    byProbability: groupPerf(trades, (t) => t.probability, ['HIGH', 'MED', 'LOW'], field, beRound),
+    bySession: groupPerf(trades, (t) => t.session, ['LDN', 'NY', 'ASIA'], field, beRound),
+    byDay: groupPerf(trades, (t) => DOW[t.close.getUTCDay()], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], field, beRound),
+    byMonth: groupPerf(trades, (t) => `${MONTHS[t.close.getUTCMonth()]} ${t.close.getUTCFullYear()}`, null, field, beRound),
+    byWeek: groupPerf(trades, (t) => weekKey(t.close), null, field, beRound),
     equityCurve,
     rDistribution,
     mfeEfficiency,
@@ -209,13 +226,13 @@ export async function computeYearly(year, scope, unit = 'R', filters = {}, beRou
 
   const months = MONTHS.map((name, mi) => {
     const inMonth = trades.filter((t) => t.close.getUTCMonth() === mi);
-    const row = { month: name, overall: perf(inMonth, field) };
-    for (const s of setups) row[s] = perf(inMonth.filter((t) => t.setup === s), field);
+    const row = { month: name, overall: perf(inMonth, field, beRound) };
+    for (const s of setups) row[s] = perf(inMonth.filter((t) => t.setup === s), field, beRound);
     return row;
   });
 
-  const total = { month: 'TOTAL', overall: perf(trades, field) };
-  for (const s of setups) total[s] = perf(trades.filter((t) => t.setup === s), field);
+  const total = { month: 'TOTAL', overall: perf(trades, field, beRound) };
+  for (const s of setups) total[s] = perf(trades.filter((t) => t.setup === s), field, beRound);
 
   return { year, setups, unit, months, total };
 }

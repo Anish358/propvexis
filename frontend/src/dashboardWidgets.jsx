@@ -10,6 +10,7 @@ import { fmtVal, fmtValShort, fmtAxis, fmtMoney } from './metrics.js';
 
 const GREEN = '#39d98a';
 const RED = '#e0615b';
+const PURPLE = '#a679f0';
 const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : '');
 const pctStr = (n) => `${(Number(n) || 0).toFixed(1)}%`;
 
@@ -219,8 +220,31 @@ function WDailyBars({ ctx }) {
   );
 }
 
+// Tooltip for the balance chart. On the pre-tracking (purple) segment it explains
+// what the straight line means instead of just showing a number.
+function BalanceTip({ active, payload, pre }) {
+  if (!active || !payload?.length) return null;
+  const pt = payload[0]?.payload || {};
+  if (pt.phase === 'added' && pre) {
+    const delta = pre.added - pre.start;
+    return (
+      <div className="chart-tip pre">
+        <div className="chart-tip-title" style={{ color: PURPLE }}>Before journal tracking</div>
+        <div className="chart-tip-body">
+          Added at <b>{fmtMoney(pre.added)}</b> with a start balance of <b>{fmtMoney(pre.start)}</b>.
+          This {fmtMoney(Math.abs(delta))} {delta < 0 ? 'drawdown' : 'gain'} happened before any trade
+          was recorded here, so it’s drawn as a straight line — not from tracked trades.
+        </div>
+      </div>
+    );
+  }
+  const v = pt.equity ?? pt.pre;
+  return <div className="chart-tip"><b>{fmtMoney(v)}</b></div>;
+}
+
 function WEquity({ ctx }) {
   const { p } = ctx;
+  const pre = p.preTracking;
   return (
     <div className="panel">
       <div className="panel-head">
@@ -234,17 +258,29 @@ function WEquity({ ctx }) {
               <stop offset="0%" stopColor={GREEN} stopOpacity={0.35} />
               <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
             </linearGradient>
+            <linearGradient id="preFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={PURPLE} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={PURPLE} stopOpacity={0} />
+            </linearGradient>
           </defs>
           <CartesianGrid stroke="#1d1d23" vertical={false} />
           <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
           <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} domain={[Math.floor(p.max.floor - p.start * 0.01), 'auto']} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
-          <Tooltip contentStyle={chartTooltip} formatter={(v) => fmtMoney(v)} />
+          <Tooltip content={<BalanceTip pre={pre} />} />
           <ReferenceLine y={p.start} stroke="#33333b" strokeDasharray="4 4" label={{ value: 'start', fill: '#5a5a63', fontSize: 10, position: 'insideTopLeft' }} />
           <ReferenceLine y={p.daily.floor} stroke="#e0a03a" strokeDasharray="6 4" label={{ value: `Daily max loss · ${fmtMoney(p.daily.floor)}`, fill: '#e0a03a', fontSize: 10, position: 'insideBottomRight' }} />
           <ReferenceLine y={p.max.floor} stroke={RED} strokeDasharray="6 4" label={{ value: `Max allowed loss · ${fmtMoney(p.max.floor)}`, fill: RED, fontSize: 10, position: 'insideBottomRight' }} />
-          <Area type="monotone" dataKey="equity" stroke={GREEN} strokeWidth={2} fill="url(#balFill)" dot={false} />
+          {/* Pre-tracking (account added mid-drawdown) drawn as a straight purple drop. */}
+          {pre && <Area type="linear" dataKey="pre" stroke={PURPLE} strokeWidth={2} strokeDasharray="5 3" fill="url(#preFill)" dot={false} connectNulls={false} isAnimationActive={false} />}
+          <Area type="monotone" dataKey="equity" stroke={GREEN} strokeWidth={2} fill="url(#balFill)" dot={false} connectNulls={false} />
         </AreaChart>
       </ResponsiveContainer>
+      {pre && (
+        <div className="equity-legend">
+          <span className="dot" style={{ background: PURPLE }} />
+          Pre-tracking: account added at {fmtMoney(pre.added)} (start {fmtMoney(pre.start)})
+        </div>
+      )}
     </div>
   );
 }

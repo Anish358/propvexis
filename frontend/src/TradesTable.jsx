@@ -1,6 +1,6 @@
 import React from 'react';
 import { fmtDate, fmtTime, fmtNum, fmtDuration, slug } from './constants.js';
-import { fmtMoney } from './metrics.js';
+import { fmtMoney, tradeOutcome } from './metrics.js';
 
 function Pill({ value, kind }) {
   if (!value) return <span className="pill pill-empty">—</span>;
@@ -20,7 +20,7 @@ function ChartLink({ url, label }) {
 // persist the user's show/hide choice), a header `label`, whether it shows by
 // default, and a `cell(t)` renderer returning the full <td>. The result column's
 // label + value depend on the display unit (R vs $), so columns are built per unit.
-export function buildColumns(unit = 'R') {
+export function buildColumns(unit = 'R', beRounding = false) {
   const usd = unit === 'USD';
   return [
     {
@@ -53,7 +53,10 @@ export function buildColumns(unit = 'R') {
       id: 'result', label: usd ? 'PROFIT' : 'FIXED R TARGET', defaultOn: true,
       cell: (t) => {
         const result = usd ? t.pnl_money : t.fixed_r;
-        const cls = result == null ? '' : result > 0 ? 'cell-win' : result < 0 ? 'cell-loss' : 'cell-be';
+        // Color by the precision-aware outcome (a breakeven trade reads grey, not
+        // red) — but keep the real $ value in the text, never zeroed.
+        const out = tradeOutcome(t, unit, beRounding);
+        const cls = out === 'win' ? 'cell-win' : out === 'loss' ? 'cell-loss' : out === 'be' ? 'cell-be' : '';
         const text = result == null ? '' : usd ? fmtMoney(result, { sign: true }) : fmtNum(result);
         return <td className={`num ${cls}`}>{text}</td>;
       },
@@ -72,8 +75,8 @@ export function buildColumns(unit = 'R') {
 // Effective visibility: an explicit user override wins, else the column default.
 export const colVisible = (overrides, col) => overrides?.[col.id] ?? col.defaultOn;
 
-export default function TradesTable({ trades, onRowClick, highlightId, unit = 'R', columnOverrides = {} }) {
-  const cols = buildColumns(unit).filter((c) => colVisible(columnOverrides, c));
+export default function TradesTable({ trades, onRowClick, highlightId, unit = 'R', columnOverrides = {}, beRounding = false }) {
+  const cols = buildColumns(unit, beRounding).filter((c) => colVisible(columnOverrides, c));
   return (
     <div className="grid-wrap">
       <table className="grid">
