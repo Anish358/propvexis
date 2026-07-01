@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { createAccount, updateAccount, deleteAccount, INGEST_URL, EA_DOWNLOAD_URL } from './api.js';
+import { createAccount, updateAccount, deleteAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from './api.js';
 
 // EA setup card shown for an account. The downloaded EA is pre-filled with this
 // account's ingest endpoint + token (injected client-side), so the user just
@@ -56,10 +56,11 @@ function SetupCard({ account }) {
           {dlError && <div className="login-error">{dlError}</div>}
         </li>
         <li>
-          In MT5: Tools → Options → Expert Advisors → tick <b>Allow WebRequest</b> and add this URL:
+          In MT5: Tools → Options → Expert Advisors → tick <b>Allow WebRequest</b> and add this URL
+          <span className="muted"> (the host — covers trade + payout sync)</span>:
           <div className="acct-copy">
-            <code>{INGEST_URL}</code>
-            <button onClick={() => copy(INGEST_URL, 'url')}>{copied === 'url' ? 'Copied' : 'Copy'}</button>
+            <code>{INGEST_ORIGIN}</code>
+            <button onClick={() => copy(INGEST_ORIGIN, 'url')}>{copied === 'url' ? 'Copied' : 'Copy'}</button>
           </div>
         </li>
         <li><b>Place your first trade</b> — it auto-links this MT5 account and tracking begins.</li>
@@ -99,6 +100,12 @@ function PropFields({ v, set }) {
           <input type="number" step="0.1" value={v.profit_target_pct} onChange={(e) => set('profit_target_pct', e.target.value)} placeholder="8" />
         </label>
       )}
+      {v.account_type === 'funded' && (
+        <label>
+          <span>Profit split (%)</span>
+          <input type="number" step="1" value={v.payout_split_pct} onChange={(e) => set('payout_split_pct', e.target.value)} placeholder="80" />
+        </label>
+      )}
     </div>
   );
 }
@@ -110,6 +117,7 @@ const toPayload = (v) => ({
   daily_dd_pct: v.daily_dd_pct === '' ? null : Number(v.daily_dd_pct),
   max_dd_pct: v.max_dd_pct === '' ? null : Number(v.max_dd_pct),
   profit_target_pct: v.profit_target_pct === '' ? null : Number(v.profit_target_pct),
+  payout_split_pct: v.payout_split_pct === '' ? null : Number(v.payout_split_pct),
 });
 
 const formFrom = (a) => ({
@@ -118,6 +126,7 @@ const formFrom = (a) => ({
   daily_dd_pct: a?.daily_dd_pct ?? '',
   max_dd_pct: a?.max_dd_pct ?? '',
   profit_target_pct: a?.profit_target_pct ?? '',
+  payout_split_pct: a?.payout_split_pct ?? '',
 });
 
 // Inline editor for an existing account's prop-firm config.
@@ -153,6 +162,7 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
   const [openSetupId, setOpenSetupId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [err, setErr] = useState(null);
+  const [showAdd, setShowAdd] = useState(false); // add form hidden until user opts in
   const set = (f, val) => setV((p) => ({ ...p, [f]: val }));
 
   async function add(e) {
@@ -165,6 +175,7 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
       setCreated(acct);
       setLabel('');
       setV(formFrom(null));
+      setShowAdd(false);
       onChanged?.();
     } catch (e2) {
       setErr(e2.message);
@@ -180,7 +191,17 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
     onChanged?.();
   }
 
+  // Archive/unarchive: soft toggle via is_active. Archived accounts drop out of
+  // the switcher but keep their trades and can be restored here.
+  async function toggleArchive(a) {
+    await updateAccount(a.id, { is_active: a.is_active === false });
+    onChanged?.();
+  }
+
   const acctType = (a) => (a.account_type === 'funded' ? 'Funded' : 'Eval');
+  const isArchived = (a) => a.is_active === false;
+  // Newest account first (most recently added at the top).
+  const sorted = [...accounts].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
@@ -190,38 +211,28 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
           <button className="modal-x" onClick={onClose}>✕</button>
         </div>
 
-        {/* existing accounts */}
-        <div className="acct-list">
-          {accounts.length === 0 && <div className="acct-empty">No accounts yet — add one below.</div>}
-          {accounts.map((a) => (
-            <div key={a.id} className="acct-row">
-              <div className="acct-row-main">
-                <div className="acct-row-label">{a.label}</div>
-                <div className="acct-row-meta">
-                  {a.pending ? (
-                    <span className="acct-badge pending">● Waiting for first trade</span>
-                  ) : (
-                    <span className="acct-badge bound">MT5 {a.mt5_login}</span>
-                  )}
-                  <span className="acct-badge type">{acctType(a)}</span>
-                </div>
-              </div>
-              <div className="acct-row-actions">
-                <button onClick={() => { setEditId(editId === a.id ? null : a.id); setOpenSetupId(null); }}>
-                  {editId === a.id ? 'Close' : 'Edit'}
-                </button>
-                <button onClick={() => { setOpenSetupId(openSetupId === a.id ? null : a.id); setEditId(null); }}>
-                  {openSetupId === a.id ? 'Hide setup' : 'Setup'}
-                </button>
-                <button className="danger" onClick={() => remove(a.id)}>Delete</button>
-              </div>
-              {editId === a.id && (
-                <EditForm account={a} onCancel={() => setEditId(null)} onSaved={() => { setEditId(null); onChanged?.(); }} />
-              )}
-              {openSetupId === a.id && <SetupCard account={a} />}
-            </div>
-          ))}
+        {/* add account toggle — centered at the top; the form is hidden until opened */}
+        <div className="acct-add-toggle">
+          <button type="button" className="acct-add-btn" onClick={() => { setShowAdd((s) => !s); setErr(null); }}>
+            {showAdd ? 'Cancel' : '+ Add account'}
+          </button>
         </div>
+
+        {/* add form — only shown once the user clicks "Add account" */}
+        {showAdd && (
+          <form className="acct-add" onSubmit={add}>
+            <div className="acct-add-row">
+              <input
+                placeholder="Account label (e.g. GFT Challenge #1)"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+              <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
+            </div>
+            <PropFields v={v} set={set} />
+            {err && <div className="login-error">{err}</div>}
+          </form>
+        )}
 
         {/* freshly created -> highlight its setup */}
         {created && (
@@ -231,19 +242,40 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
           </div>
         )}
 
-        {/* add form */}
-        <form className="acct-add" onSubmit={add}>
-          <div className="acct-add-row">
-            <input
-              placeholder="Account label (e.g. GFT Challenge #1)"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-            />
-            <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
-          </div>
-          <PropFields v={v} set={set} />
-          {err && <div className="login-error">{err}</div>}
-        </form>
+        {/* existing accounts, newest first */}
+        <div className="acct-list">
+          {accounts.length === 0 && <div className="acct-empty">No accounts yet — add one above.</div>}
+          {sorted.map((a) => (
+            <div key={a.id} className={`acct-row${isArchived(a) ? ' archived' : ''}`}>
+              <div className="acct-row-main">
+                <div className="acct-row-label">{a.label}</div>
+                <div className="acct-row-meta">
+                  {a.pending ? (
+                    <span className="acct-badge pending">● Waiting for first trade</span>
+                  ) : (
+                    <span className="acct-badge bound">MT5 {a.mt5_login}</span>
+                  )}
+                  <span className="acct-badge type">{acctType(a)}</span>
+                  {isArchived(a) && <span className="acct-badge archived">Archived</span>}
+                </div>
+              </div>
+              <div className="acct-row-actions">
+                <button onClick={() => { setEditId(editId === a.id ? null : a.id); setOpenSetupId(null); }}>
+                  {editId === a.id ? 'Close' : 'Edit'}
+                </button>
+                <button onClick={() => { setOpenSetupId(openSetupId === a.id ? null : a.id); setEditId(null); }}>
+                  {openSetupId === a.id ? 'Hide setup' : 'Setup'}
+                </button>
+                <button onClick={() => toggleArchive(a)}>{isArchived(a) ? 'Unarchive' : 'Archive'}</button>
+                <button className="danger" onClick={() => remove(a.id)}>Delete</button>
+              </div>
+              {editId === a.id && (
+                <EditForm account={a} onCancel={() => setEditId(null)} onSaved={() => { setEditId(null); onChanged?.(); }} />
+              )}
+              {openSetupId === a.id && <SetupCard account={a} />}
+            </div>
+          ))}
+        </div>
       </div>
     </div>,
     document.body

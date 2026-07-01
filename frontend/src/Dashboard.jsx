@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
-import { computeMetrics, computeProp } from './metrics.js';
+import PayoutsModal from './PayoutsModal.jsx';
+import { computeMetrics, computeProp, fmtMoney } from './metrics.js';
 import { DASH_WIDGETS, BANDS, WidgetCustomizer, widgetBlockReason, balancedCols } from './dashboardWidgets.jsx';
 
 // The dashboard is fully widget-driven. The scope (god vs a single account)
@@ -11,14 +12,24 @@ import { DASH_WIDGETS, BANDS, WidgetCustomizer, widgetBlockReason, balancedCols 
 // before, but now there's no hardcoded fork.
 export default function Dashboard() {
   const {
-    trades = [], account, accountId = 'all', connected, toggleSidebar, unit = 'R',
+    trades = [], account, accounts = [], payouts = [], reloadPayouts, accountId = 'all',
+    connected, toggleSidebar, unit = 'R',
     widgetOverrides = {}, setWidgetVisible, resetWidgets, tradeSettings = {},
   } = useOutletContext();
 
   const scope = accountId === 'all' ? 'god' : 'account';
   const beRounding = !!tradeSettings.beRounding;
   const m = useMemo(() => computeMetrics(trades, unit, beRounding), [trades, unit, beRounding]);
-  const p = useMemo(() => computeProp(trades, account), [trades, account]);
+  const p = useMemo(() => computeProp(trades, account, payouts), [trades, account, payouts]);
+
+  const [payoutsOpen, setPayoutsOpen] = useState(false);
+  // Funded accounts in the current scope (god = all funded; single = that one if funded).
+  const fundedAccounts = useMemo(() => {
+    const funded = accounts.filter((a) => a.account_type === 'funded');
+    return accountId === 'all' ? funded : funded.filter((a) => String(a.mt5_login) === String(accountId));
+  }, [accounts, accountId]);
+  const showPayoutTracker = fundedAccounts.length > 0;
+  const payoutTotal = p.payout?.trader ?? 0;
 
   const now = new Date();
   const [calYear, setCalYear] = useState(now.getFullYear());
@@ -50,7 +61,27 @@ export default function Dashboard() {
 
   return (
     <div className="page">
-      <PageHeader title="Dashboard" connected={connected} onMenu={toggleSidebar} />
+      <PageHeader
+        title="Dashboard"
+        connected={connected}
+        onMenu={toggleSidebar}
+        right={showPayoutTracker && (
+          <button className="ph-payout" onClick={() => setPayoutsOpen(true)} title="View & record payouts">
+            <span className="ph-payout-label">Total payout</span>
+            <span className="ph-payout-val">{fmtMoney(payoutTotal)}</span>
+          </button>
+        )}
+      />
+
+      {payoutsOpen && (
+        <PayoutsModal
+          payouts={payouts}
+          fundedAccounts={fundedAccounts}
+          defaultLogin={accountId === 'all' ? undefined : accountId}
+          onClose={() => setPayoutsOpen(false)}
+          onChanged={() => reloadPayouts?.()}
+        />
+      )}
 
       <div className="page-body">
         <div className="dash-toolbar">

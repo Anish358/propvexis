@@ -89,8 +89,33 @@ export async function deleteAccount(id) {
   return res.json();
 }
 
+// ---- Payouts (funded-account profit withdrawals; scoped like trades) ----
+export async function fetchPayouts(accountId) {
+  return getJson(`/api/payouts?_=1${acctq(accountId)}`);
+}
+
+export async function createPayout(fields) {
+  const res = await apiFetch('/api/payouts', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `createPayout ${res.status}`);
+  return res.json();
+}
+
+export async function deletePayout(id) {
+  const res = await apiFetch(`/api/payouts/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deletePayout ${res.status}`);
+  return res.json();
+}
+
+// Backend origin (scheme://host[:port]) — whitelisting this in MT5 covers every
+// /api path the EA calls (both /api/trades/ingest and /api/payouts/ingest).
+export const INGEST_ORIGIN = BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+
 // Full ingest URL to show in the EA setup instructions.
-export const INGEST_URL = `${BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/api/trades/ingest`;
+export const INGEST_URL = `${INGEST_ORIGIN}/api/trades/ingest`;
 
 // Direct download for the MQL5 EA source (served by the backend).
 export const EA_DOWNLOAD_URL = `${BACKEND_URL}/api/ea/download`;

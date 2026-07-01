@@ -183,7 +183,7 @@ label.full { margin-bottom: 14px; }
 .ph-title { font-size: 19px; font-weight: 700; }
 .ph-date { font-size: 12px; color: var(--muted); margin-top: 1px; }
 .ph-user { font-size: 16px; font-weight: 700; color: #9a8cff; }
-.ph-right { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+.ph-right { display: flex; align-items: center; justify-content: flex-end; gap: 16px; grid-column: 3; justify-self: end; }
 .live-dot { width: 12px; height: 12px; border-radius: 50%; position: relative; }
 .live-dot.on { background: #39d98a; box-shadow: 0 0 0 4px #39d98a22, 0 0 12px #39d98a88; }
 .live-dot.off { background: #555; }
@@ -493,7 +493,15 @@ label.full { margin-bottom: 14px; }
 .acct-copy button { background: #112a1c; border: 1px solid #1d4730; color: #39d98a; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
 .acct-created { margin: 4px 20px 0; background: #0f1f14; border: 1px solid #1d4730; border-radius: 10px; padding: 12px; }
 .acct-created-head { color: #39d98a; font-size: 13px; font-weight: 600; }
-.acct-add { padding: 14px 20px 0; border-top: 1px solid var(--line); margin-top: 6px; }
+.acct-add-toggle { display: flex; justify-content: center; padding: 16px 20px 4px; }
+.acct-add-btn {
+  background: #112a1c; border: 1px solid #1d4730; color: #39d98a;
+  border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.acct-add-btn:hover { background: #163a26; }
+.acct-row.archived { opacity: 0.6; }
+.acct-badge.archived { background: #2a2320; color: #d8b48a; margin-left: 6px; }
+.acct-add { padding: 14px 20px 0; margin-top: 6px; }
 .acct-add-row { display: flex; gap: 8px; }
 .acct-add input {
   background: #0a0a0c; border: 1px solid var(--line); color: var(--text);
@@ -657,8 +665,50 @@ label.full { margin-bottom: 14px; }
 .chart-tip-title { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
 .chart-tip-body { font-size: 12px; line-height: 1.5; color: var(--muted); }
 .chart-tip-body b { color: var(--text); }
-.equity-legend { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); margin-top: 8px; padding-left: 4px; }
-.equity-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.equity-legend { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); margin-top: 8px; padding-left: 4px; }
+.equity-legend-item { display: flex; align-items: center; gap: 7px; }
+.equity-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.chart-tip.payout { max-width: 260px; }
+
+/* Dashboard header: Total payout chip (top-right, in the title row) */
+.ph-payout {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  background: #0e1f2b; border: 1px solid #17384a; border-radius: 10px;
+  padding: 6px 14px; cursor: pointer;
+}
+.ph-payout:hover { border-color: #2a5f7d; background: #10283a; }
+.ph-payout-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #6fb7d8; }
+.ph-payout-val { font-size: 16px; font-weight: 700; color: #4dc4ff; }
+
+/* Payouts modal */
+.payouts-modal { max-width: 480px; padding-bottom: 16px; }
+.payout-totals { display: flex; gap: 22px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.payout-totals > div { display: flex; flex-direction: column; gap: 2px; }
+.po-total-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.po-total-val { font-size: 19px; font-weight: 700; }
+.po-total-val.win { color: #39d98a; }
+.payout-add { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.po-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.po-field input, .po-field select {
+  background: #0a0a0c; border: 1px solid var(--line); color: var(--text);
+  border-radius: 7px; padding: 8px 10px; font-size: 13px; min-width: 120px;
+}
+.po-preview { flex: 1 1 100%; font-size: 12px; color: var(--muted); }
+.po-preview b { color: #39d98a; }
+.payout-add .primary { background: #0e2a3a; border: 1px solid #17384a; color: #4dc4ff; font-weight: 600; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+.payout-add .primary:disabled { opacity: .5; cursor: not-allowed; }
+.payout-list { padding: 8px 20px 0; display: flex; flex-direction: column; gap: 6px; }
+.payout-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #16161a; }
+.po-row-date { font-size: 12px; color: var(--muted); width: 92px; flex: none; }
+.po-row-amounts { display: flex; align-items: center; gap: 8px; flex: 1; font-size: 13px; flex-wrap: wrap; }
+.po-gross { color: var(--text); }
+.po-arrow { color: var(--muted); }
+.po-net.win { color: #39d98a; font-weight: 600; }
+.po-split { font-size: 11px; color: var(--muted); background: #1c1c22; border-radius: 6px; padding: 1px 7px; }
+.po-acct { font-size: 11px; color: #9a8cff; }
+.po-src { font-size: 10px; text-transform: uppercase; color: #6fb7d8; border: 1px solid #17384a; border-radius: 5px; padding: 0 5px; }
+.po-del { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 4px 6px; flex: none; }
+.po-del:hover { color: #f0b9b6; }
 
 /* ---- trade preview (right slide-in panel) ---- */
 .tp-backdrop {

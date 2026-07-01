@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import { applyBeRounding } from './metrics.js';
@@ -21,6 +21,7 @@ export default function App() {
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [payouts, setPayouts] = useState([]);
   const [accountId, setAccountIdState] = useState(() => localStorage.getItem(ACCT_KEY) || 'all');
   const [connected, setConnected] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -129,15 +130,21 @@ export default function App() {
     reloadAccounts();
   }, [user]);
 
-  // Load trades + account snapshot for the selected scope. Waits until accounts
-  // are known before trusting a specific (non-god) selection.
+  // Reload payouts for the active scope (funded-account withdrawals).
+  function reloadPayouts() {
+    return fetchPayouts(accountIdRef.current).then(setPayouts).catch(() => {});
+  }
+
+  // Load trades + account snapshot + payouts for the selected scope. Waits until
+  // accounts are known before trusting a specific (non-god) selection.
   useEffect(() => {
-    if (!user) { setTrades([]); setAccount(null); return; }
+    if (!user) { setTrades([]); setAccount(null); setPayouts([]); return; }
     const owned = accountId === 'all' || accounts.some((a) => String(a.mt5_login) === String(accountId));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
     fetchTrades(accountId).then(setTrades).catch((e) => setLoadError(e.message));
     fetchAccount(accountId).then(setAccount).catch(() => {});
+    fetchPayouts(accountId).then(setPayouts).catch(() => {});
   }, [user, accountId, accounts]);
 
   // One socket per session. Handlers read the live selection via ref so we don't
@@ -157,6 +164,7 @@ export default function App() {
       (trade) => { if (inView(trade.account_id)) upsertLocal(trade); },
     );
     socket.on('account:updated', () => fetchAccount(accountIdRef.current).then(setAccount).catch(() => {}));
+    socket.on('payout:updated', () => reloadPayouts());
     socket.on('trade:deleted', ({ id }) => removeLocal(id));
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
@@ -197,6 +205,8 @@ export default function App() {
                 trades={filteredTrades}
                 account={account}
                 accounts={accounts}
+                payouts={payouts}
+                reloadPayouts={reloadPayouts}
                 accountId={accountId}
                 setAccountId={setAccountId}
                 reloadAccounts={reloadAccounts}

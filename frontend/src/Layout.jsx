@@ -7,7 +7,7 @@ import FilterBar from './FilterBar.jsx';
 // The display unit and data filters come from the active scope's ViewConfig
 // (owned by App); they are no longer derived from the selected account.
 export default function Layout({
-  trades, account, accounts, accountId, setAccountId, reloadAccounts,
+  trades, account, accounts, payouts, reloadPayouts, accountId, setAccountId, reloadAccounts,
   connected, flashId, saveTrade, removeTrade, addManualTrade,
   unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
   widgetOverrides, setWidgetVisible, resetWidgets,
@@ -38,7 +38,7 @@ export default function Layout({
           patchFilters={patchFilters}
           clearFilters={clearFilters}
         />
-        <Outlet context={{ trades, account, accountId, accounts, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
+        <Outlet context={{ trades, account, accountId, accounts, payouts, reloadPayouts, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>
     </div>
   );

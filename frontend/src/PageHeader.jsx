@@ -6,7 +6,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 const today = new Date();
 const dateLabel = `${WD[today.getDay()]}, ${MO[today.getMonth()]} ${today.getDate()}`;
 
-export default function PageHeader({ title, connected, onMenu }) {
+export default function PageHeader({ title, connected, onMenu, right }) {
   return (
     <header className="pagehead">
       <div className="ph-left">
@@ -20,6 +20,7 @@ export default function PageHeader({ title, connected, onMenu }) {
           <div className="ph-date">{dateLabel}</div>
         </div>
       </div>
+      {right && <div className="ph-right">{right}</div>}
     </header>
   );
 }

@@ -2,6 +2,9 @@ import React from 'react';
 import { fmtDate, fmtTime, fmtNum, fmtDuration, slug } from './constants.js';
 import { fmtMoney, tradeOutcome } from './metrics.js';
 
+// Price formatting shared by the entry/exit price columns (mirrors TradePreview).
+const fmtPrice = (v) => (v == null ? <span className="muted">—</span> : Number(v).toLocaleString('en-US', { maximumFractionDigits: 5 }));
+
 function Pill({ value, kind }) {
   if (!value) return <span className="pill pill-empty">—</span>;
   return <span className={`pill ${kind}-${slug(value)}`}>{value}</span>;
@@ -42,6 +45,9 @@ export function buildColumns(unit = 'R', beRounding = false) {
     },
     { id: 'session', label: 'SESSION', defaultOn: true, cell: (t) => <td><Pill value={t.session} kind="session" /></td> },
     { id: 'pair', label: 'PAIR', defaultOn: true, cell: (t) => <td><Pill value={t.symbol_base || t.symbol} kind="pair" /></td> },
+    { id: 'entry_price', label: 'ENTRY PRICE', defaultOn: false, cell: (t) => <td className="num">{fmtPrice(t.entry_price)}</td> },
+    { id: 'exit_price', label: 'EXIT PRICE', defaultOn: false, cell: (t) => <td className="num">{fmtPrice(t.exit_price)}</td> },
+    { id: 'volume', label: 'VOLUME / LOT', defaultOn: false, cell: (t) => <td className="num">{t.volume == null ? <span className="muted">—</span> : fmtNum(t.volume, 2)}</td> },
     { id: 'setup', label: 'SETUP', defaultOn: true, cell: (t) => <td><Pill value={t.setup} kind="setup" /></td> },
     { id: 'probability', label: 'PROBABILITY', defaultOn: true, cell: (t) => <td><Pill value={t.probability} kind="prob" /></td> },
     { id: 'mtf', label: 'MTF PHASE', defaultOn: true, cell: (t) => <td><Pill value={t.mtf_phase} kind="mtf" /></td> },
