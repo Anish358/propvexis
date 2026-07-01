@@ -11,8 +11,9 @@ const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 // "Manage accounts" entry. Pending accounts (no trades yet) live in the modal.
 function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   const [open, setOpen] = useState(false);
-  const bound = accounts.filter((a) => !a.pending);
-  const pendingCount = accounts.length - bound.length;
+  // Bound + active only; archived accounts stay out of the switcher (still in the modal).
+  const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
+  const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
   const current =
     accountId === GOD
       ? 'All accounts'

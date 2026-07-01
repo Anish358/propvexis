@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
-import { dayKey, fmtVal, valueField } from './metrics.js';
+import { dayKey, fmtVal, valueField, tradeOutcome } from './metrics.js';
 import { slug, fmtTime } from './constants.js';
 
 const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // Lists the trades closed on a given day. `dayKeyStr` is YYYY-MM-DD.
-export default function DayTradesModal({ dayKeyStr, trades, onClose, unit = 'R' }) {
+export default function DayTradesModal({ dayKeyStr, trades, onClose, unit = 'R', beRounding = false }) {
   const field = valueField(unit);
   const list = useMemo(() => {
     if (!dayKeyStr) return [];
@@ -45,7 +45,7 @@ export default function DayTradesModal({ dayKeyStr, trades, onClose, unit = 'R' 
                   <td><span className={`pill pair-${slug(t.symbol_base || t.symbol)}`}>{t.symbol_base || t.symbol}</span></td>
                   <td>{t.setup ? <span className={`pill setup-${slug(t.setup)}`}>{t.setup}</span> : <span className="muted">—</span>}</td>
                   <td>{t.session ? <span className={`pill session-${slug(t.session)}`}>{t.session}</span> : <span className="muted">—</span>}</td>
-                  <td className={`num ${t[field] > 0 ? 'cell-win' : t[field] < 0 ? 'cell-loss' : 'cell-be'}`}>{fmtVal(t[field], unit)}</td>
+                  <td className={`num ${{ win: 'cell-win', loss: 'cell-loss', be: 'cell-be' }[tradeOutcome(t, unit, beRounding)] || ''}`}>{fmtVal(t[field], unit)}</td>
                 </tr>
               ))}
             </tbody>

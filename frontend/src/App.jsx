@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
+import { applyBeRounding } from './metrics.js';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
 import Dashboard from './Dashboard.jsx';
@@ -12,12 +13,15 @@ import Calendar from './Calendar.jsx';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
 const VIEWCFG_KEY = 'amey.viewConfigs'; // per-scope { unit, filters } map
+const TRADE_SETTINGS_KEY = 'amey.tradeSettings'; // global journal settings (BE rounding, columns)
+const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
 
 export default function App() {
   const { user, loading } = useAuth();
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [payouts, setPayouts] = useState([]);
   const [accountId, setAccountIdState] = useState(() => localStorage.getItem(ACCT_KEY) || 'all');
   const [connected, setConnected] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -37,6 +41,17 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem(VIEWCFG_KEY)) || {}; } catch { return {}; }
   });
   useEffect(() => { localStorage.setItem(VIEWCFG_KEY, JSON.stringify(viewConfigs)); }, [viewConfigs]);
+
+  // Global journal settings (not per-scope): breakeven rounding + trade-log
+  // column visibility. Persisted; merged over defaults so older stored blobs load.
+  const [tradeSettings, setTradeSettings] = useState(() => {
+    try { return { ...defaultTradeSettings(), ...(JSON.parse(localStorage.getItem(TRADE_SETTINGS_KEY)) || {}) }; }
+    catch { return defaultTradeSettings(); }
+  });
+  useEffect(() => { localStorage.setItem(TRADE_SETTINGS_KEY, JSON.stringify(tradeSettings)); }, [tradeSettings]);
+  const setBeRounding = (on) => setTradeSettings((s) => ({ ...s, beRounding: !!on }));
+  const setColumnVisible = (id, visible) => setTradeSettings((s) => ({ ...s, columns: { ...s.columns, [id]: visible } }));
+  const resetColumns = () => setTradeSettings((s) => ({ ...s, columns: {} }));
 
   const sk = scopeKey(accountId);
   // Merge over defaults so configs persisted before a field existed (e.g. the
@@ -58,9 +73,15 @@ export default function App() {
   }));
   const resetWidgets = () => mutateConfig((c) => ({ ...c, widgets: { overrides: {} } }));
 
+  // Precision control snaps near-zero Fixed R to breakeven BEFORE filtering, so
+  // outcome filters + every in-memory page/metric see the same classification.
+  const normalizedTrades = useMemo(
+    () => applyBeRounding(trades, tradeSettings.beRounding),
+    [trades, tradeSettings.beRounding],
+  );
   // Filters apply to every component: the in-memory pages read the filtered set;
   // the dropdown choices come from the full (unfiltered) scoped trades.
-  const filteredTrades = useMemo(() => filterTrades(trades, filters, unit), [trades, filters, unit]);
+  const filteredTrades = useMemo(() => filterTrades(normalizedTrades, filters, unit, tradeSettings.beRounding), [normalizedTrades, filters, unit, tradeSettings.beRounding]);
   const filterOptions = useMemo(() => availableOptions(trades), [trades]);
 
   // does an incoming socket event belong to the account currently in view?
@@ -109,15 +130,21 @@ export default function App() {
     reloadAccounts();
   }, [user]);
 
-  // Load trades + account snapshot for the selected scope. Waits until accounts
-  // are known before trusting a specific (non-god) selection.
+  // Reload payouts for the active scope (funded-account withdrawals).
+  function reloadPayouts() {
+    return fetchPayouts(accountIdRef.current).then(setPayouts).catch(() => {});
+  }
+
+  // Load trades + account snapshot + payouts for the selected scope. Waits until
+  // accounts are known before trusting a specific (non-god) selection.
   useEffect(() => {
-    if (!user) { setTrades([]); setAccount(null); return; }
+    if (!user) { setTrades([]); setAccount(null); setPayouts([]); return; }
     const owned = accountId === 'all' || accounts.some((a) => String(a.mt5_login) === String(accountId));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
     fetchTrades(accountId).then(setTrades).catch((e) => setLoadError(e.message));
     fetchAccount(accountId).then(setAccount).catch(() => {});
+    fetchPayouts(accountId).then(setPayouts).catch(() => {});
   }, [user, accountId, accounts]);
 
   // One socket per session. Handlers read the live selection via ref so we don't
@@ -137,6 +164,7 @@ export default function App() {
       (trade) => { if (inView(trade.account_id)) upsertLocal(trade); },
     );
     socket.on('account:updated', () => fetchAccount(accountIdRef.current).then(setAccount).catch(() => {}));
+    socket.on('payout:updated', () => reloadPayouts());
     socket.on('trade:deleted', ({ id }) => removeLocal(id));
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
@@ -177,6 +205,8 @@ export default function App() {
                 trades={filteredTrades}
                 account={account}
                 accounts={accounts}
+                payouts={payouts}
+                reloadPayouts={reloadPayouts}
                 accountId={accountId}
                 setAccountId={setAccountId}
                 reloadAccounts={reloadAccounts}
@@ -194,6 +224,10 @@ export default function App() {
                 widgetOverrides={widgetOverrides}
                 setWidgetVisible={setWidgetVisible}
                 resetWidgets={resetWidgets}
+                tradeSettings={tradeSettings}
+                setBeRounding={setBeRounding}
+                setColumnVisible={setColumnVisible}
+                resetColumns={resetColumns}
               />
             }
           >

@@ -9,6 +9,35 @@ export const ACCOUNT_START = 50000; // GoatFundedTrader prop account size (displ
 // the trade P&L field for a given display unit
 export const valueField = (unit) => (unit === 'USD' ? 'pnl_money' : 'fixed_r');
 
+// Precision control (Trade Settings): when breakeven rounding is on, any trade
+// whose Fixed R sits within ±BE_THRESHOLD of zero is treated as an exact
+// breakeven (0R). We snap the source fixed_r so EVERY downstream analysis —
+// win/loss classification, R sums, streaks, distributions, the calendar — agrees.
+// Only fixed_r is touched (pnl_money and Max R are left as-is). The server mirrors
+// this in aggregations.js for the Analytics/Yearly stats.
+export const BE_THRESHOLD = 0.1;
+export function applyBeRounding(trades, on = false) {
+  if (!on) return trades;
+  return trades.map((t) =>
+    t.fixed_r != null && Math.abs(Number(t.fixed_r)) <= BE_THRESHOLD
+      ? { ...t, fixed_r: 0 }
+      : t);
+}
+
+// Win / loss / breakeven for a trade under the active display unit and the
+// precision-control setting. Normally the sign of the unit's value decides. But
+// with breakeven rounding ON, a trade whose Fixed R is within ±BE_THRESHOLD is
+// breakeven in EVERY unit — including $ — even though its real dollar P&L is
+// left untouched (only the CLASSIFICATION changes; the $ value is still summed
+// into totals, never zeroed). Returns 'win' | 'loss' | 'be' | null (no value).
+export function tradeOutcome(t, unit = 'R', beRounding = false) {
+  const v = t[valueField(unit)];
+  if (v == null) return null;
+  if (beRounding && t.fixed_r != null && Math.abs(Number(t.fixed_r)) <= BE_THRESHOLD) return 'be';
+  const n = Number(v);
+  return n > 0 ? 'win' : n < 0 ? 'loss' : 'be';
+}
+
 const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 const round = (n, dp = 2) => (n == null || Number.isNaN(n) ? 0 : Math.round(n * 10 ** dp) / 10 ** dp);
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -28,16 +57,18 @@ export function weekStart(d) {
   return monday;
 }
 
-export function computeMetrics(trades, unit = 'R') {
+export function computeMetrics(trades, unit = 'R', beRounding = false) {
   // P&L comes from fixed_r (R) or pnl_money (USD) depending on the view.
   const field = valueField(unit);
-  const isWin = (t) => t._pnl > 0;
-  const isLoss = (t) => t._pnl < 0;
+  // Classification (win/loss/be) is precision-aware; the $ VALUE (_pnl) is always
+  // the real amount, so breakeven trades still contribute their dollars to totals.
+  const isWin = (t) => t._out === 'win';
+  const isLoss = (t) => t._out === 'loss';
 
   // only trades with a realized result in the chosen unit participate
   const ts = trades
     .filter((t) => t[field] != null)
-    .map((t) => ({ ...t, _pnl: Number(t[field]), _close: new Date(t.close_time) }))
+    .map((t) => ({ ...t, _pnl: Number(t[field]), _out: tradeOutcome(t, unit, beRounding), _close: new Date(t.close_time) }))
     .sort((a, b) => a._close - b._close);
 
   const wins = ts.filter(isWin);
@@ -132,7 +163,7 @@ export function computeMetrics(trades, unit = 'R') {
 // Prop-firm account metrics in account currency ($), derived from realized
 // pnl_money + the account's starting balance. Used by the single-account
 // dashboard (drawdown / profit-target trackers + a balance-based equity curve).
-export function computeProp(trades, account) {
+export function computeProp(trades, account, payouts = []) {
   const start = Number(account?.start_balance) || ACCOUNT_START;
   const dailyPct = Number(account?.daily_dd_pct) || 0;
   const maxPct = Number(account?.max_dd_pct) || 0;
@@ -143,22 +174,84 @@ export function computeProp(trades, account) {
     .map((t) => ({ pnl: Number(t.pnl_money), close: new Date(t.close_time) }))
     .sort((a, b) => a.close - b.close);
 
-  const todayKey = dayKey(new Date());
-  let equity = start, peak = start, maxDD = 0;
-  let dayStart = null, dailyLow = Infinity; // for today's drawdown
-  const curve = [{ label: 'Start', equity: round(start), date: ts[0]?.close ?? new Date() }];
-  for (const t of ts) {
-    if (dayKey(t.close) === todayKey && dayStart == null) dayStart = equity;
-    equity += t.pnl;
-    peak = Math.max(peak, equity);
-    maxDD = Math.max(maxDD, peak - equity);
-    if (dayKey(t.close) === todayKey) dailyLow = Math.min(dailyLow, equity);
-    curve.push({ label: `${t.close.getDate()} ${MONTHS[t.close.getMonth()]}`, equity: round(equity), date: t.close });
-  }
-  const netPnl = equity - start;
-  const dailyDD = dayStart == null ? 0 : Math.max(0, dayStart - dailyLow);
+  // Payout withdrawals (funded accounts): gross leaves the account, the trader
+  // keeps `trader_amount`. These step the balance DOWN but are NOT trading losses.
+  const ps = (payouts || [])
+    .map((x) => ({ gross: Number(x.gross_amount) || 0, trader: Number(x.trader_amount) || 0, split: Number(x.split_pct) || 0, note: x.note || null, date: new Date(x.payout_date) }))
+    .filter((x) => x.gross > 0 && !isNaN(x.date))
+    .sort((a, b) => a.date - b.date);
+  const grossPayout = sum(ps.map((p) => p.gross));
+  const traderPayout = sum(ps.map((p) => p.trader));
+
+  // `anchor` = the account balance at the moment it was ADDED to the journal
+  // (before the first tracked trade). When an account is added mid-drawdown, its
+  // pre-add trades aren't journaled, so start_balance + journaled deltas overshoots
+  // the truth. Trust the live balance: with Σpnl of tracked trades and Σgross of
+  // withdrawals, balance = anchor + Σpnl − Σgross ⇒ anchor = balance − Σpnl + Σgross.
+  // The tracked curve runs anchor → … → live. Without a snapshot, fall back to start.
   const live = account?.balance != null;
+  const sumPnl = sum(ts.map((t) => t.pnl));
+  const anchor = live ? Number(account.balance) - sumPnl + grossPayout : start;
+
+  const todayKey = dayKey(new Date());
+  // Max drawdown is measured from the account's HIGH-WATER MARK, and the challenge
+  // start_balance is the initial high-water mark. So if the account was added below
+  // its start (e.g. 25k → 24.08k), that pre-tracking dip already counts as drawdown
+  // — seed peak at start and the initial drawdown at start − anchor. Drawdown runs
+  // on the TRADING equity (`tEquity`), which ignores withdrawals, so a payout never
+  // reads as drawdown; the displayed `equity` curve does step down on a payout.
+  let equity = anchor, tEquity = anchor, peak = Math.max(start, anchor), maxDD = Math.max(0, peak - anchor);
+  let dayStart = null, dailyLow = Infinity; // for today's drawdown (on tEquity)
+  const firstDate = ts[0]?.close ?? ps[0]?.date ?? new Date();
+
+  // Merge trades + payouts into one chronological event stream.
+  const events = [
+    ...ts.map((t) => ({ kind: 'trade', date: t.close, pnl: t.pnl })),
+    ...ps.map((p) => ({ kind: 'payout', date: p.date, gross: p.gross, trader: p.trader, split: p.split, note: p.note })),
+  ].sort((a, b) => a.date - b.date);
+
+  // Tracked equity (drawdown math runs on this, from the add point onward).
+  const curve = [{ label: 'Added', equity: round(anchor), pre: null, payout: null, phase: 'tracked', date: firstDate }];
+  for (const ev of events) {
+    const lbl = `${ev.date.getDate()} ${MONTHS[ev.date.getMonth()]}`;
+    if (ev.kind === 'trade') {
+      if (dayKey(ev.date) === todayKey && dayStart == null) dayStart = tEquity;
+      equity += ev.pnl; tEquity += ev.pnl;
+      peak = Math.max(peak, tEquity);
+      maxDD = Math.max(maxDD, peak - tEquity);
+      if (dayKey(ev.date) === todayKey) dailyLow = Math.min(dailyLow, tEquity);
+      curve.push({ label: lbl, equity: round(equity), pre: null, payout: null, phase: 'tracked', date: ev.date });
+    } else {
+      // Payout: step the balance down and highlight the drop as its own segment.
+      // Mark the previous point so the highlight line starts at the pre-drop level.
+      const prev = curve[curve.length - 1];
+      prev.payout = prev.equity;
+      equity -= ev.gross;
+      curve.push({
+        label: lbl, equity: round(equity), pre: null, payout: round(equity), phase: 'payout', date: ev.date,
+        payoutInfo: { gross: round(ev.gross), trader: round(ev.trader), split: ev.split, note: ev.note },
+      });
+    }
+  }
   const currentBalance = live ? Number(account.balance) : equity;
+
+  // Pre-tracking segment: the account moved from its challenge start_balance to
+  // `anchor` BEFORE any journaled trade. Show that as a distinct leading segment
+  // (rendered purple with an explanatory tooltip) rather than pretending tracking
+  // began at start_balance. Only when live and the two actually differ.
+  const preTracking = live && Math.round(anchor) !== Math.round(start)
+    ? { start: round(start), added: round(anchor) }
+    : null;
+  if (preTracking) {
+    curve[0].pre = round(anchor);           // junction: purple line meets green here
+    curve[0].phase = 'added';
+    curve.unshift({ label: 'Start', equity: null, pre: round(start), payout: null, phase: 'added', date: firstDate });
+  }
+
+  // P&L vs the challenge start balance (negative = still in drawdown). With the
+  // curve anchored to the live balance this equals currentBalance − start.
+  const netPnl = currentBalance - start;
+  const dailyDD = dayStart == null ? 0 : Math.max(0, dayStart - dailyLow);
   // The balance the current trading day opened at (drives the daily-loss floor).
   const dayStartBalance = dayStart != null ? dayStart : currentBalance;
 
@@ -178,6 +271,8 @@ export function computeProp(trades, account) {
     currentBalance: round(currentBalance),
     netPnl: round(netPnl),
     curve,
+    preTracking, // { start, added } when the account was added mid-drawdown/profit, else null
+    payout: { gross: round(grossPayout), trader: round(traderPayout), count: ps.length }, // funded withdrawals
     isEval: (account?.account_type || 'eval') === 'eval',
     daily: { used: round(dailyDD), limit: round(dailyLimit), pct: dailyPct, floor: round(dailyLossFloor) },
     max: { used: round(maxDD), limit: round(maxLimit), pct: maxPct, floor: round(maxLossFloor) },

@@ -42,20 +42,21 @@ function BreakdownTable({ title, rows = [], unit = 'R' }) {
 }
 
 export default function Analytics() {
-  const { connected, toggleSidebar, accountId, unit = 'R', filters } = useOutletContext();
+  const { connected, toggleSidebar, accountId, unit = 'R', filters, tradeSettings = {} } = useOutletContext();
   const [stats, setStats] = useState(null);
   const [yearly, setYearly] = useState(null);
   const [err, setErr] = useState(null);
   const year = new Date().getFullYear();
+  const beRound = !!tradeSettings.beRounding;
 
-  // Refetch when the scope, display unit, or any filter changes. Filters are
-  // applied server-side so the aggregates match the rest of the app.
+  // Refetch when the scope, display unit, filters, or precision control changes.
+  // These are applied server-side so the aggregates match the rest of the app.
   const filterKey = JSON.stringify(filters);
   useEffect(() => {
     setErr(null);
-    fetchStats(accountId, unit, filters).then(setStats).catch((e) => setErr(e.message));
-    fetchYearly(year, accountId, unit, filters).then(setYearly).catch((e) => setErr(e.message));
-  }, [accountId, unit, filterKey, year]);
+    fetchStats(accountId, unit, filters, beRound).then(setStats).catch((e) => setErr(e.message));
+    fetchYearly(year, accountId, unit, filters, beRound).then(setYearly).catch((e) => setErr(e.message));
+  }, [accountId, unit, filterKey, year, beRound]);
 
   const page = (body) => (
     <div className="page">

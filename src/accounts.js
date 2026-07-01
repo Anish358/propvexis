@@ -39,7 +39,7 @@ export async function resolveScope(userId, requested) {
 export async function listAccounts(userId) {
   const { rows } = await query(
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
-            a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct,
+            a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
             a.ingest_token, a.is_active, a.created_at,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
@@ -55,24 +55,24 @@ export async function listAccounts(userId) {
 
 // Columns selected/returned for an account (kept in sync across queries).
 const ACCT_COLS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, ingest_token, is_active, created_at';
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, ingest_token, is_active, created_at';
 
 // Create a pending account (no login yet) with a fresh ingest token.
-export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct }) {
+export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct }) {
   const { rows } = await query(
     `INSERT INTO mt5_accounts
-       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, ingest_token)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), $10)
+       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, ingest_token)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), $11)
      RETURNING ${ACCT_COLS};`,
     [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null,
-     account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, genToken()]
+     account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, payout_split_pct ?? null, genToken()]
   );
   return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login), pending: rows[0].mt5_login == null };
 }
 
 // Update editable metadata on the user's own account.
 export async function updateAccount(userId, id, fields) {
-  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct'];
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'is_active'];
   const sets = [];
   const params = [];
   for (const f of allowed) {
@@ -97,6 +97,17 @@ export async function deleteAccount(userId, id) {
     [id, userId]
   );
   return rows.length > 0;
+}
+
+// Look up one of the user's own accounts by its MT5 login (== trades.account_id).
+// Used to validate/attach a payout to a real, owned account. Null if not owned.
+export async function ownedAccountByLogin(userId, login) {
+  const { rows } = await query(
+    `SELECT ${ACCT_COLS} FROM mt5_accounts WHERE user_id = $1 AND mt5_login = $2`,
+    [userId, login]
+  );
+  if (!rows.length) return null;
+  return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login) };
 }
 
 // Look up an account by its ingest token (for the EA ingest path).

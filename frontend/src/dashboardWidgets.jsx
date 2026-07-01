@@ -10,7 +10,15 @@ import { fmtVal, fmtValShort, fmtAxis, fmtMoney } from './metrics.js';
 
 const GREEN = '#39d98a';
 const RED = '#e0615b';
+const PURPLE = '#a679f0';
+const PAYOUT = '#4dc4ff'; // funded-account payout (profit withdrawal) highlight
 const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : '');
+
+// Dot on the balance chart marking a payout (profit withdrawal) point.
+const PayoutDot = ({ cx, cy, payload }) =>
+  (payload?.phase === 'payout' && cx != null && cy != null
+    ? <circle cx={cx} cy={cy} r={3.5} fill={PAYOUT} stroke="#0b0b0e" strokeWidth={1} />
+    : null);
 const pctStr = (n) => `${(Number(n) || 0).toFixed(1)}%`;
 
 // Each widget receives a single `ctx` built once by Dashboard:
@@ -195,32 +203,76 @@ function WCumulative({ ctx }) {
   );
 }
 
+const DAILY_BARS_WINDOW_DAYS = 30; // Daily P&L chart shows a rolling last-month window
+
 function WDailyBars({ ctx }) {
   const { m, unit } = ctx;
+  // Last 30 days (rolling), so the chart stays a readable "past month" view
+  // rather than every trading day on record.
+  const cutoff = Date.now() - DAILY_BARS_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const data = m.daily.filter((d) => new Date(d.date).getTime() >= cutoff);
   return (
     <div className="panel">
       <div className="panel-head">
         <div className="panel-title">Daily P&L</div>
-        <div className="panel-meta muted">{m.daily.length}/{m.daily.length}</div>
+        <div className="panel-meta muted">Last {DAILY_BARS_WINDOW_DAYS} days</div>
       </div>
       <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={m.daily} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
+        <BarChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
           <CartesianGrid stroke="#1d1d23" vertical={false} />
           <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
           <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtAxis(v, unit)} />
           <Tooltip contentStyle={chartTooltip} cursor={{ fill: '#ffffff08' }} formatter={(v) => fmtVal(v, unit)} />
           <ReferenceLine y={0} stroke="#33333b" />
           <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
-            {m.daily.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? GREEN : RED} />)}
+            {data.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? GREEN : RED} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      {data.length === 0 && <div className="dash-empty" style={{ padding: '8px 0 0' }}>No trades in the last {DAILY_BARS_WINDOW_DAYS} days.</div>}
     </div>
   );
 }
 
+// Tooltip for the balance chart. On the pre-tracking (purple) segment it explains
+// what the straight line means instead of just showing a number.
+function BalanceTip({ active, payload, pre }) {
+  if (!active || !payload?.length) return null;
+  const pt = payload[0]?.payload || {};
+  if (pt.phase === 'added' && pre) {
+    const delta = pre.added - pre.start;
+    return (
+      <div className="chart-tip pre">
+        <div className="chart-tip-title" style={{ color: PURPLE }}>Before journal tracking</div>
+        <div className="chart-tip-body">
+          Added at <b>{fmtMoney(pre.added)}</b> with a start balance of <b>{fmtMoney(pre.start)}</b>.
+          This {fmtMoney(Math.abs(delta))} {delta < 0 ? 'drawdown' : 'gain'} happened before any trade
+          was recorded here, so it’s drawn as a straight line — not from tracked trades.
+        </div>
+      </div>
+    );
+  }
+  if (pt.phase === 'payout' && pt.payoutInfo) {
+    const { gross, trader, split, note } = pt.payoutInfo;
+    return (
+      <div className="chart-tip payout">
+        <div className="chart-tip-title" style={{ color: PAYOUT }}>Payout withdrawn</div>
+        <div className="chart-tip-body">
+          Withdrew <b>{fmtMoney(gross)}</b> from the account. At a {split}% split your share is <b>{fmtMoney(trader)}</b>.
+          The balance steps down by the gross withdrawal — this is profit taken, not a trading loss.
+          {note ? <> · {note}</> : null}
+        </div>
+      </div>
+    );
+  }
+  const v = pt.equity ?? pt.pre;
+  return <div className="chart-tip"><b>{fmtMoney(v)}</b></div>;
+}
+
 function WEquity({ ctx }) {
   const { p } = ctx;
+  const pre = p.preTracking;
+  const hasPayouts = p.payout?.count > 0;
   return (
     <div className="panel">
       <div className="panel-head">
@@ -234,17 +286,45 @@ function WEquity({ ctx }) {
               <stop offset="0%" stopColor={GREEN} stopOpacity={0.35} />
               <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
             </linearGradient>
+            <linearGradient id="preFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={PURPLE} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={PURPLE} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="payoutFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={PAYOUT} stopOpacity={0.28} />
+              <stop offset="100%" stopColor={PAYOUT} stopOpacity={0} />
+            </linearGradient>
           </defs>
           <CartesianGrid stroke="#1d1d23" vertical={false} />
           <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
           <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} domain={[Math.floor(p.max.floor - p.start * 0.01), 'auto']} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
-          <Tooltip contentStyle={chartTooltip} formatter={(v) => fmtMoney(v)} />
+          <Tooltip content={<BalanceTip pre={pre} />} />
           <ReferenceLine y={p.start} stroke="#33333b" strokeDasharray="4 4" label={{ value: 'start', fill: '#5a5a63', fontSize: 10, position: 'insideTopLeft' }} />
           <ReferenceLine y={p.daily.floor} stroke="#e0a03a" strokeDasharray="6 4" label={{ value: `Daily max loss · ${fmtMoney(p.daily.floor)}`, fill: '#e0a03a', fontSize: 10, position: 'insideBottomRight' }} />
           <ReferenceLine y={p.max.floor} stroke={RED} strokeDasharray="6 4" label={{ value: `Max allowed loss · ${fmtMoney(p.max.floor)}`, fill: RED, fontSize: 10, position: 'insideBottomRight' }} />
-          <Area type="monotone" dataKey="equity" stroke={GREEN} strokeWidth={2} fill="url(#balFill)" dot={false} />
+          {/* Pre-tracking (account added mid-drawdown) drawn as a straight purple drop. */}
+          {pre && <Area type="linear" dataKey="pre" stroke={PURPLE} strokeWidth={2} strokeDasharray="5 3" fill="url(#preFill)" dot={false} connectNulls={false} isAnimationActive={false} />}
+          <Area type="monotone" dataKey="equity" stroke={GREEN} strokeWidth={2} fill="url(#balFill)" dot={false} connectNulls={false} />
+          {/* Payout (profit withdrawal): the balance step-down, highlighted. */}
+          {hasPayouts && <Area type="linear" dataKey="payout" stroke={PAYOUT} strokeWidth={2.5} fill="url(#payoutFill)" dot={<PayoutDot />} activeDot={false} connectNulls={false} isAnimationActive={false} />}
         </AreaChart>
       </ResponsiveContainer>
+      {(pre || hasPayouts) && (
+        <div className="equity-legend">
+          {pre && (
+            <span className="equity-legend-item">
+              <span className="dot" style={{ background: PURPLE }} />
+              Pre-tracking: account added at {fmtMoney(pre.added)} (start {fmtMoney(pre.start)})
+            </span>
+          )}
+          {hasPayouts && (
+            <span className="equity-legend-item">
+              <span className="dot" style={{ background: PAYOUT }} />
+              Payouts: {p.payout.count} withdrawal{p.payout.count > 1 ? 's' : ''} · {fmtMoney(p.payout.gross)} gross → {fmtMoney(p.payout.trader)} to trader
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

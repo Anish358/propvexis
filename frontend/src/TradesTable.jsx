@@ -1,13 +1,9 @@
 import React from 'react';
-import { fmtDate, fmtTime, fmtNum, slug } from './constants.js';
-import { fmtMoney } from './metrics.js';
+import { fmtDate, fmtTime, fmtNum, fmtDuration, slug } from './constants.js';
+import { fmtMoney, tradeOutcome } from './metrics.js';
 
-// The result column is R (Fixed R) in the god/strategy view, but real $ profit
-// (pnl_money) when a single prop account is selected.
-const cols = (unit) => [
-  'DATE / TIME', 'SESSION', 'PAIR', 'SETUP', 'PROBABILITY', 'MTF PHASE',
-  'SL Size', 'MFE', 'MAX R', unit === 'USD' ? 'PROFIT' : 'FIXED R TARGET', 'M15', 'H1', 'H4', 'COMMENTS',
-];
+// Price formatting shared by the entry/exit price columns (mirrors TradePreview).
+const fmtPrice = (v) => (v == null ? <span className="muted">—</span> : Number(v).toLocaleString('en-US', { maximumFractionDigits: 5 }));
 
 function Pill({ value, kind }) {
   if (!value) return <span className="pill pill-empty">—</span>;
@@ -23,44 +19,88 @@ function ChartLink({ url, label }) {
   );
 }
 
-export default function TradesTable({ trades, onRowClick, highlightId, unit = 'R' }) {
-  const COLS = cols(unit);
+// Column registry for the trade log. Each column has a stable `id` (used to
+// persist the user's show/hide choice), a header `label`, whether it shows by
+// default, and a `cell(t)` renderer returning the full <td>. The result column's
+// label + value depend on the display unit (R vs $), so columns are built per unit.
+export function buildColumns(unit = 'R', beRounding = false) {
   const usd = unit === 'USD';
+  return [
+    {
+      id: 'datetime', label: 'DATE / TIME', defaultOn: true,
+      cell: (t) => <td className="cell-dt">{fmtDate(t.close_time)}<span className="cell-time">{fmtTime(t.close_time)}</span></td>,
+    },
+    {
+      id: 'duration', label: 'DURATION', defaultOn: true,
+      cell: (t) => <td className="cell-dur">{fmtDuration(t.open_time, t.close_time) || <span className="muted">—</span>}</td>,
+    },
+    {
+      id: 'type', label: 'TYPE', defaultOn: true,
+      cell: (t) => (
+        <td>{t.direction
+          ? <span className={`pill dir-${slug(t.direction)}`}>{t.direction === 'sell' ? 'Sell' : 'Buy'}</span>
+          : <span className="pill pill-empty">—</span>}
+        </td>
+      ),
+    },
+    { id: 'session', label: 'SESSION', defaultOn: true, cell: (t) => <td><Pill value={t.session} kind="session" /></td> },
+    { id: 'pair', label: 'PAIR', defaultOn: true, cell: (t) => <td><Pill value={t.symbol_base || t.symbol} kind="pair" /></td> },
+    { id: 'entry_price', label: 'ENTRY PRICE', defaultOn: false, cell: (t) => <td className="num">{fmtPrice(t.entry_price)}</td> },
+    { id: 'exit_price', label: 'EXIT PRICE', defaultOn: false, cell: (t) => <td className="num">{fmtPrice(t.exit_price)}</td> },
+    { id: 'volume', label: 'VOLUME / LOT', defaultOn: false, cell: (t) => <td className="num">{t.volume == null ? <span className="muted">—</span> : fmtNum(t.volume, 2)}</td> },
+    { id: 'setup', label: 'SETUP', defaultOn: true, cell: (t) => <td><Pill value={t.setup} kind="setup" /></td> },
+    { id: 'probability', label: 'PROBABILITY', defaultOn: true, cell: (t) => <td><Pill value={t.probability} kind="prob" /></td> },
+    { id: 'mtf', label: 'MTF PHASE', defaultOn: true, cell: (t) => <td><Pill value={t.mtf_phase} kind="mtf" /></td> },
+    { id: 'sl', label: 'SL Size', defaultOn: true, cell: (t) => <td className="num">{fmtNum(t.sl_size_pips, 1)}</td> },
+    { id: 'mfe', label: 'MFE', defaultOn: true, cell: (t) => <td className="num">{fmtNum(t.mfe_pips, 1)}</td> },
+    { id: 'maxr', label: 'MAX R', defaultOn: true, cell: (t) => <td className="num max-r">{fmtNum(t.max_r)}</td> },
+    {
+      // Result: real $ profit (pnl_money) per prop account, else Fixed R.
+      id: 'result', label: usd ? 'PROFIT' : 'FIXED R TARGET', defaultOn: true,
+      cell: (t) => {
+        const result = usd ? t.pnl_money : t.fixed_r;
+        // Color by the precision-aware outcome (a breakeven trade reads grey, not
+        // red) — but keep the real $ value in the text, never zeroed.
+        const out = tradeOutcome(t, unit, beRounding);
+        const cls = out === 'win' ? 'cell-win' : out === 'loss' ? 'cell-loss' : out === 'be' ? 'cell-be' : '';
+        const text = result == null ? '' : usd ? fmtMoney(result, { sign: true }) : fmtNum(result);
+        return <td className={`num ${cls}`}>{text}</td>;
+      },
+    },
+    {
+      id: 'commission', label: 'COMMISSION', defaultOn: true,
+      cell: (t) => <td className="num">{t.commission == null ? <span className="muted">—</span> : fmtMoney(t.commission, { sign: true })}</td>,
+    },
+    { id: 'm15', label: 'M15', defaultOn: true, cell: (t) => <td><ChartLink url={t.m15_url} label="M15" /></td> },
+    { id: 'h1', label: 'H1', defaultOn: true, cell: (t) => <td><ChartLink url={t.h1_url} label="H1" /></td> },
+    { id: 'h4', label: 'H4', defaultOn: true, cell: (t) => <td><ChartLink url={t.h4_url} label="H4" /></td> },
+    { id: 'comments', label: 'COMMENTS', defaultOn: true, cell: (t) => <td className="comments">{t.comments || ''}</td> },
+  ];
+}
+
+// Effective visibility: an explicit user override wins, else the column default.
+export const colVisible = (overrides, col) => overrides?.[col.id] ?? col.defaultOn;
+
+export default function TradesTable({ trades, onRowClick, highlightId, unit = 'R', columnOverrides = {}, beRounding = false }) {
+  const cols = buildColumns(unit, beRounding).filter((c) => colVisible(columnOverrides, c));
   return (
     <div className="grid-wrap">
       <table className="grid">
         <thead>
-          <tr>{COLS.map((c) => <th key={c}>{c}</th>)}</tr>
+          <tr>{cols.map((c) => <th key={c.id}>{c.label}</th>)}</tr>
         </thead>
         <tbody>
           {trades.length === 0 && (
-            <tr><td className="empty" colSpan={COLS.length}>No trades yet — close a trade in MT5 and it appears here instantly.</td></tr>
+            <tr><td className="empty" colSpan={cols.length}>No trades yet — close a trade in MT5 and it appears here instantly.</td></tr>
           )}
           {trades.map((t) => {
-            // Result cell: $ profit (pnl_money) per account, else Fixed R.
-            const result = usd ? t.pnl_money : t.fixed_r;
-            const resultClass = result == null ? '' : result > 0 ? 'cell-win' : result < 0 ? 'cell-loss' : 'cell-be';
-            const resultText = result == null ? '' : usd ? fmtMoney(result, { sign: true }) : fmtNum(result);
             const rowClass = [
               !t.tagged ? 'row-untagged' : '',
               t.id === highlightId ? 'row-flash' : '',
             ].join(' ').trim();
             return (
               <tr key={t.id} className={rowClass} onClick={() => onRowClick(t)} title={t.tagged ? 'Edit tags' : 'Click to tag this trade'}>
-                <td className="cell-dt">{fmtDate(t.close_time)}<span className="cell-time">{fmtTime(t.close_time)}</span></td>
-                <td><Pill value={t.session} kind="session" /></td>
-                <td><Pill value={t.symbol_base || t.symbol} kind="pair" /></td>
-                <td><Pill value={t.setup} kind="setup" /></td>
-                <td><Pill value={t.probability} kind="prob" /></td>
-                <td><Pill value={t.mtf_phase} kind="mtf" /></td>
-                <td className="num">{fmtNum(t.sl_size_pips, 1)}</td>
-                <td className="num">{fmtNum(t.mfe_pips, 1)}</td>
-                <td className="num max-r">{fmtNum(t.max_r)}</td>
-                <td className={`num ${resultClass}`}>{resultText}</td>
-                <td><ChartLink url={t.m15_url} label="M15" /></td>
-                <td><ChartLink url={t.h1_url} label="H1" /></td>
-                <td><ChartLink url={t.h4_url} label="H4" /></td>
-                <td className="comments">{t.comments || ''}</td>
+                {cols.map((c) => <React.Fragment key={c.id}>{c.cell(t)}</React.Fragment>)}
               </tr>
             );
           })}

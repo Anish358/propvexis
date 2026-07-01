@@ -14,11 +14,17 @@
 //|                                                                  |
 //|   Failed sends are queued to a file and retried.                 |
 //|                                                                  |
+//|   PAYOUTS: balance operations (DEAL_TYPE_BALANCE) with a negative |
+//|   amount are treated as profit withdrawals (prop payouts) and     |
+//|   pushed to /api/payouts/ingest, deduped by deal ticket. Deposits |
+//|   / positive balance ops are ignored.                             |
+//|                                                                  |
 //|   SETUP (one-time): MT5 -> Tools -> Options -> Expert Advisors -> |
-//|   tick "Allow WebRequest for listed URL" and add the backend URL. |
+//|   tick "Allow WebRequest for listed URL" and add the backend host |
+//|   (covers both /api/trades/ingest and /api/payouts/ingest).       |
 //+------------------------------------------------------------------+
 #property copyright "Amey Journal"
-#property version   "1.10"
+#property version   "1.11"
 #property strict
 
 input string InpBackendUrl   = "http://127.0.0.1:3000/api/trades/ingest"; // Ingest Endpoint
@@ -66,11 +72,23 @@ ulong    g_sent[];
 datetime g_lastFlush    = 0;
 datetime g_lastMfeCheck = 0;
 
+//--- payouts (balance-operation withdrawals): derived endpoint + dedup/retry
+string   g_payoutUrl        = "";
+string   g_payoutQueueFile  = "amey_journal_payouts_pending.txt";
+string   g_payoutSentFile   = "amey_journal_payouts_sent.txt";
+ulong    g_payoutSent[];
+
 //+------------------------------------------------------------------+
 int OnInit()
   {
    g_gmtOffsetSec = (int)(TimeTradeServer() - TimeGMT());
+   g_payoutUrl = InpBackendUrl;
+   if(StringFind(g_payoutUrl, "/api/trades/ingest") >= 0)
+      StringReplace(g_payoutUrl, "/api/trades/ingest", "/api/payouts/ingest");
+   else
+      StringReplace(g_payoutUrl, "trades", "payouts"); // fallback for non-standard URLs
    LoadSent();
+   LoadPayoutSent();
    LoadMfeWatch();
    for(int i = 0; i < PositionsTotal(); i++)
      {
@@ -95,7 +113,7 @@ void OnTimer()
    DiscoverNewPositions();
 
    if(TimeLocal() - g_lastFlush >= InpRetrySecs)
-     { g_lastFlush = TimeLocal(); FlushQueue(); }
+     { g_lastFlush = TimeLocal(); FlushQueue(); FlushPayoutQueue(); }
 
    if(TimeLocal() - g_lastMfeCheck >= InpMfeCheckSecs)
      { g_lastMfeCheck = TimeLocal(); FinalizePendingMfe(); }
@@ -108,6 +126,10 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
   {
    if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
    if(!HistoryDealSelect(trans.deal)) return;
+   // Balance operations (deposits/withdrawals) arrive as DEAL_TYPE_BALANCE deals,
+   // not position closes. A negative amount is a withdrawal = a prop payout.
+   if(HistoryDealGetInteger(trans.deal, DEAL_TYPE) == DEAL_TYPE_BALANCE)
+     { ProcessPayoutDeal(trans.deal); return; }
    long entryType = HistoryDealGetInteger(trans.deal, DEAL_ENTRY);
    if(entryType != DEAL_ENTRY_OUT && entryType != DEAL_ENTRY_OUT_BY) return;
    ulong positionId = (ulong)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
@@ -387,19 +409,126 @@ string ToIso(datetime serverTime)
    return StringFormat("%04d-%02d-%02dT%02d:%02d:%02dZ", dt.year, dt.mon, dt.day, dt.hour, dt.min, dt.sec);
   }
 
-bool SendJson(string json)
+bool PostJson(string url, string json)
   {
    char post[], result[]; string resultHeaders;
    string headers = "Content-Type: application/json\r\nX-Ingest-Token: " + InpIngestToken + "\r\n";
    int len = StringToCharArray(json, post, 0, StringLen(json), CP_UTF8);
    ArrayResize(post, len);
    ResetLastError();
-   int status = WebRequest("POST", InpBackendUrl, headers, 5000, post, result, resultHeaders);
+   int status = WebRequest("POST", url, headers, 5000, post, result, resultHeaders);
    if(status == -1)
      { PrintFormat("WebRequest failed err=%d (is the URL whitelisted in Options?)", GetLastError()); return false; }
    if(status < 200 || status >= 300)
      { PrintFormat("Ingest returned HTTP %d: %s", status, CharArrayToString(result)); return false; }
    return true;
+  }
+
+bool SendJson(string json)       { return PostJson(InpBackendUrl, json); }
+bool SendPayoutJson(string json) { return PostJson(g_payoutUrl, json); }
+
+//+------------------------------------------------------------------+
+//| Payouts (balance-operation withdrawals)                          |
+//+------------------------------------------------------------------+
+string JsonEsc(string s)
+  {
+   StringReplace(s, "\\", "\\\\");
+   StringReplace(s, "\"", "\\\"");
+   return s;
+  }
+
+string BuildPayoutJson(ulong dealTicket, datetime t, double gross, string comment)
+  {
+   string json = "{";
+   json += "\"account_id\":"  + (string)AccountInfoInteger(ACCOUNT_LOGIN) + ",";
+   json += "\"deal_ticket\":" + (string)dealTicket + ",";
+   json += "\"time\":\""       + ToIso(t) + "\",";
+   json += "\"amount\":"       + DoubleToString(gross, 2) + ",";
+   json += "\"comment\":\""     + JsonEsc(comment) + "\"";
+   json += "}";
+   return json;
+  }
+
+// A DEAL_TYPE_BALANCE deal with a negative amount = a profit withdrawal (payout).
+// Positive amounts (deposits/credits) are ignored. Deduped locally by deal ticket
+// (and again on the backend by ext_ref), so re-scans/backfills are no-ops.
+void ProcessPayoutDeal(ulong dealTicket)
+  {
+   if(IsPayoutSent(dealTicket)) return;
+   double amount = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
+   if(amount >= 0.0) return; // deposit / positive balance op — not a payout
+   string comment = HistoryDealGetString(dealTicket, DEAL_COMMENT);
+   // Only true withdrawals/payouts (comment contains "withdraw"); skip other
+   // negative balance ops like fees/corrections. GFT payouts read "Withdraw+balance".
+   string lc = comment; StringToLower(lc);
+   if(StringFind(lc, "withdraw") < 0) return;
+   datetime t = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
+   string json = BuildPayoutJson(dealTicket, t, -amount, comment);
+   if(!SendPayoutJson(json)) QueuePayoutPayload(json);
+   MarkPayoutSent(dealTicket);
+   PrintFormat("Payout detected: deal #%I64u gross %.2f (%s)", dealTicket, -amount, comment);
+  }
+
+bool IsPayoutSent(ulong deal)
+  {
+   for(int i = 0; i < ArraySize(g_payoutSent); i++)
+      if(g_payoutSent[i] == deal) return true;
+   return false;
+  }
+
+void MarkPayoutSent(ulong deal)
+  {
+   if(IsPayoutSent(deal)) return;
+   int n = ArraySize(g_payoutSent); ArrayResize(g_payoutSent, n + 1); g_payoutSent[n] = deal;
+   int h = FileOpen(g_payoutSentFile, FILE_READ|FILE_WRITE|FILE_TXT|FILE_ANSI);
+   if(h != INVALID_HANDLE) { FileSeek(h, 0, SEEK_END); FileWriteString(h, (string)deal + "\n"); FileClose(h); }
+  }
+
+void LoadPayoutSent()
+  {
+   ArrayResize(g_payoutSent, 0);
+   if(!FileIsExist(g_payoutSentFile)) return;
+   int h = FileOpen(g_payoutSentFile, FILE_READ|FILE_TXT|FILE_ANSI);
+   if(h == INVALID_HANDLE) return;
+   while(!FileIsEnding(h))
+     {
+      string line = FileReadString(h);
+      if(StringLen(line) == 0) continue;
+      int n = ArraySize(g_payoutSent); ArrayResize(g_payoutSent, n + 1); g_payoutSent[n] = (ulong)StringToInteger(line);
+     }
+   FileClose(h);
+  }
+
+void QueuePayoutPayload(string json)
+  {
+   int h = FileOpen(g_payoutQueueFile, FILE_READ|FILE_WRITE|FILE_TXT|FILE_ANSI);
+   if(h == INVALID_HANDLE) { Print("Could not open payout queue; NOT persisted: ", json); return; }
+   FileSeek(h, 0, SEEK_END);
+   FileWriteString(h, json + "\n");
+   FileClose(h);
+  }
+
+void FlushPayoutQueue()
+  {
+   if(!FileIsExist(g_payoutQueueFile)) return;
+   int h = FileOpen(g_payoutQueueFile, FILE_READ|FILE_TXT|FILE_ANSI);
+   if(h == INVALID_HANDLE) return;
+   string remaining[]; int kept = 0;
+   while(!FileIsEnding(h))
+     {
+      string line = FileReadString(h);
+      if(StringLen(line) == 0) continue;
+      if(!SendPayoutJson(line)) { ArrayResize(remaining, kept + 1); remaining[kept++] = line; }
+     }
+   FileClose(h);
+   FileDelete(g_payoutQueueFile);
+   if(kept > 0)
+     {
+      int w = FileOpen(g_payoutQueueFile, FILE_WRITE|FILE_TXT|FILE_ANSI);
+      if(w != INVALID_HANDLE)
+        { for(int i = 0; i < kept; i++) FileWriteString(w, remaining[i] + "\n"); FileClose(w); }
+      PrintFormat("Payout retry queue: %d still pending.", kept);
+     }
   }
 
 void QueuePayload(string json)
@@ -479,6 +608,9 @@ void BackfillHistory()
    for(int i = 0; i < total; i++)
      {
       ulong deal = HistoryDealGetTicket(i);
+      // Catch withdrawals (balance operations) missed while the EA was offline.
+      if(HistoryDealGetInteger(deal, DEAL_TYPE) == DEAL_TYPE_BALANCE)
+        { ProcessPayoutDeal(deal); continue; }
       long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
       if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_OUT_BY) continue;
       ulong posId = (ulong)HistoryDealGetInteger(deal, DEAL_POSITION_ID);

@@ -31,3 +31,17 @@ export function fmtNum(v, dp = 2) {
   if (v == null || v === '') return '';
   return Number(v).toFixed(dp);
 }
+
+// Compact trade duration (open -> close), e.g. "12m", "3h 5m", "2d 4h".
+export function fmtDuration(openIso, closeIso) {
+  if (!openIso || !closeIso) return '';
+  const ms = new Date(closeIso) - new Date(openIso);
+  if (!(ms >= 0)) return '';
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return '<1m';
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h < 24) return m ? `${h}h ${m}m` : `${h}h`;
+  const d = Math.floor(h / 24), rh = h % 24;
+  return rh ? `${d}d ${rh}h` : `${d}d`;
+}
