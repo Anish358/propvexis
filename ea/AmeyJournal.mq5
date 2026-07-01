@@ -24,7 +24,7 @@
 //|   (covers both /api/trades/ingest and /api/payouts/ingest).       |
 //+------------------------------------------------------------------+
 #property copyright "Amey Journal"
-#property version   "1.11"
+#property version   "1.12"
 #property strict
 
 input string InpBackendUrl   = "http://127.0.0.1:3000/api/trades/ingest"; // Ingest Endpoint
@@ -97,8 +97,9 @@ int OnInit()
          TrackPosition(t);
      }
    EventSetMillisecondTimer(InpPollMs);
-   PrintFormat("AmeyJournal EA v1.10 started. Open=%d, MFE-pending=%d. Endpoint=%s",
+   PrintFormat("AmeyJournal EA v1.12 started. Open=%d, MFE-pending=%d. Endpoint=%s",
                ArraySize(g_pos), ArraySize(g_mfe), InpBackendUrl);
+   ScanPayoutHistory(); // import past withdrawals/payouts (deduped) regardless of backfill
    if(InpBackfillDays > 0)
       BackfillHistory();
    FinalizePendingMfe();
@@ -196,6 +197,21 @@ void DiscoverNewPositions()
      }
   }
 
+// Total commission + swap over ALL deals of a position (entry + exit), so
+// brokers that charge commission on entry are captured, not just the close deal.
+void SumPositionCharges(ulong positionId, double &commission, double &swap)
+  {
+   commission = 0; swap = 0;
+   if(!HistorySelectByPosition(positionId)) return;
+   int deals = HistoryDealsTotal();
+   for(int i = 0; i < deals; i++)
+     {
+      ulong d = HistoryDealGetTicket(i);
+      commission += HistoryDealGetDouble(d, DEAL_COMMISSION);
+      swap       += HistoryDealGetDouble(d, DEAL_SWAP);
+     }
+  }
+
 //+------------------------------------------------------------------+
 //| On close: send immediately (MFE pending) + queue for MFE finalize |
 //+------------------------------------------------------------------+
@@ -205,8 +221,6 @@ void HandleClose(ulong positionId, ulong dealTicket)
 
    double   exitPrice  = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
    double   profit     = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
-   double   commission = HistoryDealGetDouble(dealTicket, DEAL_COMMISSION);
-   double   swap       = HistoryDealGetDouble(dealTicket, DEAL_SWAP);
    datetime closeTime  = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
    string   symbol     = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
 
@@ -224,6 +238,12 @@ void HandleClose(ulong positionId, ulong dealTicket)
       entry = exitPrice; sl = 0; tp = 0; openTime = closeTime;
       volume = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
      }
+
+   // Commission is often booked on the ENTRY deal (GFT does), so the closing
+   // deal alone reports 0 — sum commission + swap across ALL of the position's
+   // deals. (Must read the out-deal fields above FIRST: this reselects history.)
+   double commission = 0, swap = 0;
+   SumPositionCharges(positionId, commission, swap);
 
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    // Immediate send: SL Size + Fixed R now, MFE pending (omitted).
@@ -469,6 +489,23 @@ void ProcessPayoutDeal(ulong dealTicket)
    PrintFormat("Payout detected: deal #%I64u gross %.2f (%s)", dealTicket, -amount, comment);
   }
 
+// One-time-per-run sweep of the FULL account history for balance operations, so
+// withdrawals made before the EA was (re)attached still get imported. Cheap
+// (balance ops are rare) and idempotent — ProcessPayoutDeal dedups by ticket
+// locally, and the backend dedups again by (account_id, deal_ticket).
+void ScanPayoutHistory()
+  {
+   if(!HistorySelect(0, TimeCurrent())) return;
+   int total = HistoryDealsTotal(), found = 0;
+   for(int i = 0; i < total; i++)
+     {
+      ulong d = HistoryDealGetTicket(i);
+      if(HistoryDealGetInteger(d, DEAL_TYPE) == DEAL_TYPE_BALANCE)
+        { ProcessPayoutDeal(d); found++; }
+     }
+   if(found > 0) PrintFormat("Payout history scan: checked %d balance operation(s).", found);
+  }
+
 bool IsPayoutSent(ulong deal)
   {
    for(int i = 0; i < ArraySize(g_payoutSent); i++)
@@ -635,6 +672,9 @@ bool ProcessHistoricalClose(ulong positionId)
      {
       ulong d = HistoryDealGetTicket(i);
       long  e = HistoryDealGetInteger(d, DEAL_ENTRY);
+      // Commission/swap can sit on EITHER deal — accumulate for every deal.
+      commission += HistoryDealGetDouble(d, DEAL_COMMISSION);
+      swap       += HistoryDealGetDouble(d, DEAL_SWAP);
       if(e == DEAL_ENTRY_IN)
         {
          entry = HistoryDealGetDouble(d, DEAL_PRICE);
@@ -648,8 +688,6 @@ bool ProcessHistoricalClose(ulong positionId)
          exit = HistoryDealGetDouble(d, DEAL_PRICE);
          closeTime = (datetime)HistoryDealGetInteger(d, DEAL_TIME);
          profit += HistoryDealGetDouble(d, DEAL_PROFIT);
-         commission += HistoryDealGetDouble(d, DEAL_COMMISSION);
-         swap += HistoryDealGetDouble(d, DEAL_SWAP);
          if(symbol == "") symbol = HistoryDealGetString(d, DEAL_SYMBOL);
         }
      }
