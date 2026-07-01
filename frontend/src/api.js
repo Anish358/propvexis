@@ -103,12 +103,16 @@ export async function fetchAccount(accountId) {
   return getJson(`/api/account?_=1${acctq(accountId)}`);
 }
 
-export async function fetchStats(accountId, unit = 'R', filters) {
-  return getJson(`/api/stats?_=1&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}`);
+// `beRound` mirrors the Trade Settings precision control: when on, the server
+// snaps near-zero Fixed R to breakeven before aggregating (same rule as the client).
+const beq = (beRound) => (beRound ? '&beRound=1' : '');
+
+export async function fetchStats(accountId, unit = 'R', filters, beRound = false) {
+  return getJson(`/api/stats?_=1&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}${beq(beRound)}`);
 }
 
-export async function fetchYearly(year, accountId, unit = 'R', filters) {
-  return getJson(`/api/yearly?year=${year}&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}`);
+export async function fetchYearly(year, accountId, unit = 'R', filters, beRound = false) {
+  return getJson(`/api/yearly?year=${year}&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}${beq(beRound)}`);
 }
 
 export async function createManualTrade(fields) {

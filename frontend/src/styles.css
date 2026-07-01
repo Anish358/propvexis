@@ -615,7 +615,49 @@ label.full { margin-bottom: 14px; }
 
 /* ---- trade log (step 3) ---- */
 .log-toolbar { display: flex; align-items: center; gap: 14px; }
+.log-toolbar-spacer { flex: 1; }
 .log-count { color: var(--muted); font-size: 13px; }
 .log-untagged { background: #2a2410; color: #d9a441; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 10px; }
 .log-panel { padding: 0; overflow: hidden; }
 .log-panel .grid-wrap { border-radius: 12px; }
+
+/* trade log direction + duration cells */
+.pill.dir-buy { background: #11271a; color: #39d98a; }
+.pill.dir-sell { background: #2a1414; color: #e0918d; }
+.cell-dur { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* ---- trade settings ---- */
+.ts-open-btn {
+  background: #17171c; border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.ts-open-btn:hover { border-color: #3a3a42; }
+
+.ts-modal { max-width: 560px; width: 560px; }
+.ts-section { border-top: 1px solid var(--line); padding: 14px 0 4px; }
+.ts-section:first-of-type { border-top: none; }
+.ts-section-head { display: flex; align-items: center; justify-content: space-between; }
+.ts-section-head h3 { margin: 0; font-size: 14px; }
+.ts-reset {
+  background: transparent; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.ts-reset:hover { color: var(--text); border-color: #3a3a42; }
+.ts-hint { color: var(--muted); font-size: 12px; margin: 6px 0 10px; }
+
+.ts-toggle-row { display: flex; align-items: center; gap: 16px; padding: 10px 0; cursor: pointer; }
+.ts-toggle-text { display: flex; flex-direction: column; gap: 3px; }
+.ts-toggle-title { font-size: 13px; font-weight: 600; }
+.ts-toggle-sub { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+/* toggle switch */
+.switch { position: relative; flex: 0 0 auto; width: 40px; height: 22px; border-radius: 12px; background: #2a2a30; transition: background .15s; }
+.switch.on { background: #2e7d46; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch.on .switch-knob { transform: translateX(18px); }
+
+.ts-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 8px; }
+.ts-col-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 5px 6px; border-radius: 6px; cursor: pointer; }
+.ts-col-opt:hover { background: #1c1c22; }
+.ts-col-opt input { accent-color: #39d98a; }

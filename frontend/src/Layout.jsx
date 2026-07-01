@@ -11,6 +11,7 @@ export default function Layout({
   connected, flashId, saveTrade, removeTrade, addManualTrade,
   unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
   widgetOverrides, setWidgetVisible, resetWidgets,
+  tradeSettings, setBeRounding, setColumnVisible, resetColumns,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const toggleSidebar = () => setCollapsed((c) => !c);
@@ -37,7 +38,7 @@ export default function Layout({
           patchFilters={patchFilters}
           clearFilters={clearFilters}
         />
-        <Outlet context={{ trades, account, accountId, accounts, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets }} />
+        <Outlet context={{ trades, account, accountId, accounts, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>
     </div>
   );

@@ -9,6 +9,21 @@ export const ACCOUNT_START = 50000; // GoatFundedTrader prop account size (displ
 // the trade P&L field for a given display unit
 export const valueField = (unit) => (unit === 'USD' ? 'pnl_money' : 'fixed_r');
 
+// Precision control (Trade Settings): when breakeven rounding is on, any trade
+// whose Fixed R sits within ±BE_THRESHOLD of zero is treated as an exact
+// breakeven (0R). We snap the source fixed_r so EVERY downstream analysis —
+// win/loss classification, R sums, streaks, distributions, the calendar — agrees.
+// Only fixed_r is touched (pnl_money and Max R are left as-is). The server mirrors
+// this in aggregations.js for the Analytics/Yearly stats.
+export const BE_THRESHOLD = 0.1;
+export function applyBeRounding(trades, on = false) {
+  if (!on) return trades;
+  return trades.map((t) =>
+    t.fixed_r != null && Math.abs(Number(t.fixed_r)) <= BE_THRESHOLD
+      ? { ...t, fixed_r: 0 }
+      : t);
+}
+
 const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 const round = (n, dp = 2) => (n == null || Number.isNaN(n) ? 0 : Math.round(n * 10 ** dp) / 10 ** dp);
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));

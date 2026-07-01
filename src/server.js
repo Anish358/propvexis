@@ -528,6 +528,8 @@ app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
 // derived from the account. Unit is normalized to R/USD; filter values are
 // parameterized in buildTradeWhere.
 const parseUnit = (q) => (q.unit === 'USD' ? 'USD' : 'R');
+// Precision control (Trade Settings): snap near-zero Fixed R to breakeven.
+const parseBeRound = (q) => q.beRound === '1' || q.beRound === 'true';
 const csv = (v) => (v ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : []);
 const parseFilters = (q) => ({
   setups: csv(q.setups),
@@ -542,14 +544,14 @@ const parseFilters = (q) => ({
 app.get('/api/stats', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
-  return computeStats(scope, parseUnit(req.query), parseFilters(req.query));
+  return computeStats(scope, parseUnit(req.query), parseFilters(req.query), parseBeRound(req.query));
 });
 
 app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
   const year = Number(req.query.year) || new Date().getUTCFullYear();
-  return computeYearly(year, scope, parseUnit(req.query), parseFilters(req.query));
+  return computeYearly(year, scope, parseUnit(req.query), parseFilters(req.query), parseBeRound(req.query));
 });
 
 // ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
+import { applyBeRounding } from './metrics.js';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
 import Dashboard from './Dashboard.jsx';
@@ -12,6 +13,8 @@ import Calendar from './Calendar.jsx';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
 const VIEWCFG_KEY = 'amey.viewConfigs'; // per-scope { unit, filters } map
+const TRADE_SETTINGS_KEY = 'amey.tradeSettings'; // global journal settings (BE rounding, columns)
+const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -38,6 +41,17 @@ export default function App() {
   });
   useEffect(() => { localStorage.setItem(VIEWCFG_KEY, JSON.stringify(viewConfigs)); }, [viewConfigs]);
 
+  // Global journal settings (not per-scope): breakeven rounding + trade-log
+  // column visibility. Persisted; merged over defaults so older stored blobs load.
+  const [tradeSettings, setTradeSettings] = useState(() => {
+    try { return { ...defaultTradeSettings(), ...(JSON.parse(localStorage.getItem(TRADE_SETTINGS_KEY)) || {}) }; }
+    catch { return defaultTradeSettings(); }
+  });
+  useEffect(() => { localStorage.setItem(TRADE_SETTINGS_KEY, JSON.stringify(tradeSettings)); }, [tradeSettings]);
+  const setBeRounding = (on) => setTradeSettings((s) => ({ ...s, beRounding: !!on }));
+  const setColumnVisible = (id, visible) => setTradeSettings((s) => ({ ...s, columns: { ...s.columns, [id]: visible } }));
+  const resetColumns = () => setTradeSettings((s) => ({ ...s, columns: {} }));
+
   const sk = scopeKey(accountId);
   // Merge over defaults so configs persisted before a field existed (e.g. the
   // pre-widget Phase A configs) still get sane values.
@@ -58,9 +72,15 @@ export default function App() {
   }));
   const resetWidgets = () => mutateConfig((c) => ({ ...c, widgets: { overrides: {} } }));
 
+  // Precision control snaps near-zero Fixed R to breakeven BEFORE filtering, so
+  // outcome filters + every in-memory page/metric see the same classification.
+  const normalizedTrades = useMemo(
+    () => applyBeRounding(trades, tradeSettings.beRounding),
+    [trades, tradeSettings.beRounding],
+  );
   // Filters apply to every component: the in-memory pages read the filtered set;
   // the dropdown choices come from the full (unfiltered) scoped trades.
-  const filteredTrades = useMemo(() => filterTrades(trades, filters, unit), [trades, filters, unit]);
+  const filteredTrades = useMemo(() => filterTrades(normalizedTrades, filters, unit), [normalizedTrades, filters, unit]);
   const filterOptions = useMemo(() => availableOptions(trades), [trades]);
 
   // does an incoming socket event belong to the account currently in view?
@@ -194,6 +214,10 @@ export default function App() {
                 widgetOverrides={widgetOverrides}
                 setWidgetVisible={setWidgetVisible}
                 resetWidgets={resetWidgets}
+                tradeSettings={tradeSettings}
+                setBeRounding={setBeRounding}
+                setColumnVisible={setColumnVisible}
+                resetColumns={resetColumns}
               />
             }
           >

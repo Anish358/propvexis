@@ -5,6 +5,18 @@ import { query } from './db.js';
 
 const round = (n, dp = 2) => (n == null || Number.isNaN(n) ? null : Math.round(n * 10 ** dp) / 10 ** dp);
 const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+
+// Precision control: mirror the client's breakeven rounding (metrics.js). When
+// on, any trade whose Fixed R is within ±BE_THRESHOLD of zero is snapped to an
+// exact 0R, so server aggregates classify it as breakeven like the rest of the app.
+const BE_THRESHOLD = 0.1;
+function snapBeRounding(trades, beRound) {
+  if (!beRound) return trades;
+  return trades.map((t) =>
+    t.fixed_r != null && Math.abs(Number(t.fixed_r)) <= BE_THRESHOLD
+      ? { ...t, fixed_r: 0 }
+      : t);
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -66,7 +78,7 @@ function streaks(scoredOrdered) {
 // (+ an optional year). `scope.filterCol` and the field used for outcome are
 // code-controlled; every user-supplied value is parameterized. Returns
 // { where, params } with params positioned for the returned placeholders.
-export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null) {
+export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null, beRound = false) {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
   const conds = [];
   const params = [];
@@ -81,10 +93,15 @@ export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null) {
   if (filters.from) conds.push(`close_time >= ${add(filters.from)}`);
   if (filters.to) conds.push(`close_time <= ${add(`${filters.to} 23:59:59`)}`);
   if (filters.outcome?.length) {
+    // With breakeven rounding on, a near-zero Fixed R counts as BE. Widen the
+    // win/loss/be bands by BE_THRESHOLD to match the client's snapped view.
+    // (BE_THRESHOLD is a code constant, so it's safe to inline in SQL.) Only the
+    // R field is snapped — USD outcomes stay on an exact-zero pivot.
+    const rBE = beRound && field === 'fixed_r';
     const parts = [];
-    if (filters.outcome.includes('win')) parts.push(`${field} > 0`);
-    if (filters.outcome.includes('loss')) parts.push(`${field} < 0`);
-    if (filters.outcome.includes('be')) parts.push(`${field} = 0`);
+    if (filters.outcome.includes('win')) parts.push(rBE ? `${field} > ${BE_THRESHOLD}` : `${field} > 0`);
+    if (filters.outcome.includes('loss')) parts.push(rBE ? `${field} < ${-BE_THRESHOLD}` : `${field} < 0`);
+    if (filters.outcome.includes('be')) parts.push(rBE ? `(${field} >= ${-BE_THRESHOLD} AND ${field} <= ${BE_THRESHOLD})` : `${field} = 0`);
     if (parts.length) conds.push(`(${parts.join(' OR ')})`);
   }
   return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
@@ -94,11 +111,11 @@ export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null) {
 // single account -> account_id = login. filterCol is code-controlled (safe).
 // `filters` are the global data filters (setups/symbols/sessions/probability/
 // outcome/date range) applied app-wide.
-export async function computeStats(scope, unit = 'R', filters = {}) {
+export async function computeStats(scope, unit = 'R', filters = {}, beRound = false) {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const { where, params } = buildTradeWhere(scope, unit, filters);
+  const { where, params } = buildTradeWhere(scope, unit, filters, null, beRound);
   const { rows } = await query(`SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`, params);
-  const trades = rows.map((r) => ({ ...r, close: new Date(r.close_time) }));
+  const trades = snapBeRounding(rows.map((r) => ({ ...r, close: new Date(r.close_time) })), beRound);
   // P&L-based stats use the selected unit; R-distribution + MFE always use R.
   const scored = trades.filter((t) => t[field] != null);
   const rScored = trades.filter((t) => t.fixed_r != null);
@@ -180,14 +197,14 @@ export async function computeStats(scope, unit = 'R', filters = {}) {
 }
 
 // Yearly view: monthly performance (overall + per setup) for one year.
-export async function computeYearly(year, scope, unit = 'R', filters = {}) {
+export async function computeYearly(year, scope, unit = 'R', filters = {}, beRound = false) {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const { where, params } = buildTradeWhere(scope, unit, filters, year);
+  const { where, params } = buildTradeWhere(scope, unit, filters, year, beRound);
   const { rows } = await query(
     `SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`,
     params
   );
-  const trades = rows.map((r) => ({ ...r, close: new Date(r.close_time) }));
+  const trades = snapBeRounding(rows.map((r) => ({ ...r, close: new Date(r.close_time) })), beRound);
   const setups = ['Continue', 'Liq-run', 'Fractal', 'SMC'];
 
   const months = MONTHS.map((name, mi) => {
