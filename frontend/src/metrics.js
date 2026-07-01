@@ -158,10 +158,20 @@ export function computeProp(trades, account) {
     .map((t) => ({ pnl: Number(t.pnl_money), close: new Date(t.close_time) }))
     .sort((a, b) => a.close - b.close);
 
+  // The curve must END at the real, live balance. When an account is added while
+  // already in drawdown, its pre-add trades aren't in the journal, so
+  // start_balance + journaled deltas overshoots the truth. Trust the live balance
+  // and reconstruct the visible curve BACKWARD from it using the real trade deltas
+  // (anchor = liveBalance − Σpnl). Without a live snapshot, fall back to the
+  // challenge start_balance as the left anchor (original behavior).
+  const live = account?.balance != null;
+  const sumPnl = sum(ts.map((t) => t.pnl));
+  const anchor = live ? Number(account.balance) - sumPnl : start;
+
   const todayKey = dayKey(new Date());
-  let equity = start, peak = start, maxDD = 0;
+  let equity = anchor, peak = anchor, maxDD = 0;
   let dayStart = null, dailyLow = Infinity; // for today's drawdown
-  const curve = [{ label: 'Start', equity: round(start), date: ts[0]?.close ?? new Date() }];
+  const curve = [{ label: 'Start', equity: round(anchor), date: ts[0]?.close ?? new Date() }];
   for (const t of ts) {
     if (dayKey(t.close) === todayKey && dayStart == null) dayStart = equity;
     equity += t.pnl;
@@ -170,10 +180,11 @@ export function computeProp(trades, account) {
     if (dayKey(t.close) === todayKey) dailyLow = Math.min(dailyLow, equity);
     curve.push({ label: `${t.close.getDate()} ${MONTHS[t.close.getMonth()]}`, equity: round(equity), date: t.close });
   }
-  const netPnl = equity - start;
-  const dailyDD = dayStart == null ? 0 : Math.max(0, dayStart - dailyLow);
-  const live = account?.balance != null;
   const currentBalance = live ? Number(account.balance) : equity;
+  // P&L vs the challenge start balance (negative = still in drawdown). With the
+  // curve anchored to the live balance this equals currentBalance − start.
+  const netPnl = currentBalance - start;
+  const dailyDD = dayStart == null ? 0 : Math.max(0, dayStart - dailyLow);
   // The balance the current trading day opened at (drives the daily-loss floor).
   const dayStartBalance = dayStart != null ? dayStart : currentBalance;
 

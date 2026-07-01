@@ -621,6 +621,36 @@ label.full { margin-bottom: 14px; }
 .log-panel { padding: 0; overflow: hidden; }
 .log-panel .grid-wrap { border-radius: 12px; }
 
+.add-trade-group { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ---- explain (circled-i hover tooltip) ---- */
+.explain { position: relative; display: inline-flex; align-items: center; vertical-align: middle; cursor: help; outline: none; }
+.explain-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1px solid var(--muted); color: var(--muted);
+  font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700;
+  font-size: 11px; line-height: 1; user-select: none; transition: color .12s, border-color .12s;
+}
+.explain:hover .explain-icon, .explain:focus-visible .explain-icon { border-color: var(--text); color: var(--text); }
+.explain-pop {
+  position: absolute; top: calc(100% + 8px); z-index: 60;
+  width: 300px; max-width: 78vw; padding: 11px 13px;
+  background: #1b1b21; border: 1px solid #2f2f37; border-radius: 8px;
+  color: var(--text); font-size: 12px; line-height: 1.55; font-weight: 400;
+  text-align: left; text-transform: none; letter-spacing: normal;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
+  opacity: 0; visibility: hidden; transform: translateY(-4px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s;
+  pointer-events: none;
+}
+.explain-left .explain-pop { left: 0; }
+.explain-right .explain-pop { right: 0; }
+.explain:hover .explain-pop, .explain:focus-within .explain-pop {
+  opacity: 1; visibility: visible; transform: translateY(0);
+}
+.explain-pop b { color: #fff; font-weight: 700; }
+
 /* trade log direction + duration cells */
 .pill.dir-buy { background: #11271a; color: #39d98a; }
 .pill.dir-sell { background: #2a1414; color: #e0918d; }

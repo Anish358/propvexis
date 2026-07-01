@@ -58,6 +58,10 @@ export function buildColumns(unit = 'R') {
         return <td className={`num ${cls}`}>{text}</td>;
       },
     },
+    {
+      id: 'commission', label: 'COMMISSION', defaultOn: true,
+      cell: (t) => <td className="num">{t.commission == null ? <span className="muted">—</span> : fmtMoney(t.commission, { sign: true })}</td>,
+    },
     { id: 'm15', label: 'M15', defaultOn: true, cell: (t) => <td><ChartLink url={t.m15_url} label="M15" /></td> },
     { id: 'h1', label: 'H1', defaultOn: true, cell: (t) => <td><ChartLink url={t.h1_url} label="H1" /></td> },
     { id: 'h4', label: 'H4', defaultOn: true, cell: (t) => <td><ChartLink url={t.h4_url} label="H4" /></td> },

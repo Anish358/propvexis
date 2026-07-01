@@ -5,6 +5,7 @@ import TradesTable from './TradesTable.jsx';
 import TagModal from './TagModal.jsx';
 import AddTradeModal from './AddTradeModal.jsx';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
+import Explain from './Explain.jsx';
 
 export default function TradeLog() {
   const {
@@ -30,7 +31,18 @@ export default function TradeLog() {
           {untagged > 0 && <span className="log-untagged">{untagged} to tag</span>}
           <span className="log-toolbar-spacer" />
           {isGod && (
-            <button className="add-trade-btn" onClick={() => setAdding(true)}>+ Add strategy trade</button>
+            <span className="add-trade-group">
+              <button className="add-trade-btn" onClick={() => setAdding(true)}>+ Add strategy trade</button>
+              <Explain align="right">
+                <b>Strategy trades</b> are manual, account-less journal entries — used to log a
+                setup or backtest a strategy in R without a live MT5 position behind it.
+                <br /><br />
+                They only appear in the <b>god (all-accounts) view</b>. A per-account view mirrors
+                one real MT5 account, whose trades are ingested automatically by the EA — so there's
+                nothing to add by hand there. Manual entries have no account, which is exactly what
+                the god view aggregates.
+              </Explain>
+            </span>
           )}
           <button className="ts-open-btn" onClick={() => setSettingsOpen(true)} title="Trade settings">
             ⚙ Trade Settings
