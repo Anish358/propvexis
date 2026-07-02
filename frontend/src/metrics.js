@@ -180,18 +180,28 @@ export function computeProp(trades, account, payouts = []) {
     .map((x) => ({ gross: Number(x.gross_amount) || 0, trader: Number(x.trader_amount) || 0, split: Number(x.split_pct) || 0, note: x.note || null, date: new Date(x.payout_date) }))
     .filter((x) => x.gross > 0 && !isNaN(x.date))
     .sort((a, b) => a.date - b.date);
-  const grossPayout = sum(ps.map((p) => p.gross));
-  const traderPayout = sum(ps.map((p) => p.trader));
+  const grossPayout = sum(ps.map((p) => p.gross));   // ALL payouts — for the "Total payout" box
+  const traderPayout = sum(ps.map((p) => p.trader)); // ALL payouts (trader net) — for the box
+
+  // Only payouts taken AFTER the account was added to the journal affect the
+  // balance curve / drawdown / any performance metric. Imported PAST payouts (dated
+  // before it was added) already happened before tracking began — they're baked
+  // into the live balance's pre-tracking history, so re-adding them would distort
+  // the anchor and draw phantom step-downs. They feed ONLY the "Total payout" box.
+  const addedAt = account?.created_at ? new Date(account.created_at) : (ts[0]?.close ?? new Date());
+  const postPs = ps.filter((p) => p.date >= addedAt);
+  const grossPost = sum(postPs.map((p) => p.gross));
 
   // `anchor` = the account balance at the moment it was ADDED to the journal
   // (before the first tracked trade). When an account is added mid-drawdown, its
   // pre-add trades aren't journaled, so start_balance + journaled deltas overshoots
-  // the truth. Trust the live balance: with Σpnl of tracked trades and Σgross of
-  // withdrawals, balance = anchor + Σpnl − Σgross ⇒ anchor = balance − Σpnl + Σgross.
-  // The tracked curve runs anchor → … → live. Without a snapshot, fall back to start.
+  // the truth. Trust the live balance: with Σpnl of tracked trades and Σgross of the
+  // POST-add withdrawals, balance = anchor + Σpnl − ΣgrossPost ⇒ anchor = balance −
+  // Σpnl + ΣgrossPost. The tracked curve runs anchor → … → live. Without a snapshot,
+  // fall back to start. (Past payouts are excluded, so importing one is a no-op here.)
   const live = account?.balance != null;
   const sumPnl = sum(ts.map((t) => t.pnl));
-  const anchor = live ? Number(account.balance) - sumPnl + grossPayout : start;
+  const anchor = live ? Number(account.balance) - sumPnl + grossPost : start;
 
   const todayKey = dayKey(new Date());
   // Max drawdown is measured from the account's HIGH-WATER MARK, and the challenge
@@ -202,12 +212,13 @@ export function computeProp(trades, account, payouts = []) {
   // reads as drawdown; the displayed `equity` curve does step down on a payout.
   let equity = anchor, tEquity = anchor, peak = Math.max(start, anchor), maxDD = Math.max(0, peak - anchor);
   let dayStart = null, dailyLow = Infinity; // for today's drawdown (on tEquity)
-  const firstDate = ts[0]?.close ?? ps[0]?.date ?? new Date();
+  const firstDate = ts[0]?.close ?? postPs[0]?.date ?? new Date();
 
-  // Merge trades + payouts into one chronological event stream.
+  // Merge trades + POST-add payouts into one chronological event stream (past
+  // payouts are intentionally excluded — they predate tracking).
   const events = [
     ...ts.map((t) => ({ kind: 'trade', date: t.close, pnl: t.pnl })),
-    ...ps.map((p) => ({ kind: 'payout', date: p.date, gross: p.gross, trader: p.trader, split: p.split, note: p.note })),
+    ...postPs.map((p) => ({ kind: 'payout', date: p.date, gross: p.gross, trader: p.trader, split: p.split, note: p.note })),
   ].sort((a, b) => a.date - b.date);
 
   // Tracked equity (drawdown math runs on this, from the add point onward).

@@ -40,6 +40,14 @@ export default function TradeLog() {
         <div className="log-toolbar">
           <span className="log-count">{trades.length} trade{trades.length === 1 ? '' : 's'}</span>
           {untagged > 0 && <span className="log-untagged">{untagged} to tag</span>}
+          <button
+            className={`precision-chip ${tradeSettings.beRounding ? 'on' : 'off'}`}
+            onClick={() => setSettingsOpen(true)}
+            title="Breakeven rounding — click to change in Trade Settings"
+          >
+            <span className="precision-dot" />
+            Precision control: {tradeSettings.beRounding ? 'On' : 'Off'}
+          </button>
           <span className="log-toolbar-spacer" />
           {isGod && (
             <span className="add-trade-group">
