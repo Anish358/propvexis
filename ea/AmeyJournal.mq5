@@ -19,12 +19,18 @@
 //|   pushed to /api/payouts/ingest, deduped by deal ticket. Deposits |
 //|   / positive balance ops are ignored.                             |
 //|                                                                  |
+//|   CANDLES (trade replay): the backend queues the M1 window around |
+//|   each closed trade; the EA polls /api/candles/requests, reads    |
+//|   the bars from terminal history (CopyRates), and POSTs them to   |
+//|   /api/candles/ingest in chunks. Idempotent server-side, so       |
+//|   re-serving a window is harmless.                                |
+//|                                                                  |
 //|   SETUP (one-time): MT5 -> Tools -> Options -> Expert Advisors -> |
 //|   tick "Allow WebRequest for listed URL" and add the backend host |
-//|   (covers both /api/trades/ingest and /api/payouts/ingest).       |
+//|   (one host covers the trades, payouts and candles endpoints).    |
 //+------------------------------------------------------------------+
 #property copyright "Amey Journal"
-#property version   "1.12"
+#property version   "1.13"
 #property strict
 
 input string InpBackendUrl   = "http://127.0.0.1:3000/api/trades/ingest"; // Ingest Endpoint
@@ -35,6 +41,7 @@ input int    InpMfeCheckSecs = 60;                                         // Ho
 input int    InpMfeMaxHours  = 72;                                         // Stop waiting for breakeven after N hours
 input int    InpBackfillDays = 0;                                          // On start, backfill closes from last N days (0 = off)
 input int    InpSlCaptureSecs = 120;                                       // Capture the stop loss this many secs after open, then freeze it
+input int    InpCandleChunk  = 300;                                        // Replay candles per POST (chunk size)
 
 //--- per-open-position tracking (to capture entry/SL while the trade is live)
 struct PosTrack
@@ -78,6 +85,10 @@ string   g_payoutQueueFile  = "amey_journal_payouts_pending.txt";
 string   g_payoutSentFile   = "amey_journal_payouts_sent.txt";
 ulong    g_payoutSent[];
 
+//--- trade-replay candles: derived endpoints (server holds the request queue)
+string   g_candleUrl    = "";
+string   g_candleReqUrl = "";
+
 //+------------------------------------------------------------------+
 int OnInit()
   {
@@ -87,6 +98,13 @@ int OnInit()
       StringReplace(g_payoutUrl, "/api/trades/ingest", "/api/payouts/ingest");
    else
       StringReplace(g_payoutUrl, "trades", "payouts"); // fallback for non-standard URLs
+   g_candleUrl = InpBackendUrl;
+   if(StringFind(g_candleUrl, "/api/trades/ingest") >= 0)
+      StringReplace(g_candleUrl, "/api/trades/ingest", "/api/candles/ingest");
+   else
+      StringReplace(g_candleUrl, "trades", "candles");
+   g_candleReqUrl = g_candleUrl;
+   StringReplace(g_candleReqUrl, "/ingest", "/requests");
    LoadSent();
    LoadPayoutSent();
    LoadMfeWatch();
@@ -97,7 +115,7 @@ int OnInit()
          TrackPosition(t);
      }
    EventSetMillisecondTimer(InpPollMs);
-   PrintFormat("AmeyJournal EA v1.12 started. Open=%d, MFE-pending=%d. Endpoint=%s",
+   PrintFormat("AmeyJournal EA v1.13 started. Open=%d, MFE-pending=%d. Endpoint=%s",
                ArraySize(g_pos), ArraySize(g_mfe), InpBackendUrl);
    ScanPayoutHistory(); // import past withdrawals/payouts (deduped) regardless of backfill
    if(InpBackfillDays > 0)
@@ -114,7 +132,7 @@ void OnTimer()
    DiscoverNewPositions();
 
    if(TimeLocal() - g_lastFlush >= InpRetrySecs)
-     { g_lastFlush = TimeLocal(); FlushQueue(); FlushPayoutQueue(); }
+     { g_lastFlush = TimeLocal(); FlushQueue(); FlushPayoutQueue(); ServeCandleRequests(); }
 
    if(TimeLocal() - g_lastMfeCheck >= InpMfeCheckSecs)
      { g_lastMfeCheck = TimeLocal(); FinalizePendingMfe(); }
@@ -446,6 +464,77 @@ bool PostJson(string url, string json)
 
 bool SendJson(string json)       { return PostJson(InpBackendUrl, json); }
 bool SendPayoutJson(string json) { return PostJson(g_payoutUrl, json); }
+
+//+------------------------------------------------------------------+
+//| Trade-replay candles (served from the terminal's own history)    |
+//+------------------------------------------------------------------+
+// The backend queues a request for the M1 window around each closed trade
+// (context padding before entry / after exit). We poll for pending requests
+// (plain text, one per line: id;symbol;from_epoch;to_epoch in UTC seconds),
+// CopyRates the window, and POST the bars back in chunks; the final chunk
+// marks the request done. The server hands a window out only once it is fully
+// in the past, and upserts are idempotent, so re-serving is harmless.
+void ServeCandleRequests()
+  {
+   string url = g_candleReqUrl + "?account_id=" + (string)AccountInfoInteger(ACCOUNT_LOGIN);
+   char data[], result[]; string resultHeaders;
+   string headers = "X-Ingest-Token: " + InpIngestToken + "\r\n";
+   ResetLastError();
+   int status = WebRequest("GET", url, headers, 5000, data, result, resultHeaders);
+   if(status < 200 || status >= 300) return; // silent: this poll runs every InpRetrySecs
+   string body = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   string lines[];
+   int n = StringSplit(body, '\n', lines);
+   for(int i = 0; i < n; i++)
+     {
+      string p[];
+      if(StringSplit(lines[i], ';', p) < 4) continue;
+      ServeOneCandleRequest(StringToInteger(p[0]), p[1],
+                            (datetime)StringToInteger(p[2]), (datetime)StringToInteger(p[3]));
+     }
+  }
+
+bool ServeOneCandleRequest(long reqId, string symbol, datetime fromUtc, datetime toUtc)
+  {
+   // CopyRates speaks broker/server time; the request window arrives in UTC.
+   datetime fromSrv = fromUtc + g_gmtOffsetSec;
+   datetime toSrv   = toUtc + g_gmtOffsetSec;
+   if(TimeCurrent() < toSrv) return false; // window not fully in the past yet
+   SymbolSelect(symbol, true);
+   MqlRates rates[];
+   int n = CopyRates(symbol, PERIOD_M1, fromSrv, toSrv, rates);
+   if(n <= 0) return false; // history not loaded yet; retried next poll (server caps attempts)
+
+   int  digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   long login  = AccountInfoInteger(ACCOUNT_LOGIN);
+   int  sent   = 0;
+   while(sent < n)
+     {
+      int  chunk  = MathMin(InpCandleChunk, n - sent);
+      bool isLast = (sent + chunk >= n);
+      string json = "{";
+      json += "\"request_id\":" + (string)reqId + ",";
+      json += "\"account_id\":" + (string)login + ",";
+      json += "\"symbol\":\"" + symbol + "\",";
+      json += "\"final\":" + (isLast ? "true" : "false") + ",";
+      json += "\"candles\":[";
+      for(int i = 0; i < chunk; i++)
+        {
+         MqlRates r = rates[sent + i];
+         if(i > 0) json += ",";
+         json += "[" + (string)(long)(r.time - g_gmtOffsetSec) + "," +
+                 D(r.open, digits) + "," + D(r.high, digits) + "," +
+                 D(r.low, digits) + "," + D(r.close, digits) + "]";
+        }
+      json += "]}";
+      // Abort on failure and leave the request pending — the next poll
+      // re-serves the whole window (idempotent upserts make resends harmless).
+      if(!PostJson(g_candleUrl, json)) return false;
+      sent += chunk;
+     }
+   PrintFormat("Candles served: %s %d bar(s) for request #%I64d", symbol, n, reqId);
+   return true;
+  }
 
 //+------------------------------------------------------------------+
 //| Payouts (balance-operation withdrawals)                          |

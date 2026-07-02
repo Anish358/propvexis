@@ -6,6 +6,7 @@ import TagModal from './TagModal.jsx';
 import AddTradeModal from './AddTradeModal.jsx';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
 import TradePreview from './TradePreview.jsx';
+import ReplayModal from './ReplayModal.jsx';
 import Explain from './Explain.jsx';
 
 export default function TradeLog() {
@@ -19,6 +20,7 @@ export default function TradeLog() {
   // and closes itself if the trade is deleted or filtered out.
   const [previewId, setPreviewId] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [replaying, setReplaying] = useState(null);
   const [adding, setAdding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const isGod = accountId === 'all';
@@ -80,7 +82,9 @@ export default function TradeLog() {
         onClose={() => setPreviewId(null)}
         onEdit={(t) => setEditing(t)}
         onDelete={deleteFromPreview}
+        onReplay={(t) => setReplaying(t)}
       />
+      {replaying && <ReplayModal trade={replaying} onClose={() => setReplaying(null)} />}
       <TagModal trade={editing} onClose={() => setEditing(null)} onSave={saveTrade} onDelete={removeTrade} />
       {adding && <AddTradeModal onClose={() => setAdding(false)} onAdd={addManualTrade} />}
       <TradeSettingsModal

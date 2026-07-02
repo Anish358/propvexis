@@ -20,6 +20,15 @@ import {
   ownedAccountByLogin,
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
+import {
+  replayWindow,
+  enqueueCandleRequest,
+  pendingRequestsForLogin,
+  markRequestDone,
+  upsertCandles,
+  listCandles,
+  windowRequestStatus,
+} from './candles.js';
 import { computeStats, computeYearly } from './aggregations.js';
 import {
   priceToPips,
@@ -232,6 +241,21 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
   const trade = rows[0];
 
   emitTrade('trade:upserted', trade);
+
+  // Queue the trade's replay window for this account's EA (idempotent — the
+  // MFE-finalize resend collapses into the same request). Skip degenerate
+  // backfills where open == close (no window to chart).
+  if (
+    trade.entry_price != null &&
+    trade.exit_price != null &&
+    new Date(trade.close_time) > new Date(trade.open_time)
+  ) {
+    try {
+      await enqueueCandleRequest(trade);
+    } catch (err) {
+      req.log.warn({ err: err.message }, 'candle request enqueue failed');
+    }
+  }
 
   // Snapshot live account balance/equity if the EA sent it (latest wins).
   if (b.account_balance != null || b.account_equity != null) {
@@ -446,6 +470,125 @@ app.delete('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply
   const room = t.user_id != null ? `user:${t.user_id}` : `acct:${t.account_id}`;
   io.to(room).emit('trade:deleted', { id });
   return { id, deleted: true };
+});
+
+// ---------------------------------------------------------------------------
+// Trade replay candles — M1 bars around each trade, supplied by the EA from
+// the broker's own history (no third-party data API). The EA polls /requests
+// for windows to fill and POSTs the bars to /ingest; /replay serves the chart.
+// ---------------------------------------------------------------------------
+const candleIngestSchema = {
+  body: {
+    type: 'object',
+    required: ['account_id', 'symbol', 'candles'],
+    properties: {
+      account_id: { type: 'integer' },
+      symbol: { type: 'string' },
+      request_id: { type: ['integer', 'null'] }, // candle_requests.id being served
+      final: { type: ['boolean', 'null'] },      // last chunk → mark request done
+      candles: {
+        // compact bars: [epoch_sec_utc, open, high, low, close]
+        type: 'array',
+        maxItems: 1000,
+        items: { type: 'array', minItems: 5, maxItems: 5, items: { type: 'number' } },
+      },
+    },
+  },
+};
+
+app.post('/api/candles/ingest', { schema: candleIngestSchema }, async (req, reply) => {
+  const b = req.body;
+  const token = req.headers['x-ingest-token'];
+  if (!token) return reply.code(401).send({ error: 'missing ingest token' });
+  const acct = await accountByToken(token);
+  if (!acct) return reply.code(401).send({ error: 'invalid ingest token' });
+  const bind = await bindOrCheckLogin(acct, b.account_id);
+  if (bind === 'mismatch') return reply.code(403).send({ error: 'token does not match this MT5 account' });
+  if (bind === 'conflict') return reply.code(409).send({ error: 'MT5 login already registered to another account' });
+
+  const inserted = await upsertCandles(normalizeSymbol(b.symbol), b.candles);
+  if (b.request_id != null && b.final) await markRequestDone(b.request_id, b.account_id);
+  return reply.code(201).send({ inserted });
+});
+
+// The EA polls this for replay windows to fill. Plain text — one request per
+// line, `id;symbol;from_epoch;to_epoch` (UTC seconds) — because MQL5 has no
+// JSON parser and the EA already speaks semicolon-delimited lines.
+app.get('/api/candles/requests', async (req, reply) => {
+  const token = req.headers['x-ingest-token'];
+  if (!token) return reply.code(401).send({ error: 'missing ingest token' });
+  const acct = await accountByToken(token);
+  if (!acct) return reply.code(401).send({ error: 'invalid ingest token' });
+  const login = Number(req.query.account_id);
+  if (!Number.isFinite(login)) return reply.code(400).send({ error: 'account_id required' });
+  const bind = await bindOrCheckLogin(acct, login);
+  if (bind === 'mismatch') return reply.code(403).send({ error: 'token does not match this MT5 account' });
+  if (bind === 'conflict') return reply.code(409).send({ error: 'MT5 login already registered to another account' });
+
+  const reqs = await pendingRequestsForLogin(login);
+  reply.header('Content-Type', 'text/plain; charset=utf-8');
+  return reqs
+    .map((r) => `${r.id};${r.symbol};${Math.floor(r.from_epoch)};${Math.floor(r.to_epoch)}`)
+    .join('\n');
+});
+
+// Replay data for one trade: the M1 bars around its window + the overlay
+// fields (entry/exit/SL/TP). When coverage is missing for a live (EA) trade a
+// candle request is queued for its EA and `pending: true` tells the client to
+// re-poll; imported/manual trades have no prices to chart → `available: false`.
+app.get('/api/trades/:id/replay', { preHandler: app.requireAuth }, async (req, reply) => {
+  const id = Number(req.params.id);
+  const ownerId = await tradeOwnerUserId(id);
+  if (ownerId == null) return reply.code(404).send({ error: 'trade not found' });
+  if (ownerId !== Number(req.user.uid)) return reply.code(403).send({ error: 'forbidden' });
+
+  const { rows } = await query('SELECT * FROM trades WHERE id = $1', [id]);
+  const trade = rows[0];
+
+  if (
+    trade.entry_price == null ||
+    trade.exit_price == null ||
+    new Date(trade.close_time) <= new Date(trade.open_time)
+  ) {
+    return { available: false, reason: 'trade has no price/time data (imported or manual entry)' };
+  }
+
+  const { from, to } = replayWindow(trade);
+  const candles = await listCandles(trade.symbol_base, from, to);
+  // Covered = bars reach both edges of the trade itself (the padding may be
+  // truncated by market open/close, so don't require it).
+  const covered =
+    candles.length > 0 &&
+    candles[0].t * 1000 <= new Date(trade.open_time).getTime() &&
+    candles[candles.length - 1].t * 1000 >= new Date(trade.close_time).getTime() - 60_000;
+
+  let pending = false;
+  if (!covered && trade.source === 'ea' && trade.account_id != null) {
+    let status = await windowRequestStatus(trade);
+    if (status == null) {
+      await enqueueCandleRequest(trade);
+      status = 'pending';
+    }
+    pending = status === 'pending';
+  }
+
+  return {
+    available: true,
+    pending,
+    window: { from: from.toISOString(), to: to.toISOString() },
+    trade: {
+      id: trade.id,
+      symbol: trade.symbol_base ?? trade.symbol,
+      direction: trade.direction,
+      open_time: trade.open_time,
+      close_time: trade.close_time,
+      entry_price: trade.entry_price,
+      sl_price: trade.sl_price,
+      tp_price: trade.tp_price,
+      exit_price: trade.exit_price,
+    },
+    candles,
+  };
 });
 
 // ---------------------------------------------------------------------------

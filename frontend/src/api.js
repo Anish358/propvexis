@@ -124,6 +124,14 @@ export async function fetchTrades(accountId) {
   return getJson(`/api/trades?limit=1000${acctq(accountId)}`);
 }
 
+// Trade replay: M1 bars around a trade + its entry/exit/SL/TP overlay. Returns
+// { available, pending, window, trade, candles } — see GET /api/trades/:id/replay.
+// `available:false` for imported/manual trades (no prices); `pending:true` while
+// the EA is still delivering candles for a live trade (client should re-poll).
+export async function fetchReplay(id) {
+  return getJson(`/api/trades/${id}/replay?_=1`);
+}
+
 export async function fetchAccount(accountId) {
   return getJson(`/api/account?_=1${acctq(accountId)}`);
 }
