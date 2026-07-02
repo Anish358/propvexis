@@ -624,6 +624,20 @@ label.full { margin-bottom: 14px; }
 /* ---- trade log (step 3) ---- */
 .log-toolbar { display: flex; align-items: center; gap: 14px; }
 .log-toolbar-spacer { flex: 1; }
+
+/* precision-control state indicator (clickable → opens Trade Settings) */
+.precision-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 20px;
+  border: 1px solid var(--line); background: #17171c; cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.precision-chip .precision-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.precision-chip.off { color: var(--muted); }
+.precision-chip.off:hover { border-color: #3a3a42; color: var(--text); }
+.precision-chip.on { color: #39d98a; border-color: #1d4730; background: #112a1c; }
+.precision-chip.on .precision-dot { background: #39d98a; box-shadow: 0 0 6px #39d98a99; }
+.precision-chip.on:hover { background: #16361f; }
 .log-count { color: var(--muted); font-size: 13px; }
 .log-untagged { background: #2a2410; color: #d9a441; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 10px; }
 .log-panel { padding: 0; overflow: hidden; }
@@ -828,3 +842,91 @@ label.full { margin-bottom: 14px; }
 .ts-col-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 5px 6px; border-radius: 6px; cursor: pointer; }
 .ts-col-opt:hover { background: #1c1c22; }
 .ts-col-opt input { accent-color: #39d98a; }
+
+/* ---- trade replay (candlestick playback) ---- */
+.tp-replay-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin: 14px 0 2px; padding: 10px 14px;
+  background: #17233a; border: 1px solid #294066; color: #cfe0ff;
+  border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.tp-replay-btn:hover { background: #1d2c48; border-color: #37568a; }
+
+.rp-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, .6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; animation: tp-fade .15s ease;
+}
+.rp-modal {
+  width: 960px; max-width: 96vw; height: 640px; max-height: 92vh;
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .6); overflow: hidden;
+}
+.rp-head {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.rp-title { display: flex; align-items: center; gap: 10px; }
+.rp-title h3 { margin: 0; font-size: 16px; letter-spacing: .3px; }
+.rp-sub { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 4px; }
+.rp-dir { font-size: 10px; font-weight: 700; letter-spacing: .6px; padding: 3px 8px; border-radius: 5px; }
+.rp-dir.long { background: #11271a; color: #39d98a; }
+.rp-dir.short { background: #2a1414; color: #e0918d; }
+.rp-tf { display: flex; gap: 4px; margin-left: auto; }
+.rp-tf-btn {
+  background: #17171c; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 6px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.rp-tf-btn:hover:not(:disabled) { color: var(--text); border-color: #3a3a42; }
+.rp-tf-btn.on { background: #294066; border-color: #37568a; color: #cfe0ff; }
+.rp-tf-btn:disabled { opacity: .4; cursor: default; }
+.rp-x { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px 6px; }
+.rp-x:hover { color: var(--text); }
+
+.rp-body { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 12px 16px 16px; }
+.rp-chart { flex: 1; min-height: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+
+.rp-state {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; text-align: center; color: var(--text);
+}
+.rp-state p { margin: 0; font-size: 14px; }
+.rp-state p.muted { font-size: 12px; max-width: 420px; line-height: 1.5; }
+.rp-state.error { color: #e0918d; }
+.rp-spinner {
+  width: 28px; height: 28px; margin-bottom: 8px; border-radius: 50%;
+  border: 3px solid #2a2a30; border-top-color: #37568a; animation: rp-spin .8s linear infinite;
+}
+@keyframes rp-spin { to { transform: rotate(360deg); } }
+
+.rp-legend {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin: 10px 2px 8px; font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.rp-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.rp-clock { margin-left: auto; color: var(--text); font-weight: 600; }
+
+.rp-scrub { width: 100%; margin: 2px 0 10px; accent-color: #37568a; cursor: pointer; }
+
+.rp-controls { display: flex; align-items: center; gap: 8px; }
+.rp-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 34px; padding: 0 8px;
+  background: #17171c; border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; font-size: 16px; cursor: pointer;
+}
+.rp-btn:hover { border-color: #3a3a42; }
+.rp-btn.play { background: #294066; border-color: #37568a; color: #cfe0ff; width: 42px; }
+.rp-btn.play:hover { background: #315088; }
+.rp-speeds { display: flex; gap: 3px; margin-left: 6px; }
+.rp-speed {
+  background: #17171c; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 6px; padding: 5px 9px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.rp-speed:hover { color: var(--text); }
+.rp-speed.on { background: #294066; border-color: #37568a; color: #cfe0ff; }
+.rp-progress { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }

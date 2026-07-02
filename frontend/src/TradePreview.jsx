@@ -14,6 +14,9 @@ const TrashIcon = () => (
     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6" /><path d="M14 11v6" />
   </svg>
 );
+const ReplayIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+);
 
 // A labeled value cell in the details grid. Renders "—" for empty values.
 function Field({ label, children, wide }) {
@@ -30,7 +33,7 @@ const Pill = ({ value, kind }) => (value ? <span className={`pill ${kind}-${slug
 
 const priceStr = (v) => (v == null ? '' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 5 }));
 
-export default function TradePreview({ trade, unit = 'R', beRounding = false, onClose, onEdit, onDelete }) {
+export default function TradePreview({ trade, unit = 'R', beRounding = false, onClose, onEdit, onDelete, onReplay }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -86,6 +89,16 @@ export default function TradePreview({ trade, unit = 'R', beRounding = false, on
             <button className="tp-icon-btn danger" title="Delete trade" onClick={() => setConfirmDelete(true)}><TrashIcon /></button>
           </div>
         </header>
+
+        {/* Replay: chart playback of the trade. Only meaningful when the trade has
+            real prices + a duration (EA/live trades) — imported/manual entries have
+            nothing to chart. */}
+        {onReplay && trade.entry_price != null && trade.exit_price != null &&
+          new Date(trade.close_time) > new Date(trade.open_time) && (
+          <button className="tp-replay-btn" onClick={() => onReplay(trade)}>
+            <ReplayIcon /> Replay this trade
+          </button>
+        )}
 
         <div className="tp-subhead">
           Opened {fmtDateTime(trade.open_time)} · Closed {fmtDateTime(trade.close_time)}
