@@ -5,8 +5,10 @@ import { query } from './db.js';
 
 // Replay window padding: context shown before entry / after exit. Shared by
 // the ingest-time enqueue and /replay so both derive the identical window
-// (candle_requests dedups on it).
-export const PAD_BEFORE_MIN = 120;
+// (candle_requests dedups on it). PAD_BEFORE is 2 days so the chart carries
+// enough prior market structure to scroll back through; playback still starts
+// near the entry (the frontend frames + starts the cursor there).
+export const PAD_BEFORE_MIN = 2 * 24 * 60; // 2 days
 export const PAD_AFTER_MIN = 60;
 
 // A request the EA keeps returning nothing for (symbol gone, M1 history not on

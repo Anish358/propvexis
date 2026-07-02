@@ -22,6 +22,11 @@ const TIMEFRAMES = [
 ];
 const SPEEDS = [1, 2, 4, 8];
 const BASE_MS = 650; // ms per bar at 1x
+// Playback begins this many minutes before entry (the bars before it are shown
+// as context). The default view frames from VIEW_LOOKBACK before entry through
+// the exit padding; the full 2 days of history stays scrollable to the left.
+const REPLAY_LEAD_MIN = 15;
+const VIEW_LOOKBACK_MIN = 120;
 
 // Palette pulled from the app's design tokens (styles.css :root).
 const COLORS = {
@@ -107,7 +112,11 @@ export default function ReplayModal({ trade, onClose }) {
 
   const openSec = data ? Math.floor(new Date(data.trade.open_time).getTime() / 1000) : 0;
   const closeSec = data ? Math.floor(new Date(data.trade.close_time).getTime() / 1000) : 0;
-  const entryIdx = useMemo(() => Math.max(0, idxAtTime(bars, openSec)), [bars, openSec]);
+  // Where playback begins (15 min before entry), clamped to the available data.
+  const startIdx = useMemo(
+    () => Math.max(0, idxAtTime(bars, openSec - REPLAY_LEAD_MIN * 60)),
+    [bars, openSec]
+  );
   const isBuy = data?.trade.direction === 'buy';
   const win = data ? (isBuy ? data.trade.exit_price > data.trade.entry_price : data.trade.exit_price < data.trade.entry_price) : false;
 
@@ -172,11 +181,11 @@ export default function ReplayModal({ trade, onClose }) {
       if (e.key === 'Escape') onClose();
       if (e.key === ' ' && ready) { e.preventDefault(); setPlaying((p) => !p); }
       if (e.key === 'ArrowRight') setCursor((c) => Math.min(c + 1, bars.length - 1));
-      if (e.key === 'ArrowLeft') setCursor((c) => Math.max(c - 1, 0));
+      if (e.key === 'ArrowLeft') setCursor((c) => Math.max(c - 1, startIdx));
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [trade, onClose, ready, bars.length]);
+  }, [trade, onClose, ready, bars.length, startIdx]);
 
   // ---- Create the chart once candles are ready. Price lines (entry/SL/TP) are
   //      set here since they don't change within a modal instance.
@@ -214,22 +223,38 @@ export default function ReplayModal({ trade, onClose }) {
   const paint = (s, upto) =>
     s.setData(bars.map((b, i) => (i <= upto ? b : { time: b.time })));
 
-  // ---- New timeframe / freshly-arrived candles: fit the full window once, then
-  //      rewind to the entry bar (context visible) and pause.
+  // Frame the view on the trade: from VIEW_LOOKBACK before entry through the end
+  // of the window (close + after-padding). Time-anchored (not logical) so it
+  // survives the per-tick setData reveals and keeps a stable frame with room
+  // ahead for candles to fill into; the 2 days before stay scrollable.
+  const frameView = () => {
+    const chart = chartRef.current;
+    if (!chart || !bars.length) return;
+    const from = openSec - VIEW_LOOKBACK_MIN * 60;
+    const to = bars[bars.length - 1].time;
+    try { chart.timeScale().setVisibleRange({ from, to }); }
+    catch { chart.timeScale().fitContent(); }
+  };
+
+  // ---- New timeframe / freshly-arrived candles: reveal history up to the replay
+  //      start, frame the view around the trade, and pause at the start bar.
   useEffect(() => {
-    const s = seriesRef.current; const chart = chartRef.current;
-    if (!s || !chart || !bars.length) return;
-    paint(s, entryIdx);
-    chart.timeScale().fitContent();
+    const s = seriesRef.current;
+    if (!s || !bars.length) return;
+    paint(s, startIdx);
+    frameView();
     setPlaying(false);
-    setCursor(entryIdx);
+    setCursor(startIdx);
   }, [bars]);
 
   // ---- Reveal bars up to the cursor + show markers once their bar is reached.
+  //      setData resets the scroll to the last real bar, so re-assert the frame
+  //      afterward to keep the fixed replay window (candles fill into it).
   useEffect(() => {
     const s = seriesRef.current;
     if (!s || !bars.length) return;
     paint(s, cursor);
+    frameView();
     const lastT = bars[cursor]?.time ?? -Infinity;
     const ms = [];
     if (markers.entry && markers.entry.time <= lastT) ms.push(markers.entry);
@@ -324,19 +349,19 @@ export default function ReplayModal({ trade, onClose }) {
               <input
                 className="rp-scrub"
                 type="range"
-                min={0}
-                max={Math.max(bars.length - 1, 0)}
+                min={startIdx}
+                max={Math.max(bars.length - 1, startIdx)}
                 value={cursor}
                 onChange={(e) => { setPlaying(false); setCursor(Number(e.target.value)); }}
               />
 
               <div className="rp-controls">
-                <button className="rp-btn" title="Restart at entry" onClick={() => { setPlaying(false); setCursor(entryIdx); }}>⟲</button>
-                <button className="rp-btn" title="Step back" onClick={() => { setPlaying(false); setCursor((c) => Math.max(c - 1, 0)); }}>‹</button>
+                <button className="rp-btn" title="Restart 15 min before entry" onClick={() => { setPlaying(false); setCursor(startIdx); }}>⟲</button>
+                <button className="rp-btn" title="Step back" onClick={() => { setPlaying(false); setCursor((c) => Math.max(c - 1, startIdx)); }}>‹</button>
                 <button
                   className="rp-btn play"
                   title={playing ? 'Pause' : 'Play'}
-                  onClick={() => { if (atEnd) setCursor(entryIdx); setPlaying((p) => !p); }}
+                  onClick={() => { if (atEnd) setCursor(startIdx); setPlaying((p) => !p); }}
                 >{playing ? <PauseIcon /> : <PlayIcon />}</button>
                 <button className="rp-btn" title="Step forward" onClick={() => { setPlaying(false); setCursor((c) => Math.min(c + 1, bars.length - 1)); }}>›</button>
                 <span className="rp-speeds">
@@ -344,7 +369,7 @@ export default function ReplayModal({ trade, onClose }) {
                     <button key={s} className={`rp-speed ${speed === s ? 'on' : ''}`} onClick={() => setSpeed(s)}>{s}×</button>
                   ))}
                 </span>
-                <span className="rp-progress">Bar {Math.min(cursor + 1, bars.length)} / {bars.length}</span>
+                <span className="rp-progress">Bar {Math.min(cursor - startIdx + 1, bars.length - startIdx)} / {bars.length - startIdx}</span>
               </div>
             </>
           )}
