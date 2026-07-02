@@ -90,6 +90,8 @@ export default function ReplayModal({ trade, onClose }) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
   const [cursor, setCursor] = useState(0);
+  const [gaveUp, setGaveUp] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const containerRef = useRef(null);
   const chartRef = useRef(null);
@@ -133,6 +135,9 @@ export default function ReplayModal({ trade, onClose }) {
   }, [bars, data, openSec, closeSec, isBuy, win]);
 
   // ---- Fetch replay data, re-polling while the EA is still delivering candles.
+  //      After ~1 min with no candles we stop and show a clear message + Retry,
+  //      rather than spinning forever (the EA may be offline or not yet on v1.13).
+  const MAX_POLLS = 15; // × 4s ≈ 1 min
   useEffect(() => {
     if (!trade) return undefined;
     let alive = true;
@@ -143,19 +148,22 @@ export default function ReplayModal({ trade, onClose }) {
         if (!alive) return;
         setData(d);
         setLoading(false);
-        // Live trade with candles still in flight: poll for a while, then give up.
-        if (d.available && d.pending && tries < 30) {
-          tries += 1;
-          pollRef.current = setTimeout(load, 4000);
+        if (d.available && d.pending) {
+          if (tries < MAX_POLLS) {
+            tries += 1;
+            pollRef.current = setTimeout(load, 4000);
+          } else {
+            setGaveUp(true); // candles never arrived — stop waiting
+          }
         }
       } catch (e) {
         if (alive) { setError(e.message); setLoading(false); }
       }
     }
-    setLoading(true); setData(null); setError(null); setCursor(0); setPlaying(false);
+    setLoading(true); setData(null); setError(null); setCursor(0); setPlaying(false); setGaveUp(false);
     load();
     return () => { alive = false; clearTimeout(pollRef.current); };
-  }, [trade?.id]);
+  }, [trade?.id, reloadKey]);
 
   // ---- Close on Escape; space toggles play/pause.
   useEffect(() => {
@@ -278,7 +286,7 @@ export default function ReplayModal({ trade, onClose }) {
             </div>
           )}
 
-          {!loading && !error && available && !ready && (
+          {!loading && !error && available && !ready && !gaveUp && (
             <div className="rp-state">
               <div className="rp-spinner" />
               <p>Waiting for candles from the EA…</p>
@@ -287,6 +295,18 @@ export default function ReplayModal({ trade, onClose }) {
                   ? 'The window is queued — bars appear here within a few seconds once the MT5 terminal delivers them.'
                   : 'No candles are available for this window yet.'}
               </p>
+            </div>
+          )}
+
+          {!loading && !error && available && !ready && gaveUp && (
+            <div className="rp-state">
+              <p>No candles arrived for this trade.</p>
+              <p className="muted">
+                Replay bars are supplied by the MT5 Expert Advisor. The terminal may be
+                offline, or running an EA version that predates replay — update it to the
+                latest AmeyJournal EA and keep it running, then retry.
+              </p>
+              <button className="rp-retry" onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
             </div>
           )}
 

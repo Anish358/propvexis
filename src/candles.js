@@ -42,16 +42,21 @@ export async function pendingRequestsForLogin(login, limit = 5) {
       WHERE account_id = $1 AND status = 'pending' AND attempts >= $2;`,
     [login, MAX_ATTEMPTS]
   );
+  // Hand out any pending request whose window has started (from_time is always
+  // past for a closed trade). The to_time is CLAMPED to now(): if the after-exit
+  // padding is still in the future (a freshly-closed trade), the EA gets bars up
+  // to the present instead of the request sitting idle for ~an hour. Older trades
+  // whose full window is already past return their full to_time unchanged.
   const { rows } = await query(
     `UPDATE candle_requests SET attempts = attempts + 1
       WHERE id IN (
         SELECT id FROM candle_requests
-         WHERE account_id = $1 AND status = 'pending' AND to_time <= now()
+         WHERE account_id = $1 AND status = 'pending' AND from_time <= now()
          ORDER BY id
          LIMIT $2)
       RETURNING id, symbol,
-                EXTRACT(EPOCH FROM from_time)::float8 AS from_epoch,
-                EXTRACT(EPOCH FROM to_time)::float8   AS to_epoch;`,
+                EXTRACT(EPOCH FROM from_time)::float8            AS from_epoch,
+                EXTRACT(EPOCH FROM LEAST(to_time, now()))::float8 AS to_epoch;`,
     [login, limit]
   );
   return rows;
