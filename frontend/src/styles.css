@@ -901,6 +901,11 @@ label.full { margin-bottom: 14px; }
   border: 3px solid #2a2a30; border-top-color: #37568a; animation: rp-spin .8s linear infinite;
 }
 @keyframes rp-spin { to { transform: rotate(360deg); } }
+.rp-retry {
+  margin-top: 12px; padding: 8px 18px; background: #294066; border: 1px solid #37568a;
+  color: #cfe0ff; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.rp-retry:hover { background: #315088; }
 
 .rp-legend {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
