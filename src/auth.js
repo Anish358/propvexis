@@ -2,6 +2,7 @@ import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import { OAuth2Client } from 'google-auth-library';
 import { config } from './config.js';
+import { isEmailPermitted } from './access.js';
 import { pool, query } from './db.js';
 
 const COOKIE_NAME = 'session';
@@ -131,9 +132,10 @@ export async function registerAuth(app) {
     }
     const email = payload.email.toLowerCase();
 
-    // Allowlist: fail closed. An empty allowlist denies everyone.
-    if (!config.allowedEmails.includes(email)) {
-      req.log.warn({ email }, 'login rejected: email not in allowlist');
+    // Access control: open signup admits any verified account; otherwise the
+    // email must be on the allowlist (fail closed on empty). See access.js.
+    if (!isEmailPermitted(email, config)) {
+      req.log.warn({ email }, 'login rejected: email not permitted');
       return reply.code(403).send({ error: 'this account is not allowed' });
     }
 
