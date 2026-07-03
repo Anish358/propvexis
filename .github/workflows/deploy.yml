@@ -25,6 +25,8 @@ jobs:
         env:
           VITE_BACKEND_URL: https://journal.anishdevlops.xyz
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          # Public (client-side) Sentry DSN — safe to expose; baked into the bundle.
+          VITE_SENTRY_DSN: https://770769a772da9fa5b92512ca9279088b@o4508103223017472.ingest.us.sentry.io/4511670762799104
         run: |
           npm --prefix frontend ci
           npm --prefix frontend run build
