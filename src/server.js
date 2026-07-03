@@ -29,6 +29,7 @@ import {
   updateStrategy,
   deleteStrategy,
 } from './strategies.js';
+import { adherenceOf } from './adherence.js';
 import {
   replayWindow,
   enqueueCandleRequest,
@@ -117,6 +118,11 @@ const emitTrade = (event, trade) => {
   const room = trade.user_id != null ? `user:${trade.user_id}` : `acct:${trade.account_id}`;
   io.to(room).emit(event, trade);
 };
+
+// Map of strategy name -> rules for a user, to annotate trades with objective
+// rule adherence (see adherence.js). One small query; cached per request path.
+const rulesMapFor = async (userId) =>
+  new Map((await listStrategies(userId)).map((s) => [s.name, s.rules]));
 
 // ---- columns the user may set when tagging a trade ----
 const TAG_FIELDS = [
@@ -329,7 +335,10 @@ app.get('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
     LIMIT $${params.length};
   `;
   const { rows } = await query(sql, params);
-  return rows;
+  // Annotate each trade with objective rule adherence (followed/broke its
+  // strategy's rules), derived from mechanical fields — see adherence.js.
+  const rulesByName = await rulesMapFor(req.user.uid);
+  return rows.map((t) => ({ ...t, adherence: adherenceOf(t, rulesByName) }));
 });
 
 // ---------------------------------------------------------------------------
@@ -381,7 +390,7 @@ app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
   const sql = `INSERT INTO trades (${cols.join(', ')})
                VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *;`;
   const { rows } = await query(sql, cols.map((c) => row[c]));
-  const trade = rows[0];
+  const trade = { ...rows[0], adherence: adherenceOf(rows[0], await rulesMapFor(req.user.uid)) };
 
   emitTrade('trade:upserted', trade);
   return reply.code(201).send(trade);
@@ -480,8 +489,10 @@ app.patch('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply)
   const { rows } = await query(sql, params);
   if (!rows.length) return reply.code(404).send({ error: 'trade not found' });
 
-  emitTrade('trade:updated', rows[0]);
-  return rows[0];
+  // Re-annotate adherence: tagging is where a trade's strategy (setup) is set.
+  const trade = { ...rows[0], adherence: adherenceOf(rows[0], await rulesMapFor(req.user.uid)) };
+  emitTrade('trade:updated', trade);
+  return trade;
 });
 
 // ---------------------------------------------------------------------------

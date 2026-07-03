@@ -1,4 +1,5 @@
 import { pool, query } from './db.js';
+import { normalizeRules } from './adherence.js';
 
 // User-owned strategy catalog. A trade is linked to its strategy by NAME
 // (trades.setup == strategies.name); the name is the natural key, unique per
@@ -17,7 +18,7 @@ export function normalizeStrategyName(raw) {
   return clean.slice(0, MAX_NAME);
 }
 
-const COLS = 'id, name, color, description, sort_order, is_active, created_at, updated_at';
+const COLS = 'id, name, color, description, sort_order, is_active, rules, created_at, updated_at';
 
 // All of a user's strategies: active first, then by their chosen order, then name.
 export async function listStrategies(userId) {
@@ -79,6 +80,11 @@ export async function updateStrategy(userId, id, fields = {}) {
     if ('description' in fields) add('description', fields.description || null);
     if ('sort_order' in fields && fields.sort_order != null) add('sort_order', Number(fields.sort_order));
     if ('is_active' in fields) add('is_active', !!fields.is_active);
+    if ('rules' in fields) {
+      // Sanitize before storing so a malformed payload can't corrupt the rules.
+      params.push(JSON.stringify(normalizeRules(fields.rules)));
+      sets.push(`rules = $${params.length}::jsonb`);
+    }
 
     if (!sets.length) { await client.query('ROLLBACK'); return null; }
 

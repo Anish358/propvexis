@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import { listStrategies } from './strategies.js';
+import { evaluateAdherence } from './adherence.js';
 
 // All dashboard analytics are computed in JS over the full trade set — simplest
 // and most flexible for a personal journal, and lets us match the sheet exactly.
@@ -59,6 +60,56 @@ function perf(list, field = 'fixed_r', beRound = false) {
     sr: scored.length ? round((100 * wins.length) / scored.length) : null, // wins / all trades
     r: round(r),
   };
+}
+
+// Objective rule adherence: for every trade whose strategy defines rules, decide
+// whether it FOLLOWED or BROKE them (see adherence.js), then contrast the two
+// sets' performance. `rulesByName` maps strategy name -> its rules array. Returns
+// per-strategy rows + an overall followed-vs-broken split, so the app can answer
+// "how do I do when I follow my rules vs when I don't?" — the Phase 2 headline.
+function computeAdherence(list, rulesByName, field = 'fixed_r', beRound = false) {
+  const groups = new Map(); // name -> { followed:[], broken:[], unassessed:0 }
+  const allFollowed = [], allBroken = [];
+  for (const t of list) {
+    const rules = t.setup ? rulesByName.get(t.setup) : null;
+    if (!Array.isArray(rules) || rules.length === 0) continue; // only rule-bearing strategies
+    if (!groups.has(t.setup)) groups.set(t.setup, { followed: [], broken: [], unassessed: 0 });
+    const g = groups.get(t.setup);
+    const { status } = evaluateAdherence(t, rules);
+    if (status === 'followed') { g.followed.push(t); allFollowed.push(t); }
+    else if (status === 'broken') { g.broken.push(t); allBroken.push(t); }
+    else g.unassessed += 1; // 'unassessed' (missing fields) — counted but out of the ratio
+  }
+
+  const byStrategy = [...groups.entries()].map(([key, g]) => {
+    const f = perf(g.followed, field, beRound);
+    const b = perf(g.broken, field, beRound);
+    const assessed = g.followed.length + g.broken.length;
+    return {
+      key,
+      total: assessed + g.unassessed,
+      assessed,
+      unassessed: g.unassessed,
+      followed: g.followed.length,
+      broken: g.broken.length,
+      adherence: assessed ? round((100 * g.followed.length) / assessed) : null,
+      rFollowed: f.r, srFollowed: f.sr, expFollowed: f.trades ? round(f.r / f.trades) : null,
+      rBroken: b.r, srBroken: b.sr, expBroken: b.trades ? round(b.r / b.trades) : null,
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  const f = perf(allFollowed, field, beRound);
+  const b = perf(allBroken, field, beRound);
+  const assessed = allFollowed.length + allBroken.length;
+  const overall = {
+    assessed,
+    followed: allFollowed.length,
+    broken: allBroken.length,
+    adherence: assessed ? round((100 * allFollowed.length) / assessed) : null,
+    rFollowed: f.r, srFollowed: f.sr, expFollowed: f.trades ? round(f.r / f.trades) : null,
+    rBroken: b.r, srBroken: b.sr, expBroken: b.trades ? round(b.r / b.trades) : null,
+  };
+  return { overall, byStrategy };
 }
 
 // group trades by a key function -> [{ key, ...perf }] sorted by descending P&L
@@ -146,6 +197,8 @@ export async function computeStats(scope, unit = 'R', filters = {}, beRound = fa
   const { where, params } = buildTradeWhere(scope, unit, filters, null, beRound);
   const { rows } = await query(`SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`, params);
   const trades = snapBeRounding(rows.map((r) => ({ ...r, close: new Date(r.close_time) })), beRound);
+  // Rule adherence uses the user's strategy catalog (rules keyed by name == setup).
+  const rulesByName = new Map((await listStrategies(scope.userId)).map((s) => [s.name, s.rules]));
   // P&L-based stats use the selected unit; R-distribution + MFE always use R.
   const scored = trades.filter((t) => t[field] != null);
   const rScored = trades.filter((t) => t.fixed_r != null);
@@ -226,6 +279,7 @@ export async function computeStats(scope, unit = 'R', filters = {}, beRound = fa
     equityCurve,
     rDistribution,
     mfeEfficiency,
+    adherence: computeAdherence(trades, rulesByName, field, beRound),
   };
 }
 
