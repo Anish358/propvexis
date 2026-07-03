@@ -28,6 +28,13 @@ export const config = {
   // Secure cookies need HTTPS; default on in prod, off in local http dev.
   cookieSecure:
     process.env.COOKIE_SECURE != null ? process.env.COOKIE_SECURE === 'true' : isProd,
+
+  // ---- Observability (Sentry) ----
+  // DSN from the Sentry project. Empty = Sentry disabled (a no-op), so local/dev
+  // and unconfigured environments run without it. `environment`/`release` tag events.
+  sentryDsn: process.env.SENTRY_DSN ?? '',
+  nodeEnv: process.env.NODE_ENV ?? 'development',
+  release: process.env.SENTRY_RELEASE ?? '',
 };
 
 // Fail closed: refuse to start the server in production with the shipped dev
