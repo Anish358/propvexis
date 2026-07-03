@@ -192,6 +192,28 @@ export async function createManualTrade(fields) {
   return res.json();
 }
 
+// ---- Billing (Razorpay) ----
+export async function fetchBillingConfig() { return getJson('/api/billing/config'); }
+export async function fetchSubscription() { return getJson('/api/billing/subscription'); }
+
+export async function startSubscription(plan) {
+  const res = await apiFetch('/api/billing/subscribe', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ plan }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `subscribe failed (${res.status})`);
+  return data;
+}
+
+export async function cancelSubscription() {
+  const res = await apiFetch('/api/billing/cancel', { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `cancel failed (${res.status})`);
+  return data;
+}
+
 // CSV import. dryRun=true previews (columns/warnings/counts) without saving;
 // dryRun=false imports and returns { imported, ... }.
 export async function importTrades(csv, dryRun) {

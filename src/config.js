@@ -33,6 +33,17 @@ export const config = {
   cookieSecure:
     process.env.COOKIE_SECURE != null ? process.env.COOKIE_SECURE === 'true' : isProd,
 
+  // ---- Payments (Razorpay recurring subscriptions) ----
+  // All optional: when unset, paymentsEnabled() is false, billing routes 503,
+  // and the app runs exactly as before. Deliberately NOT in assertProdSecrets —
+  // prod must keep booting until real keys are added. Set the TEST keys locally
+  // to exercise the flow; create the ₹399 Plan in the Razorpay dashboard and put
+  // its id in RAZORPAY_PLAN_PRO.
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? '',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
+  razorpayPlanPro: process.env.RAZORPAY_PLAN_PRO ?? '',
+
   // ---- Observability (Sentry) ----
   // DSN from the Sentry project. Empty = Sentry disabled (a no-op), so local/dev
   // and unconfigured environments run without it. `environment`/`release` tag events.
