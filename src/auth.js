@@ -156,7 +156,7 @@ export async function registerAuth(app) {
   // -------------------------------------------------------------------------
   app.get('/api/auth/me', { preHandler: app.requireAuth }, async (req, reply) => {
     const { rows } = await query(
-      'SELECT id, email, name, picture, created_at, last_login_at FROM users WHERE id = $1',
+      'SELECT id, email, name, picture, plan, created_at, last_login_at FROM users WHERE id = $1',
       [req.user.uid]
     );
     if (!rows.length) {

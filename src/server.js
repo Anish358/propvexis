@@ -23,6 +23,8 @@ import {
   ownedAccountByLogin,
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
+import { planForUser, syncedAccountCount } from './entitlements.js';
+import { canUseEA, accountLimit } from './plans.js';
 import {
   listStrategies,
   createStrategy,
@@ -194,6 +196,12 @@ app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
 
   const acct = await accountByToken(token);
   if (acct) {
+    // Plan gate: EA sync is a Pro+ feature. Free users can't reach here anyway
+    // (account creation is plan-capped, so they hold no per-account token), but
+    // enforce server-side too — covers a Pro→Free downgrade whose token lingers.
+    if (!canUseEA(await planForUser(acct.user_id))) {
+      return reply.code(402).send({ error: 'EA sync requires the Pro plan' });
+    }
     const result = await bindOrCheckLogin(acct, b.account_id);
     if (result === 'mismatch') {
       return reply.code(403).send({ error: 'token does not match this MT5 account' });
@@ -660,6 +668,17 @@ app.get('/api/accounts', { preHandler: app.requireAuth }, async (req) =>
 // Create a pending account (label only) + ingest token for the EA. The MT5
 // login auto-binds on the first trade sent with that token.
 app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
+  // Plan gate: a synced MT5 account is a Pro+ feature, capped per plan. Free
+  // users (limit 0) journal via manual entry / CSV import instead.
+  const plan = await planForUser(req.user.uid);
+  const limit = accountLimit(plan);
+  if (await syncedAccountCount(req.user.uid) >= limit) {
+    return reply.code(402).send({
+      error: limit === 0
+        ? 'Connecting a trading account requires the Pro plan'
+        : `Your plan allows up to ${limit} accounts — upgrade to add more`,
+    });
+  }
   const { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct } = req.body ?? {};
   const acct = await createAccount(req.user.uid, {
     label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct,
@@ -768,6 +787,10 @@ app.post('/api/payouts/ingest', async (req, reply) => {
   if (!token) return reply.code(401).send({ error: 'missing ingest token' });
   const acct = await accountByToken(token);
   if (!acct) return reply.code(401).send({ error: 'invalid ingest token' });
+  // Same Pro+ gate as trade ingest (EA-sourced payout auto-detection).
+  if (!canUseEA(await planForUser(acct.user_id))) {
+    return reply.code(402).send({ error: 'EA sync requires the Pro plan' });
+  }
 
   const login = Number(b.account_id);
   const bind = await bindOrCheckLogin(acct, login);

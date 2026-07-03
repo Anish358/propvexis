@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { createAccount, updateAccount, deleteAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from './api.js';
+import { useAuth } from './AuthContext.jsx';
+
+// EA attach (a synced MT5 account) is a Pro+ feature. Free users see an upgrade
+// prompt instead of the add-account form. The backend enforces the real cap;
+// this is just the UI gate. (Only 'free' lacks EA — pro & premium both have it.)
+const eaAllowed = (plan) => plan === 'pro' || plan === 'premium';
 
 // EA setup card shown for an account. The downloaded EA is pre-filled with this
 // account's ingest endpoint + token (injected client-side), so the user just
@@ -155,6 +162,8 @@ function EditForm({ account, onSaved, onCancel }) {
 }
 
 export default function AccountsModal({ accounts = [], onClose, onChanged }) {
+  const { user } = useAuth();
+  const canAdd = eaAllowed(user?.plan);
   const [label, setLabel] = useState('');
   const [v, setV] = useState(formFrom(null));
   const [busy, setBusy] = useState(false);
@@ -211,27 +220,37 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
           <button className="modal-x" onClick={onClose}>✕</button>
         </div>
 
-        {/* add account toggle — centered at the top; the form is hidden until opened */}
-        <div className="acct-add-toggle">
-          <button type="button" className="acct-add-btn" onClick={() => { setShowAdd((s) => !s); setErr(null); }}>
-            {showAdd ? 'Cancel' : '+ Add account'}
-          </button>
-        </div>
-
-        {/* add form — only shown once the user clicks "Add account" */}
-        {showAdd && (
-          <form className="acct-add" onSubmit={add}>
-            <div className="acct-add-row">
-              <input
-                placeholder="Account label (e.g. GFT Challenge #1)"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-              <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
+        {/* Free users can't attach a synced account — prompt to upgrade. */}
+        {!canAdd ? (
+          <div className="acct-upgrade">
+            <p>Connecting a trading account for live EA sync is a <b>Pro</b> feature. On the Free plan you can still add trades manually or import a CSV.</p>
+            <Link to="/billing" className="acct-add-btn" onClick={onClose}>Upgrade to Pro →</Link>
+          </div>
+        ) : (
+          <>
+            {/* add account toggle — centered at the top; the form is hidden until opened */}
+            <div className="acct-add-toggle">
+              <button type="button" className="acct-add-btn" onClick={() => { setShowAdd((s) => !s); setErr(null); }}>
+                {showAdd ? 'Cancel' : '+ Add account'}
+              </button>
             </div>
-            <PropFields v={v} set={set} />
-            {err && <div className="login-error">{err}</div>}
-          </form>
+
+            {/* add form — only shown once the user clicks "Add account" */}
+            {showAdd && (
+              <form className="acct-add" onSubmit={add}>
+                <div className="acct-add-row">
+                  <input
+                    placeholder="Account label (e.g. GFT Challenge #1)"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                  />
+                  <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
+                </div>
+                <PropFields v={v} set={set} />
+                {err && <div className="login-error">{err}</div>}
+              </form>
+            )}
+          </>
         )}
 
         {/* freshly created -> highlight its setup */}

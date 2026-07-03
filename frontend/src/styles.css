@@ -551,8 +551,48 @@ label.full { margin-bottom: 14px; }
 }
 .sb-user-pic { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; }
 .sb-user-meta { min-width: 0; flex: 1; }
-.sb-user-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-user-name { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.sb-user-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .sb-user-email { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-plan-badge {
+  flex-shrink: 0; font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 6px; text-decoration: none;
+  background: #26262b; color: #8a8a93; border: 1px solid var(--line);
+}
+.sb-plan-badge.pro { background: #112a1c; color: #39d98a; border-color: #1d4730; }
+.sb-plan-badge.premium { background: #2a2412; color: #e0c25a; border-color: #4a3f18; }
+.sb-upgrade { display: inline-block; margin-top: 4px; font-size: 11px; color: #39d98a; text-decoration: none; }
+.sb-upgrade:hover { text-decoration: underline; }
+
+/* Free-plan upgrade prompt inside the accounts modal */
+.acct-upgrade { padding: 16px 20px; text-align: center; }
+.acct-upgrade p { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+
+/* Billing / pricing page */
+.billing { padding: 24px 28px; max-width: 980px; }
+.billing-title { margin: 0 0 4px; font-size: 20px; }
+.billing-sub { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+.billing-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.billing-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px;
+  display: flex; flex-direction: column;
+}
+.billing-card.highlight { border-color: #1d4730; }
+.billing-card.current { outline: 2px solid #39d98a; outline-offset: -2px; }
+.billing-card-name { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.billing-card-price { font-size: 28px; font-weight: 700; margin: 6px 0; }
+.billing-per { font-size: 13px; font-weight: 400; color: var(--muted); }
+.billing-card-tagline { font-size: 12px; color: var(--muted); min-height: 32px; }
+.billing-features { list-style: none; padding: 0; margin: 14px 0; flex: 1; }
+.billing-features li { font-size: 13px; padding: 5px 0 5px 20px; position: relative; }
+.billing-features li::before { content: '✓'; position: absolute; left: 0; color: #39d98a; }
+.billing-cta {
+  background: #1a1a1f; border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.billing-cta.primary { background: #112a1c; border-color: #1d4730; color: #39d98a; }
+.billing-cta:disabled { opacity: 0.6; cursor: default; }
+.billing-note { color: var(--muted); font-size: 12px; margin-top: 18px; }
 .sb-logout {
   background: transparent; border: 1px solid var(--line); color: #8a8a93;
   border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; flex-shrink: 0;
