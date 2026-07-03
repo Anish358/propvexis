@@ -41,7 +41,13 @@ import {
   round2,
 } from './derive.js';
 
-const app = Fastify({ logger: true });
+// trustProxy: the app runs behind Caddy (reverse_proxy 127.0.0.1:3000), so
+// without this every request's IP is 127.0.0.1 (the proxy) — which would make
+// the rate limiter key/allow-list on the proxy, not the real client. Trusting
+// X-Forwarded-For gives req.ip the actual client IP. Safe because the backend
+// binds loopback only (HOST=127.0.0.1), so Caddy is the sole caller and XFF
+// can't be spoofed from outside. Revisit if the backend is ever exposed directly.
+const app = Fastify({ logger: true, trustProxy: true });
 
 // Credentialed CORS: the session cookie can't be sent with `origin: '*'`, so
 // when CORS_ORIGIN is unset/* we reflect the request origin (valid with
