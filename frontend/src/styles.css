@@ -593,6 +593,9 @@ label.full { margin-bottom: 14px; }
 .billing-cta.primary { background: #112a1c; border-color: #1d4730; color: #39d98a; }
 .billing-cta:disabled { opacity: 0.6; cursor: default; }
 .billing-note { color: var(--muted); font-size: 12px; margin-top: 18px; }
+.billing-cancel { margin-top: 8px; background: transparent; border: 1px solid var(--line); color: #8a8a93; border-radius: 8px; padding: 7px; font-size: 12px; cursor: pointer; }
+.billing-cancel:hover { border-color: var(--red); color: #f0b9b6; }
+.billing-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* CSV import modal */
 .import-modal { width: 560px; max-width: 94vw; }
