@@ -3,8 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import { Server as IOServer } from 'socket.io';
-import { config } from './config.js';
+import { config, assertProdSecrets } from './config.js';
 import { pool, query } from './db.js';
 import { registerAuth } from './auth.js';
 import {
@@ -48,6 +49,18 @@ const app = Fastify({ logger: true });
 await app.register(cors, {
   origin: config.corsOrigin === '*' ? true : config.corsOrigin,
   credentials: true,
+});
+
+// Blanket abuse guard: cap requests per IP. Generous enough for a browsing user
+// (a page load fires several API calls) and the EA's polling, but stops a flood.
+// Registered BEFORE the routes so per-route overrides (config.rateLimit) apply —
+// the /health check is exempted and the auth login route is throttled harder.
+// Loopback is allow-listed so local health checks / same-host tooling aren't hit.
+await app.register(rateLimit, {
+  global: true,
+  max: 300,
+  timeWindow: '1 minute',
+  allowList: ['127.0.0.1', '::1'],
 });
 
 // Auth: cookie + JWT plugins, the `requireAuth` guard, and /api/auth/* routes.
@@ -101,7 +114,7 @@ const TAG_FIELDS = [
 // ---------------------------------------------------------------------------
 // Health
 // ---------------------------------------------------------------------------
-app.get('/health', async () => {
+app.get('/health', { config: { rateLimit: false } }, async () => {
   await query('SELECT 1');
   return { ok: true };
 });
@@ -776,6 +789,7 @@ app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
 // ---------------------------------------------------------------------------
 const start = async () => {
   try {
+    assertProdSecrets();
     await app.listen({ port: config.port, host: config.host });
   } catch (err) {
     app.log.error(err);
