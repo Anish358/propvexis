@@ -107,7 +107,10 @@ export async function registerAuth(app) {
   // -------------------------------------------------------------------------
   // POST /api/auth/google — exchange a Google ID token for a session cookie.
   // -------------------------------------------------------------------------
-  app.post('/api/auth/google', async (req, reply) => {
+  app.post('/api/auth/google', {
+    // Tighter than the global cap: this is the credential-verification surface.
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
     if (!config.googleClientId) {
       req.log.error('GOOGLE_CLIENT_ID is not configured');
       return reply.code(500).send({ error: 'google login not configured' });

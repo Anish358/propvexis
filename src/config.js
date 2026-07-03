@@ -29,3 +29,26 @@ export const config = {
   cookieSecure:
     process.env.COOKIE_SECURE != null ? process.env.COOKIE_SECURE === 'true' : isProd,
 };
+
+// Fail closed: refuse to start the server in production with the shipped dev
+// defaults still in place (they'd let anyone forge sessions or ingest trades).
+// Called from server start() rather than at import time, so scripts that only
+// need DATABASE_URL (migrations, imports) aren't blocked. Returns nothing;
+// throws on misconfig so the process exits before listening.
+export function assertProdSecrets() {
+  if (!isProd) return;
+  const insecure = [];
+  if (config.sessionSecret === 'dev-session-secret-change-me') insecure.push('SESSION_SECRET');
+  if (config.ingestToken === 'dev-token-please-change') insecure.push('INGEST_TOKEN');
+  if (!config.googleClientId) insecure.push('GOOGLE_CLIENT_ID');
+  if (insecure.length) {
+    throw new Error(
+      `refusing to start in production with missing/insecure config: ${insecure.join(', ')}`
+    );
+  }
+  // A blank allowlist already denies every login (fail closed), but in prod
+  // that's almost always a misconfig — warn loudly rather than silently lock out.
+  if (config.allowedEmails.length === 0) {
+    console.warn('[config] ALLOWED_EMAILS is empty — all logins will be denied');
+  }
+}
