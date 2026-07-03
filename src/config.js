@@ -23,6 +23,10 @@ export const config = {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
+  // Open signup: when true, ANY verified Google account may sign in/up. When
+  // false (default), only ALLOWED_EMAILS may log in (fail closed on empty). An
+  // explicit flag, so a fresh deploy with no config is never accidentally open.
+  openSignup: process.env.OPEN_SIGNUP === 'true',
   // Session cookie: how long the JWT is valid, and whether to require HTTPS.
   sessionMaxDays: Number(process.env.SESSION_MAX_DAYS ?? 30),
   // Secure cookies need HTTPS; default on in prod, off in local http dev.
@@ -53,9 +57,9 @@ export function assertProdSecrets() {
       `refusing to start in production with missing/insecure config: ${insecure.join(', ')}`
     );
   }
-  // A blank allowlist already denies every login (fail closed), but in prod
-  // that's almost always a misconfig — warn loudly rather than silently lock out.
-  if (config.allowedEmails.length === 0) {
-    console.warn('[config] ALLOWED_EMAILS is empty — all logins will be denied');
+  // With open signup off, a blank allowlist denies every login (fail closed);
+  // in prod that's almost always a misconfig — warn rather than silently lock out.
+  if (!config.openSignup && config.allowedEmails.length === 0) {
+    console.warn('[config] ALLOWED_EMAILS is empty and OPEN_SIGNUP is not set — all logins will be denied');
   }
 }

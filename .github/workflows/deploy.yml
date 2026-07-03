@@ -21,6 +21,13 @@ jobs:
           node-version: '20' # match the production box
           cache: 'npm'
 
+      # Gate the deploy on the backend test suite — a red test aborts before
+      # anything is synced to the server.
+      - name: Test backend
+        run: |
+          npm ci
+          npm test
+
       - name: Build frontend
         env:
           VITE_BACKEND_URL: https://journal.anishdevlops.xyz
