@@ -11,6 +11,7 @@ import TradeLog from './TradeLog.jsx';
 import Analytics from './Analytics.jsx';
 import Strategies from './Strategies.jsx';
 import Calendar from './Calendar.jsx';
+import Billing from './Billing.jsx';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
 const VIEWCFG_KEY = 'amey.viewConfigs'; // per-scope { unit, filters } map
@@ -258,6 +259,7 @@ export default function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="strategies" element={<Strategies />} />
             <Route path="calendar" element={<Calendar />} />
+            <Route path="billing" element={<Billing />} />
           </Route>
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />

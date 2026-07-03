@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { ACCOUNT_START, fmtMoney, fmtVal, valueField } from './metrics.js';
 import { useAuth } from './AuthContext.jsx';
 import AccountsModal from './AccountsModal.jsx';
@@ -127,8 +127,16 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
         <div className="sb-user">
           {user.picture && <img className="sb-user-pic" src={user.picture} alt="" referrerPolicy="no-referrer" />}
           <div className="sb-user-meta">
-            <div className="sb-user-name">{user.name || user.email}</div>
+            <div className="sb-user-name">
+              <span className="sb-user-name-text">{user.name || user.email}</span>
+              <Link to="/billing" className={`sb-plan-badge ${user.plan || 'free'}`} title="Manage plan">
+                {(user.plan || 'free').toUpperCase()}
+              </Link>
+            </div>
             <div className="sb-user-email">{user.email}</div>
+            {(user.plan || 'free') === 'free' && (
+              <Link to="/billing" className="sb-upgrade">Upgrade to Pro →</Link>
+            )}
           </div>
           <button className="sb-logout" onClick={logout} title="Sign out">Sign out</button>
         </div>
