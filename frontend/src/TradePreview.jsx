@@ -31,6 +31,9 @@ function Field({ label, children, wide }) {
 
 const Pill = ({ value, kind }) => (value ? <span className={`pill ${kind}-${slug(value)}`}>{value}</span> : null);
 
+// Human labels for the rule types surfaced when a trade breaks its strategy.
+const RULE_LABEL = { session: 'session', direction: 'direction', max_sl: 'max SL', min_sl: 'min SL', symbols: 'symbol', weekdays: 'weekday', hours: 'time' };
+
 const priceStr = (v) => (v == null ? '' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 5 }));
 
 export default function TradePreview({ trade, unit = 'R', beRounding = false, onClose, onEdit, onDelete, onReplay }) {
@@ -125,6 +128,19 @@ export default function TradePreview({ trade, unit = 'R', beRounding = false, on
               : <>P&L <b>{trade.pnl_money == null ? '—' : fmtMoney(trade.pnl_money, { sign: true })}</b> · Max R <b>{fmtNum(trade.max_r)}</b></>}
           </div>
         </div>
+
+        {/* Objective rule adherence — derived from this trade's mechanical fields
+            against its strategy's rules (see adherence.js). */}
+        {trade.adherence && (trade.adherence.status === 'followed' || trade.adherence.status === 'broken') && (
+          <div className={`tp-adh ${trade.adherence.status}`}>
+            <span className="tp-adh-icon">{trade.adherence.status === 'followed' ? '✓' : '⚠'}</span>
+            <span>
+              {trade.adherence.status === 'followed'
+                ? <>Followed all <b>{trade.setup}</b> rules</>
+                : <>Broke {trade.adherence.brokenRules.length} <b>{trade.setup}</b> rule{trade.adherence.brokenRules.length === 1 ? '' : 's'}: {trade.adherence.brokenRules.map((r) => RULE_LABEL[r] || r).join(', ')}</>}
+            </span>
+          </div>
+        )}
 
         {/* All trade-log parameters */}
         <div className="tp-grid">

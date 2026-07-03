@@ -981,3 +981,65 @@ label.full { margin-bottom: 14px; }
 .strat-del-q { color: var(--muted); font-size: 12px; }
 .strat-arch-label { color: var(--muted); font-size: 11px; text-transform: uppercase;
   letter-spacing: 1px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+
+/* ---- Strategies: rule adherence (Phase 2) --------------------------------- */
+.strat-adh { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.strat-adh-bar { height: 6px; border-radius: 3px; background: #3b2120; overflow: hidden; }
+.strat-adh-fill { display: block; height: 100%; background: #3a7a52; }
+.strat-adh-legend { display: flex; justify-content: space-between; gap: 8px;
+  margin-top: 6px; font-size: 11px; color: var(--muted); }
+.strat-adh-pct { font-weight: 700; color: var(--text); }
+
+.strat-adh-summary { display: flex; flex-direction: column; gap: 14px; }
+.strat-adh-sum-head { display: flex; align-items: baseline; gap: 10px; }
+.strat-adh-sum-pct { font-size: 30px; font-weight: 800; }
+.strat-adh-sum-l { color: var(--muted); font-size: 13px; }
+.strat-adh-sum-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.strat-adh-sum-col { background: #0e0e10; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.strat-adh-sum-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; font-weight: 700; }
+.strat-adh-sum-tag.ok { color: #6bd58a; } .strat-adh-sum-tag.bad { color: #e0918d; }
+.strat-adh-sum-v { font-size: 24px; font-weight: 700; margin-top: 4px; }
+.strat-adh-sum-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.strat-btn.has-rules { border-color: #3a5a44; color: #8fce9f; }
+
+/* ---- Rule editor modal ---------------------------------------------------- */
+.rules-modal { width: min(520px, 94vw); }
+.rules-body { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+.rule-sec { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.rule-sec.on { border-color: #3a5a44; background: #0f130f; }
+.rule-sec-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.rule-sec-body { margin-top: 10px; }
+.rule-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rule-chip { background: transparent; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.rule-chip.on { border-color: #3a7a52; color: #8fce9f; background: #14211a; }
+.rule-radios { display: flex; gap: 16px; font-size: 13px; }
+.rule-num, .rule-text { background: #0c0c0f; border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.rule-num { width: 120px; } .rule-text { width: 100%; }
+.rules-count { color: var(--muted); font-size: 12px; margin-right: auto; }
+
+/* ---- Trade preview: per-trade rule adherence (Phase 3) -------------------- */
+.tp-adh { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px;
+  font-size: 13px; margin-bottom: 4px; }
+.tp-adh.followed { background: #14211a; border: 1px solid #2f5a3f; color: #8fce9f; }
+.tp-adh.broken { background: #2a1a18; border: 1px solid #6b2f2c; color: #e0a39f; }
+.tp-adh-icon { font-weight: 700; }
+
+/* ---- Strategies: insights + compare (Phase 3) ----------------------------- */
+.strat-insights { display: flex; flex-direction: column; gap: 8px; }
+.strat-insight { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+  border-radius: 8px; font-size: 13px; border: 1px solid var(--line); }
+.strat-insight.good { background: #10190f; border-color: #2f5a3f; }
+.strat-insight.bad { background: #1d1210; border-color: #6b2f2c; }
+.strat-insight-icon { font-size: 11px; line-height: 1.4; }
+.strat-insight.good .strat-insight-icon { color: #6bd58a; }
+.strat-insight.bad .strat-insight-icon { color: #e0918d; }
+
+.strat-compare { display: flex; flex-direction: column; gap: 14px; }
+.strat-compare-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.strat-compare-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.strat-compare-tbl th, .strat-compare-tbl td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+.strat-compare-tbl th { color: var(--muted); font-weight: 600; }
+.strat-compare-tbl td:first-child { color: var(--muted); }
+.strat-compare-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
