@@ -1,6 +1,8 @@
+import './instrument.js'; // Sentry init — must run before other imports load
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as Sentry from '@sentry/node';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
@@ -48,6 +50,10 @@ import {
 // binds loopback only (HOST=127.0.0.1), so Caddy is the sole caller and XFF
 // can't be spoofed from outside. Revisit if the backend is ever exposed directly.
 const app = Fastify({ logger: true, trustProxy: true });
+
+// Report unhandled route errors to Sentry (no-op if SENTRY_DSN is unset). Fastify
+// still logs + returns its 500 as before; this just also captures the exception.
+if (config.sentryDsn) Sentry.setupFastifyErrorHandler(app);
 
 // Credentialed CORS: the session cookie can't be sent with `origin: '*'`, so
 // when CORS_ORIGIN is unset/* we reflect the request origin (valid with
