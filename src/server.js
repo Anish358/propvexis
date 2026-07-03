@@ -24,6 +24,12 @@ import {
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
 import {
+  listStrategies,
+  createStrategy,
+  updateStrategy,
+  deleteStrategy,
+} from './strategies.js';
+import {
   replayWindow,
   enqueueCandleRequest,
   pendingRequestsForLogin,
@@ -661,6 +667,44 @@ app.patch('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, repl
 app.delete('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const ok = await deleteAccount(req.user.uid, Number(req.params.id));
   if (!ok) return reply.code(404).send({ error: 'account not found' });
+  return { id: Number(req.params.id), deleted: true };
+});
+
+// ---------------------------------------------------------------------------
+// Strategies — the user's managed strategy catalog (named setups). A trade is
+// linked to its strategy by name (trades.setup). All routes are scoped to the
+// requesting user; renames cascade to their trades (see strategies.js).
+// ---------------------------------------------------------------------------
+app.get('/api/strategies', { preHandler: app.requireAuth }, async (req) =>
+  listStrategies(req.user.uid)
+);
+
+app.post('/api/strategies', { preHandler: app.requireAuth }, async (req, reply) => {
+  try {
+    const s = await createStrategy(req.user.uid, req.body ?? {});
+    return reply.code(201).send(s);
+  } catch (err) {
+    if (err.code === 'INVALID') return reply.code(400).send({ error: err.message });
+    if (err.code === 'DUP') return reply.code(409).send({ error: err.message });
+    throw err;
+  }
+});
+
+app.patch('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+  try {
+    const s = await updateStrategy(req.user.uid, Number(req.params.id), req.body ?? {});
+    if (!s) return reply.code(404).send({ error: 'strategy not found' });
+    return s;
+  } catch (err) {
+    if (err.code === 'INVALID') return reply.code(400).send({ error: err.message });
+    if (err.code === 'DUP') return reply.code(409).send({ error: err.message });
+    throw err;
+  }
+});
+
+app.delete('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+  const ok = await deleteStrategy(req.user.uid, Number(req.params.id));
+  if (!ok) return reply.code(404).send({ error: 'strategy not found' });
   return { id: Number(req.params.id), deleted: true };
 });
 

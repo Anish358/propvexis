@@ -89,6 +89,37 @@ export async function deleteAccount(id) {
   return res.json();
 }
 
+// ---- Strategies (the user's managed strategy catalog; scoped to the user) ----
+export async function fetchStrategies() {
+  return getJson('/api/strategies');
+}
+
+export async function createStrategy(fields) {
+  const res = await apiFetch('/api/strategies', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `createStrategy ${res.status}`);
+  return res.json();
+}
+
+export async function updateStrategy(id, fields) {
+  const res = await apiFetch(`/api/strategies/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `updateStrategy ${res.status}`);
+  return res.json();
+}
+
+export async function deleteStrategy(id) {
+  const res = await apiFetch(`/api/strategies/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteStrategy ${res.status}`);
+  return res.json();
+}
+
 // ---- Payouts (funded-account profit withdrawals; scoped like trades) ----
 export async function fetchPayouts(accountId) {
   return getJson(`/api/payouts?_=1${acctq(accountId)}`);

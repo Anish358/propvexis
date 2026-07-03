@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import { applyBeRounding } from './metrics.js';
@@ -9,6 +9,7 @@ import Login from './Login.jsx';
 import Dashboard from './Dashboard.jsx';
 import TradeLog from './TradeLog.jsx';
 import Analytics from './Analytics.jsx';
+import Strategies from './Strategies.jsx';
 import Calendar from './Calendar.jsx';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
@@ -22,6 +23,7 @@ export default function App() {
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [payouts, setPayouts] = useState([]);
+  const [strategies, setStrategies] = useState([]);
   const [accountId, setAccountIdState] = useState(() => localStorage.getItem(ACCT_KEY) || 'all');
   const [connected, setConnected] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -130,9 +132,26 @@ export default function App() {
     reloadAccounts();
   }, [user]);
 
+  // The strategy catalog is user-scoped (spans all accounts), so load it once per
+  // session. reloadStrategies is passed down so the Strategies page can refresh
+  // after a create/rename/delete.
+  function reloadStrategies() {
+    return fetchStrategies().then(setStrategies).catch(() => {});
+  }
+  useEffect(() => {
+    if (!user) { setStrategies([]); return; }
+    reloadStrategies();
+  }, [user]);
+
   // Reload payouts for the active scope (funded-account withdrawals).
   function reloadPayouts() {
     return fetchPayouts(accountIdRef.current).then(setPayouts).catch(() => {});
+  }
+
+  // Re-fetch trades for the active scope. Exposed so a strategy rename (which
+  // cascades to trades.setup on the server) can refresh the in-memory set.
+  function reloadTrades() {
+    return fetchTrades(accountIdRef.current).then(setTrades).catch(() => {});
   }
 
   // Load trades + account snapshot + payouts for the selected scope. Waits until
@@ -207,6 +226,9 @@ export default function App() {
                 accounts={accounts}
                 payouts={payouts}
                 reloadPayouts={reloadPayouts}
+                strategies={strategies}
+                reloadStrategies={reloadStrategies}
+                reloadTrades={reloadTrades}
                 accountId={accountId}
                 setAccountId={setAccountId}
                 reloadAccounts={reloadAccounts}
@@ -234,6 +256,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="trades" element={<TradeLog />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="strategies" element={<Strategies />} />
             <Route path="calendar" element={<Calendar />} />
           </Route>
         ) : (
