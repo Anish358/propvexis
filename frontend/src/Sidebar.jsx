@@ -72,11 +72,17 @@ const IconCalendar = () => (
     <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
   </svg>
 );
+const IconStrategies = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7h16M4 12h10M4 17h7" /><circle cx="18" cy="15" r="3" /><path d="M18 15l2 2" />
+  </svg>
+);
 
 const NAV = [
   { to: '/', label: 'Dashboard', Icon: IconDashboard, end: true },
   { to: '/trades', label: 'Trade Log', Icon: IconLog },
   { to: '/analytics', label: 'Analytics', Icon: IconAnalytics },
+  { to: '/strategies', label: 'Strategies', Icon: IconStrategies },
   { to: '/calendar', label: 'Calendar', Icon: IconCalendar },
 ];
 

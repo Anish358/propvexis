@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SETUP_OPTIONS, PROBABILITY_OPTIONS, MTF_OPTIONS, fmtDateTime, fmtNum } from './constants.js';
+import { PROBABILITY_OPTIONS, MTF_OPTIONS, fmtDateTime, fmtNum } from './constants.js';
 
 const TAG_KEYS = ['setup', 'probability', 'mtf_phase', 'm15_url', 'h1_url', 'h4_url', 'comments'];
 const METRIC_KEYS = ['sl_size_pips', 'mfe_pips'];
@@ -8,7 +8,7 @@ const EMPTY = { setup: '', probability: '', mtf_phase: '', m15_url: '', h1_url: 
 // stringify a DB value for an input (null -> '')
 const s = (v) => (v == null ? '' : String(v));
 
-export default function TagModal({ trade, onClose, onSave, onDelete }) {
+export default function TagModal({ trade, onClose, onSave, onDelete, strategies = [] }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -39,6 +39,14 @@ export default function TagModal({ trade, onClose, onSave, onDelete }) {
   if (!trade) return null;
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Strategy options come from the user's live catalog. Keep the trade's current
+  // value selectable even if that strategy was since archived/deleted, so saving
+  // doesn't silently drop it.
+  const strategyNames = strategies.map((s) => s.name);
+  const setupOptions = form.setup && !strategyNames.includes(form.setup)
+    ? [form.setup, ...strategyNames]
+    : strategyNames;
 
   async function save() {
     setSaving(true);
@@ -107,10 +115,10 @@ export default function TagModal({ trade, onClose, onSave, onDelete }) {
 
         <div className="field-row">
           <label>
-            Setup
+            Strategy
             <select value={form.setup} onChange={set('setup')}>
               <option value="">—</option>
-              {SETUP_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              {setupOptions.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
           <label>

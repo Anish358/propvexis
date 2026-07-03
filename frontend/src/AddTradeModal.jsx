@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 
-const SETUPS = ['', 'Continue', 'Liq-run', 'Fractal', 'SMC'];
 const SESSIONS = ['', 'ASIA', 'LDN', 'NY'];
 
 // Manual strategy-trade entry. Account-less (god view only). Result is entered
-// directly in R; SL/MFE pips are optional (used to derive Max R).
-export default function AddTradeModal({ onClose, onAdd }) {
+// directly in R; SL/MFE pips are optional (used to derive Max R). The strategy
+// options come from the user's live catalog.
+export default function AddTradeModal({ onClose, onAdd, strategies = [] }) {
+  const setupOptions = ['', ...strategies.map((s) => s.name)];
   const today = new Date().toISOString().slice(0, 10);
   const [f, setF] = useState({
     close_date: today, symbol: '', direction: '', fixed_r: '',
@@ -60,9 +61,9 @@ export default function AddTradeModal({ onClose, onAdd }) {
               <option value="">—</option><option value="buy">Buy</option><option value="sell">Sell</option>
             </select>
           </label>
-          <label>Setup
+          <label>Strategy
             <select value={f.setup} onChange={set('setup')}>
-              {SETUPS.map((s) => <option key={s} value={s}>{s || '—'}</option>)}
+              {setupOptions.map((s) => <option key={s} value={s}>{s || '—'}</option>)}
             </select>
           </label>
           <label>Session

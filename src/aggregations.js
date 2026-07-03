@@ -1,4 +1,5 @@
 import { query } from './db.js';
+import { listStrategies } from './strategies.js';
 
 // All dashboard analytics are computed in JS over the full trade set — simplest
 // and most flexible for a personal journal, and lets us match the sheet exactly.
@@ -73,6 +74,19 @@ function groupPerf(list, keyFn, order, field = 'fixed_r', beRound = false) {
   if (order) out.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
   else out.sort((a, b) => (b.r ?? 0) - (a.r ?? 0));
   return out;
+}
+
+// Distinct setups present in a trade set, ordered by the user's strategy catalog
+// first (their chosen order), then any unmanaged setups alphabetically. Pure +
+// multi-tenant: replaces the old hardcoded ['Continue','Liq-run','Fractal','SMC']
+// so every user's Yearly columns reflect THEIR strategies. Exported for testing.
+export function orderSetups(present = [], catalogOrder = []) {
+  const seen = new Set();
+  for (const s of present) if (s != null && s !== '') seen.add(s);
+  const catalogSet = new Set(catalogOrder);
+  const inCatalog = catalogOrder.filter((n) => seen.has(n));
+  const extras = [...seen].filter((s) => !catalogSet.has(s)).sort((a, b) => String(a).localeCompare(String(b)));
+  return [...inCatalog, ...extras];
 }
 
 // longest run of consecutive wins / losses (breakeven resets both)
@@ -200,7 +214,9 @@ export async function computeStats(scope, unit = 'R', filters = {}, beRound = fa
 
   return {
     headline,
-    bySetup: groupPerf(trades, (t) => t.setup, ['Continue', 'Liq-run', 'Fractal', 'SMC'], field, beRound),
+    // By strategy — data-driven, sorted best-first (by P&L). No hardcoded list,
+    // so each user sees their own strategies.
+    bySetup: groupPerf(trades, (t) => t.setup, null, field, beRound),
     byInstrument: groupPerf(trades, (t) => t.symbol_base || t.symbol, null, field, beRound),
     byProbability: groupPerf(trades, (t) => t.probability, ['HIGH', 'MED', 'LOW'], field, beRound),
     bySession: groupPerf(trades, (t) => t.session, ['LDN', 'NY', 'ASIA'], field, beRound),
@@ -222,7 +238,10 @@ export async function computeYearly(year, scope, unit = 'R', filters = {}, beRou
     params
   );
   const trades = snapBeRounding(rows.map((r) => ({ ...r, close: new Date(r.close_time) })), beRound);
-  const setups = ['Continue', 'Liq-run', 'Fractal', 'SMC'];
+  // Strategy columns come from the user's own catalog (ordered), plus any
+  // unmanaged setups actually traded — never a hardcoded, single-tenant list.
+  const catalog = (await listStrategies(scope.userId)).map((s) => s.name);
+  const setups = orderSetups(trades.map((t) => t.setup), catalog);
 
   const months = MONTHS.map((name, mi) => {
     const inMonth = trades.filter((t) => t.close.getUTCMonth() === mi);

@@ -118,7 +118,7 @@ export default function Analytics() {
 
       {/* Breakdowns */}
       <div className="bd-grid">
-        <BreakdownTable title="By Setup" rows={stats.bySetup} unit={unit} />
+        <BreakdownTable title="By Strategy" rows={stats.bySetup} unit={unit} />
         <BreakdownTable title="By Instrument" rows={stats.byInstrument} unit={unit} />
         <BreakdownTable title="By Probability" rows={stats.byProbability} unit={unit} />
         <BreakdownTable title="By Session" rows={stats.bySession} unit={unit} />

@@ -12,6 +12,7 @@ import Explain from './Explain.jsx';
 export default function TradeLog() {
   const {
     trades = [], connected, flashId, saveTrade, removeTrade, addManualTrade,
+    strategies = [],
     toggleSidebar, accountId = 'all', unit = 'R',
     tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   } = useOutletContext();
@@ -85,8 +86,8 @@ export default function TradeLog() {
         onReplay={(t) => setReplaying(t)}
       />
       {replaying && <ReplayModal trade={replaying} onClose={() => setReplaying(null)} />}
-      <TagModal trade={editing} onClose={() => setEditing(null)} onSave={saveTrade} onDelete={removeTrade} />
-      {adding && <AddTradeModal onClose={() => setAdding(false)} onAdd={addManualTrade} />}
+      <TagModal trade={editing} onClose={() => setEditing(null)} onSave={saveTrade} onDelete={removeTrade} strategies={strategies} />
+      {adding && <AddTradeModal onClose={() => setAdding(false)} onAdd={addManualTrade} strategies={strategies} />}
       <TradeSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
