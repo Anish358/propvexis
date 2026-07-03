@@ -4,6 +4,7 @@ import PageHeader from './PageHeader.jsx';
 import TradesTable from './TradesTable.jsx';
 import TagModal from './TagModal.jsx';
 import AddTradeModal from './AddTradeModal.jsx';
+import ImportTradesModal from './ImportTradesModal.jsx';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
 import TradePreview from './TradePreview.jsx';
 import ReplayModal from './ReplayModal.jsx';
@@ -12,7 +13,7 @@ import Explain from './Explain.jsx';
 export default function TradeLog() {
   const {
     trades = [], connected, flashId, saveTrade, removeTrade, addManualTrade,
-    strategies = [],
+    reloadTrades, strategies = [],
     toggleSidebar, accountId = 'all', unit = 'R',
     tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   } = useOutletContext();
@@ -23,6 +24,7 @@ export default function TradeLog() {
   const [editing, setEditing] = useState(null);
   const [replaying, setReplaying] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const isGod = accountId === 'all';
 
@@ -54,6 +56,7 @@ export default function TradeLog() {
           <span className="log-toolbar-spacer" />
           {isGod && (
             <span className="add-trade-group">
+              <button className="add-trade-btn" onClick={() => setImporting(true)}>⬆ Import CSV</button>
               <button className="add-trade-btn" onClick={() => setAdding(true)}>+ Add strategy trade</button>
               <Explain align="right">
                 <b>Strategy trades</b> are manual, account-less journal entries — used to log a
@@ -88,6 +91,7 @@ export default function TradeLog() {
       {replaying && <ReplayModal trade={replaying} onClose={() => setReplaying(null)} />}
       <TagModal trade={editing} onClose={() => setEditing(null)} onSave={saveTrade} onDelete={removeTrade} strategies={strategies} />
       {adding && <AddTradeModal onClose={() => setAdding(false)} onAdd={addManualTrade} strategies={strategies} />}
+      {importing && <ImportTradesModal onClose={() => setImporting(false)} onImported={() => reloadTrades?.()} />}
       <TradeSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

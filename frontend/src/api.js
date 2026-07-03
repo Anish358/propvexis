@@ -192,6 +192,19 @@ export async function createManualTrade(fields) {
   return res.json();
 }
 
+// CSV import. dryRun=true previews (columns/warnings/counts) without saving;
+// dryRun=false imports and returns { imported, ... }.
+export async function importTrades(csv, dryRun) {
+  const res = await apiFetch('/api/trades/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ csv, dryRun }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `import failed (${res.status})`);
+  return data;
+}
+
 export async function tagTrade(id, fields) {
   const res = await apiFetch(`/api/trades/${id}`, {
     method: 'PATCH',
