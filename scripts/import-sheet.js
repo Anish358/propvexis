@@ -9,32 +9,12 @@
 import { readFile } from 'node:fs/promises';
 import { pool } from '../src/db.js';
 import { normalizeSymbol } from '../src/derive.js';
+import { parseCsv } from '../src/csv.js';
 
 const SHEET_ID = '1N_hUdF8LtcEEQoa4qsDCurOEa_6SXWk2MO8MPGBgBPU';
 const TRADES_GID = '26444216';
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${TRADES_GID}`;
 const IMPORT_ACCOUNT_ID = 0;
-
-// --- minimal RFC-4180 CSV parser (handles quotes + embedded newlines) ---
-function parseCsv(text) {
-  const rows = [];
-  let row = [], field = '', inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') inQuotes = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c === '\r') { /* ignore */ }
-    else field += c;
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  return rows;
-}
 
 function parseDate(ddmmyy) {
   const m = ddmmyy.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);

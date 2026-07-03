@@ -25,6 +25,7 @@ import {
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
 import { planForUser, syncedAccountCount } from './entitlements.js';
 import { canUseEA, accountLimit } from './plans.js';
+import { parseCsv, buildImportTrades } from './csv.js';
 import {
   listStrategies,
   createStrategy,
@@ -402,6 +403,73 @@ app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
 
   emitTrade('trade:upserted', trade);
   return reply.code(201).send(trade);
+});
+
+// ---------------------------------------------------------------------------
+// CSV / statement import (Free-tier feature). Body: { csv, dryRun }.
+//  - dryRun=true  -> parse + validate only; returns what WOULD import, which
+//    columns were detected, per-analytic warnings, dupes, and skipped rows.
+//  - dryRun=false -> also inserts (source='import', account_id NULL, owned by
+//    the user; shows in god/strategy view like manual trades).
+// Dedupe is best-effort on (close_time, symbol_base, fixed_r) among the user's
+// existing imports so re-uploading the same file doesn't double rows.
+// bodyLimit is raised since the CSV text rides in the JSON body.
+// ---------------------------------------------------------------------------
+app.post('/api/trades/import', { preHandler: app.requireAuth, bodyLimit: 12 * 1024 * 1024 }, async (req, reply) => {
+  const { csv, dryRun } = req.body ?? {};
+  if (typeof csv !== 'string' || !csv.trim()) {
+    return reply.code(400).send({ error: 'csv text is required' });
+  }
+  const { trades, columns, warnings, skipped, fatal } = buildImportTrades(parseCsv(csv));
+  if (fatal) return reply.code(400).send({ error: fatal, columns });
+
+  // Dedupe vs the user's existing imports (and within this file).
+  const dupKey = (t) => `${t.close_time}|${t.symbol_base}|${t.fixed_r}`;
+  const { rows: existing } = await query(
+    "SELECT close_time, symbol_base, fixed_r FROM trades WHERE user_id = $1 AND source = 'import'",
+    [req.user.uid]
+  );
+  const seen = new Set(existing.map((r) => `${new Date(r.close_time).toISOString()}|${r.symbol_base}|${r.fixed_r}`));
+  const fresh = [];
+  let duplicates = 0;
+  for (const t of trades) {
+    const k = dupKey(t);
+    if (seen.has(k)) { duplicates++; continue; }
+    seen.add(k);
+    fresh.push(t);
+  }
+
+  const summary = {
+    detectedColumns: Object.keys(columns),
+    warnings,
+    willImport: fresh.length,
+    duplicates,
+    skipped: skipped.length,
+    skippedRows: skipped.slice(0, 20),
+  };
+
+  if (dryRun) return { dryRun: true, ...summary };
+
+  if (fresh.length) {
+    const cols = [...Object.keys(fresh[0]), 'user_id'];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const t of fresh) {
+        const vals = cols.map((c) => (c === 'user_id' ? Number(req.user.uid) : t[c]));
+        const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+        await client.query(`INSERT INTO trades (${cols.join(', ')}) VALUES (${ph})`, vals);
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      req.log.error({ err: e.message }, 'csv import failed');
+      return reply.code(500).send({ error: 'import failed while saving trades' });
+    } finally {
+      client.release();
+    }
+  }
+  return { dryRun: false, imported: fresh.length, ...summary };
 });
 
 // ---------------------------------------------------------------------------

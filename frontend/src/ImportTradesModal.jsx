@@ -1,0 +1,121 @@
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { importTrades } from './api.js';
+
+// CSV / statement import. Pick a file → we preview (dry run) which columns were
+// detected, warn about anything analytics needs but the file lacks, and show
+// how many rows will import / duplicate / skip → confirm to save.
+export default function ImportTradesModal({ onClose, onImported }) {
+  const [fileName, setFileName] = useState('');
+  const [csv, setCsv] = useState('');
+  const [preview, setPreview] = useState(null); // dryRun result
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(null); // final import result
+
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null); setPreview(null); setDone(null);
+    setFileName(file.name);
+    const text = await file.text();
+    setCsv(text);
+    setBusy(true);
+    try {
+      setPreview(await importTrades(text, true));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doImport() {
+    setBusy(true); setError(null);
+    try {
+      const res = await importTrades(csv, false);
+      setDone(res);
+      onImported?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal import-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>Import trades from CSV</h3>
+          <button className="modal-x" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="import-body">
+          {!done && (
+            <>
+              <p className="import-hint">
+                Upload a CSV with a header row. We recognize columns like{' '}
+                <code>Date</code>, <code>Symbol</code>, <code>Direction</code>, <code>Entry</code>,{' '}
+                <code>SL</code>, <code>Exit</code>, or a ready <code>R</code> result — plus optional{' '}
+                <code>MFE</code>, <code>P/L</code>, <code>Setup</code>, <code>Notes</code>.
+              </p>
+              <label className="import-file">
+                <input type="file" accept=".csv,text/csv,text/plain" onChange={onFile} />
+                <span>{fileName || 'Choose CSV file…'}</span>
+              </label>
+            </>
+          )}
+
+          {busy && <div className="import-busy">Working…</div>}
+          {error && <div className="login-error">{error}</div>}
+
+          {preview && !done && (
+            <div className="import-preview">
+              <div className="import-counts">
+                <span className="import-stat ok">{preview.willImport} to import</span>
+                {preview.duplicates > 0 && <span className="import-stat dup">{preview.duplicates} duplicate</span>}
+                {preview.skipped > 0 && <span className="import-stat skip">{preview.skipped} skipped</span>}
+              </div>
+
+              {preview.detectedColumns?.length > 0 && (
+                <div className="import-cols">
+                  Detected: {preview.detectedColumns.map((c) => <code key={c}>{c}</code>)}
+                </div>
+              )}
+
+              {preview.warnings?.length > 0 && (
+                <ul className="import-warnings">
+                  {preview.warnings.map((w, i) => (
+                    <li key={i} className={`import-warn ${w.level}`}>
+                      {w.level === 'warn' ? '⚠ ' : 'ℹ '}{w.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="import-actions">
+                <button onClick={onClose}>Cancel</button>
+                <button className="primary" onClick={doImport} disabled={busy || preview.willImport === 0}>
+                  {busy ? 'Importing…' : `Import ${preview.willImport} trade${preview.willImport === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {done && (
+            <div className="import-done">
+              <div className="import-done-head">✓ Imported {done.imported} trade{done.imported === 1 ? '' : 's'}.</div>
+              {done.duplicates > 0 && <div className="muted">{done.duplicates} skipped as duplicates of earlier imports.</div>}
+              {done.skipped > 0 && <div className="muted">{done.skipped} rows skipped (missing date/symbol).</div>}
+              <div className="import-actions">
+                <button className="primary" onClick={onClose}>Done</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
