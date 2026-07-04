@@ -215,6 +215,20 @@ export async function fetchYearly(year, accountId, unit = 'R', filters, beRound 
   return getJson(`/api/yearly?year=${year}&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}${beq(beRound)}`);
 }
 
+// Reports (V1) — the composed Journal+Prop+payouts payload for the current scope.
+const reportQuery = (accountId, unit, filters, beRound, year) =>
+  `year=${year}&unit=${unit}${acctq(accountId)}${filtersToQuery(filters)}${beq(beRound)}`;
+
+export async function fetchReport(accountId, unit = 'R', filters, beRound = false, year) {
+  return getJson(`/api/report?_=1&${reportQuery(accountId, unit, filters, beRound, year)}`);
+}
+
+// URL for the CSV export (same scope/params). Fetched with credentials by the
+// download button, mirroring the EA-download blob idiom.
+export function reportCsvUrl(accountId, unit = 'R', filters, beRound = false, year) {
+  return `${BACKEND_URL}/api/report/export.csv?${reportQuery(accountId, unit, filters, beRound, year)}`;
+}
+
 export async function createManualTrade(fields) {
   const res = await apiFetch('/api/trades', {
     method: 'POST',

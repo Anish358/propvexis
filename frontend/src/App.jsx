@@ -13,6 +13,7 @@ import Strategies from './Strategies.jsx';
 import Calendar from './Calendar.jsx';
 import Billing from './Billing.jsx';
 import PropOS from './PropOS.jsx';
+import Reports from './Reports.jsx';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
 const VIEWCFG_KEY = 'amey.viewConfigs'; // per-scope { unit, filters } map
@@ -301,6 +302,7 @@ export default function App() {
             <Route path="trades" element={<TradeLog />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="prop" element={<PropOS />} />
+            <Route path="reports" element={<Reports />} />
             <Route path="strategies" element={<Strategies />} />
             <Route path="calendar" element={<Calendar />} />
             <Route path="billing" element={<Billing />} />

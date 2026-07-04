@@ -23,21 +23,17 @@ import {
   ownedAccountByLogin,
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
-import { challengeState } from './prop.js';
 import { phasePassedAlert } from './alerts.js';
 import { evaluateAccountAlerts, insertNotifications, listNotifications, markRead } from './notifications.js';
 import {
-  activeChallengesByLogin,
   challengeHistory,
   advanceChallenge,
   createChallengeForAccount,
   syncActiveChallengeRules,
   insertEquitySnapshots,
-  tradesForEngine,
-  equitySnapshotsForEngine,
 } from './challenges.js';
 import { planForUser, syncedAccountCount, manualAccountCount } from './entitlements.js';
-import { canUseEA, accountLimit, manualAccountLimit } from './plans.js';
+import { canUseEA, canUseReports, accountLimit, manualAccountLimit } from './plans.js';
 import { parseCsv, buildImportTrades } from './csv.js';
 import { paymentsEnabled, createSubscription, cancelSubscription, verifyWebhookSignature, planStateFromEvent } from './payments.js';
 import {
@@ -57,6 +53,7 @@ import {
   windowRequestStatus,
 } from './candles.js';
 import { computeStats, computeYearly } from './aggregations.js';
+import { buildReport, propStatesForScope, reportCsvRows, toCsv } from './reports.js';
 import {
   priceToPips,
   pipSize,
@@ -1081,47 +1078,8 @@ app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
 app.get('/api/prop', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
-  const logins = scope.logins;
-  if (!logins.length) return scope.god ? { god: true, accounts: [] } : null;
-
-  // Bulk-fetch once, compute per account in JS (a few queries, not N).
-  const [challenges, trades, snaps, payouts, accts] = await Promise.all([
-    activeChallengesByLogin(logins),
-    tradesForEngine(logins),
-    equitySnapshotsForEngine(logins),
-    listPayouts(logins),
-    listAccounts(req.user.uid),
-  ]);
-  const asOf = new Date();
-  const acctByLogin = new Map(accts.map((a) => [a.mt5_login, a]));
-  const groupBy = (arr) => {
-    const m = new Map();
-    for (const x of arr) { if (!m.has(x.account_id)) m.set(x.account_id, []); m.get(x.account_id).push(x); }
-    return m;
-  };
-  const tByLogin = groupBy(trades);
-  const sByLogin = groupBy(snaps);
-  const pByLogin = groupBy(payouts);
-
-  const build = (login) => {
-    const acct = acctByLogin.get(login);
-    const challenge = challenges.get(login);
-    const meta = { account_id: login, label: acct?.label ?? null, currency: acct?.currency ?? 'USD' };
-    if (!challenge) return { ...meta, challenge: null };
-    const live = acct?.equity ?? acct?.balance ?? null;
-    const state = challengeState({
-      challenge,
-      trades: tByLogin.get(login) ?? [],
-      payouts: pByLogin.get(login) ?? [],
-      snapshots: sByLogin.get(login) ?? [],
-      live,
-      asOf,
-    });
-    return { ...meta, challengeId: challenge.id, ...state };
-  };
-
-  if (!scope.god) return build(logins[0]);
-  return { god: true, accounts: logins.map(build) };
+  // Shared with the report composition (src/reports.js) — one bulk-fetch + build.
+  return propStatesForScope(scope);
 });
 
 // Challenge phase history for one owned account (the phase timeline).
@@ -1203,6 +1161,40 @@ app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
   if (!scope) return reply.code(403).send({ error: 'account not found' });
   const year = Number(req.query.year) || new Date().getUTCFullYear();
   return computeYearly(year, scope, parseUnit(req.query), parseFilters(req.query), parseBeRound(req.query));
+});
+
+// ---------------------------------------------------------------------------
+// Reports (V1) — one exportable payload composing Journal analytics + Prop OS
+// state + payouts for the selected scope. Pro+ (paid differentiator); Free is
+// gated with 402, matching the EA-sync capability gate. JSON for the on-screen
+// report; export.csv for the raw-numbers download.
+// ---------------------------------------------------------------------------
+const reportOpts = (q) => ({
+  unit: parseUnit(q), filters: parseFilters(q), beRound: parseBeRound(q),
+  year: Number(q.year) || new Date().getUTCFullYear(),
+});
+
+app.get('/api/report', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  if (!canUseReports(await planForUser(req.user.uid))) {
+    return reply.code(402).send({ error: 'Reports require the Pro plan' });
+  }
+  const report = await buildReport(scope, reportOpts(req.query));
+  return { ...report, meta: { ...report.meta, generatedAt: new Date().toISOString() } };
+});
+
+app.get('/api/report/export.csv', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  if (!canUseReports(await planForUser(req.user.uid))) {
+    return reply.code(402).send({ error: 'Reports require the Pro plan' });
+  }
+  const report = await buildReport(scope, reportOpts(req.query));
+  const fname = `report-${scope.god ? 'all' : scope.logins[0]}-${new Date().toISOString().slice(0, 10)}.csv`;
+  reply.header('Content-Type', 'text/csv; charset=utf-8');
+  reply.header('Content-Disposition', `attachment; filename="${fname}"`);
+  return toCsv(reportCsvRows(report));
 });
 
 // ---------------------------------------------------------------------------

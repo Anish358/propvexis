@@ -82,12 +82,18 @@ const IconProp = () => (
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
   </svg>
 );
+const IconReports = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h5" />
+  </svg>
+);
 
 const NAV = [
   { to: '/', label: 'Dashboard', Icon: IconDashboard, end: true },
   { to: '/trades', label: 'Trade Log', Icon: IconLog },
   { to: '/analytics', label: 'Analytics', Icon: IconAnalytics },
   { to: '/prop', label: 'Prop OS', Icon: IconProp },
+  { to: '/reports', label: 'Reports', Icon: IconReports },
   { to: '/strategies', label: 'Strategies', Icon: IconStrategies },
   { to: '/calendar', label: 'Calendar', Icon: IconCalendar },
 ];

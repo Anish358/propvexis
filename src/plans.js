@@ -10,10 +10,11 @@
 // `syncedAccounts` = EA/live-bound accounts (the Pro gate). `manualAccounts` =
 // user-made buckets for manual/CSV trades, so even Free users can SEGREGATE their
 // journal per account (god view vs per-account) without any live sync.
+// `reports` = the exportable Journal+Prop report (V1). Paid differentiator: Pro+.
 export const PLANS = {
-  free:    { ea: false, metaapi: false, csvImport: true, manual: true, syncedAccounts: 0, manualAccounts: 5 },
-  pro:     { ea: true,  metaapi: false, csvImport: true, manual: true, syncedAccounts: 3, manualAccounts: 20 },
-  premium: { ea: true,  metaapi: true,  csvImport: true, manual: true, syncedAccounts: 1, manualAccounts: 20 },
+  free:    { ea: false, metaapi: false, csvImport: true, manual: true, reports: false, syncedAccounts: 0, manualAccounts: 5 },
+  pro:     { ea: true,  metaapi: false, csvImport: true, manual: true, reports: true,  syncedAccounts: 3, manualAccounts: 20 },
+  premium: { ea: true,  metaapi: true,  csvImport: true, manual: true, reports: true,  syncedAccounts: 1, manualAccounts: 20 },
 };
 
 export const DEFAULT_PLAN = 'free';
@@ -36,6 +37,11 @@ export function canUseEA(plan) {
 // Can this plan sync via MetaApi? (Premium; not wired yet.)
 export function canUseMetaApi(plan) {
   return entitlements(plan).metaapi;
+}
+
+// Can this plan generate/export the Journal+Prop report? (Pro+.)
+export function canUseReports(plan) {
+  return entitlements(plan).reports;
 }
 
 // Max number of sync-linked MT5 accounts a plan may own. Free is 0 — free users
