@@ -141,6 +141,27 @@ export async function deletePayout(id) {
   return res.json();
 }
 
+// ---- Prop OS (challenge / drawdown / rule state; scoped like account) ----
+// Single account -> its challenge state; god view -> { god:true, accounts:[…] }.
+export async function fetchProp(accountId) {
+  return getJson(`/api/prop?_=1${acctq(accountId)}`);
+}
+
+export async function fetchPropHistory(accountId) {
+  return getJson(`/api/prop/history?account_id=${accountId}`);
+}
+
+// Advance/reset a challenge: close the active one and open the next phase.
+export async function advanceChallenge(fields) {
+  const res = await apiFetch('/api/prop/advance', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `advanceChallenge ${res.status}`);
+  return res.json();
+}
+
 // Backend origin (scheme://host[:port]) — whitelisting this in MT5 covers every
 // /api path the EA calls (both /api/trades/ingest and /api/payouts/ingest).
 export const INGEST_ORIGIN = BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : '');

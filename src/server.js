@@ -23,6 +23,17 @@ import {
   ownedAccountByLogin,
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
+import { challengeState } from './prop.js';
+import {
+  activeChallengesByLogin,
+  challengeHistory,
+  advanceChallenge,
+  createChallengeForAccount,
+  syncActiveChallengeRules,
+  insertEquitySnapshots,
+  tradesForEngine,
+  equitySnapshotsForEngine,
+} from './challenges.js';
 import { planForUser, syncedAccountCount, manualAccountCount } from './entitlements.js';
 import { canUseEA, accountLimit, manualAccountLimit } from './plans.js';
 import { parseCsv, buildImportTrades } from './csv.js';
@@ -652,6 +663,81 @@ const candleIngestSchema = {
   },
 };
 
+// Equity snapshots — periodic floating balance/equity from the EA, which upgrades
+// the prop engine from realized (closed-trade) drawdown to true floating drawdown.
+// A single current sample per POST, or a batch of buffered ones (offline queue).
+const equityIngestSchema = {
+  body: {
+    type: 'object',
+    required: ['account_id'],
+    properties: {
+      account_id: { type: 'integer' },
+      ts: { type: ['number', 'null'] },      // epoch seconds (UTC); omit = now
+      balance: { type: ['number', 'null'] },
+      equity: { type: ['number', 'null'] },
+      currency: { type: ['string', 'null'] },
+      samples: {
+        type: 'array',
+        maxItems: 1000,
+        items: {
+          type: 'object',
+          properties: {
+            ts: { type: ['number', 'null'] },
+            balance: { type: ['number', 'null'] },
+            equity: { type: ['number', 'null'] },
+          },
+        },
+      },
+    },
+  },
+};
+
+// epoch seconds (EA convention, matching candles) -> ms; passthrough ms; now if null.
+const tsToDate = (ts) => new Date(ts == null ? Date.now() : ts < 1e12 ? ts * 1000 : ts);
+
+app.post('/api/equity/ingest', { schema: equityIngestSchema }, async (req, reply) => {
+  const b = req.body;
+  const token = req.headers['x-ingest-token'];
+  if (!token) return reply.code(401).send({ error: 'missing ingest token' });
+  const acct = await accountByToken(token);
+  if (!acct) return reply.code(401).send({ error: 'invalid ingest token' });
+  // Same Pro+ gate as trade ingest (live equity is an EA-sync feature).
+  if (!canUseEA(await planForUser(acct.user_id))) {
+    return reply.code(402).send({ error: 'EA sync requires the Pro plan' });
+  }
+  const bind = await bindOrCheckLogin(acct, b.account_id);
+  if (bind === 'mismatch') return reply.code(403).send({ error: 'token does not match this MT5 account' });
+  if (bind === 'conflict') return reply.code(409).send({ error: 'MT5 login already registered to another account' });
+
+  const raw = Array.isArray(b.samples) && b.samples.length
+    ? b.samples
+    : [{ ts: b.ts, balance: b.balance, equity: b.equity }];
+  const samples = raw
+    .map((s) => ({ ts: tsToDate(s.ts), balance: s.balance ?? null, equity: s.equity ?? null }))
+    .filter((s) => s.balance != null || s.equity != null);
+  if (!samples.length) return reply.code(400).send({ error: 'balance or equity required' });
+
+  const inserted = await insertEquitySnapshots(b.account_id, samples);
+
+  // Keep the live accounts row fresh from the newest sample, so the balance box
+  // stays current between trades (latest wins, same shape as trade ingest).
+  const latest = samples.reduce((a, s) => (s.ts > a.ts ? s : a));
+  const { rows: accRows } = await query(
+    `INSERT INTO accounts (account_id, balance, equity, currency, updated_at)
+     VALUES ($1, $2, $3, $4, now())
+     ON CONFLICT (account_id) DO UPDATE SET
+       balance = COALESCE(EXCLUDED.balance, accounts.balance),
+       equity = COALESCE(EXCLUDED.equity, accounts.equity),
+       currency = COALESCE(EXCLUDED.currency, accounts.currency),
+       updated_at = now()
+     RETURNING *;`,
+    [b.account_id, latest.balance, latest.equity, b.currency ?? null]
+  );
+  io.to(`acct:${b.account_id}`).emit('account:updated', accRows[0]);
+  io.to(`acct:${b.account_id}`).emit('prop:updated', { account_id: b.account_id });
+  return reply.code(201).send({ inserted });
+});
+
 app.post('/api/candles/ingest', { schema: candleIngestSchema }, async (req, reply) => {
   const b = req.body;
   const token = req.headers['x-ingest-token'];
@@ -797,6 +883,9 @@ app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) =>
   const acct = await createAccount(req.user.uid, {
     label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, kind,
   });
+  // Every account tracks an active challenge from the moment it exists, so the
+  // Prop OS module has state to show (seeded from the account's rule template).
+  await createChallengeForAccount(acct.id);
   return reply.code(201).send(acct);
 });
 
@@ -804,6 +893,10 @@ app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) =>
 app.patch('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const acct = await updateAccount(req.user.uid, Number(req.params.id), req.body ?? {});
   if (!acct) return reply.code(404).send({ error: 'account not found' });
+  // Mirror any changed rule fields onto the active challenge so Prop OS reflects
+  // the correction immediately (ownership already enforced by updateAccount).
+  await syncActiveChallengeRules(Number(req.params.id), req.body ?? {});
+  if (acct.mt5_login != null) io.to(`acct:${acct.mt5_login}`).emit('prop:updated', { account_id: acct.mt5_login });
   return acct;
 });
 
@@ -954,6 +1047,84 @@ app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
     balance: anyLive ? sum('balance') : null,
     equity: anyLive ? sum('equity') : null,
   };
+});
+
+// ---------------------------------------------------------------------------
+// Prop OS — challenge / drawdown / rule state for the selected account, or a
+// portfolio (one card per account) for the god view. Computed by src/prop.js over
+// the account's active challenge + trades + payouts + EA equity snapshots. All in
+// account currency ($). Scoped like /api/account.
+// ---------------------------------------------------------------------------
+app.get('/api/prop', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  const logins = scope.logins;
+  if (!logins.length) return scope.god ? { god: true, accounts: [] } : null;
+
+  // Bulk-fetch once, compute per account in JS (a few queries, not N).
+  const [challenges, trades, snaps, payouts, accts] = await Promise.all([
+    activeChallengesByLogin(logins),
+    tradesForEngine(logins),
+    equitySnapshotsForEngine(logins),
+    listPayouts(logins),
+    listAccounts(req.user.uid),
+  ]);
+  const asOf = new Date();
+  const acctByLogin = new Map(accts.map((a) => [a.mt5_login, a]));
+  const groupBy = (arr) => {
+    const m = new Map();
+    for (const x of arr) { if (!m.has(x.account_id)) m.set(x.account_id, []); m.get(x.account_id).push(x); }
+    return m;
+  };
+  const tByLogin = groupBy(trades);
+  const sByLogin = groupBy(snaps);
+  const pByLogin = groupBy(payouts);
+
+  const build = (login) => {
+    const acct = acctByLogin.get(login);
+    const challenge = challenges.get(login);
+    const meta = { account_id: login, label: acct?.label ?? null, currency: acct?.currency ?? 'USD' };
+    if (!challenge) return { ...meta, challenge: null };
+    const live = acct?.equity ?? acct?.balance ?? null;
+    const state = challengeState({
+      challenge,
+      trades: tByLogin.get(login) ?? [],
+      payouts: pByLogin.get(login) ?? [],
+      snapshots: sByLogin.get(login) ?? [],
+      live,
+      asOf,
+    });
+    return { ...meta, challengeId: challenge.id, ...state };
+  };
+
+  if (!scope.god) return build(logins[0]);
+  return { god: true, accounts: logins.map(build) };
+});
+
+// Challenge phase history for one owned account (the phase timeline).
+app.get('/api/prop/history', { preHandler: app.requireAuth }, async (req, reply) => {
+  const login = Number(req.query.account_id);
+  if (Number.isNaN(login)) return reply.code(400).send({ error: 'account_id required' });
+  if (!(await ownedAccountByLogin(req.user.uid, login))) return reply.code(404).send({ error: 'account not found' });
+  return challengeHistory(req.user.uid, login);
+});
+
+// Advance/reset an account's challenge: close the active one (passed|breached) and
+// open a fresh active challenge for `to_phase`, seeded from the account template.
+app.post('/api/prop/advance', { preHandler: app.requireAuth }, async (req, reply) => {
+  const b = req.body ?? {};
+  const login = Number(b.account_id);
+  if (Number.isNaN(login)) return reply.code(400).send({ error: 'account_id required' });
+  if (!['p1', 'p2', 'funded'].includes(b.to_phase)) {
+    return reply.code(400).send({ error: 'to_phase must be p1, p2, or funded' });
+  }
+  const mark = b.mark === 'breached' ? 'breached' : 'passed';
+  const ch = await advanceChallenge(req.user.uid, login, {
+    toPhase: b.to_phase, mark, breachReason: b.breach_reason ?? null,
+  });
+  if (!ch) return reply.code(404).send({ error: 'account not found' });
+  io.to(`acct:${login}`).emit('prop:updated', { account_id: login });
+  return reply.code(201).send(ch);
 });
 
 // ---------------------------------------------------------------------------
