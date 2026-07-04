@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { entitlements, canUseEA, canUseMetaApi, accountLimit, isValidPlan, DEFAULT_PLAN } from '../src/plans.js';
+import { entitlements, canUseEA, canUseMetaApi, accountLimit, manualAccountLimit, isValidPlan, DEFAULT_PLAN } from '../src/plans.js';
 
 test('free plan: manual + csv only, no EA/MetaApi, zero synced accounts', () => {
   assert.equal(canUseEA('free'), false);
@@ -30,6 +30,21 @@ test('unknown / missing / invalid plan fails closed to free', () => {
     assert.equal(accountLimit(bad), 0, `${String(bad)} must not grant synced accounts`);
   }
   assert.equal(DEFAULT_PLAN, 'free');
+});
+
+test('every plan can create manual accounts to segregate trades', () => {
+  // Manual (non-synced) accounts are how any user buckets manual/CSV trades into
+  // per-account views — available even on Free, which has zero synced accounts.
+  assert.equal(manualAccountLimit('free') > 0, true);
+  assert.equal(accountLimit('free'), 0);
+  assert.equal(manualAccountLimit('pro') > 0, true);
+  assert.equal(manualAccountLimit('premium') > 0, true);
+});
+
+test('unknown / invalid plan fails closed to free for manual accounts too', () => {
+  for (const bad of ['enterprise', '', null, undefined, 42, {}]) {
+    assert.equal(manualAccountLimit(bad), manualAccountLimit('free'), `${String(bad)} must fall back to free`);
+  }
 });
 
 test('isValidPlan recognizes the three tiers', () => {

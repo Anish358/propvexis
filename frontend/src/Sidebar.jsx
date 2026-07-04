@@ -37,7 +37,7 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
               className={`acct-opt ${String(accountId) === String(a.mt5_login) ? 'sel' : ''}`}
               onClick={() => pick(String(a.mt5_login))}
             >
-              {acctLabel(a)} <span className="acct-opt-sub">{a.mt5_login}</span>
+              {acctLabel(a)} <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
             </button>
           ))}
           <div className="acct-menu-sep" />

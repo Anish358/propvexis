@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 
 const SESSIONS = ['', 'ASIA', 'LDN', 'NY'];
 
-// Manual strategy-trade entry. Account-less (god view only). Result is entered
-// directly in R; SL/MFE pips are optional (used to derive Max R). The strategy
-// options come from the user's live catalog.
-export default function AddTradeModal({ onClose, onAdd, strategies = [] }) {
+// Manual trade entry. Result is entered directly in R; SL/MFE pips are optional
+// (used to derive Max R). Optionally scoped to a manual account for a segregated
+// per-account view, else account-less (god view only). Strategy options come from
+// the user's live catalog.
+export default function AddTradeModal({ onClose, onAdd, strategies = [], manualAccounts = [], defaultAccountId = '' }) {
   const setupOptions = ['', ...strategies.map((s) => s.name)];
   const today = new Date().toISOString().slice(0, 10);
+  const [accountId, setAccountId] = useState(defaultAccountId || '');
   const [f, setF] = useState({
     close_date: today, symbol: '', direction: '', fixed_r: '',
     sl_size_pips: '', mfe_pips: '', setup: '', session: '', comments: '',
@@ -24,6 +26,7 @@ export default function AddTradeModal({ onClose, onAdd, strategies = [] }) {
     setErr(null);
     try {
       await onAdd({
+        account_id: accountId === '' ? null : Number(accountId),
         close_time: `${f.close_date}T12:00:00Z`,
         open_time: `${f.close_date}T12:00:00Z`,
         symbol: f.symbol.trim() || 'MANUAL',
@@ -50,9 +53,23 @@ export default function AddTradeModal({ onClose, onAdd, strategies = [] }) {
           <h3>Add strategy trade</h3>
           <button className="modal-x" onClick={onClose}>✕</button>
         </div>
-        <div className="at-note">Not linked to any account — appears only in the All-accounts (strategy) view.</div>
+        <div className="at-note">
+          {accountId === ''
+            ? 'Not linked to any account — appears only in the All-accounts (strategy) view.'
+            : 'Linked to this manual account — appears in its per-account view and the All-accounts view.'}
+        </div>
 
         <form className="at-form" onSubmit={submit}>
+          {manualAccounts.length > 0 && (
+            <label>Account
+              <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">No account (all-accounts view)</option>
+                {manualAccounts.map((a) => (
+                  <option key={a.id} value={String(a.mt5_login)}>{a.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>Date<input type="date" value={f.close_date} onChange={set('close_date')} required /></label>
           <label>Result (R)<input type="number" step="0.01" placeholder="e.g. 2 or -1" value={f.fixed_r} onChange={set('fixed_r')} required /></label>
           <label>Symbol<input placeholder="EURUSD" value={f.symbol} onChange={set('symbol')} /></label>

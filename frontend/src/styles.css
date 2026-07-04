@@ -510,6 +510,26 @@ label.full { margin-bottom: 14px; }
 .acct-add input:first-child { flex: 1; }
 .acct-add input[type=number] { width: 120px; }
 .acct-add button { white-space: nowrap; background: #112a1c; border-color: #1d4730; color: #39d98a; font-weight: 600; }
+.acct-badge.manual { background: #1c1c33; color: #b9b2ff; }
+/* kind picker (manual bucket vs live EA sync) in the add-account form */
+.acct-kind { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.acct-kind-opt {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 9px; cursor: pointer; background: #0a0a0c;
+}
+.acct-kind-opt.sel { border-color: #1d4730; background: #0f1f14; }
+.acct-kind-opt.disabled { opacity: 0.55; cursor: not-allowed; }
+.acct-kind-opt input { margin-top: 3px; }
+.acct-kind-opt span { display: flex; flex-direction: column; gap: 2px; }
+.acct-kind-opt b { font-size: 13px; color: var(--text); }
+.acct-kind-opt small { font-size: 11.5px; color: var(--muted); }
+.acct-kind-upsell { font-size: 12px; color: var(--muted); margin: -4px 0 12px; }
+.acct-kind-upsell a { color: #39d98a; }
+.import-account { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+.import-account select {
+  background: #0a0a0c; border: 1px solid var(--line); color: var(--text);
+  border-radius: 7px; padding: 7px 10px; font-size: 13px; flex: 1;
+}
 .ea-download {
   display: inline-block; background: #112a1c; border: 1px solid #1d4730; color: #39d98a;
   padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none;

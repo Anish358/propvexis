@@ -23,8 +23,8 @@ import {
   ownedAccountByLogin,
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
-import { planForUser, syncedAccountCount } from './entitlements.js';
-import { canUseEA, accountLimit } from './plans.js';
+import { planForUser, syncedAccountCount, manualAccountCount } from './entitlements.js';
+import { canUseEA, accountLimit, manualAccountLimit } from './plans.js';
 import { parseCsv, buildImportTrades } from './csv.js';
 import { paymentsEnabled, createSubscription, cancelSubscription, verifyWebhookSignature, planStateFromEvent } from './payments.js';
 import {
@@ -362,9 +362,10 @@ app.get('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
 });
 
 // ---------------------------------------------------------------------------
-// Manual trade entry — strategy-level, NOT linked to any account (account_id
-// NULL). Owned by the user, so it shows only in the god/strategy view. Result
-// is entered directly in R (fixed_r); price-derived fields are skipped.
+// Manual trade entry — result is entered directly in R (fixed_r); price-derived
+// fields are skipped. Owned by the user. Optionally scoped to one of the user's
+// own accounts via `account_id` (so it shows in that per-account view); omit it
+// (account_id NULL) for an account-less strategy trade that lives in god view.
 // ---------------------------------------------------------------------------
 app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
   const b = req.body ?? {};
@@ -377,6 +378,16 @@ app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
     return reply.code(400).send({ error: 'direction must be buy, sell, or omitted' });
   }
 
+  // Optional account scope: must be one of the requester's own accounts.
+  let account_id = null;
+  if (b.account_id != null && b.account_id !== '') {
+    const login = Number(b.account_id);
+    if (Number.isNaN(login) || !(await ownedAccountByLogin(req.user.uid, login))) {
+      return reply.code(400).send({ error: 'account not found' });
+    }
+    account_id = login;
+  }
+
   const symbol = b.symbol || 'MANUAL';
   const symbol_base = normalizeSymbol(symbol);
   const open_time = b.open_time || b.close_time;
@@ -386,7 +397,7 @@ app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
 
   const row = {
     mt5_ticket: null,
-    account_id: null,
+    account_id,
     user_id: Number(req.user.uid),
     source: 'manual',
     symbol,
@@ -431,14 +442,27 @@ app.post('/api/trades/import', { preHandler: app.requireAuth, bodyLimit: 12 * 10
   if (typeof csv !== 'string' || !csv.trim()) {
     return reply.code(400).send({ error: 'csv text is required' });
   }
+
+  // Optional account scope: import into one of the requester's own accounts
+  // (so the rows show in that per-account view); omit for account-less imports.
+  let acctLogin = null;
+  if (req.body?.account_id != null && req.body.account_id !== '') {
+    const login = Number(req.body.account_id);
+    if (Number.isNaN(login) || !(await ownedAccountByLogin(req.user.uid, login))) {
+      return reply.code(400).send({ error: 'account not found' });
+    }
+    acctLogin = login;
+  }
+
   const { trades, columns, warnings, skipped, fatal } = buildImportTrades(parseCsv(csv));
   if (fatal) return reply.code(400).send({ error: fatal, columns });
 
-  // Dedupe vs the user's existing imports (and within this file).
+  // Dedupe vs the user's existing imports IN THE SAME account scope (and within
+  // this file), so importing the same file into two accounts stays allowed.
   const dupKey = (t) => `${t.close_time}|${t.symbol_base}|${t.fixed_r}`;
   const { rows: existing } = await query(
-    "SELECT close_time, symbol_base, fixed_r FROM trades WHERE user_id = $1 AND source = 'import'",
-    [req.user.uid]
+    "SELECT close_time, symbol_base, fixed_r FROM trades WHERE user_id = $1 AND source = 'import' AND account_id IS NOT DISTINCT FROM $2",
+    [req.user.uid, acctLogin]
   );
   const seen = new Set(existing.map((r) => `${new Date(r.close_time).toISOString()}|${r.symbol_base}|${r.fixed_r}`));
   const fresh = [];
@@ -462,12 +486,15 @@ app.post('/api/trades/import', { preHandler: app.requireAuth, bodyLimit: 12 * 10
   if (dryRun) return { dryRun: true, ...summary };
 
   if (fresh.length) {
+    // buildImportTrades already emits account_id (null) per row — override its
+    // value with the chosen scope rather than adding the column twice.
     const cols = [...Object.keys(fresh[0]), 'user_id'];
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       for (const t of fresh) {
-        const vals = cols.map((c) => (c === 'user_id' ? Number(req.user.uid) : t[c]));
+        const vals = cols.map((c) =>
+          c === 'user_id' ? Number(req.user.uid) : c === 'account_id' ? acctLogin : t[c]);
         const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
         await client.query(`INSERT INTO trades (${cols.join(', ')}) VALUES (${ph})`, vals);
       }
@@ -744,23 +771,31 @@ app.get('/api/accounts', { preHandler: app.requireAuth }, async (req) =>
   listAccounts(req.user.uid)
 );
 
-// Create a pending account (label only) + ingest token for the EA. The MT5
-// login auto-binds on the first trade sent with that token.
+// Create an account. kind='manual' (default) makes a no-sync bucket for manual/
+// CSV trades — available on every plan so users can segregate their journal per
+// account. kind='synced' provisions an EA ingest token and is the Pro+ gate.
 app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
-  // Plan gate: a synced MT5 account is a Pro+ feature, capped per plan. Free
-  // users (limit 0) journal via manual entry / CSV import instead.
   const plan = await planForUser(req.user.uid);
-  const limit = accountLimit(plan);
-  if (await syncedAccountCount(req.user.uid) >= limit) {
-    return reply.code(402).send({
-      error: limit === 0
-        ? 'Connecting a trading account requires the Pro plan'
-        : `Your plan allows up to ${limit} accounts — upgrade to add more`,
-    });
+  const kind = req.body?.kind === 'synced' ? 'synced' : 'manual';
+  if (kind === 'synced') {
+    // Plan gate: a live-synced MT5 account is a Pro+ feature, capped per plan.
+    const limit = accountLimit(plan);
+    if (await syncedAccountCount(req.user.uid) >= limit) {
+      return reply.code(402).send({
+        error: limit === 0
+          ? 'Connecting a trading account for live EA sync requires the Pro plan'
+          : `Your plan allows up to ${limit} synced accounts — upgrade to add more`,
+      });
+    }
+  } else {
+    const limit = manualAccountLimit(plan);
+    if (await manualAccountCount(req.user.uid) >= limit) {
+      return reply.code(402).send({ error: `Your plan allows up to ${limit} manual accounts` });
+    }
   }
   const { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct } = req.body ?? {};
   const acct = await createAccount(req.user.uid, {
-    label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct,
+    label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, kind,
   });
   return reply.code(201).send(acct);
 });
