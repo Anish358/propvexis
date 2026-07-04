@@ -141,6 +141,21 @@ export async function deletePayout(id) {
   return res.json();
 }
 
+// ---- Notifications (in-app alert feed for the logged-in user) ----
+export async function fetchNotifications() {
+  return getJson('/api/notifications?_=1');
+}
+
+export async function markNotificationsRead(body) {
+  const res = await apiFetch('/api/notifications/read', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`markNotificationsRead ${res.status}`);
+  return res.json();
+}
+
 // ---- Prop OS (challenge / drawdown / rule state; scoped like account) ----
 // Single account -> its challenge state; god view -> { god:true, accounts:[…] }.
 export async function fetchProp(accountId) {
