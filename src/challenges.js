@@ -153,11 +153,13 @@ export async function advanceChallenge(userId, login, { toPhase, mark = 'passed'
     const a = acctRows[0];
 
     const stamp = mark === 'breached' ? 'breached_at' : 'passed_at';
-    await client.query(
+    const { rows: closed } = await client.query(
       `UPDATE challenges SET status = $1, ${stamp} = now(), breach_reason = $2
-        WHERE mt5_account_id = $3 AND status = 'active'`,
+        WHERE mt5_account_id = $3 AND status = 'active'
+        RETURNING phase`,
       [mark, breachReason, a.id]
     );
+    const previousPhase = closed[0]?.phase ?? null;
 
     const funded = toPhase === 'funded';
     const { rows } = await client.query(
@@ -169,8 +171,9 @@ export async function advanceChallenge(userId, login, { toPhase, mark = 'passed'
        funded ? null : a.profit_target_pct, a.min_trading_days]
     );
     await client.query('COMMIT');
-    // Re-shape with the account's login/label for a consistent return shape.
-    return shapeChallenge({ ...rows[0], mt5_login: login });
+    // Re-shape with the account's login for a consistent return shape; carry the
+    // closed phase so the caller can tell a pass from a reset.
+    return { ...shapeChallenge({ ...rows[0], mt5_login: login }), previousPhase };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

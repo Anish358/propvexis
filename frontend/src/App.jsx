@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import { applyBeRounding } from './metrics.js';
@@ -26,6 +26,10 @@ export default function App() {
   const [accounts, setAccounts] = useState([]);
   const [payouts, setPayouts] = useState([]);
   const [strategies, setStrategies] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [toasts, setToasts] = useState([]);
+  const toastSeq = useRef(0);
   const [accountId, setAccountIdState] = useState(() => localStorage.getItem(ACCT_KEY) || 'all');
   const [connected, setConnected] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -145,6 +149,34 @@ export default function App() {
     reloadStrategies();
   }, [user]);
 
+  // In-app notifications: load the feed on login, then keep it live via the socket
+  // ('notification:new' below). Toasts are transient and auto-dismiss.
+  function reloadNotifications() {
+    return fetchNotifications()
+      .then((r) => { setNotifications(r.notifications); setUnread(r.unread); })
+      .catch(() => {});
+  }
+  useEffect(() => {
+    if (!user) { setNotifications([]); setUnread(0); setToasts([]); return; }
+    reloadNotifications();
+  }, [user]);
+
+  function pushToast(n) {
+    const key = ++toastSeq.current;
+    setToasts((prev) => [...prev, { key, severity: n.severity, title: n.title, body: n.body }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.key !== key)), 6000);
+  }
+  const dismissToast = (key) => setToasts((prev) => prev.filter((t) => t.key !== key));
+
+  async function markAllNotificationsRead() {
+    try {
+      const { unread: u } = await markNotificationsRead({ all: true });
+      setUnread(u);
+      const now = new Date().toISOString();
+      setNotifications((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })));
+    } catch { /* ignore */ }
+  }
+
   // Reload payouts for the active scope (funded-account withdrawals).
   function reloadPayouts() {
     return fetchPayouts(accountIdRef.current).then(setPayouts).catch(() => {});
@@ -186,6 +218,11 @@ export default function App() {
     );
     socket.on('account:updated', () => fetchAccount(accountIdRef.current).then(setAccount).catch(() => {}));
     socket.on('payout:updated', () => reloadPayouts());
+    socket.on('notification:new', (n) => {
+      setNotifications((prev) => [n, ...prev.filter((p) => p.id !== n.id)].slice(0, 100));
+      setUnread((u) => u + 1);
+      pushToast(n);
+    });
     socket.on('trade:deleted', ({ id }) => removeLocal(id));
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
@@ -234,6 +271,11 @@ export default function App() {
                 accountId={accountId}
                 setAccountId={setAccountId}
                 reloadAccounts={reloadAccounts}
+                notifications={notifications}
+                unread={unread}
+                markAllNotificationsRead={markAllNotificationsRead}
+                toasts={toasts}
+                dismissToast={dismissToast}
                 connected={connected}
                 flashId={flashId}
                 saveTrade={saveTrade}
