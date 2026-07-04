@@ -13,7 +13,7 @@ import Explain from './Explain.jsx';
 export default function TradeLog() {
   const {
     trades = [], connected, flashId, saveTrade, removeTrade, addManualTrade,
-    reloadTrades, strategies = [],
+    reloadTrades, strategies = [], accounts = [],
     toggleSidebar, accountId = 'all', unit = 'R',
     tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   } = useOutletContext();
@@ -27,6 +27,13 @@ export default function TradeLog() {
   const [importing, setImporting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const isGod = accountId === 'all';
+  // Manual accounts (no live EA sync) can receive manually-added / imported trades.
+  const manualAccounts = useMemo(() => accounts.filter((a) => a.kind === 'manual' && a.is_active !== false), [accounts]);
+  const currentAccount = useMemo(() => accounts.find((a) => String(a.mt5_login) === String(accountId)) || null, [accounts, accountId]);
+  const currentIsManual = currentAccount?.kind === 'manual';
+  // Add/import is allowed in the god view (account-less) and in a manual account.
+  // A synced (EA) account is fed automatically, so there's nothing to add by hand.
+  const canAddTrades = isGod || currentIsManual;
 
   const untagged = useMemo(() => trades.filter((t) => !t.tagged).length, [trades]);
   const columnOverrides = tradeSettings.columns || {};
@@ -54,18 +61,20 @@ export default function TradeLog() {
             Precision control: {tradeSettings.beRounding ? 'On' : 'Off'}
           </button>
           <span className="log-toolbar-spacer" />
-          {isGod && (
+          {canAddTrades && (
             <span className="add-trade-group">
               <button className="add-trade-btn" onClick={() => setImporting(true)}>⬆ Import CSV</button>
-              <button className="add-trade-btn" onClick={() => setAdding(true)}>+ Add strategy trade</button>
+              <button className="add-trade-btn" onClick={() => setAdding(true)}>
+                {currentIsManual ? '+ Add trade' : '+ Add strategy trade'}
+              </button>
               <Explain align="right">
-                <b>Strategy trades</b> are manual, account-less journal entries — used to log a
-                setup or backtest a strategy in R without a live MT5 position behind it.
+                <b>Manual & CSV trades</b> are journal entries you enter by hand or import — used to
+                log a setup or backtest a strategy in R without a live MT5 position behind it.
                 <br /><br />
-                They only appear in the <b>god (all-accounts) view</b>. A per-account view mirrors
-                one real MT5 account, whose trades are ingested automatically by the EA — so there's
-                nothing to add by hand there. Manual entries have no account, which is exactly what
-                the god view aggregates.
+                Assign them to a <b>manual account</b> to get a segregated per-account view, or leave
+                them account-less so they appear only in the <b>god (all-accounts) view</b>. A
+                <b> synced (EA) account</b> is fed automatically by the EA — so there's nothing to add
+                by hand there.
               </Explain>
             </span>
           )}
@@ -90,8 +99,23 @@ export default function TradeLog() {
       />
       {replaying && <ReplayModal trade={replaying} onClose={() => setReplaying(null)} />}
       <TagModal trade={editing} onClose={() => setEditing(null)} onSave={saveTrade} onDelete={removeTrade} strategies={strategies} />
-      {adding && <AddTradeModal onClose={() => setAdding(false)} onAdd={addManualTrade} strategies={strategies} />}
-      {importing && <ImportTradesModal onClose={() => setImporting(false)} onImported={() => reloadTrades?.()} />}
+      {adding && (
+        <AddTradeModal
+          onClose={() => setAdding(false)}
+          onAdd={addManualTrade}
+          strategies={strategies}
+          manualAccounts={manualAccounts}
+          defaultAccountId={currentIsManual ? String(accountId) : ''}
+        />
+      )}
+      {importing && (
+        <ImportTradesModal
+          onClose={() => setImporting(false)}
+          onImported={() => reloadTrades?.()}
+          manualAccounts={manualAccounts}
+          defaultAccountId={currentIsManual ? String(accountId) : ''}
+        />
+      )}
       <TradeSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

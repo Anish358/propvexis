@@ -216,11 +216,12 @@ export async function cancelSubscription() {
 
 // CSV import. dryRun=true previews (columns/warnings/counts) without saving;
 // dryRun=false imports and returns { imported, ... }.
-export async function importTrades(csv, dryRun) {
+export async function importTrades(csv, dryRun, accountId) {
+  const account_id = accountId && accountId !== 'all' ? Number(accountId) : null;
   const res = await apiFetch('/api/trades/import', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ csv, dryRun }),
+    body: JSON.stringify({ csv, dryRun, account_id }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `import failed (${res.status})`);

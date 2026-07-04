@@ -40,7 +40,7 @@ export async function listAccounts(userId) {
   const { rows } = await query(
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
             a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
-            a.ingest_token, a.is_active, a.created_at,
+            a.ingest_token, a.kind, a.is_active, a.created_at,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
        LEFT JOIN accounts acc ON acc.account_id = a.mt5_login
@@ -55,19 +55,34 @@ export async function listAccounts(userId) {
 
 // Columns selected/returned for an account (kept in sync across queries).
 const ACCT_COLS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, ingest_token, is_active, created_at';
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, ingest_token, kind, is_active, created_at';
 
-// Create a pending account (no login yet) with a fresh ingest token.
-export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct }) {
+// Create an account. A 'synced' account is pending (no login yet) and carries a
+// fresh ingest token — the EA binds its real MT5 login on the first trade. A
+// 'manual' account carries NO token and is immediately given a synthetic negative
+// login (-id) so its trades can be scoped by account_id without any live sync.
+export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, kind }) {
+  const manual = kind === 'manual';
   const { rows } = await query(
     `INSERT INTO mt5_accounts
-       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, ingest_token)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), $11)
+       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, ingest_token, kind)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), $11, $12)
      RETURNING ${ACCT_COLS};`,
     [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null,
-     account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, payout_split_pct ?? null, genToken()]
+     account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, payout_split_pct ?? null,
+     manual ? null : genToken(), manual ? 'manual' : 'synced']
   );
-  return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login), pending: rows[0].mt5_login == null };
+  let acct = rows[0];
+  if (manual) {
+    // Assign the synthetic login now that we know the id (negative space = no
+    // collision with real, positive MT5 logins; still UNIQUE per account).
+    const { rows: u } = await query(
+      `UPDATE mt5_accounts SET mt5_login = -id WHERE id = $1 RETURNING ${ACCT_COLS};`,
+      [acct.id]
+    );
+    acct = u[0];
+  }
+  return { ...acct, mt5_login: loginNum(acct.mt5_login), pending: acct.mt5_login == null };
 }
 
 // Update editable metadata on the user's own account.

@@ -5,9 +5,10 @@ import { importTrades } from './api.js';
 // CSV / statement import. Pick a file → we preview (dry run) which columns were
 // detected, warn about anything analytics needs but the file lacks, and show
 // how many rows will import / duplicate / skip → confirm to save.
-export default function ImportTradesModal({ onClose, onImported }) {
+export default function ImportTradesModal({ onClose, onImported, manualAccounts = [], defaultAccountId = '' }) {
   const [fileName, setFileName] = useState('');
   const [csv, setCsv] = useState('');
+  const [accountId, setAccountId] = useState(defaultAccountId || '');
   const [preview, setPreview] = useState(null); // dryRun result
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -22,7 +23,23 @@ export default function ImportTradesModal({ onClose, onImported }) {
     setCsv(text);
     setBusy(true);
     try {
-      setPreview(await importTrades(text, true));
+      setPreview(await importTrades(text, true, accountId));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Changing the target account changes the dedupe scope — re-preview if a file
+  // is already loaded so the duplicate/import counts stay accurate.
+  async function onAccountChange(e) {
+    const next = e.target.value;
+    setAccountId(next);
+    if (!csv || done) return;
+    setBusy(true); setError(null);
+    try {
+      setPreview(await importTrades(csv, true, next));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -33,7 +50,7 @@ export default function ImportTradesModal({ onClose, onImported }) {
   async function doImport() {
     setBusy(true); setError(null);
     try {
-      const res = await importTrades(csv, false);
+      const res = await importTrades(csv, false, accountId);
       setDone(res);
       onImported?.();
     } catch (err) {
@@ -60,6 +77,17 @@ export default function ImportTradesModal({ onClose, onImported }) {
                 <code>SL</code>, <code>Exit</code>, or a ready <code>R</code> result — plus optional{' '}
                 <code>MFE</code>, <code>P/L</code>, <code>Setup</code>, <code>Notes</code>.
               </p>
+              {manualAccounts.length > 0 && (
+                <label className="import-account">
+                  <span>Import into</span>
+                  <select value={accountId} onChange={onAccountChange}>
+                    <option value="">No account (all-accounts view)</option>
+                    {manualAccounts.map((a) => (
+                      <option key={a.id} value={String(a.mt5_login)}>{a.label}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="import-file">
                 <input type="file" accept=".csv,text/csv,text/plain" onChange={onFile} />
                 <span>{fileName || 'Choose CSV file…'}</span>

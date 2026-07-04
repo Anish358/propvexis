@@ -12,11 +12,21 @@ export async function planForUser(userId) {
   return rows.length ? rows[0].plan : DEFAULT_PLAN;
 }
 
-// Count a user's active (non-archived) sync-linked MT5 accounts, for the
-// per-plan account cap enforced on account creation.
+// Count a user's active (non-archived) sync-linked (EA) MT5 accounts, for the
+// per-plan synced-account cap enforced on account creation.
 export async function syncedAccountCount(userId) {
   const { rows } = await query(
-    'SELECT COUNT(*)::int AS n FROM mt5_accounts WHERE user_id = $1 AND is_active = TRUE',
+    "SELECT COUNT(*)::int AS n FROM mt5_accounts WHERE user_id = $1 AND is_active = TRUE AND kind = 'synced'",
+    [userId]
+  );
+  return rows[0].n;
+}
+
+// Count a user's active manual (non-synced) accounts, for the per-plan manual-
+// account cap. Manual accounts are how users bucket manual/CSV trades per account.
+export async function manualAccountCount(userId) {
+  const { rows } = await query(
+    "SELECT COUNT(*)::int AS n FROM mt5_accounts WHERE user_id = $1 AND is_active = TRUE AND kind = 'manual'",
     [userId]
   );
   return rows[0].n;

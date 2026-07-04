@@ -163,8 +163,11 @@ function EditForm({ account, onSaved, onCancel }) {
 
 export default function AccountsModal({ accounts = [], onClose, onChanged }) {
   const { user } = useAuth();
-  const canAdd = eaAllowed(user?.plan);
+  const eaOk = eaAllowed(user?.plan); // may create live-synced (EA) accounts
   const [label, setLabel] = useState('');
+  // 'manual' = a no-sync bucket to segregate manual/CSV trades (any plan);
+  // 'synced' = a live EA-linked account (Pro+). Default to EA when allowed.
+  const [kind, setKind] = useState(eaOk ? 'synced' : 'manual');
   const [v, setV] = useState(formFrom(null));
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState(null); // freshly created account -> show its setup
@@ -180,7 +183,7 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
     setBusy(true);
     setErr(null);
     try {
-      const acct = await createAccount({ label: label.trim(), ...toPayload(v) });
+      const acct = await createAccount({ label: label.trim(), kind, ...toPayload(v) });
       setCreated(acct);
       setLabel('');
       setV(formFrom(null));
@@ -220,44 +223,59 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
           <button className="modal-x" onClick={onClose}>✕</button>
         </div>
 
-        {/* Free users can't attach a synced account — prompt to upgrade. */}
-        {!canAdd ? (
-          <div className="acct-upgrade">
-            <p>Connecting a trading account for live EA sync is a <b>Pro</b> feature. On the Free plan you can still add trades manually or import a CSV.</p>
-            <Link to="/billing" className="acct-add-btn" onClick={onClose}>Upgrade to Pro →</Link>
-          </div>
-        ) : (
-          <>
-            {/* add account toggle — centered at the top; the form is hidden until opened */}
-            <div className="acct-add-toggle">
-              <button type="button" className="acct-add-btn" onClick={() => { setShowAdd((s) => !s); setErr(null); }}>
-                {showAdd ? 'Cancel' : '+ Add account'}
-              </button>
-            </div>
+        {/* add account toggle — centered at the top; the form is hidden until opened */}
+        <div className="acct-add-toggle">
+          <button type="button" className="acct-add-btn" onClick={() => { setShowAdd((s) => !s); setErr(null); }}>
+            {showAdd ? 'Cancel' : '+ Add account'}
+          </button>
+        </div>
 
-            {/* add form — only shown once the user clicks "Add account" */}
-            {showAdd && (
-              <form className="acct-add" onSubmit={add}>
-                <div className="acct-add-row">
-                  <input
-                    placeholder="Account label (e.g. GFT Challenge #1)"
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                  />
-                  <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
-                </div>
-                <PropFields v={v} set={set} />
-                {err && <div className="login-error">{err}</div>}
-              </form>
+        {/* add form — only shown once the user clicks "Add account" */}
+        {showAdd && (
+          <form className="acct-add" onSubmit={add}>
+            {/* Kind picker: a manual bucket (any plan) vs live EA sync (Pro+). */}
+            <div className="acct-kind">
+              <label className={`acct-kind-opt ${kind === 'manual' ? 'sel' : ''}`}>
+                <input type="radio" name="acct-kind" checked={kind === 'manual'} onChange={() => setKind('manual')} />
+                <span><b>Manual account</b><small>Group manual / CSV trades into their own per-account view. No live sync.</small></span>
+              </label>
+              <label className={`acct-kind-opt ${kind === 'synced' ? 'sel' : ''} ${eaOk ? '' : 'disabled'}`}>
+                <input type="radio" name="acct-kind" checked={kind === 'synced'} disabled={!eaOk} onChange={() => setKind('synced')} />
+                <span>
+                  <b>Live MT5 (EA sync){eaOk ? '' : ' — Pro'}</b>
+                  <small>Auto-import trades from MetaTrader via the EA. {eaOk ? '' : 'Requires the Pro plan.'}</small>
+                </span>
+              </label>
+            </div>
+            {!eaOk && (
+              <div className="acct-kind-upsell">
+                Want live sync? <Link to="/billing" onClick={onClose}>Upgrade to Pro →</Link>
+              </div>
             )}
-          </>
+            <div className="acct-add-row">
+              <input
+                placeholder="Account label (e.g. GFT Challenge #1)"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+              <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
+            </div>
+            <PropFields v={v} set={set} />
+            {err && <div className="login-error">{err}</div>}
+          </form>
         )}
 
-        {/* freshly created -> highlight its setup */}
+        {/* freshly created -> manual accounts are ready now; synced ones need EA setup */}
         {created && (
           <div className="acct-created">
-            <div className="acct-created-head">✓ “{created.label}” created. Finish setup in your EA:</div>
-            <SetupCard account={created} />
+            {created.kind === 'manual' ? (
+              <div className="acct-created-head">✓ “{created.label}” created — switch to it in the account picker to log or import trades there.</div>
+            ) : (
+              <>
+                <div className="acct-created-head">✓ “{created.label}” created. Finish setup in your EA:</div>
+                <SetupCard account={created} />
+              </>
+            )}
           </div>
         )}
 
@@ -269,7 +287,9 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
               <div className="acct-row-main">
                 <div className="acct-row-label">{a.label}</div>
                 <div className="acct-row-meta">
-                  {a.pending ? (
+                  {a.kind === 'manual' ? (
+                    <span className="acct-badge manual">✎ Manual</span>
+                  ) : a.pending ? (
                     <span className="acct-badge pending">● Waiting for first trade</span>
                   ) : (
                     <span className="acct-badge bound">MT5 {a.mt5_login}</span>
@@ -282,16 +302,18 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
                 <button onClick={() => { setEditId(editId === a.id ? null : a.id); setOpenSetupId(null); }}>
                   {editId === a.id ? 'Close' : 'Edit'}
                 </button>
-                <button onClick={() => { setOpenSetupId(openSetupId === a.id ? null : a.id); setEditId(null); }}>
-                  {openSetupId === a.id ? 'Hide setup' : 'Setup'}
-                </button>
+                {a.kind !== 'manual' && (
+                  <button onClick={() => { setOpenSetupId(openSetupId === a.id ? null : a.id); setEditId(null); }}>
+                    {openSetupId === a.id ? 'Hide setup' : 'Setup'}
+                  </button>
+                )}
                 <button onClick={() => toggleArchive(a)}>{isArchived(a) ? 'Unarchive' : 'Archive'}</button>
                 <button className="danger" onClick={() => remove(a.id)}>Delete</button>
               </div>
               {editId === a.id && (
                 <EditForm account={a} onCancel={() => setEditId(null)} onSaved={() => { setEditId(null); onChanged?.(); }} />
               )}
-              {openSetupId === a.id && <SetupCard account={a} />}
+              {openSetupId === a.id && a.kind !== 'manual' && <SetupCard account={a} />}
             </div>
           ))}
         </div>
