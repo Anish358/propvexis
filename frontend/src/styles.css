@@ -1265,3 +1265,28 @@ label.full { margin-bottom: 14px; }
 .toast-text { font-size: 12px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
 @keyframes toast-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+/* ---- Reports (V1) — composed shareable report + print/CSV export ---- */
+.report-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.report-actions { display: flex; gap: 8px; }
+.report-actions .btn, .report-locked .btn {
+  background: transparent; color: var(--text); border: 1px solid var(--line);
+  padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+}
+.report-actions .btn:hover, .report-locked .btn:hover { border-color: #3a3a42; }
+.report-actions .btn.primary, .report-locked .btn.primary { background: #2e6ad9; color: #fff; border: none; }
+.report-actions .btn.primary:hover, .report-locked .btn.primary:hover { background: #3a78e8; }
+.report-locked { text-align: center; max-width: 520px; margin: 40px auto; }
+.report-locked h3 { margin-bottom: 8px; }
+.report-locked p { margin-bottom: 18px; }
+.report-locked .btn { display: inline-block; text-decoration: none; }
+
+/* Print: strip the app chrome and lay the report out clean on white for Save-as-PDF. */
+@media print {
+  .sidebar, .filterbar, .pagehead, .notif-bell, .toasts, .no-print { display: none !important; }
+  :root { --bg: #fff; --panel: #fff; --text: #111; --muted: #555; --line: #ccc; }
+  body, .shell, .shell-main, .page { background: #fff !important; color: #111 !important; display: block !important; }
+  .shell-main { margin: 0 !important; padding: 0 !important; }
+  .page { padding: 0 !important; }
+  .panel, .kpi, .bd { break-inside: avoid; border-color: #ddd !important; box-shadow: none !important; }
+}
