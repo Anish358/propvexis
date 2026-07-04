@@ -41,6 +41,7 @@ Once MFE is finalized it is never overwritten by a later metric-less send.
 | `InpMfeCheckSecs` | `60` | How often to try finalizing pending MFE (s) |
 | `InpMfeMaxHours`  | `72` | Stop waiting for price to return to breakeven after N hours, then finalize MFE with the peak so far |
 | `InpBackfillDays` | `0` | On startup, send closes missed while the terminal was off, from the last N days. **0 = off** (default), so it never re-dumps pre-install history |
+| `InpEquitySecs`   | `300` | Floating balance/equity snapshot interval (s). **0 = off.** Powers true floating drawdown in Prop OS; derived endpoint `…/api/equity/ingest` (same host, already whitelisted) |
 
 ## Payload it sends
 ```json

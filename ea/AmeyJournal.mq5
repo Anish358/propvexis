@@ -42,6 +42,7 @@ input int    InpMfeMaxHours  = 72;                                         // St
 input int    InpBackfillDays = 0;                                          // On start, backfill closes from last N days (0 = off)
 input int    InpSlCaptureSecs = 120;                                       // Capture the stop loss this many secs after open, then freeze it
 input int    InpCandleChunk  = 300;                                        // Replay candles per POST (chunk size)
+input int    InpEquitySecs   = 300;                                        // Equity snapshot interval (s, 0 = off) — powers floating drawdown
 
 //--- per-open-position tracking (to capture entry/SL while the trade is live)
 struct PosTrack
@@ -88,6 +89,9 @@ ulong    g_payoutSent[];
 //--- trade-replay candles: derived endpoints (server holds the request queue)
 string   g_candleUrl    = "";
 string   g_candleReqUrl = "";
+//--- floating-equity snapshots: derived endpoint + last-sent clock
+string   g_equityUrl    = "";
+datetime g_lastEquity   = 0;
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -105,6 +109,11 @@ int OnInit()
       StringReplace(g_candleUrl, "trades", "candles");
    g_candleReqUrl = g_candleUrl;
    StringReplace(g_candleReqUrl, "/ingest", "/requests");
+   g_equityUrl = InpBackendUrl;
+   if(StringFind(g_equityUrl, "/api/trades/ingest") >= 0)
+      StringReplace(g_equityUrl, "/api/trades/ingest", "/api/equity/ingest");
+   else
+      StringReplace(g_equityUrl, "trades", "equity");
    LoadSent();
    LoadPayoutSent();
    LoadMfeWatch();
@@ -136,6 +145,27 @@ void OnTimer()
 
    if(TimeLocal() - g_lastMfeCheck >= InpMfeCheckSecs)
      { g_lastMfeCheck = TimeLocal(); FinalizePendingMfe(); }
+
+   if(InpEquitySecs > 0 && TimeLocal() - g_lastEquity >= InpEquitySecs)
+     { g_lastEquity = TimeLocal(); SendEquity(); }
+  }
+
+//+------------------------------------------------------------------+
+//| Floating equity snapshot -> /api/equity/ingest. Sampled on a     |
+//| timer so the server can compute true intraday/floating drawdown  |
+//| (not just realized end-of-trade equity). Best-effort: a missed   |
+//| send is fine, the next tick covers it.                           |
+//+------------------------------------------------------------------+
+void SendEquity()
+  {
+   string json = "{";
+   json += "\"account_id\":" + IntegerToString((long)AccountInfoInteger(ACCOUNT_LOGIN)) + ",";
+   json += "\"ts\":"         + IntegerToString((long)TimeGMT()) + ",";
+   json += "\"balance\":"    + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",";
+   json += "\"equity\":"     + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",";
+   json += "\"currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\"";
+   json += "}";
+   PostJson(g_equityUrl, json);
   }
 
 //+------------------------------------------------------------------+

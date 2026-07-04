@@ -87,7 +87,7 @@ export async function createAccount(userId, { label, broker, currency, start_bal
 
 // Update editable metadata on the user's own account.
 export async function updateAccount(userId, id, fields) {
-  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'is_active'];
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'dd_type', 'min_trading_days', 'is_active'];
   const sets = [];
   const params = [];
   for (const f of allowed) {

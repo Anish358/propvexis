@@ -1136,3 +1136,100 @@ label.full { margin-bottom: 14px; }
 .strat-compare-tbl th { color: var(--muted); font-weight: 600; }
 .strat-compare-tbl td:first-child { color: var(--muted); }
 .strat-compare-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Prop OS ─────────────────────────────────────────────────────────────
+   Status is a RESERVED palette (healthy / caution / at-risk) — always paired
+   with a status word + the figures, never colour-alone (green/red is the
+   classic CVD confusion). Each status class sets --status, consumed by fills. */
+.prop-good { --status: #3fb96b; }
+.prop-warn { --status: #e0a23c; }
+.prop-bad  { --status: #e0605a; }
+.prop-na   { --status: var(--muted); }
+.prop-meter.good, .prop-mini.good, .prop-comp.good { --status: #3fb96b; }
+.prop-meter.warn, .prop-mini.warn { --status: #e0a23c; }
+.prop-meter.bad,  .prop-mini.bad  { --status: #e0605a; }
+.prop-meter.na    { --status: var(--muted); }
+.prop-meter-word.good { color: #3fb96b; }
+.prop-meter-word.warn { color: #e0a23c; }
+
+.prop-single-head, .prop-single { display: flex; flex-direction: column; gap: 14px; }
+.prop-single-head { flex-direction: row; align-items: center; gap: 10px; padding: 0 20px; }
+.prop-single-name { color: var(--text); font-weight: 600; }
+
+.prop-phase { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.prop-phase.active { background: #1d2740; color: #cdd9ff; border-color: #2e4570; }
+.prop-phase.good { background: var(--win-bg); color: #6bd58a; border-color: #2e7d46; }
+.prop-phase.bad { background: var(--loss-bg); color: #e0918d; border-color: #5c2424; }
+
+.prop-mode { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.prop-mode.live { background: var(--win-bg); color: #6bd58a; border-color: #2e7d46; }
+
+.prop-breach { margin: 0 20px; background: var(--loss-bg); color: #f0b9b6; border: 1px solid #5c2424; padding: 10px 14px; border-radius: 8px; font-weight: 600; }
+
+.prop-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; padding: 0 20px 20px; }
+.prop-card, .prop-hero { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+
+/* Meters (linear headroom gauges) */
+.prop-meter { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.prop-meter-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.prop-meter-label { color: var(--text); font-weight: 600; font-size: 14px; }
+.prop-meter-word { font-size: 12px; font-weight: 600; color: var(--status); }
+.prop-meter-track { height: 10px; background: #26262b; border-radius: 6px; overflow: hidden; }
+.prop-meter-fill { height: 100%; background: var(--status); border-radius: 6px; transition: width .3s ease; }
+.prop-meter-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.prop-meter-foot .muted { color: var(--muted); }
+
+/* Hero: health gauge + equity + component breakdown */
+.prop-hero { display: flex; gap: 18px; align-items: center; }
+.prop-gauge { --g-track: #26262b; --g-fill: var(--muted); }
+.prop-gauge.good { --g-fill: #3fb96b; }
+.prop-gauge.warn { --g-fill: #e0a23c; }
+.prop-gauge.bad  { --g-fill: #e0605a; }
+.prop-gauge-ring { width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; }
+.prop-gauge-center { width: 80px; height: 80px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; text-align: center; }
+.prop-gauge-score { font-size: 30px; font-weight: 700; color: var(--text); line-height: 1; }
+.prop-gauge-cap { font-size: 10px; letter-spacing: 1px; color: var(--muted); margin-top: 2px; }
+.prop-hero-meta { flex: 1; }
+.prop-hero-equity { font-size: 22px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.prop-components { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.prop-comp { display: flex; align-items: center; gap: 8px; }
+.prop-comp-label { width: 64px; font-size: 12px; }
+.prop-comp-track { flex: 1; height: 6px; background: #26262b; border-radius: 4px; overflow: hidden; }
+.prop-comp-fill { height: 100%; background: var(--muted); border-radius: 4px; }
+
+/* Trading days */
+.prop-card-head { display: flex; justify-content: space-between; align-items: center; color: var(--text); font-weight: 600; font-size: 14px; margin-bottom: 12px; }
+.prop-card-foot { font-size: 12px; margin-top: 10px; }
+.prop-days { display: flex; gap: 6px; flex-wrap: wrap; }
+.prop-day { width: 22px; height: 22px; border-radius: 6px; background: #26262b; border: 1px solid var(--line); }
+.prop-day.done { background: #3fb96b; border-color: #3fb96b; }
+
+/* Controls + rule form */
+.prop-controls { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 20px 24px; align-items: flex-start; }
+.prop-controls .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.prop-controls .btn-ghost:hover { background: #1c1c22; }
+.prop-controls .btn-ghost.danger { color: #e0918d; border-color: #5c2424; }
+.prop-controls .btn-primary { background: #2e6ad9; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.prop-rules-form { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 4px; }
+.prop-rules-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.prop-rules-form input, .prop-rules-form select { background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 8px; }
+.prop-rules-form .btn-primary { align-self: end; }
+.prop-err { color: #e0918d; grid-column: 1 / -1; font-size: 13px; }
+.prop-empty { padding: 40px 20px; color: var(--muted); text-align: center; }
+
+/* God portfolio cards */
+.prop-portfolio { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding: 0 20px 20px; }
+.prop-pcard { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; cursor: pointer; color: var(--text); display: flex; flex-direction: column; gap: 12px; }
+.prop-pcard:hover { border-color: #3a3a44; }
+.prop-pcard-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.prop-pcard-name { font-weight: 600; }
+.prop-pcard-body { display: flex; gap: 14px; align-items: center; }
+.prop-pcard-score { font-size: 28px; font-weight: 700; display: flex; flex-direction: column; line-height: 1; min-width: 56px; }
+.prop-pcard-score span { font-size: 10px; letter-spacing: 1px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+.prop-pcard-score.good { color: #3fb96b; } .prop-pcard-score.warn { color: #e0a23c; } .prop-pcard-score.bad { color: #e0605a; }
+.prop-pcard-meters { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.prop-mini { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.prop-mini span { width: 46px; }
+.prop-mini-track { flex: 1; height: 6px; background: #26262b; border-radius: 4px; overflow: hidden; }
+.prop-mini-fill { height: 100%; background: var(--status); border-radius: 4px; }
+.prop-pcard-breach { font-size: 12px; font-weight: 600; color: #e0918d; }
