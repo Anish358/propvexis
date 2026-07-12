@@ -1,0 +1,24 @@
+# Prometheus scrape config for the Amey Journal backend.
+# Mounted read-only into the prometheus container (see docker-compose.yml).
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # The Node/Fastify backend exposes RED + runtime + pg-pool metrics at /metrics.
+  - job_name: amey-backend
+    metrics_path: /metrics
+    static_configs:
+      # In the compose network the backend is reachable by service name. On the
+      # prod box (backend under pm2, not containerized) change this to
+      # host.docker.internal:3000 or the box's loopback address.
+      - targets: ['backend:3000']
+    # If METRICS_TOKEN is set on the backend, uncomment to scrape with it:
+    # authorization:
+    #   type: Bearer
+    #   credentials: ${METRICS_TOKEN}
+
+  # Prometheus scrapes its own metrics too — handy for meta-monitoring.
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

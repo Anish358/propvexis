@@ -50,6 +50,13 @@ export const config = {
   sentryDsn: process.env.SENTRY_DSN ?? '',
   nodeEnv: process.env.NODE_ENV ?? 'development',
   release: process.env.SENTRY_RELEASE ?? '',
+
+  // ---- Observability (Prometheus metrics) ----
+  // Optional bearer token guarding GET /metrics. Empty = unguarded, which is
+  // safe in prod because the backend binds loopback and Caddy does not proxy
+  // /metrics, so it's reachable only on the box (by a co-located Prometheus).
+  // Set it for defense-in-depth; Prometheus then scrapes with a bearer_token.
+  metricsToken: process.env.METRICS_TOKEN ?? '',
 };
 
 // Fail closed: refuse to start the server in production with the shipped dev

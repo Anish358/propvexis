@@ -53,6 +53,7 @@ import {
   windowRequestStatus,
 } from './candles.js';
 import { computeStats, computeYearly } from './aggregations.js';
+import { registry as metricsRegistry, recordHttp } from './metrics.js';
 import { buildReport, propStatesForScope, reportCsvRows, toCsv } from './reports.js';
 import {
   priceToPips,
@@ -177,6 +178,39 @@ const TAG_FIELDS = [
 app.get('/health', { config: { rateLimit: false } }, async () => {
   await query('SELECT 1');
   return { ok: true };
+});
+
+// ---------------------------------------------------------------------------
+// Prometheus metrics. The onResponse hook feeds the RED metrics (request rate,
+// errors, latency) for every route; /metrics exposes the registry for scraping.
+// The route TEMPLATE (req.routeOptions.url) is used as the label — never the raw
+// URL — so path params don't explode label cardinality. /metrics scrapes itself
+// out to avoid self-referential noise.
+// ---------------------------------------------------------------------------
+app.addHook('onResponse', (req, reply, done) => {
+  const route = req.routeOptions?.url;
+  if (route && route !== '/metrics') {
+    recordHttp({
+      method: req.method,
+      route,
+      statusCode: reply.statusCode,
+      durationMs: reply.elapsedTime,
+    });
+  }
+  done();
+});
+
+app.get('/metrics', { config: { rateLimit: false } }, async (req, reply) => {
+  // Optional bearer-token guard (see config.metricsToken). Off by default; when
+  // set, an unauthenticated scrape gets 401 instead of the metrics payload.
+  if (config.metricsToken) {
+    const auth = req.headers.authorization ?? '';
+    if (auth !== `Bearer ${config.metricsToken}`) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+  }
+  reply.header('Content-Type', metricsRegistry.contentType);
+  return metricsRegistry.metrics();
 });
 
 // ---------------------------------------------------------------------------

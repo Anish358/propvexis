@@ -1,0 +1,15 @@
+# Tells Grafana to load dashboard JSON files from a mounted folder on startup,
+# so the Amey Journal dashboard appears automatically (no manual import).
+apiVersion: 1
+
+providers:
+  - name: amey-journal
+    orgId: 1
+    folder: 'Amey Journal'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

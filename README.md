@@ -83,7 +83,7 @@ Tests gate the release twice: on every PR/`dev` push (fast feedback) and again i
 | **Process mgr** | pm2 |
 | **CI/CD** | GitHub Actions (test-gated auto-deploy on merge to `main`) |
 | **Cloud** | AWS EC2, S3, IAM, Route53, CloudWatch, SNS (ap-south-1) |
-| **Observability** | Sentry (FE + BE), Route53 uptime → CloudWatch → SNS email |
+| **Observability** | Sentry (FE + BE), Prometheus + Grafana (RED metrics), Route53 uptime → CloudWatch → SNS email |
 | **Payments** | Razorpay recurring subscriptions (Pro tier) |
 | **Tests** | `node:test`, CI-gated |
 
@@ -139,6 +139,23 @@ curl localhost:3000/health    # {"ok":true}
 The container image is the packaging artifact; the live deploy currently stays
 rsync + pm2 (see below). Frontend runs separately via `vite`.
 
+### Metrics (Prometheus + Grafana)
+
+The backend exposes Prometheus metrics at `GET /metrics` — RED metrics (request
+rate, error rate, latency histogram) labeled by route template, plus Node
+runtime (CPU, memory, event-loop lag, GC) and `pg` pool saturation. A monitoring
+stack ships under a compose profile so the default stack stays lightweight:
+
+```bash
+docker compose --profile monitoring up -d   # app + Prometheus + Grafana
+# Prometheus → http://localhost:9090
+# Grafana    → http://localhost:3001  (admin / admin) — dashboard auto-provisioned
+```
+
+Grafana auto-loads the Prometheus datasource and the **Amey Journal — Backend**
+dashboard. `/metrics` is unauthenticated by default (safe: the backend binds
+loopback and Caddy does not proxy it); set `METRICS_TOKEN` for a bearer guard.
+
 ## Deployment
 
 Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea` + `frontend/dist`, runs migrations, and restarts pm2. Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process. `.env` lives only on the box (never in the repo or the sync).
@@ -158,8 +175,7 @@ test/           node:test suites (CI-gated)
 ## Roadmap
 
 - **Connector layer** — pluggable trade-sync sources feeding one ingestion seam (CSV/EA free; MetaApi cloud sync + cTrader next), with a horizontally-scaled sync-worker fleet.
-- **Infrastructure as Code** — Terraform for the EC2 / S3 / IAM / Route53 / CloudWatch stack.
-- **Metrics** — Prometheus + Grafana dashboards to complete the observability picture.
+- **Secrets management** — move `.env` off the box into AWS SSM Parameter Store / Secrets Manager, injected at deploy.
 
 ---
 

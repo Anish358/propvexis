@@ -1,0 +1,12 @@
+# Auto-provisioned Prometheus datasource so Grafana works with zero click-ops.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # Fixed uid so the provisioned dashboard can bind to it deterministically.
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
