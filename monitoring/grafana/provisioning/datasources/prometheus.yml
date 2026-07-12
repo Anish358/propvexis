@@ -7,6 +7,9 @@ datasources:
     # Fixed uid so the provisioned dashboard can bind to it deterministically.
     uid: prometheus
     access: proxy
-    url: http://prometheus:9090
+    # Env-driven so the same file works in dev (compose service DNS) and prod
+    # (host networking → loopback). Grafana interpolates $VARS in provisioning
+    # from its own container env; both compose files set PROMETHEUS_URL.
+    url: ${PROMETHEUS_URL}
     isDefault: true
     editable: true

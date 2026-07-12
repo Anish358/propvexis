@@ -1,0 +1,28 @@
+# Prometheus scrape config for PRODUCTION (the EC2 box).
+# Mounted read-only into the prometheus container, which runs with host
+# networking (see docker-compose.monitoring.prod.yml) — so it shares the host's
+# loopback and can scrape the pm2 backend that binds 127.0.0.1:3000. A container
+# on a bridge network could NOT reach a loopback-bound backend, which is why the
+# prod stack uses host networking and this config targets 127.0.0.1 (not a
+# compose service name like the dev prometheus.yml does).
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    env: production
+
+scrape_configs:
+  - job_name: amey-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['127.0.0.1:3000']
+    # /metrics is unauthenticated but only reachable on the box (loopback +
+    # Caddy does not proxy it). If METRICS_TOKEN is ever set on the backend,
+    # uncomment and fill in the token here:
+    # authorization:
+    #   type: Bearer
+    #   credentials: <METRICS_TOKEN>
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']

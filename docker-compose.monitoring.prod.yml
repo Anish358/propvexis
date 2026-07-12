@@ -1,0 +1,49 @@
+# PRODUCTION monitoring stack — Prometheus + Grafana as containers on the EC2
+# box, scraping the pm2 backend (which is NOT containerized in prod). Brought up
+# by scripts/monitoring-up.sh from the deploy pipeline. Independent of the app:
+# the app stays rsync + pm2; only observability is containerized.
+#
+#   docker compose -f docker-compose.monitoring.prod.yml up -d
+#
+# Why host networking: the prod backend binds 127.0.0.1:3000 (loopback only), so
+# a container on a bridge network cannot reach it. Host networking lets
+# Prometheus scrape 127.0.0.1:3000 directly. Both services also bind loopback
+# (127.0.0.1:9090 / :3001) so nothing is exposed to the internet — reach Grafana
+# via an SSH tunnel:  ssh -L 3001:127.0.0.1:3001 <box>  then open localhost:3001.
+name: amey-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./monitoring/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.listen-address=127.0.0.1:9090
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - prometheus
+    environment:
+      # Bind loopback only — access via SSH tunnel, never the public internet.
+      GF_SERVER_HTTP_ADDR: "127.0.0.1"
+      GF_SERVER_HTTP_PORT: "3001"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Host networking → Prometheus is on the same loopback.
+      PROMETHEUS_URL: http://127.0.0.1:9090
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+
+volumes:
+  promdata:
+  grafanadata:

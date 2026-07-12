@@ -64,9 +64,13 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          # App code (no --delete: leaves .env, node_modules, logs on the box untouched)
+          # App code (no --delete: leaves .env, node_modules, logs on the box untouched).
+          # `monitoring/` + the prod monitoring compose ship too so the monitoring
+          # job below can bring up Prometheus/Grafana; scripts/ (incl.
+          # monitoring-up.sh) is already in this list.
           rsync -az -e "ssh -i ~/.ssh/deploy_key" \
             package.json package-lock.json src db scripts ea \
+            monitoring docker-compose.monitoring.prod.yml \
             "$SSH_USER@$SSH_HOST:/opt/amey-journal/"
           # Built UI (--delete clears stale hashed Vite assets)
           rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
@@ -83,3 +87,38 @@ jobs:
             npm install --omit=dev
             node scripts/migrate.js
             pm2 restart amey-backend'
+
+  # Bring up / update the Prometheus + Grafana stack on the box. A SEPARATE job
+  # (needs: deploy) so a monitoring hiccup never marks the app deploy as failed —
+  # the backend is already live by the time this runs. The assets were rsynced by
+  # the deploy job above.
+  monitoring:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          for i in 1 2 3 4 5; do
+            if ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null && [ -s ~/.ssh/known_hosts ]; then
+              echo "known_hosts populated (attempt $i)"
+              break
+            fi
+            echo "ssh-keyscan attempt $i failed; retrying in 5s..."
+            sleep 5
+          done
+          test -s ~/.ssh/known_hosts
+
+      - name: Bring up monitoring stack
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          # Optional GitHub secret; the script defaults to "admin" if unset.
+          GRAFANA_PASSWORD: ${{ secrets.GRAFANA_PASSWORD }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
+            "GRAFANA_PASSWORD='${GRAFANA_PASSWORD}' bash /opt/amey-journal/scripts/monitoring-up.sh"

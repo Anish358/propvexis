@@ -78,6 +78,9 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # Datasource URL used by the provisioned datasource (see provisioning/).
+      # Dev: reach Prometheus by its compose service name on the bridge network.
+      PROMETHEUS_URL: http://prometheus:9090
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
