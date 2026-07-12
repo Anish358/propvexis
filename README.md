@@ -1,102 +1,153 @@
-# Amey Journal — Backend (Step 1)
+# PATIL TRADES — Multi-Tenant Trading Journal SaaS
 
-Ingests closed MT5 trades, stores them in Postgres, and broadcasts them live over
-WebSocket so the (future) frontend updates the instant a trade closes.
+A production, multi-tenant SaaS that ingests closed trades from MetaTrader 5, stores them in PostgreSQL, and serves R-based performance analytics with live updates. Built and operated end-to-end — application, infrastructure, CI/CD, observability, and disaster recovery.
 
+**Live:** https://journal.anishdevlops.xyz
+
+![Node](https://img.shields.io/badge/Node-20-green)
+![Fastify](https://img.shields.io/badge/Fastify-5-black)
+![React](https://img.shields.io/badge/React-18-61dafb)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
+![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF)
+![Deploy](https://img.shields.io/badge/deploy-AWS_EC2-orange)
+
+---
+
+## Runtime architecture
+
+```mermaid
+flowchart LR
+  subgraph clients [Clients]
+    B["Browser SPA<br/>React 18 + Vite"]
+    EA["MT5 Expert Advisor<br/>trader's terminal"]
+  end
+
+  subgraph aws [AWS EC2 · ap-south-1]
+    C["Caddy<br/>auto-HTTPS reverse proxy"]
+    subgraph proc [Node process · pm2]
+      API["Fastify 5<br/>REST API"]
+      WS["Socket.IO<br/>per-user rooms"]
+    end
+    DB[("PostgreSQL 16")]
+  end
+
+  subgraph obs [Observability and DR]
+    SEN["Sentry<br/>errors: FE + BE"]
+    R53["Route53 health check<br/>→ CloudWatch → SNS email"]
+    S3["S3 nightly backups<br/>IAM role · 90d lifecycle"]
+  end
+
+  B -- HTTPS --> C
+  EA -- "HTTPS ingest + per-account token" --> C
+  C -- "/api, /socket.io" --> API
+  C -- static SPA --> B
+  API --> DB
+  API -. "emit trade events" .-> WS
+  WS -- "live push" --> B
+  API -.-> SEN
+  B -.-> SEN
+  R53 -. probes .-> C
+  DB -. "pg_dump" .-> S3
 ```
-[MT5 EA] --HTTPS POST--> /api/trades/ingest --> Postgres --> Socket.IO broadcast --> frontend
+
+## CI/CD pipeline
+
+```mermaid
+flowchart LR
+  A["Push to dev<br/>or PR → main"] --> CI["CI workflow<br/>npm ci + npm test"]
+  CI -- "red ❌ blocks merge" --> STOP[Fix]
+  CI -- green --> M["Merge PR → main<br/>reviewed by human"]
+  M --> D["Deploy workflow"]
+  D --> G["Test gate<br/>npm test"]
+  G --> BF["Build frontend<br/>Vite"]
+  BF --> SY["rsync → EC2"]
+  SY --> MG["Auto-run DB migrations"]
+  MG --> RS["pm2 restart"]
 ```
 
-## Stack
-- **Fastify 5** — HTTP API
-- **Socket.IO** — real-time push to the UI
-- **PostgreSQL** — single `trades` table (Summary/Yearly are aggregations over it, added later)
+Tests gate the release twice: on every PR/`dev` push (fast feedback) and again inside the deploy job (final backstop) — a red test aborts before anything reaches the server.
 
-## Setup
+---
 
-Requires Node 20+ and a reachable Postgres.
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| **API** | Node.js (ESM), Fastify 5, `pg` connection pool |
+| **Real-time** | Socket.IO (cookie-authenticated, per-user rooms) |
+| **Frontend** | React 18, Vite 6, React Router 6, Recharts, lightweight-charts |
+| **Database** | PostgreSQL 16 (composite-indexed, migration-driven) |
+| **Auth** | Google OAuth → JWT in an httpOnly + Secure cookie; per-`user_id` data isolation |
+| **Ingestion** | MetaTrader 5 Expert Advisor (MQL5) → token-authed HTTPS upsert |
+| **Edge** | Caddy (automatic HTTPS / Let's Encrypt), reverse proxy |
+| **Process mgr** | pm2 |
+| **CI/CD** | GitHub Actions (test-gated auto-deploy on merge to `main`) |
+| **Cloud** | AWS EC2, S3, IAM, Route53, CloudWatch, SNS (ap-south-1) |
+| **Observability** | Sentry (FE + BE), Route53 uptime → CloudWatch → SNS email |
+| **Payments** | Razorpay recurring subscriptions (Pro tier) |
+| **Tests** | `node:test`, CI-gated |
+
+---
+
+## DevOps & platform highlights
+
+- **Zero-touch CI/CD** — merge to `main` triggers a test-gated GitHub Actions pipeline: test → build → `rsync` to EC2 → auto-migrate → `pm2` restart. Sub-minute deploys.
+- **Automated disaster recovery** — nightly `pg_dump` (custom format) to local disk **and** S3 via a least-privilege IAM **instance role** (no static keys on the box), 90-day S3 lifecycle expiry, restores verified with `pg_restore`.
+- **Observability** — application error tracking (Sentry, front + back) plus black-box uptime monitoring (Route53 health check → CloudWatch alarm → SNS email) detecting outages within ~90s.
+- **Security hardening** — IP-aware rate limiting behind the reverse proxy (`trustProxy`), fail-closed startup validation of production secrets, HTTPS-only `Secure` cookies, and least-privilege IAM scoping.
+- **Database** — schema managed by an idempotent migration runner; composite indexes tuned for the hot scoped-and-ordered query paths (verified with `EXPLAIN`).
+- **Multi-tenancy** — every query scoped by `user_id`; open self-serve Google signup gated behind an explicit flag.
+
+---
+
+## Features
+
+- Live trade feed from MT5 (idempotent upsert; safe on EA retries/reconnects).
+- R-based analytics: strike rate, expectancy, profit factor, equity curve, R-distribution, MFE efficiency, breakdowns by setup / session / instrument / day / week / month.
+- **Prop Engine** — challenge tracking (drawdown / profit-target / trading-day rules) with equity snapshots and in-app breach / proximity / milestone alerts.
+- Payout tracking, trade replay (M1 candles), CSV & manual entry, composed print/CSV reports.
+- Free / Pro / Premium plans (Razorpay); god-view across all of a user's accounts.
+
+---
+
+## Local development
+
+Requires Node 20+ and a reachable PostgreSQL 16.
 
 ```bash
+# Backend
 npm install
-cp .env.example .env        # then edit values
-npm run db:setup            # creates the DB (if missing) + applies db/schema.sql
-npm run dev                 # starts the server on $PORT (default 3000)
+cp .env.example .env          # set DATABASE_URL, GOOGLE_CLIENT_ID, SESSION_SECRET, INGEST_TOKEN
+npm run db:migrate            # apply migrations
+npm run dev                   # http://localhost:3000
+npm test                      # node:test suite
+
+# Frontend
+cd frontend && npm install && npm run dev   # Vite dev server, proxies /api → :3000
 ```
 
-### Local Postgres note (this machine)
-Port 5432 is taken by an EnterpriseDB PostgreSQL 17 install (password-protected).
-For development we run the Homebrew `postgresql@16` cluster (trust auth) on **5433**:
+## Deployment
 
-```bash
-/opt/homebrew/opt/postgresql@16/bin/pg_ctl \
-  -D /opt/homebrew/var/postgresql@16 -o "-p 5433" \
-  -l /opt/homebrew/var/postgresql@16/server-5433.log start
+Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea` + `frontend/dist`, runs migrations, and restarts pm2. Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process. `.env` lives only on the box (never in the repo or the sync).
+
+## Project structure
+
+```
+src/            Fastify API, Socket.IO, auth, scoping, analytics, money-math, Sentry init
+db/             base schema + incremental migrations (runner: scripts/migrate.js)
+frontend/       React + Vite SPA
+ea/             MQL5 Expert Advisor (MT5 ingestion client)
+scripts/        migrate, backup (pg_dump → S3), import, smoke tests
+test/           node:test suites (CI-gated)
+.github/        ci.yml (PR/dev tests) + deploy.yml (test-gated auto-deploy)
 ```
 
-`.env` is already pointed at `postgres://floki@127.0.0.1:5433/amey_journal`.
+## Roadmap
 
-## Endpoints
+- **Connector layer** — pluggable trade-sync sources feeding one ingestion seam (CSV/EA free; MetaApi cloud sync + cTrader next), with a horizontally-scaled sync-worker fleet.
+- **Infrastructure as Code** — Terraform for the EC2 / S3 / IAM / Route53 / CloudWatch stack.
+- **Metrics** — Prometheus + Grafana dashboards to complete the observability picture.
 
-| Method | Path                  | Auth                | Purpose |
-|--------|-----------------------|---------------------|---------|
-| GET    | `/health`             | —                   | liveness + DB check |
-| POST   | `/api/trades/ingest`  | `X-Ingest-Token`    | EA pushes a closed trade (idempotent upsert by `account_id`+`mt5_ticket`) |
-| GET    | `/api/trades`         | —                   | list newest first; `?tagged=true|false&limit=N` |
-| PATCH  | `/api/trades/:id`     | —                   | tag discretionary fields (setup, probability, mtf_phase, urls, comments) |
-| GET    | `/api/stats`          | —                   | dashboard analytics: headline KPIs + breakdowns + equity curve + R-distribution + MFE efficiency |
-| GET    | `/api/yearly`         | —                   | `?year=YYYY` monthly performance overall + per strategy |
+---
 
-### Ingest payload (from the EA)
-Required: `mt5_ticket, account_id, symbol, direction, open_time, close_time, entry_price, exit_price`.
-Optional: `sl_price, tp_price, volume, commission, pnl_money, sl_size_pips, mfe_pips, session`.
-
-The backend fills gaps it can derive (see `src/derive.js`):
-- **session** from `open_time` (UTC-hour heuristic; user can override when tagging)
-- **sl_size_pips** from `|entry - sl|` if the EA didn't send it
-- **max_r** = `mfe_pips / sl_size_pips`
-- **fixed_r** = realized R multiple from entry/sl/exit
-
-> The EA is the authoritative source for pip-based values (it knows each symbol's
-> tick size). The derived fallbacks use a pip-size table in `src/derive.js` — adjust
-> `XAUUSD` etc. there if needed.
-
-### Idempotency
-Re-sending the same `(account_id, mt5_ticket)` **updates mechanical fields but never
-overwrites the user's tags**. Safe for EA retries / reconnects.
-
-## Real-time events
-Socket.IO emits on every change — the frontend subscribes to these:
-- `trade:upserted` — new/updated trade from ingest
-- `trade:updated`  — trade after tagging
-
-## Smoke test
-With the server running:
-```bash
-npm run smoke         # connects a WS client, POSTs a sample trade, confirms the broadcast
-npm run test:ea       # POSTs the exact EA payload shape, checks derived pips/R
-npm run import:sheet  # import historical trades from the Google Sheet "Trades" tab
-```
-
-## Project layout
-```
-db/schema.sql            trades table, indexes, updated_at trigger
-db/migrations/           incremental schema changes (symbol_base, import source)
-src/config.js            env config
-src/db.js                pg pool
-src/derive.js            session / pips / R / symbol normalization
-src/aggregations.js      dashboard analytics (summary + yearly)
-src/server.js            Fastify + Socket.IO + routes
-scripts/setup-db.js      create DB + apply schema
-scripts/smoke-ingest.js  end-to-end smoke test
-scripts/test-ea-payload.js  EA JSON contract test
-scripts/import-sheet.js  import historical trades from Google Sheet
-ea/                      MQL5 Expert Advisor (see ea/README.md)
-frontend/                React UI: live trades grid + dashboards (see frontend/README.md)
-```
-
-## Status
-- ✅ Backend ingest + WebSocket, EA (with offline backfill), live trades UI, tagging.
-- ✅ Historical import (39 trades) + Summary/Yearly dashboards — reconciled to the sheet.
-- ⏳ Deploy: see `DEPLOY.md` (single AWS Linux box, Mumbai).
-- ⏳ Expectancy formula: currently standard `total R / trades`; swap to match the sheet's
-  `0.54` once the exact cell formula is confirmed (one line in `src/aggregations.js`).
+*Solo-built full-stack + DevOps project.*
