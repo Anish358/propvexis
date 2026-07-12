@@ -39,8 +39,20 @@ index loads each session; detail files are recalled on relevance). **Update
 memory after each feature/fix.** Don't duplicate that history here — this file is
 for stable facts only.
 
-## Direction (next)
-Public SaaS. Next up: **connector layer** — pluggable trade-sync sources feeding
-the existing `POST /api/trades/ingest` seam (CSV/EA free, MetaApi paid). Build
-plan-first; run `/security-review` on any credential handling. Docker + a sync-
-worker fleet come bundled with MetaApi, later.
+## Direction (roadmap)
+**The roadmap is governed by `Plan.md`** (the Prop Trader OS master plan: 13 phases
++ MVP/Beta/V1/V2 milestones, kept in the repo root but UNtracked from git). All
+work follows Plan.md phase by phase; MVP + Beta + V1 are done. We **extend the
+current Node/Fastify + React stack** — Plan.md's suggested greenfield stack
+(Next.js/FastAPI/etc.) is treated as vision only, not a rewrite. Work plan-first,
+one phase/feature at a time; add a test with each; run `/security-review` on any
+credential handling.
+
+- **Now: polishing Phase 6 (Prop Engine).** Current feature = **prop-firm rule
+  templates** — a catalog of prop firms + sizes (e.g. GoatFundedTrader 25K, FTMO
+  100K) that pre-fills a challenge's rules (DD %, profit target, trading days)
+  instead of manual per-account entry.
+- **Later: Phase 5 (Integrations) — the connector layer.** Pluggable trade-sync
+  sources feeding the existing `POST /api/trades/ingest` seam (CSV/EA free today;
+  MetaApi cloud sync + cTrader Open API next). Docker + a sync-worker fleet come
+  bundled with MetaApi.
