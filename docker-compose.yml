@@ -1,0 +1,50 @@
+# Local dev/prod-parity stack: PostgreSQL + the containerized backend.
+# Mirrors production (Node app + native Postgres) without touching the live
+# deploy (which stays rsync + pm2). Frontend runs separately via `vite`.
+#
+#   docker compose up --build      # build + start
+#   curl localhost:3000/health     # {"ok":true}
+#
+# No secrets are committed here — credentials come from the environment (or the
+# benign local defaults below). Override by exporting the vars or via a local
+# .env file (compose auto-loads it): SESSION_SECRET, INGEST_TOKEN, etc.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-amey}
+      POSTGRES_DB: ${POSTGRES_DB:-amey_journal}
+      # Local throwaway DB: trust auth = no password needed, so no password
+      # literal is committed (prod Postgres is separate and password-protected).
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432" # matches the local dev convention (host 5433)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-amey} -d ${POSTGRES_DB:-amey_journal}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development # local: skips prod fail-closed + Secure cookies (no HTTPS locally)
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-amey}@db:5432/${POSTGRES_DB:-amey_journal}
+      SESSION_SECRET: ${SESSION_SECRET:-local-development-only}
+      INGEST_TOKEN: ${INGEST_TOKEN:-local-development-only}
+      OPEN_SIGNUP: "true"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-} # set to test real Google login
+    ports:
+      - "3000:3000"
+    # Initialize schema + run migrations, then start (setup-db.js is idempotent).
+    command: sh -c "node scripts/setup-db.js && node scripts/migrate.js && node src/server.js"
+
+volumes:
+  pgdata:

@@ -1,0 +1,15 @@
+# Keep the build context small + avoid leaking local/secret files into the image.
+node_modules
+frontend
+terraform
+test
+.git
+.github
+.claude
+.env
+.env.*
+*.md
+Plan.md
+backups
+npm-debug.log*
+.DS_Store
