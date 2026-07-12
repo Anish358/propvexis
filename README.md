@@ -126,6 +126,19 @@ npm test                      # node:test suite
 cd frontend && npm install && npm run dev   # Vite dev server, proxies /api → :3000
 ```
 
+## Run with Docker
+
+Containerized backend + PostgreSQL for dev/prod parity (production `Dockerfile`
+is multi-stage, non-root, `tini` init, with a `/health` HEALTHCHECK):
+
+```bash
+docker compose up --build     # starts Postgres + backend, runs schema + migrations
+curl localhost:3000/health    # {"ok":true}
+```
+
+The container image is the packaging artifact; the live deploy currently stays
+rsync + pm2 (see below). Frontend runs separately via `vite`.
+
 ## Deployment
 
 Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea` + `frontend/dist`, runs migrations, and restarts pm2. Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process. `.env` lives only on the box (never in the repo or the sync).
