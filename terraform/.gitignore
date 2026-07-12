@@ -1,0 +1,12 @@
+# Terraform state contains secrets/attributes — never commit it.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Real variable values (may contain your IP / bucket names) — keep local.
+*.tfvars
+!*.tfvars.example
+
+# The lock file SHOULD be committed (pins provider versions) — do not ignore it.
