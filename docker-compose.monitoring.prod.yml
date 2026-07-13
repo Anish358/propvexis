@@ -7,9 +7,11 @@
 #
 # Why host networking: the prod backend binds 127.0.0.1:3000 (loopback only), so
 # a container on a bridge network cannot reach it. Host networking lets
-# Prometheus scrape 127.0.0.1:3000 directly. Both services also bind loopback
-# (127.0.0.1:9090 / :3001) so nothing is exposed to the internet — reach Grafana
-# via an SSH tunnel:  ssh -L 3001:127.0.0.1:3001 <box>  then open localhost:3001.
+# Prometheus scrape 127.0.0.1:3000 directly. Both services still bind loopback
+# (Prometheus 127.0.0.1:9090, Grafana 127.0.0.1:3001) — they are NOT exposed on
+# the public interface. Grafana is published at https://grafana.anishdevlops.xyz
+# by the on-box Caddy, which reverse-proxies :443 → 127.0.0.1:3001 and terminates
+# TLS (see monitoring/caddy/grafana.caddy). Grafana's own login gates access.
 name: amey-monitoring
 
 services:
@@ -32,11 +34,24 @@ services:
     depends_on:
       - prometheus
     environment:
-      # Bind loopback only — access via SSH tunnel, never the public internet.
+      # Bind loopback only; Caddy (on the box) fronts it on :443. Grafana never
+      # listens on the public interface — the only way in is via Caddy + login.
       GF_SERVER_HTTP_ADDR: "127.0.0.1"
       GF_SERVER_HTTP_PORT: "3001"
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Public URL Grafana serves under, so redirects / share links / the login
+      # cookie domain are correct behind the TLS-terminating reverse proxy.
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://grafana.anishdevlops.xyz}
+      GF_SERVER_DOMAIN: ${GRAFANA_DOMAIN:-grafana.anishdevlops.xyz}
+      # ---- Auth hardening (now internet-facing) ----
+      # Fail closed on a missing/empty password is enforced by monitoring-up.sh,
+      # which refuses to run unless GRAFANA_PASSWORD is set — so this never boots
+      # with an empty admin password on the public internet. (Kept as a plain
+      # ${VAR} reference, no inline default, so secret scanners don't misread it.)
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"   # no self-registration
+      GF_AUTH_ANONYMOUS_ENABLED: "false" # require login for everything
+      GF_SECURITY_COOKIE_SECURE: "true" # session cookie only over HTTPS
+      GF_SECURITY_COOKIE_SAMESITE: "strict"
       # Host networking → Prometheus is on the same loopback.
       PROMETHEUS_URL: http://127.0.0.1:9090
     volumes:

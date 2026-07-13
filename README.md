@@ -156,6 +156,20 @@ Grafana auto-loads the Prometheus datasource and the **Amey Journal — Backend*
 dashboard. `/metrics` is unauthenticated by default (safe: the backend binds
 loopback and Caddy does not proxy it); set `METRICS_TOKEN` for a bearer guard.
 
+**In production** the stack runs as containers on the EC2 box (host networking,
+so Prometheus scrapes the loopback-bound backend) and is brought up automatically
+by the deploy pipeline (`docker-compose.monitoring.prod.yml` via a separate
+`monitoring` job). Grafana is published at **https://grafana.anishdevlops.xyz**,
+fronted by Caddy (TLS) and gated by Grafana's own login — it binds `127.0.0.1`
+only, so Caddy is the sole path in. Set the `GRAFANA_PASSWORD` GitHub secret for
+the admin login. Two **one-time** setup steps (not auto-deployed, since DNS and
+the on-box Caddyfile live outside this repo):
+
+1. **DNS** — add an A record `grafana.anishdevlops.xyz` → the box's Elastic IP.
+2. **Caddy** — add the site block from [`monitoring/caddy/grafana.caddy`](monitoring/caddy/grafana.caddy)
+   to the box's `/etc/caddy/Caddyfile` (or `import` the shipped copy), then
+   `sudo systemctl reload caddy`.
+
 ## Deployment
 
 Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea` + `frontend/dist`, runs migrations, and restarts pm2. Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process. `.env` lives only on the box (never in the repo or the sync).

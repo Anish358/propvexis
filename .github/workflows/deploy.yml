@@ -117,7 +117,8 @@ jobs:
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
-          # Optional GitHub secret; the script defaults to "admin" if unset.
+          # Required: Grafana is internet-facing, so monitoring-up.sh fails
+          # closed if this GitHub secret is empty (no default-password fallback).
           GRAFANA_PASSWORD: ${{ secrets.GRAFANA_PASSWORD }}
         run: |
           ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
