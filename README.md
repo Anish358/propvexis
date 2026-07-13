@@ -166,9 +166,14 @@ the admin login. Two **one-time** setup steps (not auto-deployed, since DNS and
 the on-box Caddyfile live outside this repo):
 
 1. **DNS** — add an A record `grafana.anishdevlops.xyz` → the box's Elastic IP.
-2. **Caddy** — add the site block from [`monitoring/caddy/grafana.caddy`](monitoring/caddy/grafana.caddy)
-   to the box's `/etc/caddy/Caddyfile` (or `import` the shipped copy), then
-   `sudo systemctl reload caddy`.
+2. **Caddy** — `import` the shipped copy by adding
+   `import /opt/amey-journal/monitoring/caddy/grafana.caddy` to the box's
+   `/etc/caddy/Caddyfile`, then `sudo systemctl reload caddy`.
+
+After that, edits to [`monitoring/caddy/grafana.caddy`](monitoring/caddy/grafana.caddy)
+are hands-off: the deploy's `monitoring` job runs `scripts/caddy-reload-if-changed.sh`,
+which validates and reloads Caddy **only when the snippet's content changed**
+(tracked by a hash stamp) — a no-op on every other deploy.
 
 ## Deployment
 

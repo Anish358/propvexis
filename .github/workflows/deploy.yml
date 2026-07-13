@@ -123,3 +123,13 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
             "GRAFANA_PASSWORD='${GRAFANA_PASSWORD}' bash /opt/amey-journal/scripts/monitoring-up.sh"
+
+      # Reload Caddy only if the Grafana site block changed this deploy (the
+      # rsync above ships monitoring/ but does not touch Caddy). No-op otherwise.
+      - name: Reload Caddy if Grafana site block changed
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
+            "bash /opt/amey-journal/scripts/caddy-reload-if-changed.sh"
