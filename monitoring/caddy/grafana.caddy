@@ -1,0 +1,21 @@
+# Caddy site block publishing Grafana at https://grafana.anishdevlops.xyz.
+# Caddy auto-provisions a Let's Encrypt certificate (ports 80/443 are already
+# open to the world in the security group) and reverse-proxies to the
+# loopback-bound Grafana container. Grafana handles its own auth (login page).
+#
+# One-time install on the box (the app deploy does NOT edit the on-box Caddyfile
+# — it lives on the server, not in this repo). Either paste this block into
+# /etc/caddy/Caddyfile, or import the shipped copy by adding this line to the
+# Caddyfile:
+#
+#     import /opt/amey-journal/monitoring/caddy/grafana.caddy
+#
+# then reload:  sudo systemctl reload caddy   (or: sudo caddy reload --config /etc/caddy/Caddyfile)
+#
+# DNS prerequisite: an A record grafana.anishdevlops.xyz → the box's Elastic IP
+# must exist and have propagated before Caddy can obtain the certificate.
+
+grafana.anishdevlops.xyz {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3001
+}
