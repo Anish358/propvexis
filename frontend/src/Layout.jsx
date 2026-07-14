@@ -8,7 +8,7 @@ import { NotificationBell, Toasts } from './Notifications.jsx';
 // The display unit and data filters come from the active scope's ViewConfig
 // (owned by App); they are no longer derived from the selected account.
 export default function Layout({
-  trades, account, accounts, payouts, reloadPayouts, accountId, setAccountId, reloadAccounts,
+  trades, account, accounts, payouts, reloadPayouts, fees, reloadFees, accountId, setAccountId, reloadAccounts,
   strategies, reloadStrategies, reloadTrades,
   notifications, unread, markAllNotificationsRead, toasts, dismissToast,
   connected, flashId, saveTrade, removeTrade, addManualTrade,
@@ -43,7 +43,7 @@ export default function Layout({
           patchFilters={patchFilters}
           clearFilters={clearFilters}
         />
-        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
+        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>
     </div>
   );

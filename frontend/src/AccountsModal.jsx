@@ -181,6 +181,8 @@ const toPayload = (v) => ({
   payout_split_pct: numOrNull(v.payout_split_pct),
   dd_type: v.dd_type || 'static',
   min_trading_days: numOrNull(v.min_trading_days),
+  firm_id: v.firm_id || null,
+  firm_name: v.firm_name || null,
 });
 
 const formFrom = (a) => ({
@@ -192,6 +194,8 @@ const formFrom = (a) => ({
   payout_split_pct: a?.payout_split_pct ?? '',
   dd_type: a?.dd_type || 'static',
   min_trading_days: a?.min_trading_days ?? '',
+  firm_id: a?.firm_id ?? null,
+  firm_name: a?.firm_name ?? null,
 });
 
 // Merge a template's resolved fields (numbers/nulls from templateToFields) into
@@ -206,6 +210,8 @@ const applyTemplateToForm = (prev, fields) => ({
   payout_split_pct: fields.payout_split_pct ?? '',
   dd_type: fields.dd_type ?? 'static',
   min_trading_days: fields.min_trading_days ?? '',
+  firm_id: fields.firm_id ?? null,
+  firm_name: fields.firm_name ?? null,
 });
 
 // Inline editor for an existing account's prop-firm config.

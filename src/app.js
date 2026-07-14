@@ -23,6 +23,8 @@ import {
   ownedAccountByLogin,
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
+import { listFees, createFee, deleteFee, FEE_TYPES } from './fees.js';
+import { financeSummary } from './finance.js';
 import { phasePassedAlert } from './alerts.js';
 import { evaluateAccountAlerts, insertNotifications, listNotifications, markRead } from './notifications.js';
 import {
@@ -1037,6 +1039,42 @@ app.delete('/api/payouts/:id', { preHandler: app.requireAuth }, async (req, repl
   return { id: Number(req.params.id), deleted: true };
 });
 
+// ---------------------------------------------------------------------------
+// Fees — money OUT: evaluation / reset / activation fees paid to a prop firm.
+// The mirror of payouts; together they drive the Prop OS finance summary (true
+// ROI). Scoped like payouts; manual entry only for now.
+// ---------------------------------------------------------------------------
+app.get('/api/fees', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  return listFees(scope.logins);
+});
+
+app.post('/api/fees', { preHandler: app.requireAuth }, async (req, reply) => {
+  const b = req.body ?? {};
+  const login = Number(b.account_id);
+  const acct = Number.isNaN(login) ? null : await ownedAccountByLogin(req.user.uid, login);
+  if (!acct) return reply.code(404).send({ error: 'account not found' });
+
+  const amount = Number(b.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return reply.code(400).send({ error: 'amount must be a positive number' });
+  const feeType = FEE_TYPES.includes(b.fee_type) ? b.fee_type : 'evaluation';
+  const when = b.fee_date ? new Date(b.fee_date) : new Date();
+  if (isNaN(when.getTime())) return reply.code(400).send({ error: 'invalid fee_date' });
+
+  const fee = await createFee(req.user.uid, {
+    account_id: login, fee_date: when.toISOString(), amount, fee_type: feeType, note: b.note,
+  });
+  io.to(`acct:${login}`).emit('fee:updated', { account_id: login });
+  return reply.code(201).send(fee);
+});
+
+app.delete('/api/fees/:id', { preHandler: app.requireAuth }, async (req, reply) => {
+  const ok = await deleteFee(req.user.uid, Number(req.params.id));
+  if (!ok) return reply.code(404).send({ error: 'fee not found' });
+  return { id: Number(req.params.id), deleted: true };
+});
+
 // EA ingest: a withdrawal auto-detected from an MT5 balance operation (a
 // DEAL_TYPE_BALANCE deal with negative profit). Token-authed like the trade
 // ingest; idempotent by (account_id, deal_ticket) via recordEaPayout's upsert.
@@ -1114,6 +1152,21 @@ app.get('/api/prop', { preHandler: app.requireAuth }, async (req, reply) => {
   if (!scope) return reply.code(403).send({ error: 'account not found' });
   // Shared with the report composition (src/reports.js) — one bulk-fetch + build.
   return propStatesForScope(scope);
+});
+
+// Finance summary for the scope: Total spent (fees) vs earned (payouts) → Net,
+// ROI %, plus a by-firm breakdown. Powers the Prop OS Overview finance band.
+app.get('/api/prop/finance', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  const [payouts, fees, accounts] = await Promise.all([
+    listPayouts(scope.logins),
+    listFees(scope.logins),
+    listAccounts(req.user.uid),
+  ]);
+  // Restrict firm-attribution accounts to the scope's logins.
+  const inScope = accounts.filter((a) => scope.logins.includes(a.mt5_login));
+  return financeSummary({ payouts, fees, accounts: inScope });
 });
 
 // Challenge phase history for one owned account (the phase timeline).
