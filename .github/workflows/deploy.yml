@@ -85,6 +85,11 @@ jobs:
           ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" 'set -e
             cd /opt/amey-journal
             npm install --omit=dev
+            # The migrate script is a standalone process (not pm2), so it needs the
+            # same bootstrap env pm2 gets — chiefly SSM_PREFIX, which tells the
+            # secrets loader to hydrate DATABASE_URL et al. from SSM. Source it from
+            # the SAME ecosystem file pm2 uses (single source of truth), then run.
+            export $(node -e "const e=require(\"./ecosystem.config.cjs\").apps[0].env; console.log(Object.entries(e).map(([k,v])=>k+\"=\"+v).join(\" \"))")
             node scripts/migrate.js
             # startOrReload applies the bootstrap env (SSM_PREFIX etc.) from the
             # version-controlled ecosystem file, so it survives fresh starts and
