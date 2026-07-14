@@ -3,6 +3,48 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { createAccount, updateAccount, deleteAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from './api.js';
 import { useAuth } from './AuthContext.jsx';
+import { PROP_FIRMS, findFirm, templateToFields } from './propFirms.js';
+
+// Human size label: 50000 -> "50K".
+const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : String(n));
+
+// Prop-firm template picker: choose firm → size → phase, then Apply to pre-fill
+// the rule fields below (all still editable). Catalog lives in propFirms.js.
+// onApply(fields, suggestedLabel) — suggestedLabel is used only by the add form.
+function TemplatePicker({ onApply }) {
+  const [firmId, setFirmId] = useState('');
+  const [size, setSize] = useState('');
+  const [phaseId, setPhaseId] = useState('');
+  const firm = findFirm(firmId);
+
+  const pickFirm = (id) => { setFirmId(id); setSize(''); setPhaseId(''); };
+  const ready = firm && size !== '' && phaseId !== '';
+  const apply = () => {
+    const fields = templateToFields(firmId, Number(size), phaseId);
+    if (fields) onApply(fields, `${firm.name} ${sizeLabel(size)}`);
+  };
+
+  return (
+    <div className="acct-template">
+      <div className="acct-template-head">Prefill from a prop firm <span className="acct-template-opt">(optional)</span></div>
+      <div className="acct-template-row">
+        <select value={firmId} onChange={(e) => pickFirm(e.target.value)} aria-label="Prop firm">
+          <option value="">Firm…</option>
+          {PROP_FIRMS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+        <select value={size} onChange={(e) => setSize(e.target.value)} disabled={!firm} aria-label="Account size">
+          <option value="">Size…</option>
+          {firm?.sizes.map((s) => <option key={s} value={s}>{sizeLabel(s)}</option>)}
+        </select>
+        <select value={phaseId} onChange={(e) => setPhaseId(e.target.value)} disabled={!firm} aria-label="Phase">
+          <option value="">Phase…</option>
+          {firm?.phases.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <button type="button" className="acct-template-apply" onClick={apply} disabled={!ready}>Apply</button>
+      </div>
+    </div>
+  );
+}
 
 // EA attach (a synced MT5 account) is a Pro+ feature. Free users see an upgrade
 // prompt instead of the add-account form. The backend enforces the real cap;
@@ -101,6 +143,17 @@ function PropFields({ v, set }) {
         <span>Max DD (%)</span>
         <input type="number" step="0.1" value={v.max_dd_pct} onChange={(e) => set('max_dd_pct', e.target.value)} placeholder="10" />
       </label>
+      <label>
+        <span>DD type</span>
+        <select value={v.dd_type} onChange={(e) => set('dd_type', e.target.value)}>
+          <option value="static">Static (balance floor)</option>
+          <option value="trailing">Trailing</option>
+        </select>
+      </label>
+      <label>
+        <span>Min trading days</span>
+        <input type="number" step="1" value={v.min_trading_days} onChange={(e) => set('min_trading_days', e.target.value)} placeholder="0" />
+      </label>
       {v.account_type === 'eval' && (
         <label>
           <span>Profit target (%)</span>
@@ -118,13 +171,16 @@ function PropFields({ v, set }) {
 }
 
 // Turn form strings into the numeric/typed payload the API expects.
+const numOrNull = (s) => (s === '' || s == null ? null : Number(s));
 const toPayload = (v) => ({
   account_type: v.account_type,
-  start_balance: v.start_balance === '' ? null : Number(v.start_balance),
-  daily_dd_pct: v.daily_dd_pct === '' ? null : Number(v.daily_dd_pct),
-  max_dd_pct: v.max_dd_pct === '' ? null : Number(v.max_dd_pct),
-  profit_target_pct: v.profit_target_pct === '' ? null : Number(v.profit_target_pct),
-  payout_split_pct: v.payout_split_pct === '' ? null : Number(v.payout_split_pct),
+  start_balance: numOrNull(v.start_balance),
+  daily_dd_pct: numOrNull(v.daily_dd_pct),
+  max_dd_pct: numOrNull(v.max_dd_pct),
+  profit_target_pct: numOrNull(v.profit_target_pct),
+  payout_split_pct: numOrNull(v.payout_split_pct),
+  dd_type: v.dd_type || 'static',
+  min_trading_days: numOrNull(v.min_trading_days),
 });
 
 const formFrom = (a) => ({
@@ -134,6 +190,22 @@ const formFrom = (a) => ({
   max_dd_pct: a?.max_dd_pct ?? '',
   profit_target_pct: a?.profit_target_pct ?? '',
   payout_split_pct: a?.payout_split_pct ?? '',
+  dd_type: a?.dd_type || 'static',
+  min_trading_days: a?.min_trading_days ?? '',
+});
+
+// Merge a template's resolved fields (numbers/nulls from templateToFields) into
+// the string-based form state; null → '' so inputs stay controlled.
+const applyTemplateToForm = (prev, fields) => ({
+  ...prev,
+  account_type: fields.account_type,
+  start_balance: fields.start_balance ?? '',
+  daily_dd_pct: fields.daily_dd_pct ?? '',
+  max_dd_pct: fields.max_dd_pct ?? '',
+  profit_target_pct: fields.profit_target_pct ?? '',
+  payout_split_pct: fields.payout_split_pct ?? '',
+  dd_type: fields.dd_type ?? 'static',
+  min_trading_days: fields.min_trading_days ?? '',
 });
 
 // Inline editor for an existing account's prop-firm config.
@@ -152,6 +224,7 @@ function EditForm({ account, onSaved, onCancel }) {
   }
   return (
     <div className="acct-edit">
+      <TemplatePicker onApply={(fields) => setV((p) => applyTemplateToForm(p, fields))} />
       <PropFields v={v} set={set} />
       <div className="acct-edit-actions">
         <button onClick={onCancel}>Cancel</button>
@@ -260,6 +333,10 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
               />
               <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
             </div>
+            <TemplatePicker onApply={(fields, suggested) => {
+              setV((p) => applyTemplateToForm(p, fields));
+              if (!label.trim() && suggested) setLabel(suggested);
+            }} />
             <PropFields v={v} set={set} />
             {err && <div className="login-error">{err}</div>}
           </form>

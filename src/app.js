@@ -933,9 +933,9 @@ app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) =>
       return reply.code(402).send({ error: `Your plan allows up to ${limit} manual accounts` });
     }
   }
-  const { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct } = req.body ?? {};
+  const { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days } = req.body ?? {};
   const acct = await createAccount(req.user.uid, {
-    label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, kind,
+    label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, kind,
   });
   // Every account tracks an active challenge from the moment it exists, so the
   // Prop OS module has state to show (seeded from the account's rule template).

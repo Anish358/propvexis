@@ -334,6 +334,22 @@ label.full { margin-bottom: 14px; }
 
 /* ---- account modal: prop config ---- */
 .acct-badge.type { background: #1c1c33; color: #b9b2ff; margin-left: 6px; }
+/* Prop-firm template picker (catalog in propFirms.js) */
+.acct-template { margin-top: 12px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; background: var(--surface-hover); }
+.acct-template-head { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.acct-template-opt { opacity: .7; }
+.acct-template-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.acct-template-row select {
+  flex: 1; min-width: 88px; background: #0c0c0f; border: 1px solid var(--line);
+  color: var(--text); border-radius: 8px; padding: 7px 9px; font-size: 13px;
+}
+.acct-template-row select:disabled { opacity: .5; }
+.acct-template-apply {
+  background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent);
+  border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.acct-template-apply:disabled { opacity: .5; cursor: default; }
+
 .acct-prop { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 10px; margin-top: 12px; }
 .acct-prop label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
 .acct-prop input, .acct-prop select {
