@@ -69,7 +69,7 @@ jobs:
           # job below can bring up Prometheus/Grafana; scripts/ (incl.
           # monitoring-up.sh) is already in this list.
           rsync -az -e "ssh -i ~/.ssh/deploy_key" \
-            package.json package-lock.json src db scripts ea \
+            package.json package-lock.json ecosystem.config.cjs src db scripts ea \
             monitoring docker-compose.monitoring.prod.yml \
             "$SSH_USER@$SSH_HOST:/opt/amey-journal/"
           # Built UI (--delete clears stale hashed Vite assets)
@@ -86,7 +86,11 @@ jobs:
             cd /opt/amey-journal
             npm install --omit=dev
             node scripts/migrate.js
-            pm2 restart amey-backend'
+            # startOrReload applies the bootstrap env (SSM_PREFIX etc.) from the
+            # version-controlled ecosystem file, so it survives fresh starts and
+            # reboots. pm2 save persists the process list for reboot resurrection.
+            pm2 startOrReload ecosystem.config.cjs --update-env
+            pm2 save'
 
   # Bring up / update the Prometheus + Grafana stack on the box. A SEPARATE job
   # (needs: deploy) so a monitoring hiccup never marks the app deploy as failed —

@@ -177,7 +177,7 @@ which validates and reloads Caddy **only when the snippet's content changed**
 
 ## Deployment
 
-Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea` + `frontend/dist`, runs migrations, and restarts pm2. Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process.
+Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea ecosystem.config.cjs` + `frontend/dist`, runs migrations, and reloads pm2 via `startOrReload ecosystem.config.cjs` (which applies the version-controlled bootstrap env). Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process.
 
 ### Secrets (AWS SSM Parameter Store)
 
