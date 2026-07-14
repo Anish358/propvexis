@@ -1,5 +1,9 @@
 import 'dotenv/config';
 
+// In production, process.env has already been hydrated from AWS SSM Parameter
+// Store by src/secrets.js (run from the entry point before this module loads),
+// so the reads below transparently pick up SSM-sourced secrets. Locally / when
+// SSM_PREFIX is unset, that step is a no-op and dotenv/.env supplies the values.
 const isProd = process.env.NODE_ENV === 'production';
 
 export const config = {

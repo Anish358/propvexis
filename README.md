@@ -177,7 +177,20 @@ which validates and reloads Caddy **only when the snippet's content changed**
 
 ## Deployment
 
-Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea` + `frontend/dist`, runs migrations, and restarts pm2. Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process. `.env` lives only on the box (never in the repo or the sync).
+Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA, `rsync`s `src db scripts ea` + `frontend/dist`, runs migrations, and restarts pm2. Caddy serves the SPA and reverse-proxies `/api`, `/socket.io`, and `/health` to the Node process.
+
+### Secrets (AWS SSM Parameter Store)
+
+In production the backend loads its secrets from **SSM Parameter Store**
+(SecureString/KMS) at boot, via the EC2 **instance IAM role** — no static AWS keys
+and no secret values on disk. The entry point ([`src/server.js`](src/server.js))
+hydrates `process.env` from SSM ([`src/secrets.js`](src/secrets.js)) *before* config
+is read, then loads the app. It's gated on the box env var `SSM_PREFIX`: unset (local
+dev, tests, CI, any un-migrated box) it's a pure no-op and `dotenv`/`.env` is used as
+before; set (e.g. `/amey-journal/prod/`) it fetches every parameter under that path
+and **fails closed** if SSM is unreachable or empty. The read permission is codified
+least-privilege in [`terraform/secrets.tf`](terraform/secrets.tf); see
+[`terraform/README.md`](terraform/README.md) for the parameter-creation runbook.
 
 ## Project structure
 
@@ -194,7 +207,7 @@ test/           node:test suites (CI-gated)
 ## Roadmap
 
 - **Connector layer** — pluggable trade-sync sources feeding one ingestion seam (CSV/EA free; MetaApi cloud sync + cTrader next), with a horizontally-scaled sync-worker fleet.
-- **Secrets management** — move `.env` off the box into AWS SSM Parameter Store / Secrets Manager, injected at deploy.
+- **Staging + supply-chain CI** — a Terraform-provisioned staging env, a container registry (GHCR/ECR), and Dependabot/Trivy scanning.
 
 ---
 
