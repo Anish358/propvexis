@@ -4,9 +4,9 @@ import React, { useState, useRef, useEffect } from 'react';
 // transient toast stack for alerts that arrive live over the socket. Severity
 // reuses the Prop OS status palette (info / warning / critical).
 
-const sevClass = (s) => (s === 'critical' ? 'crit' : s === 'warning' ? 'warn' : 'info');
+export const sevClass = (s) => (s === 'critical' ? 'crit' : s === 'warning' ? 'warn' : 'info');
 
-function timeAgo(iso) {
+export function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return 'just now';
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;

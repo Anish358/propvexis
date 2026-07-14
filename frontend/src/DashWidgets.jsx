@@ -1,6 +1,7 @@
 import React from 'react';
+import { token } from './theme.js';
 
-const GREEN = '#39d98a';
+const GREEN = token('--accent');
 const RED = '#e0615b';
 const TRACK = '#23232a';
 

@@ -76,7 +76,7 @@ function PropCard({ a }) {
           {a.dailyDd && <tr><td>Daily DD room</td><td className="num">{fmtMoney(a.dailyDd.roomLeft)}</td></tr>}
           {a.profitTarget && <tr><td>Profit target</td><td className="num">{a.profitTarget.pctToTarget}% to go</td></tr>}
           {a.tradingDays && <tr><td>Trading days</td><td className="num">{a.tradingDays.completed}/{a.tradingDays.required}</td></tr>}
-          {breached && <tr><td>Breach</td><td className="num" style={{ color: '#e0605a' }}>{a.breach.reason || 'breached'}</td></tr>}
+          {breached && <tr><td>Breach</td><td className="num" style={{ color: 'var(--status-bad)' }}>{a.breach.reason || 'breached'}</td></tr>}
         </tbody>
       </table>
     </div>

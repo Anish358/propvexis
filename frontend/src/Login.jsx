@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loginWithGoogle } from './api.js';
 import { useAuth } from './AuthContext.jsx';
+import { BRAND } from './theme.js';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
@@ -70,7 +71,7 @@ export default function Login() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="login-brand">PATIL TRADES</div>
+        <div className="login-brand">{BRAND}</div>
         <div className="login-sub">Sign in to your trading journal</div>
         <div ref={btnRef} className="login-btn" />
         {error && <div className="login-error">{error}</div>}

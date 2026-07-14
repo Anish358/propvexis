@@ -14,6 +14,11 @@ import Calendar from './Calendar.jsx';
 import Billing from './Billing.jsx';
 import PropOS from './PropOS.jsx';
 import Reports from './Reports.jsx';
+import ComingSoon from './ComingSoon.jsx';
+import Alerts from './Alerts.jsx';
+import Settings from './Settings.jsx';
+import Account from './Account.jsx';
+import { LEGACY_REDIRECTS } from './nav.js';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
 const VIEWCFG_KEY = 'amey.viewConfigs'; // per-scope { unit, filters } map
@@ -299,13 +304,38 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="trades" element={<TradeLog />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="prop" element={<PropOS />} />
+
+            {/* Trade Journal module (IA in nav.js) */}
+            <Route path="journal">
+              <Route index element={<ComingSoon title="Journal Overview" blurb="The module home — headline performance, recent activity and quick links across your journal." />} />
+              <Route path="trades" element={<TradeLog />} />
+              <Route path="day" element={<ComingSoon title="Day View" blurb="A single trading day in depth — every trade, note and stat for the session." />} />
+              <Route path="progress" element={<ComingSoon title="Progress Tracker" blurb="A day-grid heatmap of your trading consistency over the year." />} />
+              <Route path="calendar" element={<Calendar />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="strategies" element={<Strategies />} />
+              <Route path="psychology" element={<ComingSoon title="Psychology Journal" blurb="Log emotions and decision quality alongside your trades." />} />
+              <Route path="backtesting" element={<ComingSoon title="Backtesting" blurb="Test strategies against historical data before risking capital." />} />
+            </Route>
+
+            {/* Prop OS module */}
+            <Route path="prop">
+              <Route index element={<PropOS />} />
+              <Route path="accounts" element={<ComingSoon title="Prop Accounts" blurb="Accounts grouped by stage — Evaluation, Funded and Breached." />} />
+              <Route path="challenges" element={<ComingSoon title="Challenges" blurb="Challenge history and phase timelines per account." />} />
+              <Route path="analytics" element={<ComingSoon title="Prop Analytics" blurb="ROI progression, finance breakdown, passing and breach insights." />} />
+              <Route path="alerts" element={<Alerts />} />
+            </Route>
+
             <Route path="reports" element={<Reports />} />
-            <Route path="strategies" element={<Strategies />} />
-            <Route path="calendar" element={<Calendar />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="account" element={<Account />} />
             <Route path="billing" element={<Billing />} />
+
+            {/* Legacy flat routes → module routes (kept in sync via nav.js LEGACY_REDIRECTS) */}
+            {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
+              <Route key={from} path={from.slice(1)} element={<Navigate to={to} replace />} />
+            ))}
           </Route>
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />

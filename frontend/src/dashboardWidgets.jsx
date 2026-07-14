@@ -7,8 +7,9 @@ import MonthCalendar from './MonthCalendar.jsx';
 import MonthSummary from './MonthSummary.jsx';
 import { GaugeArc, Ring, SplitBar } from './DashWidgets.jsx';
 import { fmtVal, fmtValShort, fmtAxis, fmtMoney } from './metrics.js';
+import { token } from './theme.js';
 
-const GREEN = '#39d98a';
+const GREEN = token('--accent');
 const RED = '#e0615b';
 const PURPLE = '#a679f0';
 const PAYOUT = '#4dc4ff'; // funded-account payout (profit withdrawal) highlight
