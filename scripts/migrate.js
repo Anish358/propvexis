@@ -1,11 +1,20 @@
 // Apply pending SQL migrations from db/migrations, tracked in a schema_migrations
 // table so each file runs exactly once. Safe to run on every deploy.
-// Reads DATABASE_URL via src/config.js (dotenv) — run from the project root.
+// Reads DATABASE_URL via src/config.js — run from the project root.
 import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import pg from 'pg';
-import { config } from '../src/config.js';
+import { hydrateSecrets } from '../src/secrets.js';
+
+// This is a standalone entry point (not the server), so it must hydrate secrets
+// from AWS SSM itself — exactly like src/server.js — otherwise on the migrated
+// box DATABASE_URL lives only in SSM and this script would fall back to the
+// localhost default and fail auth. No-op unless SSM_PREFIX is set, so local
+// `npm run db:migrate` keeps using dotenv/.env. Must run BEFORE importing
+// config.js, which reads process.env synchronously at import time.
+await hydrateSecrets();
+const { config } = await import('../src/config.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(__dirname, '..', 'db', 'migrations');
