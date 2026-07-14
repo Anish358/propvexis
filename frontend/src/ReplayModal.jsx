@@ -26,15 +26,16 @@ const BASE_MS = 650; // ms per bar at 1x
 // as context). The default view frames from VIEW_LOOKBACK before entry through
 // the exit padding; the full 2 days of history stays scrollable to the left.
 const REPLAY_LEAD_MIN = 15;
+import { token } from './theme.js';
 const VIEW_LOOKBACK_MIN = 120;
 
 // Palette pulled from the app's design tokens (styles.css :root).
 const COLORS = {
-  up: '#39d98a',
+  up: token('--accent'),
   down: '#e0615b',
   entry: '#c9c9d2',
   sl: '#e0615b',
-  tp: '#39d98a',
+  tp: token('--accent'),
 };
 
 // Aggregate ascending M1 bars ([{t,o,h,l,c}]) into `min`-minute candles, bucketed

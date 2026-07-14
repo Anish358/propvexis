@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './AuthContext.jsx';
+import { BRAND, token } from './theme.js';
 import { fetchMe, fetchBillingConfig, fetchSubscription, startSubscription, cancelSubscription } from './api.js';
 
 // Pricing / plan-status page. When Razorpay is configured, the Pro CTA runs a
@@ -63,9 +64,9 @@ export default function Billing() {
       const rzp = new window.Razorpay({
         key: key_id,
         subscription_id,
-        name: 'PATIL TRADES',
+        name: BRAND,
         description: 'Pro plan — monthly',
-        theme: { color: '#39d98a' },
+        theme: { color: token('--accent') },
         // Webhook is the source of truth for the plan flip; this just refreshes
         // the UI once the user finishes the checkout.
         handler: () => { setTimeout(refresh, 1500); },

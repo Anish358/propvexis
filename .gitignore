@@ -10,3 +10,7 @@ frontend/dist/
 
 # Claude Code personal settings
 .claude/settings.local.json
+
+# Planning docs — kept local, deliberately untracked
+Plan.md
+Foundational_files/
