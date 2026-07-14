@@ -47,6 +47,8 @@ export function templateToFields(firmId, size, phaseId) {
   if (!phase) return null;
   const funded = phase.accountType === 'funded';
   return {
+    firm_id: firm.id,
+    firm_name: firm.name,
     account_type: phase.accountType,
     start_balance: Number(size) || null,
     daily_dd_pct: phase.dailyDdPct,

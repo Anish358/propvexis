@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import { applyBeRounding } from './metrics.js';
@@ -31,6 +31,7 @@ export default function App() {
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [payouts, setPayouts] = useState([]);
+  const [fees, setFees] = useState([]);
   const [strategies, setStrategies] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -188,6 +189,11 @@ export default function App() {
     return fetchPayouts(accountIdRef.current).then(setPayouts).catch(() => {});
   }
 
+  // Reload fees (eval/reset/activation) for the active scope.
+  function reloadFees() {
+    return fetchFees(accountIdRef.current).then(setFees).catch(() => {});
+  }
+
   // Re-fetch trades for the active scope. Exposed so a strategy rename (which
   // cascades to trades.setup on the server) can refresh the in-memory set.
   function reloadTrades() {
@@ -197,13 +203,14 @@ export default function App() {
   // Load trades + account snapshot + payouts for the selected scope. Waits until
   // accounts are known before trusting a specific (non-god) selection.
   useEffect(() => {
-    if (!user) { setTrades([]); setAccount(null); setPayouts([]); return; }
+    if (!user) { setTrades([]); setAccount(null); setPayouts([]); setFees([]); return; }
     const owned = accountId === 'all' || accounts.some((a) => String(a.mt5_login) === String(accountId));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
     fetchTrades(accountId).then(setTrades).catch((e) => setLoadError(e.message));
     fetchAccount(accountId).then(setAccount).catch(() => {});
     fetchPayouts(accountId).then(setPayouts).catch(() => {});
+    fetchFees(accountId).then(setFees).catch(() => {});
   }, [user, accountId, accounts]);
 
   // One socket per session. Handlers read the live selection via ref so we don't
@@ -224,6 +231,7 @@ export default function App() {
     );
     socket.on('account:updated', () => fetchAccount(accountIdRef.current).then(setAccount).catch(() => {}));
     socket.on('payout:updated', () => reloadPayouts());
+    socket.on('fee:updated', () => reloadFees());
     socket.on('notification:new', (n) => {
       setNotifications((prev) => [n, ...prev.filter((p) => p.id !== n.id)].slice(0, 100));
       setUnread((u) => u + 1);
@@ -271,6 +279,8 @@ export default function App() {
                 accounts={accounts}
                 payouts={payouts}
                 reloadPayouts={reloadPayouts}
+                fees={fees}
+                reloadFees={reloadFees}
                 strategies={strategies}
                 reloadStrategies={reloadStrategies}
                 reloadTrades={reloadTrades}

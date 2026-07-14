@@ -6,6 +6,8 @@ import { computeStats, computeYearly } from './aggregations.js';
 import { challengeState } from './prop.js';
 import { activeChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from './challenges.js';
 import { listPayouts } from './payouts.js';
+import { listFees } from './fees.js';
+import { financeSummary } from './finance.js';
 import { listAccounts } from './accounts.js';
 import { round2 } from './derive.js';
 
@@ -59,20 +61,26 @@ export async function propStatesForScope(scope, asOf = new Date()) {
 // has no total helper). `meta.generatedAt` is stamped by the route, not here.
 export async function buildReport(scope, { unit = 'R', filters = {}, beRound = false, year } = {}) {
   const yr = Number(year) || new Date().getUTCFullYear();
-  const [stats, yearly, prop, payoutRows] = await Promise.all([
+  const [stats, yearly, prop, payoutRows, feeRows, accounts] = await Promise.all([
     computeStats(scope, unit, filters, beRound),
     computeYearly(yr, scope, unit, filters, beRound),
     propStatesForScope(scope),
     listPayouts(scope.logins),
+    listFees(scope.logins),
+    listAccounts(scope.userId),
   ]);
   const grossTotal = round2(payoutRows.reduce((s, p) => s + Number(p.gross_amount || 0), 0));
   const traderTotal = round2(payoutRows.reduce((s, p) => s + Number(p.trader_amount || 0), 0));
+  const inScope = accounts.filter((a) => scope.logins.includes(a.mt5_login));
+  const finance = financeSummary({ payouts: payoutRows, fees: feeRows, accounts: inScope });
   return {
     meta: { unit, filters, year: yr, god: scope.god },
     stats,
     yearly,
     prop,
     payouts: { rows: payoutRows, grossTotal, traderTotal, count: payoutRows.length },
+    fees: { rows: feeRows, total: finance.spent, count: feeRows.length },
+    finance,
   };
 }
 
@@ -137,6 +145,17 @@ export function reportCsvRows(report) {
     rows.push(['date', 'gross', 'split %', 'trader', 'source', 'note']);
     for (const p of payouts.rows) {
       rows.push([p.payout_date, p.gross_amount, p.split_pct, p.trader_amount, p.source, p.note ?? '']);
+    }
+  }
+  rows.push([]);
+
+  // Finance summary — spend vs earnings → net + ROI, with a by-firm breakdown.
+  const fin = report.finance;
+  if (fin) {
+    rows.push(['Finance', `spent=${fin.spent}`, `earned=${fin.earned}`, `net=${fin.net}`, `roi%=${fin.roiPct ?? ''}`]);
+    if (fin.byFirm.length) {
+      rows.push(['firm', 'spent', 'earned', 'net', 'roi %', 'accounts']);
+      for (const f of fin.byFirm) rows.push([f.firmName, f.spent, f.earned, f.net, f.roiPct ?? '', f.count]);
     }
   }
   return rows;

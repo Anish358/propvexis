@@ -55,22 +55,22 @@ export async function listAccounts(userId) {
 
 // Columns selected/returned for an account (kept in sync across queries).
 const ACCT_COLS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, ingest_token, kind, is_active, created_at';
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind, is_active, created_at';
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a
 // fresh ingest token — the EA binds its real MT5 login on the first trade. A
 // 'manual' account carries NO token and is immediately given a synthetic negative
 // login (-id) so its trades can be scoped by account_id without any live sync.
-export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, kind }) {
+export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, kind }) {
   const manual = kind === 'manual';
   const { rows } = await query(
     `INSERT INTO mt5_accounts
-       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, ingest_token, kind)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14)
+       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15, $16)
      RETURNING ${ACCT_COLS};`,
     [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null,
      account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, payout_split_pct ?? null,
-     dd_type || null, min_trading_days ?? null,
+     dd_type || null, min_trading_days ?? null, firm_id || null, firm_name || null,
      manual ? null : genToken(), manual ? 'manual' : 'synced']
   );
   let acct = rows[0];
@@ -88,7 +88,7 @@ export async function createAccount(userId, { label, broker, currency, start_bal
 
 // Update editable metadata on the user's own account.
 export async function updateAccount(userId, id, fields) {
-  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'dd_type', 'min_trading_days', 'is_active'];
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'is_active'];
   const sets = [];
   const params = [];
   for (const f of allowed) {

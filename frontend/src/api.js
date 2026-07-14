@@ -141,6 +141,32 @@ export async function deletePayout(id) {
   return res.json();
 }
 
+// ---- Fees (eval/reset/activation fees paid to a prop firm; scoped like payouts) ----
+export async function fetchFees(accountId) {
+  return getJson(`/api/fees?_=1${acctq(accountId)}`);
+}
+
+export async function createFee(fields) {
+  const res = await apiFetch('/api/fees', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `createFee ${res.status}`);
+  return res.json();
+}
+
+export async function deleteFee(id) {
+  const res = await apiFetch(`/api/fees/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteFee ${res.status}`);
+  return res.json();
+}
+
+// Prop finance summary (spent/earned/net/roiPct + byFirm) for the scope.
+export async function fetchPropFinance(accountId) {
+  return getJson(`/api/prop/finance?_=1${acctq(accountId)}`);
+}
+
 // ---- Notifications (in-app alert feed for the logged-in user) ----
 export async function fetchNotifications() {
   return getJson('/api/notifications?_=1');

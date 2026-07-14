@@ -2,8 +2,58 @@ import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import Explain from './Explain.jsx';
-import { fetchProp, advanceChallenge, updateAccount } from './api.js';
+import { fetchProp, fetchPropFinance, advanceChallenge, updateAccount } from './api.js';
 import { fmtMoney } from './metrics.js';
+import FeesModal from './FeesModal.jsx';
+
+// Finance band (Prop OS Overview): spend vs earnings → net + ROI, with a by-firm
+// breakdown. Data from GET /api/prop/finance (src/finance.js).
+function FinKpi({ label, value, tone }) {
+  return (
+    <div className="kpi">
+      <div className="kpi-label">{label}</div>
+      <div className={`kpi-value ${tone || ''}`}>{value}</div>
+    </div>
+  );
+}
+const roiText = (r) => (r == null ? '—' : `${r}%`);
+const roiTone = (r) => (r == null ? '' : r >= 0 ? 'win' : 'loss');
+
+function FinanceBand({ fin, onLogFee }) {
+  if (!fin) return null;
+  return (
+    <div className="panel prop-finance">
+      <div className="prop-finance-head">
+        <h3>Finance</h3>
+        <button type="button" className="btn" onClick={onLogFee}>Log fee</button>
+      </div>
+      <div className="kpi-row">
+        <FinKpi label="Total spent" value={fmtMoney(fin.spent)} tone="loss" />
+        <FinKpi label="Total earned" value={fmtMoney(fin.earned)} tone="win" />
+        <FinKpi label="Net" value={fmtMoney(fin.net)} tone={fin.net >= 0 ? 'win' : 'loss'} />
+        <FinKpi label="ROI" value={roiText(fin.roiPct)} tone={roiTone(fin.roiPct)} />
+      </div>
+      {fin.byFirm.length > 1 && (
+        <div className="bd prop-finance-firms">
+          <table>
+            <thead><tr><th>Firm</th><th>Spent</th><th>Earned</th><th>Net</th><th>ROI</th></tr></thead>
+            <tbody>
+              {fin.byFirm.map((f) => (
+                <tr key={f.firmId || 'other'}>
+                  <td>{f.firmName}</td>
+                  <td className="num">{fmtMoney(f.spent)}</td>
+                  <td className="num">{fmtMoney(f.earned)}</td>
+                  <td className="num" style={{ color: f.net >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtMoney(f.net)}</td>
+                  <td className="num">{roiText(f.roiPct)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Prop OS — how each prop account is tracking against the firm's rules. Single
 // account = full detail; god view = a portfolio card per account. All values are
@@ -268,15 +318,34 @@ function MiniBar({ label, frac, breached }) {
 }
 
 export default function PropOS() {
-  const { accountId, setAccountId, connected, toggleSidebar } = useOutletContext();
+  const { accountId, setAccountId, connected, toggleSidebar, accounts = [], fees = [], reloadFees } = useOutletContext();
   const [data, setData] = useState(null);
+  const [fin, setFin] = useState(null);
   const [err, setErr] = useState(null);
+  const [feesOpen, setFeesOpen] = useState(false);
 
   function load() {
     setErr(null);
     fetchProp(accountId).then(setData).catch((e) => setErr(e.message));
+    fetchPropFinance(accountId).then(setFin).catch(() => {});
   }
-  useEffect(() => { setData(null); load(); /* eslint-disable-next-line */ }, [accountId]);
+  useEffect(() => { setData(null); setFin(null); load(); /* eslint-disable-next-line */ }, [accountId]);
+
+  // Finance band + fees modal shown on every Prop OS view.
+  const finance = (
+    <>
+      <FinanceBand fin={fin} onLogFee={() => setFeesOpen(true)} />
+      {feesOpen && (
+        <FeesModal
+          fees={fees}
+          accounts={accounts}
+          defaultLogin={accountId === 'all' ? undefined : accountId}
+          onClose={() => setFeesOpen(false)}
+          onChanged={() => { reloadFees?.(); load(); }}
+        />
+      )}
+    </>
+  );
 
   const mode = data && !data.god ? data.mode : null;
   const modeBadge = mode && (
@@ -297,27 +366,35 @@ export default function PropOS() {
 
   // God / portfolio view.
   if (data.god) {
-    if (!data.accounts.length) return page(<div className="prop-empty">No accounts yet. Add one to start tracking challenges.</div>);
+    if (!data.accounts.length) {
+      return page(<>{finance}<div className="prop-empty">No accounts yet. Add one to start tracking challenges.</div></>);
+    }
     return page(
-      <div className="prop-portfolio">
-        {data.accounts.map((a) => (
-          <PortfolioCard key={a.account_id} data={a} onOpen={() => setAccountId(String(a.account_id))} />
-        ))}
-      </div>
+      <>
+        {finance}
+        <div className="prop-portfolio">
+          {data.accounts.map((a) => (
+            <PortfolioCard key={a.account_id} data={a} onOpen={() => setAccountId(String(a.account_id))} />
+          ))}
+        </div>
+      </>
     );
   }
 
   // Single account.
   if (data.challenge === null) {
-    return page(<div className="prop-empty">This account has no active challenge.</div>);
+    return page(<>{finance}<div className="prop-empty">This account has no active challenge.</div></>);
   }
   return page(
-    <div className="prop-single">
-      <div className="prop-single-head">
-        <PhaseBadge phase={data.phase} status={data.status} />
-        <span className="prop-single-name">{data.label}</span>
+    <>
+      {finance}
+      <div className="prop-single">
+        <div className="prop-single-head">
+          <PhaseBadge phase={data.phase} status={data.status} />
+          <span className="prop-single-name">{data.label}</span>
+        </div>
+        <AccountDetail data={data} editable onChanged={load} />
       </div>
-      <AccountDetail data={data} editable onChanged={load} />
-    </div>
+    </>
   );
 }

@@ -1257,6 +1257,17 @@ label.full { margin-bottom: 14px; }
 .prop-err { color: #e0918d; grid-column: 1 / -1; font-size: 13px; }
 .prop-empty { padding: 40px 20px; color: var(--muted); text-align: center; }
 
+/* Finance band (Prop OS Overview) — spend vs earnings → net + ROI, by firm */
+.prop-finance { margin: 0 20px 16px; }
+.prop-finance-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.prop-finance-head h3 { margin: 0; }
+.prop-finance-head .btn {
+  background: transparent; color: var(--text); border: 1px solid var(--line);
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+}
+.prop-finance-head .btn:hover { border-color: var(--accent-border-strong); color: var(--accent); }
+.prop-finance-firms { margin-top: 12px; }
+
 /* God portfolio cards */
 .prop-portfolio { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding: 0 20px 20px; }
 .prop-pcard { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; cursor: pointer; color: var(--text); display: flex; flex-direction: column; gap: 12px; }

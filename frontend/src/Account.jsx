@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import AccountsModal from './AccountsModal.jsx';
 import PayoutsModal from './PayoutsModal.jsx';
+import FeesModal from './FeesModal.jsx';
 import { fmtMoney } from './metrics.js';
 
 // Account — trading-account management (prop/live accounts and their setup),
@@ -38,10 +39,11 @@ function AccountCard({ a, onManage }) {
 export default function Account() {
   const {
     connected, toggleSidebar, accounts = [], reloadAccounts, accountId,
-    payouts = [], reloadPayouts,
+    payouts = [], reloadPayouts, fees = [], reloadFees,
   } = useOutletContext();
   const [manageOpen, setManageOpen] = useState(false);
   const [payoutsOpen, setPayoutsOpen] = useState(false);
+  const [feesOpen, setFeesOpen] = useState(false);
 
   // Same funded-scope rule as the Dashboard's payout tracker.
   const fundedAccounts = useMemo(() => {
@@ -60,6 +62,9 @@ export default function Account() {
         onMenu={toggleSidebar}
         right={
           <div className="report-actions">
+            {accounts.length > 0 && (
+              <button className="btn" onClick={() => setFeesOpen(true)}>Fees</button>
+            )}
             {fundedAccounts.length > 0 && (
               <button className="btn" onClick={() => setPayoutsOpen(true)}>Payouts</button>
             )}
@@ -99,6 +104,15 @@ export default function Account() {
           defaultLogin={accountId === 'all' ? undefined : accountId}
           onClose={() => setPayoutsOpen(false)}
           onChanged={reloadPayouts}
+        />
+      )}
+      {feesOpen && (
+        <FeesModal
+          fees={fees}
+          accounts={accounts.filter((a) => a.is_active !== false)}
+          defaultLogin={accountId === 'all' ? undefined : accountId}
+          onClose={() => setFeesOpen(false)}
+          onChanged={reloadFees}
         />
       )}
     </div>
