@@ -167,6 +167,11 @@ export async function fetchPropFinance(accountId) {
   return getJson(`/api/prop/finance?_=1${acctq(accountId)}`);
 }
 
+// Passing & breach insights (pass rates + breach patterns) for the scope.
+export async function fetchPropInsights(accountId) {
+  return getJson(`/api/prop/insights?_=1${acctq(accountId)}`);
+}
+
 // ---- Notifications (in-app alert feed for the logged-in user) ----
 export async function fetchNotifications() {
   return getJson('/api/notifications?_=1');
