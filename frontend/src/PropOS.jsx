@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
 import Explain from './Explain.jsx';
-import { fetchProp, fetchPropFinance, advanceChallenge, updateAccount } from './api.js';
+import { fetchProp, fetchPropFinance, fetchPropInsights, advanceChallenge, updateAccount } from './api.js';
 import { fmtMoney, fmtMoneyShort } from './metrics.js';
 import FeesModal from './FeesModal.jsx';
 
@@ -86,6 +86,73 @@ function FinanceBand({ fin, onLogFee }) {
     </div>
   );
 }
+
+// Passing & breach insights — pass rates + breach patterns across firm/size/phase.
+// Data from GET /api/prop/insights (src/insights.js).
+const pct = (v) => (v == null ? '—' : `${v}%`);
+
+function InsightDim({ title, rows }) {
+  const shown = rows.filter((r) => r.attempts > 0 || r.active > 0);
+  if (shown.length <= 1) return null; // nothing to compare
+  return (
+    <div className="bd prop-insight-dim">
+      <h4>{title}</h4>
+      <table>
+        <thead><tr><th></th><th>Passed</th><th>Breached</th><th>Active</th><th>Pass rate</th></tr></thead>
+        <tbody>
+          {shown.map((r) => (
+            <tr key={r.label}>
+              <td>{r.label}</td>
+              <td className="num">{r.passed}</td>
+              <td className="num">{r.breached}</td>
+              <td className="num">{r.active}</td>
+              <td className="num">{pct(r.passRate)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function InsightsBand({ ins }) {
+  if (!ins) return null;
+  const hasHistory = ins.attempts > 0;
+  return (
+    <div className="panel prop-insights">
+      <h3>Passing &amp; breach insights</h3>
+      {!hasHistory ? (
+        <p className="muted prop-insights-empty">
+          No completed challenge attempts yet. As you mark phases passed or reset breached
+          challenges, pass rates and breach patterns build up here.
+        </p>
+      ) : (
+        <>
+          <div className="kpi-row">
+            <FinKpi label="Pass rate" value={pct(ins.passRate)} tone={ins.passRate == null ? '' : ins.passRate >= 50 ? 'win' : 'loss'} />
+            <FinKpi label="Passed" value={ins.passed} tone="win" />
+            <FinKpi label="Breached" value={ins.breached} tone="loss" />
+            <FinKpi label="Active" value={ins.active} />
+          </div>
+          {ins.breachReasons.length > 0 && (
+            <div className="prop-insight-reasons">
+              <span className="muted">Breaches by reason:</span>
+              {ins.breachReasons.map((r) => (
+                <span key={r.reason} className="prop-reason-chip">{REASON_LABEL[r.reason] || r.reason} · {r.count}</span>
+              ))}
+            </div>
+          )}
+          <div className="bd-grid prop-insight-grid">
+            <InsightDim title="By firm" rows={ins.byFirm} />
+            <InsightDim title="By account size" rows={ins.bySize} />
+            <InsightDim title="By phase" rows={ins.byPhase} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+const REASON_LABEL = { max_dd: 'Max drawdown', daily_dd: 'Daily drawdown', unspecified: 'Unspecified' };
 
 // Prop OS — how each prop account is tracking against the firm's rules. Single
 // account = full detail; god view = a portfolio card per account. All values are
@@ -279,7 +346,11 @@ function ChallengeControls({ data, onChanged }) {
 
   async function advance(toPhase, mark) {
     setBusy(true); setErr(null);
-    try { await advanceChallenge({ account_id: data.account_id, to_phase: toPhase, mark }); onChanged(); }
+    // On a breach reset, persist the engine's detected reason (max_dd / daily_dd)
+    // so breach insights can break down "why" — the live state knows it even
+    // though the row only records it now.
+    const breach_reason = mark === 'breached' ? (data.breach?.reason ?? null) : null;
+    try { await advanceChallenge({ account_id: data.account_id, to_phase: toPhase, mark, breach_reason }); onChanged(); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
@@ -353,6 +424,7 @@ export default function PropOS() {
   const { accountId, setAccountId, connected, toggleSidebar, accounts = [], fees = [], reloadFees } = useOutletContext();
   const [data, setData] = useState(null);
   const [fin, setFin] = useState(null);
+  const [ins, setIns] = useState(null);
   const [err, setErr] = useState(null);
   const [feesOpen, setFeesOpen] = useState(false);
 
@@ -360,13 +432,15 @@ export default function PropOS() {
     setErr(null);
     fetchProp(accountId).then(setData).catch((e) => setErr(e.message));
     fetchPropFinance(accountId).then(setFin).catch(() => {});
+    fetchPropInsights(accountId).then(setIns).catch(() => {});
   }
-  useEffect(() => { setData(null); setFin(null); load(); /* eslint-disable-next-line */ }, [accountId]);
+  useEffect(() => { setData(null); setFin(null); setIns(null); load(); /* eslint-disable-next-line */ }, [accountId]);
 
-  // Finance band + fees modal shown on every Prop OS view.
+  // Finance band + insights + fees modal shown on every Prop OS view.
   const finance = (
     <>
       <FinanceBand fin={fin} onLogFee={() => setFeesOpen(true)} />
+      <InsightsBand ins={ins} />
       {feesOpen && (
         <FeesModal
           fees={fees}

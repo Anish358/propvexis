@@ -25,10 +25,12 @@ import {
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
 import { listFees, createFee, deleteFee, FEE_TYPES } from './fees.js';
 import { financeSummary, roiProgression } from './finance.js';
+import { passBreachSummary } from './insights.js';
 import { phasePassedAlert } from './alerts.js';
 import { evaluateAccountAlerts, insertNotifications, listNotifications, markRead } from './notifications.js';
 import {
   challengeHistory,
+  challengesForScope,
   advanceChallenge,
   createChallengeForAccount,
   syncActiveChallengeRules,
@@ -1167,6 +1169,15 @@ app.get('/api/prop/finance', { preHandler: app.requireAuth }, async (req, reply)
   // Restrict firm-attribution accounts to the scope's logins.
   const inScope = accounts.filter((a) => scope.logins.includes(a.mt5_login));
   return { ...financeSummary({ payouts, fees, accounts: inScope }), progression: roiProgression({ payouts, fees }) };
+});
+
+// Passing & breach insights for the scope: pass rates + breach patterns across
+// firm / account size / phase, from the retained challenge history.
+app.get('/api/prop/insights', { preHandler: app.requireAuth }, async (req, reply) => {
+  const scope = await resolveScope(req.user.uid, req.query.account_id);
+  if (!scope) return reply.code(403).send({ error: 'account not found' });
+  const challenges = await challengesForScope(scope.logins);
+  return passBreachSummary(challenges);
 });
 
 // Challenge phase history for one owned account (the phase timeline).

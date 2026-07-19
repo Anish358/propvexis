@@ -28,11 +28,13 @@ function shapeChallenge(r) {
     passed_at: r.passed_at ?? null,
     breached_at: r.breached_at ?? null,
     breach_reason: r.breach_reason ?? null,
+    firm_id: r.firm_id ?? null,
+    firm_name: r.firm_name ?? null,
   };
 }
 
 const CH_SELECT = `
-  SELECT c.*, a.mt5_login, a.label, a.currency
+  SELECT c.*, a.mt5_login, a.label, a.currency, a.firm_id, a.firm_name
     FROM challenges c
     JOIN mt5_accounts a ON a.id = c.mt5_account_id`;
 
@@ -45,6 +47,18 @@ export async function activeChallengesByLogin(logins) {
     [logins]
   );
   return new Map(rows.map((r) => [Number(r.mt5_login), shapeChallenge(r)]));
+}
+
+// ALL challenges (every status: active/passed/breached) across a set of logins,
+// for scope-wide aggregation (pass/breach insights). Closed rows are retained as
+// history, so this is the full per-phase-attempt record. Newest first.
+export async function challengesForScope(logins) {
+  if (!logins?.length) return [];
+  const { rows } = await query(
+    `${CH_SELECT} WHERE a.mt5_login = ANY($1::bigint[]) ORDER BY c.start_date DESC, c.id DESC`,
+    [logins]
+  );
+  return rows.map(shapeChallenge);
 }
 
 // Full challenge history for one owned account (newest first) — for the phase
