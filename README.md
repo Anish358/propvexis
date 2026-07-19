@@ -1,4 +1,4 @@
-# PATIL TRADES — Multi-Tenant Trading Journal SaaS
+# PropVexis — Multi-Tenant Trading Journal SaaS
 
 A production, multi-tenant SaaS that ingests closed trades from MetaTrader 5, stores them in PostgreSQL, and serves R-based performance analytics with live updates. Built and operated end-to-end — application, infrastructure, CI/CD, observability, and disaster recovery.
 

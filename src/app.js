@@ -896,12 +896,12 @@ app.get('/api/trades/:id/replay', { preHandler: app.requireAuth }, async (req, r
 // the setup card. No secret in the file (the ingest token is entered per
 // account in MT5), so this is public. `ea/` is deployed alongside the backend.
 // ---------------------------------------------------------------------------
-const EA_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ea', 'AmeyJournal.mq5');
+const EA_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ea', 'PropVexis.mq5');
 app.get('/api/ea/download', async (req, reply) => {
   try {
     const src = await readFile(EA_FILE, 'utf8');
     reply.header('Content-Type', 'text/plain; charset=utf-8');
-    reply.header('Content-Disposition', 'attachment; filename="AmeyJournal.mq5"');
+    reply.header('Content-Disposition', 'attachment; filename="PropVexis.mq5"');
     return src;
   } catch {
     return reply.code(404).send({ error: 'EA file not available' });

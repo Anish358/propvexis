@@ -1,5 +1,5 @@
 {
-  "name": "amey-journal-backend",
+  "name": "propvexis-backend",
   "version": "0.1.0",
   "description": "Trade tracker backend: ingest MT5 trades, store in Postgres, broadcast over WebSocket",
   "type": "module",
