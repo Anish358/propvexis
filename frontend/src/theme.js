@@ -2,7 +2,7 @@
 // rebrand surface. Canvas/chart code (lightweight-charts, Recharts, Razorpay
 // theme) can't always consume CSS var() strings, so read the computed value at
 // runtime with a fallback for non-DOM contexts (tests).
-export const BRAND = 'PATIL TRADES';
+export const BRAND = 'PropVexis';
 
 const FALLBACKS = {
   '--accent': '#39d98a',

@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
-//|                                                  AmeyJournal.mq5  |
-//|   Pushes every closed trade to the Amey Journal backend.         |
+//|                                                    PropVexis.mq5  |
+//|   Pushes every closed trade to the PropVexis backend.            |
 //|                                                                  |
 //|   MFE (Max Favorable Excursion) is the most a trade ran in your   |
 //|   favor over its whole life — from entry until the trade closes   |
@@ -29,7 +29,7 @@
 //|   tick "Allow WebRequest for listed URL" and add the backend host |
 //|   (one host covers the trades, payouts and candles endpoints).    |
 //+------------------------------------------------------------------+
-#property copyright "Amey Journal"
+#property copyright "PropVexis"
 #property version   "1.13"
 #property strict
 
@@ -124,7 +124,7 @@ int OnInit()
          TrackPosition(t);
      }
    EventSetMillisecondTimer(InpPollMs);
-   PrintFormat("AmeyJournal EA v1.13 started. Open=%d, MFE-pending=%d. Endpoint=%s",
+   PrintFormat("PropVexis EA v1.13 started. Open=%d, MFE-pending=%d. Endpoint=%s",
                ArraySize(g_pos), ArraySize(g_mfe), InpBackendUrl);
    ScanPayoutHistory(); // import past withdrawals/payouts (deduped) regardless of backfill
    if(InpBackfillDays > 0)

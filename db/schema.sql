@@ -1,4 +1,4 @@
--- Amey Journal — core schema (step 1)
+-- PropVexis — core schema (step 1)
 -- One row per closed trade. EA-populated mechanical fields + user-tagged
 -- discretionary fields. The Summary/Yearly dashboards are aggregations over
 -- this single table (added in a later step).

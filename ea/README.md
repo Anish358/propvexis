@@ -1,6 +1,6 @@
-# Amey Journal — MT5 Expert Advisor (Step 2)
+# PropVexis — MT5 Expert Advisor (Step 2)
 
-`AmeyJournal.mq5` pushes every closed trade to the backend the instant it closes,
+`PropVexis.mq5` pushes every closed trade to the backend the instant it closes,
 with live-tracked MFE (Max Favorable Excursion).
 
 ## What it does
@@ -23,7 +23,7 @@ Once MFE is finalized it is never overwritten by a later metric-less send.
 
 ## Install (Windows MT5)
 1. In MetaTrader 5: **File → Open Data Folder → MQL5 → Experts**, copy
-   `AmeyJournal.mq5` there.
+   `PropVexis.mq5` there.
 2. In **MetaEditor**, open it and press **Compile** (F7).
 3. **Whitelist the backend URL** (required for `WebRequest`):
    **Tools → Options → Expert Advisors → "Allow WebRequest for listed URL"**, add the

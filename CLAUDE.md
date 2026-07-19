@@ -1,4 +1,4 @@
-# Amey Journal ("PATIL TRADES")
+# Amey Journal ("PropVexis")
 
 Trading journal for prop/retail traders: ingests closed MT5 trades (via an EA),
 stores them in Postgres, shows R-based analytics. Being built into a **public

@@ -1,4 +1,4 @@
-# Amey Journal — Frontend (Step 3)
+# PropVexis — Frontend (Step 3)
 
 Live trades grid that mirrors the spreadsheet and updates the instant a trade
 closes (via the backend WebSocket). Click any row to tag the discretionary fields.

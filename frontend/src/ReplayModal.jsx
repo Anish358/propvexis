@@ -330,7 +330,7 @@ export default function ReplayModal({ trade, onClose }) {
               <p className="muted">
                 Replay bars are supplied by the MT5 Expert Advisor. The terminal may be
                 offline, or running an EA version that predates replay — update it to the
-                latest AmeyJournal EA and keep it running, then retry.
+                latest PropVexis EA and keep it running, then retry.
               </p>
               <button className="rp-retry" onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
             </div>

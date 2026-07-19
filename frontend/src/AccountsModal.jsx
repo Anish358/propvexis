@@ -80,7 +80,7 @@ function SetupCard({ account }) {
       const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'AmeyJournal.mq5';
+      a.download = 'PropVexis.mq5';
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -99,7 +99,7 @@ function SetupCard({ account }) {
           <b>Download</b> the EA — it's already pre-filled with this account's endpoint and token. Drop it into your MT5 <code>MQL5/Experts</code> folder (compile in MetaEditor if needed) and attach it to any chart.
           <div className="acct-copy">
             <button className="ea-download" onClick={downloadEA} disabled={preparing}>
-              {preparing ? 'Preparing…' : '⬇ Download AmeyJournal.mq5'}
+              {preparing ? 'Preparing…' : '⬇ Download PropVexis.mq5'}
             </button>
           </div>
           {dlError && <div className="login-error">{dlError}</div>}

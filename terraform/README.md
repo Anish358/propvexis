@@ -1,6 +1,6 @@
 # Infrastructure as Code (Terraform)
 
-Codifies the AWS infrastructure for PATIL TRADES — the app host, networking,
+Codifies the AWS infrastructure for PropVexis — the app host, networking,
 off-box backups, and uptime monitoring — so the environment is reproducible and
 reviewable instead of hand-clicked.
 
