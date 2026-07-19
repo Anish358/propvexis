@@ -24,7 +24,7 @@ import {
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
 import { listFees, createFee, deleteFee, FEE_TYPES } from './fees.js';
-import { financeSummary } from './finance.js';
+import { financeSummary, roiProgression } from './finance.js';
 import { phasePassedAlert } from './alerts.js';
 import { evaluateAccountAlerts, insertNotifications, listNotifications, markRead } from './notifications.js';
 import {
@@ -1166,7 +1166,7 @@ app.get('/api/prop/finance', { preHandler: app.requireAuth }, async (req, reply)
   ]);
   // Restrict firm-attribution accounts to the scope's logins.
   const inScope = accounts.filter((a) => scope.logins.includes(a.mt5_login));
-  return financeSummary({ payouts, fees, accounts: inScope });
+  return { ...financeSummary({ payouts, fees, accounts: inScope }), progression: roiProgression({ payouts, fees }) };
 });
 
 // Challenge phase history for one owned account (the phase timeline).

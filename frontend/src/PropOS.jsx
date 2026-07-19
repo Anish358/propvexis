@@ -1,10 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend,
+} from 'recharts';
 import PageHeader from './PageHeader.jsx';
 import Explain from './Explain.jsx';
 import { fetchProp, fetchPropFinance, advanceChallenge, updateAccount } from './api.js';
-import { fmtMoney } from './metrics.js';
+import { fmtMoney, fmtMoneyShort } from './metrics.js';
 import FeesModal from './FeesModal.jsx';
+
+// Cumulative earned / spent / net over time (data from finance.roiProgression).
+// Line palette matches the app's equity-curve charts (Analytics/Reports).
+function RoiProgressionChart({ series }) {
+  if (!series || series.length < 2) return null;
+  return (
+    <div className="prop-roi">
+      <h4 className="prop-roi-title">ROI progression</h4>
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={series} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
+          <CartesianGrid stroke="#23232a" />
+          <XAxis dataKey="date" stroke="#6f6f78" fontSize={11} tickFormatter={(d) => d.slice(5)} />
+          <YAxis stroke="#6f6f78" fontSize={11} tickFormatter={(v) => fmtMoneyShort(v)} />
+          <Tooltip
+            contentStyle={{ background: '#151518', border: '1px solid #2a2a30' }}
+            formatter={(v, n) => [fmtMoney(v), n]}
+            labelStyle={{ color: '#9a9aa2' }}
+          />
+          <ReferenceLine y={0} stroke="#3a3a42" />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Line type="monotone" dataKey="earned" name="Earned" stroke="#6bd58a" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="spent" name="Spent" stroke="#e0918d" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="net" name="Net" stroke="#6ea8fe" strokeWidth={2} dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 // Finance band (Prop OS Overview): spend vs earnings → net + ROI, with a by-firm
 // breakdown. Data from GET /api/prop/finance (src/finance.js).
@@ -51,6 +82,7 @@ function FinanceBand({ fin, onLogFee }) {
           </table>
         </div>
       )}
+      <RoiProgressionChart series={fin.progression} />
     </div>
   );
 }

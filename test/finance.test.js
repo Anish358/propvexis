@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { financeSummary } from '../src/finance.js';
+import { financeSummary, roiProgression } from '../src/finance.js';
 
 // Pure prop-finance aggregation: earned (payout trader_amount) − spent (fee
 // amount) → net, roiPct, and a by-firm breakdown attributed via account firm_id.
@@ -66,3 +66,39 @@ test('empty inputs → zeros and null roi', () => {
   assert.deepEqual({ spent: f.spent, earned: f.earned, net: f.net, roiPct: f.roiPct }, { spent: 0, earned: 0, net: 0, roiPct: null });
   assert.deepEqual(f.byFirm, []);
 });
+
+// --- roiProgression (cumulative-over-time series) ---
+test('roiProgression: empty → []', () => {
+  assert.deepEqual(roiProgression({ payouts: [], fees: [] }), []);
+});
+
+test('roiProgression: cumulative earned/spent/net in date order', () => {
+  const series = roiProgression({
+    fees: [
+      { fee_date: '2026-01-05T00:00:00Z', amount: 200 },
+      { fee_date: '2026-03-10T00:00:00Z', amount: 100 },
+    ],
+    payouts: [
+      { payout_date: '2026-02-01T00:00:00Z', trader_amount: 500 },
+    ],
+  });
+  assert.deepEqual(series.map((p) => p.date), ['2026-01-05', '2026-02-01', '2026-03-10']);
+  // running totals
+  assert.deepEqual(series.map((p) => p.spent), [200, 200, 300]);
+  assert.deepEqual(series.map((p) => p.earned), [0, 500, 500]);
+  assert.deepEqual(series.map((p) => p.net), [-200, 300, 200]);
+  assert.equal(series[0].roiPct, -100); // -200/200
+  assert.equal(series[2].roiPct, round2(200 / 300 * 100)); // final
+});
+
+test('roiProgression: same-day events collapse to one point', () => {
+  const series = roiProgression({
+    fees: [{ fee_date: '2026-01-05T09:00:00Z', amount: 100 }],
+    payouts: [{ payout_date: '2026-01-05T18:00:00Z', trader_amount: 400 }],
+  });
+  assert.equal(series.length, 1);
+  assert.deepEqual({ spent: series[0].spent, earned: series[0].earned, net: series[0].net }, { spent: 100, earned: 400, net: 300 });
+});
+
+// local round2 mirror for the assertion above
+function round2(n) { return Math.round(n * 100) / 100; }

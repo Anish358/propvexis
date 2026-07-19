@@ -57,3 +57,33 @@ export function financeSummary({ payouts = [], fees = [], accounts = [] }) {
 
   return { spent, earned, net, roiPct: roi(net, spent), byFirm };
 }
+
+// UTC calendar day (YYYY-MM-DD) of a timestamp, for daily buckets.
+const dayKey = (ts) => new Date(ts).toISOString().slice(0, 10);
+
+// Cumulative money-over-time series for the ROI-progression chart: one point per
+// calendar day that had a fee or payout, carrying the running totals THROUGH that
+// day. `earned` = cumulative payout trader_amount, `spent` = cumulative fees,
+// `net = earned - spent`, `roiPct = net/spent*100` (null until something's spent).
+// Pure; empty inputs → []. The chart draws earned / spent / net lines over `date`.
+export function roiProgression({ payouts = [], fees = [] }) {
+  const events = [
+    ...payouts.map((p) => ({ day: dayKey(p.payout_date), earned: Number(p.trader_amount) || 0, spent: 0 })),
+    ...fees.map((f) => ({ day: dayKey(f.fee_date), earned: 0, spent: Number(f.amount) || 0 })),
+  ].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  if (!events.length) return [];
+
+  const points = [];
+  let earned = 0;
+  let spent = 0;
+  for (const e of events) {
+    earned += e.earned;
+    spent += e.spent;
+    const net = earned - spent;
+    const point = { date: e.day, earned: round2(earned), spent: round2(spent), net: round2(net), roiPct: roi(net, spent) };
+    // Collapse multiple same-day events into one point (keep the last = end of day).
+    if (points.length && points[points.length - 1].date === e.day) points[points.length - 1] = point;
+    else points.push(point);
+  }
+  return points;
+}
