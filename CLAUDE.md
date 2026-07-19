@@ -2,7 +2,8 @@
 
 Trading journal for prop/retail traders: ingests closed MT5 trades (via an EA),
 stores them in Postgres, shows R-based analytics. Being built into a **public
-multi-tenant SaaS**. Live at https://journal.anishdevlops.xyz.
+multi-tenant SaaS**. Live at https://app.propvexis.com (old domain
+https://journal.anishdevlops.xyz still served during migration).
 
 ## Stack
 - **Backend:** Node (ESM) + Fastify 5, `pg` Pool, Socket.IO. Entry `src/server.js`.

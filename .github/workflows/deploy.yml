@@ -30,7 +30,12 @@ jobs:
 
       - name: Build frontend
         env:
-          VITE_BACKEND_URL: https://journal.anishdevlops.xyz
+          # Empty => the SPA calls the API/Socket.IO with RELATIVE same-origin URLs,
+          # so it works on EVERY domain Caddy fronts (journal.anishdevlops.xyz AND
+          # app.propvexis.com) and the SameSite=Lax session cookie is always sent.
+          # Do NOT hardcode a host here: a cross-domain absolute URL would break
+          # login (Lax cookie not sent cross-site). Each Caddy vhost proxies /api.
+          VITE_BACKEND_URL: ""
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           # Public (client-side) Sentry DSN — safe to expose; baked into the bundle.
           VITE_SENTRY_DSN: https://770769a772da9fa5b92512ca9279088b@o4508103223017472.ingest.us.sentry.io/4511670762799104
