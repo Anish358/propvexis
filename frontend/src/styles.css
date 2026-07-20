@@ -18,10 +18,13 @@
   /* ===== SURFACES — neutral near-black + translucent hairlines (Linear-style).
      Grays are true neutral (no blue tint) so color only appears on accents.
      Borders are white-alpha so they read as soft hairlines over any surface. ===== */
-  --bg: #08080a;
-  --panel: #101012; --surface: #101012;
-  --surface-2: #17171a;         /* raised: popovers, cards-on-cards, modals */
-  --sidebar-bg: #08080a;        /* seamless with bg — separated by a hairline */
+  /* Charcoal, not pure black — values sampled from the Linear reference.
+     The app background is a subtle GRADIENT (see body / .sidebar below), so
+     --bg is the mid tone used where a solid is needed (inputs, cells). */
+  --bg: #121215;                /* content mid tone (sampled #121215 / 18,18,21) */
+  --panel: #1a1b1d; --surface: #1a1b1d;   /* elevated cards/list (sampled #1A1B1D) */
+  --surface-2: #202127;         /* raised: popovers, cards-on-cards, modals */
+  --sidebar-bg: #131316;        /* fallback; the sidebar itself uses a gradient */
   --surface-hover: rgba(255,255,255,0.045);
   --line: rgba(255,255,255,0.08);
   --line-strong: rgba(255,255,255,0.14);
@@ -34,7 +37,7 @@
   /* ===== TEXT (3 tiers, neutral gray — Linear values) ===== */
   --text: #ededef;             /* off-white (avoids OLED halation) */
   --text-2: #8a8f98; --muted: #8a8f98;
-  --text-3: #62666e;
+  --text-3: #737884;
 
   /* ===== BRAND (blue = the product; NOT profit) ===== */
   --accent: var(--indigo-500);          /* primary buttons, links, focus, data lines only */
@@ -97,7 +100,9 @@
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: var(--bg);
+  /* Subtle vertical gradient (not a flat black) — spans the sampled tones. */
+  background: linear-gradient(180deg, #17181b 0%, #131316 48%, #0f0f12 100%);
+  background-attachment: fixed;
   color: var(--text);
   font: 14px/1.5 var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -1732,6 +1737,18 @@ label.full { margin-bottom: 14px; }
 .fb-ms-opt input, .wcz-opt input, .ts-col-opt input { accent-color: var(--text-2); }
 .sb-plan-badge.pro { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .acct-badge.bound { background: var(--sel-bg); color: var(--text); }
+
+/* ============================================================
+   Gradient surfaces (Linear-style; stops sampled from the reference).
+   The content area shows the body gradient through; the sidebar has its own
+   slightly-darker gradient; the top bar is glass so the gradient reads under it.
+   ============================================================ */
+.shell-main { background: transparent; }
+.sidebar { background: linear-gradient(180deg, #151717 0%, #121115 55%, #111013 100%); }
+.topbar {
+  background: rgba(18,18,21,0.62);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
 
 /* Print: strip the app chrome and lay the report out clean on white for Save-as-PDF. */
 @media print {
