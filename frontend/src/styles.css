@@ -8,6 +8,7 @@
 
   /* ===== PRIMITIVES (raw scales — never used directly in components) ===== */
   --blue-400:#60a5fa; --blue-500:#3b82f6; --blue-600:#2563eb; --blue-700:#1d4ed8;
+  --indigo-500:#5e6ad2; --indigo-600:#4a54b8;   /* Linear's accent — muted, premium */
   --green-400:#4ade80; --green-500:#22c55e; --green-600:#16a34a;
   --red-400:#f87171;  --red-500:#ef4444;  --red-600:#dc2626;
   --amber-400:#fbbf24; --amber-500:#f59e0b;
@@ -17,25 +18,30 @@
   /* ===== SURFACES — neutral near-black + translucent hairlines (Linear-style).
      Grays are true neutral (no blue tint) so color only appears on accents.
      Borders are white-alpha so they read as soft hairlines over any surface. ===== */
-  --bg: #0a0a0b;
-  --panel: #141416; --surface: #141416;
-  --surface-2: #1c1c1f;         /* raised: popovers, cards-on-cards, modals */
-  --sidebar-bg: #0a0a0b;        /* seamless with bg — separated by a hairline */
+  --bg: #08080a;
+  --panel: #101012; --surface: #101012;
+  --surface-2: #17171a;         /* raised: popovers, cards-on-cards, modals */
+  --sidebar-bg: #08080a;        /* seamless with bg — separated by a hairline */
   --surface-hover: rgba(255,255,255,0.045);
   --line: rgba(255,255,255,0.08);
   --line-strong: rgba(255,255,255,0.14);
 
-  /* ===== TEXT (3 tiers, neutral gray) ===== */
-  --text: #ededee;             /* off-white (avoids OLED halation) */
-  --text-2: #9a9aa0; --muted: #9a9aa0;
-  --text-3: #6a6a70;
+  /* Neutral selection — active/selected CHROME is grayscale (white-alpha), never
+     tinted. Blue/indigo is reserved for primary actions + data, not chrome. */
+  --sel-bg: rgba(255,255,255,0.06);
+  --sel-bg-strong: rgba(255,255,255,0.10);
+
+  /* ===== TEXT (3 tiers, neutral gray — Linear values) ===== */
+  --text: #ededef;             /* off-white (avoids OLED halation) */
+  --text-2: #8a8f98; --muted: #8a8f98;
+  --text-3: #62666e;
 
   /* ===== BRAND (blue = the product; NOT profit) ===== */
-  --accent: var(--blue-500);            /* links, icons, active-nav text, focus */
-  --accent-strong: var(--blue-600);     /* filled-button bg — white text passes AA */
-  --accent-bg: rgba(59,130,246,0.14);   /* translucent tint — color whispers, not glows */
-  --accent-border: rgba(59,130,246,0.32);
-  --accent-border-strong: rgba(59,130,246,0.5);
+  --accent: var(--indigo-500);          /* primary buttons, links, focus, data lines only */
+  --accent-strong: var(--indigo-600);   /* filled-button bg — white text passes AA */
+  --accent-bg: rgba(94,106,210,0.14);
+  --accent-border: rgba(94,106,210,0.32);
+  --accent-border-strong: rgba(94,106,210,0.5);
   --on-accent: #ffffff;
   --brand: var(--accent); --brand-bg: var(--accent-bg);
 
@@ -521,8 +527,8 @@ label.full { margin-bottom: 14px; }
 }
 .sb-brand::before {
   content: ''; width: 22px; height: 22px; border-radius: 7px; flex: none;
-  background: linear-gradient(135deg, var(--accent), var(--ai));
-  box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 4px 12px rgba(59,130,246,.35);
+  background: linear-gradient(140deg, rgba(255,255,255,.92), rgba(255,255,255,.34));
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08);
 }
 .sb-nav { display: flex; flex-direction: column; gap: 4px; }
 .sb-section { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin: 6px 6px 10px; }
@@ -790,8 +796,8 @@ label.full { margin-bottom: 14px; }
 }
 .login-brand::before {
   content: ''; width: 28px; height: 28px; border-radius: 9px; flex: none;
-  background: linear-gradient(135deg, var(--accent), var(--ai));
-  box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 6px 18px rgba(59,130,246,.4);
+  background: linear-gradient(140deg, rgba(255,255,255,.92), rgba(255,255,255,.34));
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08);
 }
 .login-sub { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
 .login-btn { min-height: 44px; display: flex; justify-content: center; }
@@ -1703,6 +1709,29 @@ label.full { margin-bottom: 14px; }
 .ph-menu { background: transparent; border: 1px solid transparent; }
 .ph-menu:hover { background: var(--surface-hover); }
 .ph-menu span { background: var(--text-2); }
+
+/* ============================================================
+   Neutral chrome (Linear-exact) — active/selected states are grayscale, not
+   tinted. Accent (indigo) is reserved for primary buttons + data lines only.
+   ============================================================ */
+.sb-item.active, .sb-sub-item.active { background: var(--sel-bg); color: var(--text); }
+.sb-item.active::before { display: none; }        /* no colored active bar (Linear has none) */
+.fb-unit-btn.on { background: var(--sel-bg-strong); color: var(--text); }
+.u-tab.is-active { background: var(--sel-bg); color: var(--text); }
+.view-tab.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
+.precision-chip.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
+.precision-chip.on .precision-dot { background: var(--text-2); box-shadow: none; }
+.precision-chip.on:hover { background: var(--sel-bg-strong); }
+.tb-badge { background: var(--sel-bg-strong); color: var(--text); }
+.acct-opt.sel { background: var(--sel-bg); color: var(--text); }
+.acct-kind-opt.sel { background: var(--sel-bg); border-color: var(--line-strong); }
+.nav button.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
+.prop-phase.active { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
+.cs-badge { background: var(--sel-bg); color: var(--text-2); border-color: var(--line); }
+.fb-ms.active .fb-ms-btn { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
+.fb-ms-opt input, .wcz-opt input, .ts-col-opt input { accent-color: var(--text-2); }
+.sb-plan-badge.pro { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
+.acct-badge.bound { background: var(--sel-bg); color: var(--text); }
 
 /* Print: strip the app chrome and lay the report out clean on white for Save-as-PDF. */
 @media print {

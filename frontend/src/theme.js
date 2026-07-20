@@ -5,8 +5,8 @@
 export const BRAND = 'PropVexis';
 
 const FALLBACKS = {
-  '--accent': '#3b82f6',   // brand blue
-  '--accent-bg': 'rgba(59,130,246,0.14)',
+  '--accent': '#5e6ad2',   // Linear-exact indigo accent
+  '--accent-bg': 'rgba(94,106,210,0.14)',
   '--profit': '#22c55e',   // trade profit (green)
   '--loss': '#f87171',     // trade loss (red)
   '--ai': '#8b5cf6',       // AI / insight accent (purple)
