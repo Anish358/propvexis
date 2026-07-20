@@ -1,8 +1,8 @@
 import React from 'react';
 import { token } from './theme.js';
 
-const GREEN = token('--accent');
-const RED = '#e0615b';
+const GREEN = token('--profit'); // trade profit — green, NOT the blue brand accent
+const RED = token('--loss');
 const TRACK = '#23232a';
 
 // Semicircle gauge (0..1) — used for Trade Win %.

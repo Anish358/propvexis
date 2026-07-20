@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import App from './App.jsx';
 import { AuthProvider } from './AuthContext.jsx';
+// Self-hosted fonts (bundled by Vite — no third-party request, no FOUT).
+// Inter = UI/body & headings; JetBrains Mono = prices / R / P&L (tabular).
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
 import './styles.css';
 
 // Frontend error tracking. No-op unless VITE_SENTRY_DSN is set at build time,

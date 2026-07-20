@@ -31,11 +31,11 @@ const VIEW_LOOKBACK_MIN = 120;
 
 // Palette pulled from the app's design tokens (styles.css :root).
 const COLORS = {
-  up: token('--accent'),
-  down: '#e0615b',
+  up: token('--profit'),
+  down: token('--loss'),
   entry: '#c9c9d2',
-  sl: '#e0615b',
-  tp: token('--accent'),
+  sl: token('--loss'),
+  tp: token('--profit'),
 };
 
 // Aggregate ascending M1 bars ([{t,o,h,l,c}]) into `min`-minute candles, bucketed
