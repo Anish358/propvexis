@@ -1607,6 +1607,25 @@ label.full { margin-bottom: 14px; }
 .jo-mod-arrow { margin-left: auto; color: var(--text-3); display: flex; }
 @media (max-width: 900px) { .jo-cols { grid-template-columns: 1fr; } }
 
+/* ---- Day View (Phase 2) ---- */
+.dv-nav { display: flex; align-items: center; gap: 12px; }
+.dv-day { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.dv-day-title { font-size: 16px; font-weight: 700; }
+.dv-date { width: auto; max-width: 170px; padding: 7px 10px; }
+.dv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+.dv-stat-label { color: var(--text-2); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.dv-stat-value { font-family: var(--font-mono); font-size: 24px; font-weight: 700; margin-top: 6px; }
+.dv-stat-value.pos { color: var(--profit); }
+.dv-stat-value.neg { color: var(--loss); }
+.dv-table { width: 100%; }
+.dv-notes-title { margin: 0 0 12px; font-size: 14px; font-weight: 700; }
+.dv-notes { display: flex; flex-direction: column; gap: 12px; }
+.dv-note { border-left: 3px solid var(--line-strong); padding: 2px 0 2px 12px; }
+.dv-note-head { display: flex; gap: 10px; align-items: baseline; }
+.dv-note-sym { font-weight: 600; font-size: 13px; }
+.dv-note-time { color: var(--text-3); font-size: 12px; }
+.dv-note-body { margin: 4px 0 0; font-size: 13px; color: var(--text-2); line-height: 1.55; white-space: pre-wrap; }
+
 /* Print: strip the app chrome and lay the report out clean on white for Save-as-PDF. */
 @media print {
   .sidebar, .filterbar, .pagehead, .notif-bell, .toasts, .no-print { display: none !important; }
