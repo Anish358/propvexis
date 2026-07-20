@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend,
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
+import { LoadingBlock } from './ui.jsx';
 import Explain from './Explain.jsx';
 import { fetchProp, fetchPropFinance, fetchPropInsights, advanceChallenge, updateAccount } from './api.js';
 import { fmtMoney, fmtMoneyShort } from './metrics.js';
@@ -468,7 +469,7 @@ export default function PropOS() {
   );
 
   if (err) return page(<div className="banner error">Could not load Prop OS: {err}</div>);
-  if (!data) return page(<div className="dash-loading">Loading Prop OS…</div>);
+  if (!data) return page(<LoadingBlock label="Loading Prop OS" />);
 
   // God / portfolio view.
   if (data.god) {

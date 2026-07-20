@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
+import { LoadingBlock } from './ui.jsx';
 import { useAuth } from './AuthContext.jsx';
 import { fetchReport, reportCsvUrl } from './api.js';
 import { fmtVal, fmtAxis, fmtMoney } from './metrics.js';
@@ -142,7 +143,7 @@ export default function Reports() {
   }
 
   if (err) return page(<div className="banner error">Could not load report: {err}</div>);
-  if (!report) return page(<div className="dash-loading">Building report…</div>);
+  if (!report) return page(<LoadingBlock label="Building report" />);
 
   const h = report.stats.headline;
   const p = report.prop;

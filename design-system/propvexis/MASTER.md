@@ -58,11 +58,30 @@ Dark is the only shipped theme; tokens are named semantically so a future light 
 - **Icons:** Lucide-style outline SVG, `strokeWidth 2`, 18–24px. No emoji-as-icon, no colorful icons.
 - **Focus:** global `:focus-visible` ring in `--accent` (keyboard only). Never remove it.
 
+## Component primitives (Phase 1)
+Canonical, token-backed primitives. **Compose these on new screens — don't hand-roll.**
+React kit: [`frontend/src/ui.jsx`](../../frontend/src/ui.jsx); CSS: the `u-*` layer in `styles.css`.
+
+| Primitive | Import | Key props |
+|---|---|---|
+| Button | `Button` | `variant` primary/secondary/ghost/danger · `size` sm/md/lg · `block` · `as` |
+| Card | `Card` | `hover` · `flush` |
+| Badge | `Badge` | `tone` neutral/brand/profit/loss/warn/ai |
+| Tabs | `Tabs` | `tabs=[{value,label}]` · `value` · `onChange` |
+| Field + inputs | `Field`, `Input`, `Select`, `Textarea` | `label` · `hint` · `error` |
+| Skeleton | `Skeleton` | `variant` text/title/block/circle · `width`/`height` |
+| Loading (page) | `LoadingBlock` | `label` · `kpis` — dashboard-shaped skeleton |
+| Empty state | `EmptyState` | `icon` · `title` · `description` · `actions` · `badge` |
+
+Guarded by `test/ui-primitives.test.js` (classes exist, kit exports, no raw hex in the layer).
+Adopted so far: all `soon` routes (`ComingSoon`→`EmptyState`) and page loaders in Analytics/Reports/PropOS (→`LoadingBlock`).
+
 ## Roadmap (phases)
 - **Phase 0 — Foundation (DONE):** tokens, self-hosted fonts, brand↔outcome color split, leak sweep, shell reskin, a11y focus/reduced-motion.
-- **Phase 1 — System components:** standardize Button/Input/Card/Modal/Table/Badge/Tabs on tokens; add skeleton + empty-state primitives.
-- **Phase 2 — Build the `soon` modules** against the finished system.
+- **Phase 1 — System components (DONE):** `u-*` layer + `ui.jsx` kit (Button/Card/Badge/Tabs/Field/Input/Skeleton/EmptyState); legacy primary-button blues tokenized; ComingSoon + page loaders retrofitted.
+- **Phase 2 — Build the `soon` modules** against the finished system (compose `ui.jsx`).
 - **Phase 3 — Polish:** motion, illustrations/empty-state art, onboarding, mobile, real logo/wordmark, optional light theme.
+- Gradual migration: existing bespoke buttons/inputs/modals can move onto the `u-*` primitives opportunistically as those files are touched (not a required sweep).
 
 ## Gaps tracked (not yet built)
 Empty states · skeleton loaders · onboarding flow · mobile/responsive story for sidebar + dense tables · real logo (current wordmark uses a gradient placeholder mark) · light theme.

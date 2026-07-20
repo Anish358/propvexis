@@ -5,6 +5,7 @@ import {
   BarChart, Bar, ReferenceLine, Cell,
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
+import { LoadingBlock } from './ui.jsx';
 import { fetchStats, fetchYearly } from './api.js';
 import { fmtVal, fmtAxis } from './metrics.js';
 
@@ -66,7 +67,7 @@ export default function Analytics() {
   );
 
   if (err) return page(<div className="banner error">Could not load stats: {err}</div>);
-  if (!stats) return page(<div className="dash-loading">Loading analytics…</div>);
+  if (!stats) return page(<LoadingBlock label="Loading analytics" />);
 
   const h = stats.headline;
 
