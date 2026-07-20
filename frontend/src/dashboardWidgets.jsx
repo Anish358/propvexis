@@ -13,12 +13,20 @@ const GREEN = token('--profit'); // trade profit — green, NOT the blue brand a
 const RED = token('--loss');
 const PURPLE = token('--ai');
 const PAYOUT = token('--payout'); // funded-account payout (profit withdrawal) highlight
+// Chart theming — all pulled from design tokens so charts match the app palette.
+const GRID = token('--line');
+const AXIS = token('--text-3');
+const AXIS_STRONG = token('--line-strong');
+const TICK = token('--text-2');
+const WARN = token('--warning');
+const BG = token('--bg');
+const SURF2 = token('--surface-2');
 const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : '');
 
 // Dot on the balance chart marking a payout (profit withdrawal) point.
 const PayoutDot = ({ cx, cy, payload }) =>
   (payload?.phase === 'payout' && cx != null && cy != null
-    ? <circle cx={cx} cy={cy} r={3.5} fill={PAYOUT} stroke="#0b0b0e" strokeWidth={1} />
+    ? <circle cx={cx} cy={cy} r={3.5} fill={PAYOUT} stroke={BG} strokeWidth={1} />
     : null);
 const pctStr = (n) => `${(Number(n) || 0).toFixed(1)}%`;
 
@@ -45,7 +53,7 @@ function Tracker({ label, used, limit, limitPct, start, good = false }) {
   const usedPct = start > 0 ? (used / start) * 100 : 0;
   const color = good
     ? (ratio >= 1 ? GREEN : PURPLE)
-    : (ratio >= 0.8 ? RED : ratio >= 0.5 ? '#e0a03a' : GREEN);
+    : (ratio >= 0.8 ? RED : ratio >= 0.5 ? WARN : GREEN);
   return (
     <div className="kcard tracker">
       <div className="kcard-top">
@@ -67,7 +75,7 @@ function Tracker({ label, used, limit, limitPct, start, good = false }) {
   );
 }
 
-const chartTooltip = { background: '#151518', border: '1px solid #2a2a30', borderRadius: 8 };
+const chartTooltip = { background: SURF2, border: `1px solid ${GRID}`, borderRadius: 8, color: token('--text') };
 
 // ---- KPI band widgets ----------------------------------------------------
 
@@ -162,8 +170,8 @@ function WThunder({ ctx }) {
       <div className="panel-title">⚡ THUNDER SCORE</div>
       <ResponsiveContainer width="100%" height={230}>
         <RadarChart data={m.thunderAxes} outerRadius="72%">
-          <PolarGrid stroke="#2a2a32" />
-          <PolarAngleAxis dataKey="key" tick={{ fill: '#8a8a93', fontSize: 11 }} />
+          <PolarGrid stroke={GRID} />
+          <PolarAngleAxis dataKey="key" tick={{ fill: TICK, fontSize: 11 }} />
           <Radar dataKey="value" stroke={PURPLE} fill={PURPLE} fillOpacity={0.45} />
         </RadarChart>
       </ResponsiveContainer>
@@ -192,11 +200,11 @@ function WCumulative({ ctx }) {
       </div>
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={m.cumulative} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
-          <CartesianGrid stroke="#1d1d23" vertical={false} />
-          <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
-          <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtAxis(v, unit)} />
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="label" stroke={AXIS} fontSize={11} tickLine={false} />
+          <YAxis stroke={AXIS} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtAxis(v, unit)} />
           <Tooltip contentStyle={chartTooltip} formatter={(v) => fmtVal(v, unit)} />
-          <ReferenceLine y={0} stroke="#33333b" />
+          <ReferenceLine y={0} stroke={AXIS_STRONG} />
           <Line type="monotone" dataKey="cum" stroke={GREEN} strokeWidth={2} dot={{ r: 3, fill: GREEN }} />
         </LineChart>
       </ResponsiveContainer>
@@ -220,11 +228,11 @@ function WDailyBars({ ctx }) {
       </div>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: -10 }}>
-          <CartesianGrid stroke="#1d1d23" vertical={false} />
-          <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
-          <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtAxis(v, unit)} />
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="label" stroke={AXIS} fontSize={11} tickLine={false} />
+          <YAxis stroke={AXIS} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtAxis(v, unit)} />
           <Tooltip contentStyle={chartTooltip} cursor={{ fill: '#ffffff08' }} formatter={(v) => fmtVal(v, unit)} />
-          <ReferenceLine y={0} stroke="#33333b" />
+          <ReferenceLine y={0} stroke={AXIS_STRONG} />
           <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
             {data.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? GREEN : RED} />)}
           </Bar>
@@ -296,12 +304,12 @@ function WEquity({ ctx }) {
               <stop offset="100%" stopColor={PAYOUT} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#1d1d23" vertical={false} />
-          <XAxis dataKey="label" stroke="#5a5a63" fontSize={11} tickLine={false} />
-          <YAxis stroke="#5a5a63" fontSize={11} tickLine={false} axisLine={false} domain={[Math.floor(p.max.floor - p.start * 0.01), 'auto']} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="label" stroke={AXIS} fontSize={11} tickLine={false} />
+          <YAxis stroke={AXIS} fontSize={11} tickLine={false} axisLine={false} domain={[Math.floor(p.max.floor - p.start * 0.01), 'auto']} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
           <Tooltip content={<BalanceTip pre={pre} />} />
-          <ReferenceLine y={p.start} stroke="#33333b" strokeDasharray="4 4" label={{ value: 'start', fill: '#5a5a63', fontSize: 10, position: 'insideTopLeft' }} />
-          <ReferenceLine y={p.daily.floor} stroke="#e0a03a" strokeDasharray="6 4" label={{ value: `Daily max loss · ${fmtMoney(p.daily.floor)}`, fill: '#e0a03a', fontSize: 10, position: 'insideBottomRight' }} />
+          <ReferenceLine y={p.start} stroke={AXIS_STRONG} strokeDasharray="4 4" label={{ value: 'start', fill: AXIS, fontSize: 10, position: 'insideTopLeft' }} />
+          <ReferenceLine y={p.daily.floor} stroke={WARN} strokeDasharray="6 4" label={{ value: `Daily max loss · ${fmtMoney(p.daily.floor)}`, fill: WARN, fontSize: 10, position: 'insideBottomRight' }} />
           <ReferenceLine y={p.max.floor} stroke={RED} strokeDasharray="6 4" label={{ value: `Max allowed loss · ${fmtMoney(p.max.floor)}`, fill: RED, fontSize: 10, position: 'insideBottomRight' }} />
           {/* Pre-tracking (account added mid-drawdown) drawn as a straight purple drop. */}
           {pre && <Area type="linear" dataKey="pre" stroke={PURPLE} strokeWidth={2} strokeDasharray="5 3" fill="url(#preFill)" dot={false} connectNulls={false} isAnimationActive={false} />}

@@ -221,18 +221,18 @@ label.full { margin-bottom: 14px; }
 .dash-loading { padding: 40px; color: var(--muted); text-align: center; }
 
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-4); box-shadow: var(--sh-1); }
 .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
 .kpi-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
 .kpi-value.win { color: #8fe0a6; } .kpi-value.loss { color: #e0918d; }
 .kpi-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-4); box-shadow: var(--sh-1); }
 .panel h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .bd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-.bd { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.bd { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-4); box-shadow: var(--sh-1); }
 .bd h3 { margin: 0 0 8px; font-size: 13px; }
 .bd table, .yearly { width: 100%; border-collapse: collapse; }
 .bd th, .yearly th { text-align: right; color: var(--muted); font-size: 11px; font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--line); }
@@ -267,7 +267,8 @@ label.full { margin-bottom: 14px; }
 
 /* ---- KPI cards ---- */
 .kpi-cards { display: grid; grid-template-columns: repeat(var(--cols, 5), 1fr); gap: 14px; }
-.kcard { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; min-height: 120px; }
+.kcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-4) 18px; min-height: 120px; box-shadow: var(--sh-1); transition: border-color var(--dur-fast) var(--ease); }
+.kcard:hover { border-color: var(--line-strong); }
 .kcard-top { display: flex; justify-content: space-between; align-items: flex-start; }
 .kcard-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
 .kcard-big { font-size: 30px; font-weight: 800; margin-top: 8px; letter-spacing: -0.5px; }
@@ -441,7 +442,7 @@ label.full { margin-bottom: 14px; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .cal-dow { margin-bottom: 8px; }
 .cal-dow-cell { text-align: center; color: var(--muted); font-size: 12px; padding: 2px; }
-.cal-cell { background: #0e0e11; border: 1px solid #1b1b20; border-radius: 8px; min-height: 78px; padding: 8px; position: relative; }
+.cal-cell { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); min-height: 78px; padding: 8px; position: relative; transition: border-color var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
 .cal-cell.cal-empty { background: transparent; border: none; }
 .cal-daynum { font-size: 12px; color: var(--muted); }
 .cal-cell-body { margin-top: 6px; }
