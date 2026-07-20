@@ -15,6 +15,7 @@ import Billing from './Billing.jsx';
 import PropOS from './PropOS.jsx';
 import Reports from './Reports.jsx';
 import ComingSoon from './ComingSoon.jsx';
+import JournalOverview from './JournalOverview.jsx';
 import Alerts from './Alerts.jsx';
 import Settings from './Settings.jsx';
 import Account from './Account.jsx';
@@ -317,7 +318,7 @@ export default function App() {
 
             {/* Trade Journal module (IA in nav.js) */}
             <Route path="journal">
-              <Route index element={<ComingSoon title="Journal Overview" blurb="The module home — headline performance, recent activity and quick links across your journal." />} />
+              <Route index element={<JournalOverview />} />
               <Route path="trades" element={<TradeLog />} />
               <Route path="day" element={<ComingSoon title="Day View" blurb="A single trading day in depth — every trade, note and stat for the session." />} />
               <Route path="progress" element={<ComingSoon title="Progress Tracker" blurb="A day-grid heatmap of your trading consistency over the year." />} />

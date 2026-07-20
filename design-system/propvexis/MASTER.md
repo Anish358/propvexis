@@ -79,7 +79,9 @@ Adopted so far: all `soon` routes (`ComingSoon`→`EmptyState`) and page loaders
 ## Roadmap (phases)
 - **Phase 0 — Foundation (DONE):** tokens, self-hosted fonts, brand↔outcome color split, leak sweep, shell reskin, a11y focus/reduced-motion.
 - **Phase 1 — System components (DONE):** `u-*` layer + `ui.jsx` kit (Button/Card/Badge/Tabs/Field/Input/Skeleton/EmptyState); legacy primary-button blues tokenized; ComingSoon + page loaders retrofitted.
-- **Phase 2 — Build the `soon` modules** against the finished system (compose `ui.jsx`).
+- **Phase 2 — Build the `soon` modules** against the finished system (compose `ui.jsx`), one PR each.
+  - ✅ Journal Overview (`/journal`) — headline KPIs + recent trades + module map + empty state.
+  - ☐ Day View · Progress Tracker · Psychology · Backtesting · Prop Accounts · Challenges · Prop Analytics.
 - **Phase 3 — Polish:** motion, illustrations/empty-state art, onboarding, mobile, real logo/wordmark, optional light theme.
 - Gradual migration: existing bespoke buttons/inputs/modals can move onto the `u-*` primitives opportunistically as those files are touched (not a required sweep).
 

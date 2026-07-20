@@ -14,7 +14,7 @@ export const NAV = [
   {
     label: 'Trade Journal', icon: 'journal', base: '/journal',
     children: [
-      { to: '/journal', label: 'Overview', end: true, soon: true },
+      { to: '/journal', label: 'Overview', end: true },
       { to: '/journal/trades', label: 'Trade Log' },
       { to: '/journal/day', label: 'Day View', soon: true },
       { to: '/journal/progress', label: 'Progress Tracker', soon: true },

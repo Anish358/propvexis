@@ -1580,6 +1580,33 @@ label.full { margin-bottom: 14px; }
 .u-empty-desc { font-size: 13px; color: var(--text-2); line-height: 1.55; }
 .u-empty-actions { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
 
+/* ---- Journal Overview (module front door, Phase 2) ---- */
+.jo-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.jo-kpi-label { color: var(--text-2); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.jo-kpi-value { font-family: var(--font-mono); font-size: 26px; font-weight: 700; margin-top: 8px; letter-spacing: -.02em; }
+.jo-kpi-value.pos { color: var(--profit); }
+.jo-kpi-value.neg { color: var(--loss); }
+.jo-kpi-sub { color: var(--text-3); font-size: 12px; margin-top: 4px; }
+.jo-cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; align-items: start; }
+.jo-section-title { font-size: 14px; font-weight: 700; margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between; }
+.jo-recent { display: flex; flex-direction: column; }
+.jo-trade { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.jo-trade:last-child { border-bottom: none; }
+.jo-trade-sym { font-weight: 600; font-size: 13px; min-width: 76px; }
+.jo-trade-val { font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
+.jo-trade-val.pos { color: var(--profit); }
+.jo-trade-val.neg { color: var(--loss); }
+.jo-trade-date { color: var(--text-3); font-size: 12px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.jo-modules { display: grid; gap: 10px; }
+.jo-mod { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); text-decoration: none; color: var(--text); transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.jo-mod:hover { border-color: var(--line-strong); background: var(--surface-hover); }
+.jo-mod-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); color: var(--accent); flex: none; }
+.jo-mod-body { min-width: 0; display: flex; flex-direction: column; }
+.jo-mod-name { font-weight: 600; font-size: 13px; }
+.jo-mod-desc { color: var(--text-2); font-size: 12px; margin-top: 1px; }
+.jo-mod-arrow { margin-left: auto; color: var(--text-3); display: flex; }
+@media (max-width: 900px) { .jo-cols { grid-template-columns: 1fr; } }
+
 /* Print: strip the app chrome and lay the report out clean on white for Save-as-PDF. */
 @media print {
   .sidebar, .filterbar, .pagehead, .notif-bell, .toasts, .no-print { display: none !important; }
