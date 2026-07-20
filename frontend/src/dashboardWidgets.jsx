@@ -9,10 +9,10 @@ import { GaugeArc, Ring, SplitBar } from './DashWidgets.jsx';
 import { fmtVal, fmtValShort, fmtAxis, fmtMoney } from './metrics.js';
 import { token } from './theme.js';
 
-const GREEN = token('--accent');
-const RED = '#e0615b';
-const PURPLE = '#a679f0';
-const PAYOUT = '#4dc4ff'; // funded-account payout (profit withdrawal) highlight
+const GREEN = token('--profit'); // trade profit — green, NOT the blue brand accent
+const RED = token('--loss');
+const PURPLE = token('--ai');
+const PAYOUT = token('--payout'); // funded-account payout (profit withdrawal) highlight
 const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : '');
 
 // Dot on the balance chart marking a payout (profit withdrawal) point.
@@ -44,7 +44,7 @@ function Tracker({ label, used, limit, limitPct, start, good = false }) {
   const ratio = limit > 0 ? Math.min(1, used / limit) : 0;
   const usedPct = start > 0 ? (used / start) * 100 : 0;
   const color = good
-    ? (ratio >= 1 ? GREEN : '#7c5cff')
+    ? (ratio >= 1 ? GREEN : PURPLE)
     : (ratio >= 0.8 ? RED : ratio >= 0.5 ? '#e0a03a' : GREEN);
   return (
     <div className="kcard tracker">
@@ -164,7 +164,7 @@ function WThunder({ ctx }) {
         <RadarChart data={m.thunderAxes} outerRadius="72%">
           <PolarGrid stroke="#2a2a32" />
           <PolarAngleAxis dataKey="key" tick={{ fill: '#8a8a93', fontSize: 11 }} />
-          <Radar dataKey="value" stroke="#7c5cff" fill="#7c5cff" fillOpacity={0.45} />
+          <Radar dataKey="value" stroke={PURPLE} fill={PURPLE} fillOpacity={0.45} />
         </RadarChart>
       </ResponsiveContainer>
       <div className="rr-slider">

@@ -5,11 +5,15 @@
 export const BRAND = 'PropVexis';
 
 const FALLBACKS = {
-  '--accent': '#39d98a',
-  '--accent-bg': '#112a1c',
-  '--status-bad': '#e0605a',
-  '--red': '#b3403a',
-  '--muted': '#6f6f78',
+  '--accent': '#3b82f6',   // brand blue
+  '--accent-bg': '#12233f',
+  '--profit': '#22c55e',   // trade profit (green)
+  '--loss': '#f87171',     // trade loss (red)
+  '--ai': '#8b5cf6',       // AI / insight accent (purple)
+  '--payout': '#38bdf8',   // funded-account payout highlight (cyan)
+  '--status-bad': '#f87171',
+  '--red': '#ef4444',
+  '--muted': '#94a3b8',
 };
 
 export function token(name) {
