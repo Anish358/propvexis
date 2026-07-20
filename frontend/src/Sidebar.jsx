@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { ACCOUNT_START, fmtMoney } from './metrics.js';
-import { useAuth } from './AuthContext.jsx';
 import AccountsModal from './AccountsModal.jsx';
 import { NAV } from './nav.js';
 import { BRAND } from './theme.js';
@@ -129,7 +128,6 @@ function RailGroup({ item }) {
 }
 
 export default function Sidebar({ trades = [], account = null, accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {}, unit = 'R' }) {
-  const { user, logout } = useAuth();
   const [manageOpen, setManageOpen] = useState(false);
   const isGod = accountId === 'all';
   // The box always shows the account's STARTING balance (the dashboard is where
@@ -151,35 +149,13 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
 
       <div className="sb-account">
         <AccountSwitcher accounts={accounts} accountId={accountId} setAccountId={setAccountId} onManage={() => setManageOpen(true)} />
-        <div className="sb-account-label">
-          {isGod ? '' : 'ACCOUNT'}
-          {!isGod && <span className="sb-account-tag" title="Starting balance — see the dashboard for the current balance">START</span>}
-        </div>
-        {isGod ? (
-          <div className="sb-account-balance god"></div>
-        ) : (
-          <div className="sb-account-balance">{fmtMoney(startBalance)}</div>
+        {!isGod && (
+          <div className="sb-balance">
+            <span className="sb-balance-val">{fmtMoney(startBalance)}</span>
+            <span className="sb-balance-tag" title="Starting balance — the dashboard shows the current balance">start</span>
+          </div>
         )}
       </div>
-
-      {user && (
-        <div className="sb-user">
-          {user.picture && <img className="sb-user-pic" src={user.picture} alt="" referrerPolicy="no-referrer" />}
-          <div className="sb-user-meta">
-            <div className="sb-user-name">
-              <span className="sb-user-name-text">{user.name || user.email}</span>
-              <Link to="/billing" className={`sb-plan-badge ${user.plan || 'free'}`} title="Manage plan">
-                {(user.plan || 'free').toUpperCase()}
-              </Link>
-            </div>
-            <div className="sb-user-email">{user.email}</div>
-            {(user.plan || 'free') === 'free' && (
-              <Link to="/billing" className="sb-upgrade">Upgrade to Pro →</Link>
-            )}
-          </div>
-          <button className="sb-logout" onClick={logout} title="Sign out">Sign out</button>
-        </div>
-      )}
 
       {manageOpen && (
         <AccountsModal
