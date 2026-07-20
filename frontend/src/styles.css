@@ -14,45 +14,47 @@
   --purple-400:#a78bfa; --purple-500:#8b5cf6;
   --cyan-400:#38bdf8;
 
-  /* ===== SURFACES (elevation ladder) ===== */
-  --bg: #0b0d12;
-  --panel: #151922; --surface: #151922;
-  --surface-2: #1c2130;         /* raised: popovers, cards-on-cards, modals */
-  --sidebar-bg: #0a0c11;
-  --surface-hover: #1a1f2b;
-  --line: #252b37;
-  --line-strong: #323949;
+  /* ===== SURFACES — neutral near-black + translucent hairlines (Linear-style).
+     Grays are true neutral (no blue tint) so color only appears on accents.
+     Borders are white-alpha so they read as soft hairlines over any surface. ===== */
+  --bg: #0a0a0b;
+  --panel: #141416; --surface: #141416;
+  --surface-2: #1c1c1f;         /* raised: popovers, cards-on-cards, modals */
+  --sidebar-bg: #0a0a0b;        /* seamless with bg — separated by a hairline */
+  --surface-hover: rgba(255,255,255,0.045);
+  --line: rgba(255,255,255,0.08);
+  --line-strong: rgba(255,255,255,0.14);
 
-  /* ===== TEXT (3 tiers) ===== */
-  --text: #f1f5f9;              /* off-white, not pure #fff (avoids OLED halation) */
-  --text-2: #94a3b8; --muted: #94a3b8;
-  --text-3: #64748b;
+  /* ===== TEXT (3 tiers, neutral gray) ===== */
+  --text: #ededee;             /* off-white (avoids OLED halation) */
+  --text-2: #9a9aa0; --muted: #9a9aa0;
+  --text-3: #6a6a70;
 
   /* ===== BRAND (blue = the product; NOT profit) ===== */
   --accent: var(--blue-500);            /* links, icons, active-nav text, focus */
   --accent-strong: var(--blue-600);     /* filled-button bg — white text passes AA */
-  --accent-bg: #12233f;                 /* tinted chrome background */
-  --accent-border: #21396b;
-  --accent-border-strong: #2a4c86;
+  --accent-bg: rgba(59,130,246,0.14);   /* translucent tint — color whispers, not glows */
+  --accent-border: rgba(59,130,246,0.32);
+  --accent-border-strong: rgba(59,130,246,0.5);
   --on-accent: #ffffff;
   --brand: var(--accent); --brand-bg: var(--accent-bg);
 
   /* ===== OUTCOMES (green/red reserved for trade P&L only) ===== */
   --profit: var(--green-500);
-  --profit-bg: #0f2a1c;
-  --profit-border: #1c4733;
-  --profit-strong: #245c3f;
+  --profit-bg: rgba(34,197,94,0.13);
+  --profit-border: rgba(34,197,94,0.30);
+  --profit-strong: rgba(34,197,94,0.45);
   --loss: var(--red-400);               /* brighter red reads better as text on dark */
   --loss-strong: var(--red-500);
-  --loss-bg: #2a1618;
-  --be: #94a3b8; --be-bg: #20242e;
+  --loss-bg: rgba(239,68,68,0.13);
+  --be: var(--text-2); --be-bg: rgba(255,255,255,0.06);
   /* legacy P&L aliases still referenced across the sheet-mirrored pills */
   --green: var(--green-600);
   --red: var(--red-500);
   --win-bg: var(--profit-bg);
 
   /* ===== ACCENT / STATUS ===== */
-  --ai: var(--purple-500); --ai-bg: #211a3a;   /* AI / insight highlights only */
+  --ai: var(--purple-500); --ai-bg: rgba(139,92,246,0.15);   /* AI / insight highlights only */
   --warning: var(--amber-500);
   --payout: var(--cyan-400);
   --status-good: var(--green-500);
@@ -67,13 +69,13 @@
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-8:32px;
 
   /* ===== SHADOW ===== */
-  --sh-1:0 1px 2px rgba(0,0,0,.4);
-  --sh-2:0 10px 30px rgba(0,0,0,.5);
-  --sh-3:0 24px 70px rgba(0,0,0,.7);
+  --sh-1:0 1px 2px rgba(0,0,0,.28);
+  --sh-2:0 8px 24px rgba(0,0,0,.4);
+  --sh-3:0 20px 56px rgba(0,0,0,.55);
 
   /* ===== TYPOGRAPHY ===== */
-  --font-sans:'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono:'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-sans:'Geist Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:'Geist Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   /* ===== MOTION ===== */
   --ease:cubic-bezier(.16,1,.3,1); --dur-fast:120ms; --dur:200ms;

@@ -17,6 +17,15 @@
 Never color brand chrome green, and never color a non-outcome element green/red. This is
 the invariant the token split enforces (`--accent*` = blue chrome, `--profit`/`--loss` = outcomes).
 
+## Theme direction (v2 — "clear / transparent / premium", Linear/Notion-family)
+Exploratory refresh layered on the tokens: **neutral near-black** surfaces (no blue
+tint), **translucent white hairline** borders (`rgba(255,255,255,.08)`), **translucent
+color tints** for chips/active states (color whispers, not glows), and a seamless
+sidebar. Font moved to **Geist** (Geist Mono for numerics). Because everything is
+tokenized, this is a `:root` values + font change — the table below shows the
+*original* Phase-0 values; `frontend/src/styles.css :root` is the live source of truth.
+Not yet finalized — a full rebrand pass comes later.
+
 ## Color tokens
 Dark is the only shipped theme; tokens are named semantically so a future light theme is a
 `:root[data-theme="light"]` override — no component CSS changes.
