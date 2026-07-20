@@ -20,7 +20,7 @@ const BellIcon = () => (
   </svg>
 );
 
-export function NotificationBell({ notifications = [], unread = 0, onMarkAllRead }) {
+export function NotificationBell({ notifications = [], unread = 0, onMarkAllRead, inline = false }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -31,7 +31,7 @@ export function NotificationBell({ notifications = [], unread = 0, onMarkAllRead
   }, [open]);
 
   return (
-    <div className="notif" ref={ref}>
+    <div className={`notif ${inline ? 'notif-inline' : ''}`} ref={ref}>
       <button className="notif-bell" onClick={() => setOpen((o) => !o)} aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
         <BellIcon />
         {unread > 0 && <span className="notif-badge">{unread > 99 ? '99+' : unread}</span>}

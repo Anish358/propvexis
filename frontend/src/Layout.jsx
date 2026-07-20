@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
 import FilterBar from './FilterBar.jsx';
-import { NotificationBell, Toasts } from './Notifications.jsx';
+import { Toasts } from './Notifications.jsx';
 
 // App shell: fixed left sidebar + a global filter bar + the routed page area.
 // The display unit and data filters come from the active scope's ViewConfig
@@ -33,7 +33,6 @@ export default function Layout({
         />
       )}
       <main className="shell-main">
-        <NotificationBell notifications={notifications} unread={unread} onMarkAllRead={markAllNotificationsRead} />
         <Toasts items={toasts} onDismiss={dismissToast} />
         <FilterBar
           unit={unit}
@@ -42,6 +41,9 @@ export default function Layout({
           setUnit={setUnit}
           patchFilters={patchFilters}
           clearFilters={clearFilters}
+          notifications={notifications}
+          unread={unread}
+          onMarkAllRead={markAllNotificationsRead}
         />
         <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>

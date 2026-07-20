@@ -1645,6 +1645,65 @@ label.full { margin-bottom: 14px; }
 .dv-note-time { color: var(--text-3); font-size: 12px; }
 .dv-note-body { margin: 4px 0 0; font-size: 13px; color: var(--text-2); line-height: 1.55; white-space: pre-wrap; }
 
+/* ============================================================
+   Shell v2 — Linear-style top bar + tightened sidebar
+   ============================================================ */
+
+/* Global top bar (replaces the old .filterbar row) */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: var(--z-nav);
+}
+.tb-left, .tb-right { display: flex; align-items: center; gap: 8px; }
+
+/* Unit toggle — subtle segmented control (no outer border) */
+.fb-unit { display: inline-flex; background: var(--surface-2); border: 0; border-radius: var(--r-md); padding: 2px; overflow: hidden; }
+.fb-unit-btn { background: transparent; border: none; color: var(--text-2); padding: 5px 11px; min-width: 30px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: var(--r-sm); }
+.fb-unit-btn.on { background: var(--accent-bg); color: var(--accent); }
+
+/* Filters funnel button + popover (collapses the whole filter row) */
+.tb-filters { position: relative; }
+.tb-btn { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: 1px solid transparent; color: var(--text-2); padding: 6px 10px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; }
+.tb-btn:hover { background: var(--surface-hover); color: var(--text); }
+.tb-btn.active { color: var(--text); }
+.tb-badge { display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; }
+.tb-filters-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: var(--z-dropdown); width: 300px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-2); }
+.tb-filters-grid { display: flex; flex-direction: column; gap: 8px; }
+.tb-filters-grid .fb-ms { width: 100%; }
+.tb-filters-grid .fb-ms-btn { width: 100%; justify-content: space-between; background: var(--bg); }
+.tb-filters-dates { display: flex; align-items: center; gap: 8px; }
+.tb-filters-dates .u-input { padding: 7px 9px; font-size: 12px; }
+.tb-date-sep { color: var(--text-3); }
+.tb-filters-clear { background: transparent; border: none; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; padding: 2px 2px 0; }
+
+/* Right action cluster: notifications + sign-out + account avatar (one line) */
+.tb-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-md); background: transparent; border: none; color: var(--text-2); cursor: pointer; }
+.tb-icon:hover { background: var(--surface-hover); color: var(--text); }
+.tb-avatar-link { display: inline-flex; border-radius: 50%; }
+.tb-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
+.tb-avatar-fallback { display: grid; place-items: center; background: var(--accent-bg); color: var(--accent); font-size: 12px; font-weight: 700; }
+
+/* Inline notification bell (in the top bar, no longer floating) */
+.notif-inline { position: relative; top: auto; right: auto; }
+.notif-inline .notif-bell { width: 34px; height: 34px; background: transparent; border: none; color: var(--text-2); }
+.notif-inline .notif-bell:hover { background: var(--surface-hover); color: var(--text); }
+.notif-inline .notif-panel { top: calc(100% + 6px); right: 0; }
+
+/* Sidebar — tighter nav + borderless account footer */
+.sb-item { padding: 7px 10px; border-radius: var(--r-md); font-size: 13px; gap: 10px; }
+.sb-item:hover { background: var(--surface-hover); color: var(--text); }
+.sb-account { margin-top: auto; background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 12px 2px 2px; }
+.sb-balance { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; padding: 0 6px; }
+.sb-balance-val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--text); }
+.sb-balance-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); }
+.acct-switch-btn { background: var(--surface-2); }
+
+/* Page header — ghost hamburger (fewer boxed elements) */
+.ph-menu { background: transparent; border: 1px solid transparent; }
+.ph-menu:hover { background: var(--surface-hover); }
+.ph-menu span { background: var(--text-2); }
+
 /* Print: strip the app chrome and lay the report out clean on white for Save-as-PDF. */
 @media print {
   .sidebar, .filterbar, .pagehead, .notif-bell, .toasts, .no-print { display: none !important; }
