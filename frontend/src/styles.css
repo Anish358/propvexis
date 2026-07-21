@@ -1701,14 +1701,27 @@ label.full { margin-bottom: 14px; }
 .notif-inline .notif-bell:hover { background: var(--surface-hover); color: var(--text); }
 .notif-inline .notif-panel { top: calc(100% + 6px); right: 0; }
 
-/* Sidebar — tighter nav + borderless account footer */
+/* Sidebar — tighter nav + bottom-left sign-out footer */
 .sb-item { padding: 7px 10px; border-radius: var(--r-md); font-size: 13px; gap: 10px; }
 .sb-item:hover { background: var(--surface-hover); color: var(--text); }
-.sb-account { margin-top: auto; background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 12px 2px 2px; }
-.sb-balance { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; padding: 0 6px; }
-.sb-balance-val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--text); }
-.sb-balance-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); }
-.acct-switch-btn { background: var(--surface-2); }
+.sb-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+.sb-logout {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 10px; border-radius: var(--r-md); font-size: 13px; font-weight: 500;
+  background: transparent; border: none; color: var(--text-2); cursor: pointer; text-align: left;
+}
+.sb-logout:hover { background: var(--surface-hover); color: var(--text); }
+.sb-logout svg { flex-shrink: 0; }
+
+/* Account switcher in the top bar — compact button, menu opens downward + right-aligned */
+.tb-acct { margin-bottom: 0; }
+.tb-acct .acct-switch-btn { background: var(--surface-2); padding: 6px 10px; font-size: 13px; width: auto; max-width: 200px; }
+.tb-acct .acct-menu { top: calc(100% + 6px); bottom: auto; left: auto; right: 0; min-width: 220px; }
+
+/* Settings modal (opened from the top-bar avatar) */
+.settings-modal { max-width: 460px; }
+.settings-modal-body { display: flex; flex-direction: column; }
+.settings-modal .settings-btn { margin-top: 12px; }
 
 /* Page header — ghost hamburger (fewer boxed elements) */
 .ph-menu { background: transparent; border: 1px solid transparent; }
