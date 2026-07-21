@@ -1,12 +1,68 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { OUTCOME_OPTIONS, activeFilterCount } from './filters.js';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
+import AccountsModal from './AccountsModal.jsx';
+import SettingsModal from './SettingsModal.jsx';
 
 const Icon = ({ d, size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 );
+
+const GOD = 'all';
+const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
+
+// Account selector (top-right): "All accounts (God)" + each BOUND account, plus
+// a "Manage accounts" entry. Pending accounts (no trades yet) live in the modal.
+// Menu opens downward from the top bar.
+function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  // Bound + active only; archived accounts stay out of the switcher (still in the modal).
+  const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
+  const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
+  const current =
+    accountId === GOD
+      ? 'All accounts'
+      : acctLabel(accounts.find((a) => String(a.mt5_login) === String(accountId)) || {});
+  const pick = (id) => { setAccountId(id); setOpen(false); };
+
+  return (
+    <div className="acct-switch tb-acct" ref={ref}>
+      <button className="acct-switch-btn" onClick={() => setOpen((o) => !o)}>
+        <span className="acct-switch-cur">{current || 'Select account'}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="acct-menu">
+          <button className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => pick(GOD)}>
+            ★ All accounts <span className="acct-opt-sub">God view</span>
+          </button>
+          {bound.map((a) => (
+            <button
+              key={a.id}
+              className={`acct-opt ${String(accountId) === String(a.mt5_login) ? 'sel' : ''}`}
+              onClick={() => pick(String(a.mt5_login))}
+            >
+              {acctLabel(a)} <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
+            </button>
+          ))}
+          <div className="acct-menu-sep" />
+          <button className="acct-opt manage" onClick={() => { setOpen(false); onManage(); }}>
+            ⚙ Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // A single multi-select dropdown (checkbox list) that closes on outside click.
 function MultiSelect({ label, options, selected = [], onChange }) {
@@ -89,13 +145,20 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
   );
 }
 
-// The global top bar. Left: display unit + collapsed filters. Right: a single
-// action cluster (notifications, sign-out, account avatar) — the identity that
-// used to live at the bottom of the sidebar now lives here, on one line.
-export default function FilterBar({ unit, filters, options, setUnit, patchFilters, clearFilters, notifications = [], unread = 0, onMarkAllRead }) {
-  const { user, logout } = useAuth();
+// The global top bar — everything on one line. Left: display unit + collapsed
+// filters. Right: account switcher (scope), notifications, and the account
+// avatar (opens the Settings modal). Sign-out moved to the sidebar footer.
+export default function FilterBar({
+  unit, filters, options, setUnit, patchFilters, clearFilters,
+  notifications = [], unread = 0, onMarkAllRead,
+  accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {},
+  tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
+}) {
+  const { user } = useAuth();
   const active = activeFilterCount(filters);
   const initial = (user?.name || user?.email || '?').trim().charAt(0).toUpperCase();
+  const [manageOpen, setManageOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="topbar">
@@ -108,18 +171,40 @@ export default function FilterBar({ unit, filters, options, setUnit, patchFilter
       </div>
 
       <div className="tb-right">
+        <AccountSwitcher
+          accounts={accounts}
+          accountId={accountId}
+          setAccountId={setAccountId}
+          onManage={() => setManageOpen(true)}
+        />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
-        <button className="tb-icon" onClick={logout} title="Sign out" aria-label="Sign out">
-          <Icon d={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>} />
-        </button>
         {user && (
-          <Link to="/billing" className="tb-avatar-link" title={`${user.name || user.email} · ${(user.plan || 'free').toUpperCase()} — manage plan`}>
+          <button
+            className="tb-avatar-link"
+            onClick={() => setSettingsOpen(true)}
+            title={`${user.name || user.email} · ${(user.plan || 'free').toUpperCase()} — settings`}
+            aria-label="Settings"
+          >
             {user.picture
               ? <img className="tb-avatar" src={user.picture} alt={user.name || 'Account'} referrerPolicy="no-referrer" />
               : <span className="tb-avatar tb-avatar-fallback">{initial}</span>}
-          </Link>
+          </button>
         )}
       </div>
+
+      {manageOpen && (
+        <AccountsModal accounts={accounts} onClose={() => setManageOpen(false)} onChanged={reloadAccounts} />
+      )}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          unit={unit}
+          tradeSettings={tradeSettings}
+          setBeRounding={setBeRounding}
+          setColumnVisible={setColumnVisible}
+          resetColumns={resetColumns}
+        />
+      )}
     </div>
   );
 }

@@ -432,9 +432,11 @@ function MiniBar({ label, frac, breached }) {
   );
 }
 
-export default function PropOS() {
-  const { accountId, setAccountId, connected, toggleSidebar, accounts = [], fees = [], reloadFees } = useOutletContext();
-  const [data, setData] = useState(null);
+// Prop OS › Finance — spend vs earnings → net/ROI + passing & breach insights.
+// Split out of the Overview into its own sub-nav page (data from the same
+// /api/prop/finance + /api/prop/insights endpoints).
+export function PropFinance() {
+  const { accountId, connected, toggleSidebar, accounts = [], fees = [], reloadFees } = useOutletContext();
   const [fin, setFin] = useState(null);
   const [ins, setIns] = useState(null);
   const [err, setErr] = useState(null);
@@ -442,17 +444,24 @@ export default function PropOS() {
 
   function load() {
     setErr(null);
-    fetchProp(accountId).then(setData).catch((e) => setErr(e.message));
-    fetchPropFinance(accountId).then(setFin).catch(() => {});
+    fetchPropFinance(accountId).then(setFin).catch((e) => setErr(e.message));
     fetchPropInsights(accountId).then(setIns).catch(() => {});
   }
-  useEffect(() => { setData(null); setFin(null); setIns(null); load(); /* eslint-disable-next-line */ }, [accountId]);
+  useEffect(() => { setFin(null); setIns(null); load(); /* eslint-disable-next-line */ }, [accountId]);
 
-  // Finance band + insights + fees modal shown on every Prop OS view.
-  const finance = (
-    <>
-      <FinanceBand fin={fin} onLogFee={() => setFeesOpen(true)} />
-      <InsightsBand ins={ins} />
+  return (
+    <div className="page">
+      <PageHeader title="Finance" connected={connected} onMenu={toggleSidebar} />
+      {err ? (
+        <div className="banner error">Could not load finance: {err}</div>
+      ) : !fin ? (
+        <LoadingBlock label="Loading finance" />
+      ) : (
+        <>
+          <FinanceBand fin={fin} onLogFee={() => setFeesOpen(true)} />
+          <InsightsBand ins={ins} />
+        </>
+      )}
       {feesOpen && (
         <FeesModal
           fees={fees}
@@ -462,8 +471,20 @@ export default function PropOS() {
           onChanged={() => { reloadFees?.(); load(); }}
         />
       )}
-    </>
+    </div>
   );
+}
+
+export default function PropOS() {
+  const { accountId, setAccountId, connected, toggleSidebar } = useOutletContext();
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState(null);
+
+  function load() {
+    setErr(null);
+    fetchProp(accountId).then(setData).catch((e) => setErr(e.message));
+  }
+  useEffect(() => { setData(null); load(); /* eslint-disable-next-line */ }, [accountId]);
 
   const mode = data && !data.god ? data.mode : null;
   const modeBadge = mode && (
@@ -485,27 +506,23 @@ export default function PropOS() {
   // God / portfolio view.
   if (data.god) {
     if (!data.accounts.length) {
-      return page(<>{finance}<div className="prop-empty">No accounts yet. Add one to start tracking challenges.</div></>);
+      return page(<div className="prop-empty">No accounts yet. Add one to start tracking challenges.</div>);
     }
     return page(
-      <>
-        {finance}
-        <div className="prop-portfolio">
-          {data.accounts.map((a) => (
-            <PortfolioCard key={a.account_id} data={a} onOpen={() => setAccountId(String(a.account_id))} />
-          ))}
-        </div>
-      </>
+      <div className="prop-portfolio">
+        {data.accounts.map((a) => (
+          <PortfolioCard key={a.account_id} data={a} onOpen={() => setAccountId(String(a.account_id))} />
+        ))}
+      </div>
     );
   }
 
   // Single account.
   if (data.challenge === null) {
-    return page(<>{finance}<div className="prop-empty">This account has no active challenge.</div></>);
+    return page(<div className="prop-empty">This account has no active challenge.</div>);
   }
   return page(
     <>
-      {finance}
       <div className="prop-single">
         <div className="prop-single-head">
           <PhaseBadge phase={data.phase} status={data.status} />

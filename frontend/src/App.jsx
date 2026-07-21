@@ -12,7 +12,7 @@ import Analytics from './Analytics.jsx';
 import Strategies from './Strategies.jsx';
 import Calendar from './Calendar.jsx';
 import Billing from './Billing.jsx';
-import PropOS from './PropOS.jsx';
+import PropOS, { PropFinance } from './PropOS.jsx';
 import Reports from './Reports.jsx';
 import ComingSoon from './ComingSoon.jsx';
 import JournalOverview from './JournalOverview.jsx';
@@ -325,20 +325,21 @@ export default function App() {
               <Route path="progress" element={<ComingSoon title="Progress Tracker" blurb="A day-grid heatmap of your trading consistency over the year." />} />
               <Route path="calendar" element={<Calendar />} />
               <Route path="analytics" element={<Analytics />} />
-              <Route path="strategies" element={<Strategies />} />
               <Route path="psychology" element={<ComingSoon title="Psychology Journal" blurb="Log emotions and decision quality alongside your trades." />} />
-              <Route path="backtesting" element={<ComingSoon title="Backtesting" blurb="Test strategies against historical data before risking capital." />} />
             </Route>
 
             {/* Prop OS module */}
             <Route path="prop">
               <Route index element={<PropOS />} />
+              <Route path="finance" element={<PropFinance />} />
               <Route path="accounts" element={<ComingSoon title="Prop Accounts" blurb="Accounts grouped by stage — Evaluation, Funded and Breached." />} />
               <Route path="challenges" element={<ComingSoon title="Challenges" blurb="Challenge history and phase timelines per account." />} />
               <Route path="analytics" element={<ComingSoon title="Prop Analytics" blurb="ROI progression, finance breakdown, passing and breach insights." />} />
-              <Route path="alerts" element={<Alerts />} />
             </Route>
 
+            <Route path="strategies" element={<Strategies />} />
+            <Route path="backtesting" element={<ComingSoon title="Backtesting" blurb="Test strategies against historical data before risking capital." />} />
+            <Route path="alerts" element={<Alerts />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
             <Route path="account" element={<Account />} />

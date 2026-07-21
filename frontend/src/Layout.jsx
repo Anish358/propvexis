@@ -21,17 +21,7 @@ export default function Layout({
 
   return (
     <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
-      {!collapsed && (
-        <Sidebar
-          trades={trades}
-          account={account}
-          accounts={accounts}
-          accountId={accountId}
-          setAccountId={setAccountId}
-          reloadAccounts={reloadAccounts}
-          unit={unit}
-        />
-      )}
+      {!collapsed && <Sidebar />}
       <main className="shell-main">
         <Toasts items={toasts} onDismiss={dismissToast} />
         <FilterBar
@@ -44,6 +34,14 @@ export default function Layout({
           notifications={notifications}
           unread={unread}
           onMarkAllRead={markAllNotificationsRead}
+          accounts={accounts}
+          accountId={accountId}
+          setAccountId={setAccountId}
+          reloadAccounts={reloadAccounts}
+          tradeSettings={tradeSettings}
+          setBeRounding={setBeRounding}
+          setColumnVisible={setColumnVisible}
+          resetColumns={resetColumns}
         />
         <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>

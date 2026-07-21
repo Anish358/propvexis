@@ -20,24 +20,22 @@ export const NAV = [
       { to: '/journal/progress', label: 'Progress Tracker', soon: true },
       { to: '/journal/calendar', label: 'Calendar' },
       { to: '/journal/analytics', label: 'Analytics' },
-      { to: '/journal/strategies', label: 'Strategies' },
       { to: '/journal/psychology', label: 'Psychology', soon: true },
-      { to: '/journal/backtesting', label: 'Backtesting', soon: true },
     ],
   },
   {
     label: 'Prop OS', icon: 'prop', base: '/prop',
     children: [
       { to: '/prop', label: 'Overview', end: true },
+      { to: '/prop/finance', label: 'Finance' },
       { to: '/prop/accounts', label: 'Accounts', soon: true },
       { to: '/prop/challenges', label: 'Challenges', soon: true },
       { to: '/prop/analytics', label: 'Analytics', soon: true },
-      { to: '/prop/alerts', label: 'Alerts' },
     ],
   },
-  // Top-level Analytics redirects to Journal › Analytics for now; later it
-  // becomes the cross-account comparison view (decided 2026-07-14).
-  { to: '/analytics', label: 'Analytics', icon: 'analytics' },
+  { to: '/strategies', label: 'Strategies', icon: 'strategies' },
+  { to: '/backtesting', label: 'Backtesting', icon: 'backtesting', soon: true },
+  { to: '/alerts', label: 'Alerts', icon: 'alerts' },
   { to: '/reports', label: 'Reports', icon: 'reports' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
   { to: '/account', label: 'Account', icon: 'account' },
@@ -48,8 +46,11 @@ export const NAV = [
 export const LEGACY_REDIRECTS = {
   '/trades': '/journal/trades',
   '/analytics': '/journal/analytics',
-  '/strategies': '/journal/strategies',
   '/calendar': '/journal/calendar',
+  '/prop/alerts': '/alerts',
+  // Strategies + Backtesting graduated out of the Journal module to top-level.
+  '/journal/strategies': '/strategies',
+  '/journal/backtesting': '/backtesting',
 };
 
 // Flat list of every real (non-redirect) route the NAV points at — used by tests

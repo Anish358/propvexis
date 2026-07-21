@@ -1,55 +1,8 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ACCOUNT_START, fmtMoney } from './metrics.js';
-import AccountsModal from './AccountsModal.jsx';
+import { useAuth } from './AuthContext.jsx';
 import { NAV } from './nav.js';
 import { BRAND } from './theme.js';
-
-const GOD = 'all';
-const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
-
-// Account selector: "All accounts (God)" + each BOUND account, plus a
-// "Manage accounts" entry. Pending accounts (no trades yet) live in the modal.
-function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
-  const [open, setOpen] = useState(false);
-  // Bound + active only; archived accounts stay out of the switcher (still in the modal).
-  const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
-  const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
-  const current =
-    accountId === GOD
-      ? 'All accounts'
-      : acctLabel(accounts.find((a) => String(a.mt5_login) === String(accountId)) || {});
-  const pick = (id) => { setAccountId(id); setOpen(false); };
-
-  return (
-    <div className="acct-switch">
-      <button className="acct-switch-btn" onClick={() => setOpen((o) => !o)}>
-        <span className="acct-switch-cur">{current || 'Select account'}</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {open && (
-        <div className="acct-menu">
-          <button className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => pick(GOD)}>
-            ★ All accounts <span className="acct-opt-sub">God view</span>
-          </button>
-          {bound.map((a) => (
-            <button
-              key={a.id}
-              className={`acct-opt ${String(accountId) === String(a.mt5_login) ? 'sel' : ''}`}
-              onClick={() => pick(String(a.mt5_login))}
-            >
-              {acctLabel(a)} <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
-            </button>
-          ))}
-          <div className="acct-menu-sep" />
-          <button className="acct-opt manage" onClick={() => { setOpen(false); onManage(); }}>
-            ⚙ Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Icon registry — nav.js references these by string key so the IA config stays
 // JSX-free (and testable from node). Add a key here when adding one there.
@@ -82,14 +35,24 @@ const ICONS = {
   account: svg(<>
     <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" />
   </>),
+  alerts: svg(<>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </>),
+  strategies: svg(<>
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />
+  </>),
+  backtesting: svg(<>
+    <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" />
+  </>),
 };
 
 // One flat rail item.
-function RailLink({ to, label, icon, end }) {
+function RailLink({ to, label, icon, end, soon }) {
   const Icon = ICONS[icon] || ICONS.dashboard;
   return (
     <NavLink to={to} end={end} className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`}>
       <Icon /><span>{label}</span>
+      {soon && <span className="sb-soon">soon</span>}
     </NavLink>
   );
 }
@@ -127,19 +90,14 @@ function RailGroup({ item }) {
   );
 }
 
-export default function Sidebar({ trades = [], account = null, accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {}, unit = 'R' }) {
-  const [manageOpen, setManageOpen] = useState(false);
-  const isGod = accountId === 'all';
-  // The box always shows the account's STARTING balance (the dashboard is where
-  // the live/current balance lives). God view shows no figure — just a label.
-  const startBalance = account?.start_balance ?? ACCOUNT_START;
+export default function Sidebar() {
+  const { logout } = useAuth();
 
   return (
     <aside className="sidebar">
       <div className="sb-brand">{BRAND}</div>
 
       <nav className="sb-nav">
-        <div className="sb-section">NAVIGATION</div>
         {NAV.map((item) =>
           item.children
             ? <RailGroup key={item.base} item={item} />
@@ -147,23 +105,16 @@ export default function Sidebar({ trades = [], account = null, accounts = [], ac
         )}
       </nav>
 
-      <div className="sb-account">
-        <AccountSwitcher accounts={accounts} accountId={accountId} setAccountId={setAccountId} onManage={() => setManageOpen(true)} />
-        {!isGod && (
-          <div className="sb-balance">
-            <span className="sb-balance-val">{fmtMoney(startBalance)}</span>
-            <span className="sb-balance-tag" title="Starting balance — the dashboard shows the current balance">start</span>
-          </div>
-        )}
+      {/* Sign-out lives at the bottom-left of the rail; account switching + the
+          user's own settings moved to the top bar. */}
+      <div className="sb-foot">
+        <button className="sb-logout" onClick={logout} title="Sign out">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" />
+          </svg>
+          <span>Log out</span>
+        </button>
       </div>
-
-      {manageOpen && (
-        <AccountsModal
-          accounts={accounts}
-          onClose={() => setManageOpen(false)}
-          onChanged={reloadAccounts}
-        />
-      )}
     </aside>
   );
 }
