@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { OUTCOME_OPTIONS, activeFilterCount } from './filters.js';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
 import AccountsModal from './AccountsModal.jsx';
-import SettingsModal from './SettingsModal.jsx';
+import TradeSettingsModal from './TradeSettingsModal.jsx';
 
 const Icon = ({ d, size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -145,30 +146,98 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
   );
 }
 
-// The global top bar — everything on one line. Left: display unit + collapsed
-// filters. Right: account switcher (scope), notifications, and the account
-// avatar (opens the Settings modal). Sign-out moved to the sidebar footer.
+// The avatar opens a DROPDOWN (not a modal) with the user's identity + settings
+// shortcuts. "Trade settings" still opens its own modal (column visibility etc.).
+function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns }) {
+  const { user, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  if (!user) return null;
+  const initial = (user.name || user.email || '?').trim().charAt(0).toUpperCase();
+  const plan = (user.plan || 'free').toUpperCase();
+  const avatar = user.picture
+    ? <img className="tb-avatar" src={user.picture} alt="" referrerPolicy="no-referrer" />
+    : <span className="tb-avatar tb-avatar-fallback">{initial}</span>;
+
+  return (
+    <div className="tb-user" ref={ref}>
+      <button className="tb-avatar-link" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="Account" aria-label="Account">
+        {avatar}
+      </button>
+      {open && (
+        <div className="tb-user-menu" role="menu">
+          <div className="tb-user-head">
+            {avatar}
+            <div className="tb-user-id">
+              <span className="tb-user-name">{user.name || 'Account'}</span>
+              <span className="tb-user-email">{user.email}</span>
+            </div>
+          </div>
+          <div className="tb-user-plan">
+            <span className="muted">Plan</span>
+            <span className={`sb-plan-badge ${user.plan || 'free'}`}>{plan}</span>
+          </div>
+          <div className="tb-menu-sep" />
+          <button className="tb-menu-item" role="menuitem" onClick={() => { setOpen(false); setPrefsOpen(true); }}>Trade settings</button>
+          <Link className="tb-menu-item" role="menuitem" to="/settings" onClick={() => setOpen(false)}>Settings</Link>
+          <Link className="tb-menu-item" role="menuitem" to="/billing" onClick={() => setOpen(false)}>Manage plan</Link>
+          <div className="tb-menu-sep" />
+          <button className="tb-menu-item danger" role="menuitem" onClick={logout}>Sign out</button>
+        </div>
+      )}
+      <TradeSettingsModal
+        open={prefsOpen}
+        onClose={() => setPrefsOpen(false)}
+        unit={unit}
+        beRounding={!!tradeSettings.beRounding}
+        setBeRounding={setBeRounding}
+        columnOverrides={tradeSettings.columns || {}}
+        setColumnVisible={setColumnVisible}
+        resetColumns={resetColumns}
+      />
+    </div>
+  );
+}
+
+// The single global bar. Left: view controls (unit + filters). Middle→right:
+// per-page actions portaled in from PageHeader (slotRef). Right: the always-on
+// controls — account scope switcher, notifications, account avatar. Page content
+// starts directly below this bar (pages no longer render their own header row).
 export default function FilterBar({
   unit, filters, options, setUnit, patchFilters, clearFilters,
   notifications = [], unread = 0, onMarkAllRead,
   accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {},
   tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
+  collapsed = false, onToggleSidebar = () => {}, slotRef,
 }) {
-  const { user } = useAuth();
   const active = activeFilterCount(filters);
-  const initial = (user?.name || user?.email || '?').trim().charAt(0).toUpperCase();
   const [manageOpen, setManageOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="topbar">
       <div className="tb-left">
+        {collapsed && (
+          <button className="tb-menu" onClick={onToggleSidebar} title="Show sidebar" aria-label="Show sidebar">
+            <span /><span /><span />
+          </button>
+        )}
         <div className="fb-unit" role="group" aria-label="Display unit">
           <button className={`fb-unit-btn ${unit === 'R' ? 'on' : ''}`} onClick={() => setUnit('R')}>R</button>
           <button className={`fb-unit-btn ${unit === 'USD' ? 'on' : ''}`} onClick={() => setUnit('USD')}>$</button>
         </div>
         <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
       </div>
+
+      {/* Per-page actions portal here (PageHeader → this node). */}
+      <div className="tb-page" ref={slotRef} />
 
       <div className="tb-right">
         <AccountSwitcher
@@ -178,32 +247,17 @@ export default function FilterBar({
           onManage={() => setManageOpen(true)}
         />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
-        {user && (
-          <button
-            className="tb-avatar-link"
-            onClick={() => setSettingsOpen(true)}
-            title={`${user.name || user.email} · ${(user.plan || 'free').toUpperCase()} — settings`}
-            aria-label="Settings"
-          >
-            {user.picture
-              ? <img className="tb-avatar" src={user.picture} alt={user.name || 'Account'} referrerPolicy="no-referrer" />
-              : <span className="tb-avatar tb-avatar-fallback">{initial}</span>}
-          </button>
-        )}
-      </div>
-
-      {manageOpen && (
-        <AccountsModal accounts={accounts} onClose={() => setManageOpen(false)} onChanged={reloadAccounts} />
-      )}
-      {settingsOpen && (
-        <SettingsModal
-          onClose={() => setSettingsOpen(false)}
+        <UserMenu
           unit={unit}
           tradeSettings={tradeSettings}
           setBeRounding={setBeRounding}
           setColumnVisible={setColumnVisible}
           resetColumns={resetColumns}
         />
+      </div>
+
+      {manageOpen && (
+        <AccountsModal accounts={accounts} onClose={() => setManageOpen(false)} onChanged={reloadAccounts} />
       )}
     </div>
   );

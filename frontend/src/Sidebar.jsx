@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext.jsx';
 import { NAV } from './nav.js';
 import { BRAND } from './theme.js';
@@ -90,12 +90,17 @@ function RailGroup({ item }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ onToggle = () => {} }) {
   const { logout } = useAuth();
 
   return (
     <aside className="sidebar">
-      <div className="sb-brand">{BRAND}</div>
+      <div className="sb-head">
+        <Link to="/" className="sb-brand">{BRAND}</Link>
+        <button className="sb-collapse" onClick={onToggle} title="Hide sidebar" aria-label="Hide sidebar">
+          <span /><span /><span />
+        </button>
+      </div>
 
       <nav className="sb-nav">
         {NAV.map((item) =>

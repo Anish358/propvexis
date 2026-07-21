@@ -62,15 +62,17 @@ export default function Dashboard() {
   return (
     <div className="page">
       <PageHeader
-        title="Dashboard"
-        connected={connected}
-        onMenu={toggleSidebar}
-        right={showPayoutTracker && (
-          <button className="ph-payout" onClick={() => setPayoutsOpen(true)} title="View & record payouts">
-            <span className="ph-payout-label">Total payout</span>
-            <span className="ph-payout-val">{fmtMoney(payoutTotal)}</span>
-          </button>
-        )}
+        right={
+          <>
+            {showPayoutTracker && (
+              <button className="ph-payout" onClick={() => setPayoutsOpen(true)} title="View & record payouts">
+                <span className="ph-payout-label">Total payout</span>
+                <span className="ph-payout-val">{fmtMoney(payoutTotal)}</span>
+              </button>
+            )}
+            <WidgetCustomizer scope={scope} ctx={ctx} isVisible={isVisible} onToggle={onToggle} onReset={resetWidgets} />
+          </>
+        }
       />
 
       {payoutsOpen && (
@@ -84,10 +86,6 @@ export default function Dashboard() {
       )}
 
       <div className="page-body">
-        <div className="dash-toolbar">
-          <WidgetCustomizer scope={scope} ctx={ctx} isVisible={isVisible} onToggle={onToggle} onReset={resetWidgets} />
-        </div>
-
         {visible.length === 0 && (
           <div className="dash-empty">All widgets hidden — use <b>Customize</b> to add some back.</div>
         )}

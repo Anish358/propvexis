@@ -18,13 +18,19 @@ export default function Layout({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const toggleSidebar = () => setCollapsed((c) => !c);
+  // The top bar owns a slot node for per-page actions; PageHeader portals into
+  // it (callback ref → state so consumers re-render once the node exists).
+  const [actionsSlot, setActionsSlot] = useState(null);
 
   return (
     <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
-      {!collapsed && <Sidebar />}
+      {!collapsed && <Sidebar onToggle={toggleSidebar} />}
       <main className="shell-main">
         <Toasts items={toasts} onDismiss={dismissToast} />
         <FilterBar
+          collapsed={collapsed}
+          onToggleSidebar={toggleSidebar}
+          slotRef={setActionsSlot}
           unit={unit}
           filters={filters}
           options={filterOptions}
@@ -43,7 +49,7 @@ export default function Layout({
           setColumnVisible={setColumnVisible}
           resetColumns={resetColumns}
         />
-        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
+        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, widgetOverrides, setWidgetVisible, resetWidgets, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>
     </div>
   );
