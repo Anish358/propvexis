@@ -1,26 +1,14 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import { useOutletContext } from 'react-router-dom';
 
-const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const today = new Date();
-const dateLabel = `${WD[today.getDay()]}, ${MO[today.getMonth()]} ${today.getDate()}`;
-
-export default function PageHeader({ title, connected, onMenu, right }) {
-  return (
-    <header className="pagehead">
-      <div className="ph-left">
-        {onMenu && (
-          <button className="ph-menu" onClick={onMenu} aria-label="Toggle menu">
-            <span /><span /><span />
-          </button>
-        )}
-        <div>
-          <div className="ph-title">{title}</div>
-          <div className="ph-date">{dateLabel}</div>
-        </div>
-      </div>
-      {right && <div className="ph-right">{right}</div>}
-    </header>
-  );
+// Per-page actions no longer render their own row. Whatever a page passes as
+// `right` (payout chip, Fees/Payouts/Manage buttons, export buttons, …) is
+// portaled UP into the shared top bar's page-action slot, so the app shows a
+// single bar and page content starts directly below it. `title`/`connected`/
+// `onMenu` are accepted for backwards-compatible call sites but ignored.
+export default function PageHeader({ right }) {
+  const ctx = useOutletContext() || {};
+  if (!right || !ctx.actionsSlot) return null;
+  return createPortal(right, ctx.actionsSlot);
 }

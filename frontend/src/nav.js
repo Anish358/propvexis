@@ -37,8 +37,8 @@ export const NAV = [
   { to: '/backtesting', label: 'Backtesting', icon: 'backtesting', soon: true },
   { to: '/alerts', label: 'Alerts', icon: 'alerts' },
   { to: '/reports', label: 'Reports', icon: 'reports' },
-  { to: '/settings', label: 'Settings', icon: 'settings' },
   { to: '/account', label: 'Account', icon: 'account' },
+  { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
 // Old flat routes → new module routes (bookmarks/muscle-memory keep working).
