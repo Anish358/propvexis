@@ -1,4 +1,5 @@
 import { query } from './db.js';
+import { scopeCondition } from './accounts.js';
 import { listStrategies } from './strategies.js';
 import { evaluateAdherence } from './adherence.js';
 
@@ -165,7 +166,7 @@ export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null, be
   const add = (val) => { params.push(val); return `$${params.length}`; };
 
   if (year != null) conds.push(`EXTRACT(YEAR FROM close_time) = ${add(year)}`);
-  if (scope) conds.push(`${scope.filterCol} = ${add(scope.filterVal)}`);
+  if (scope) conds.push(scopeCondition(scope, add));
   if (filters.setups?.length) conds.push(`setup = ANY(${add(filters.setups)})`);
   if (filters.symbols?.length) conds.push(`COALESCE(symbol_base, symbol) = ANY(${add(filters.symbols)})`);
   if (filters.sessions?.length) conds.push(`session = ANY(${add(filters.sessions)})`);
@@ -188,8 +189,8 @@ export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null, be
   return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
 }
 
-// `scope` = { filterCol, filterVal } from resolveScope: god -> user_id = me,
-// single account -> account_id = login. filterCol is code-controlled (safe).
+// `scope` from resolveScope: god -> user_id = me, an explicit account selection
+// -> account_id = ANY(logins). The predicate is built by scopeCondition (safe).
 // `filters` are the global data filters (setups/symbols/sessions/probability/
 // outcome/date range) applied app-wide.
 export async function computeStats(scope, unit = 'R', filters = {}, beRound = false) {

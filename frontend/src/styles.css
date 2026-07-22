@@ -712,6 +712,10 @@ label.full { margin-bottom: 14px; }
 .acct-opt:hover { background: #1f1f25; }
 .acct-opt.sel { background: var(--accent-bg); color: var(--accent); }
 .acct-opt-sub { color: var(--muted); font-size: 11px; }
+/* Multi-select account rows: checkbox + name (grows) + sub pushed right. */
+.acct-opt-check { justify-content: flex-start; }
+.acct-opt-check input { flex: none; width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: var(--accent); }
+.acct-opt-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Signed-in user + logout (bottom of sidebar) */
 .sb-user {
@@ -1754,14 +1758,6 @@ label.full { margin-bottom: 14px; }
 /* Sidebar — tighter nav + bottom-left sign-out footer */
 .sb-item { padding: 7px 10px; border-radius: var(--r-md); font-size: 13px; gap: 10px; }
 .sb-item:hover { background: var(--surface-hover); color: var(--text); }
-.sb-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
-.sb-logout {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 7px 10px; border-radius: var(--r-md); font-size: 13px; font-weight: 500;
-  background: transparent; border: none; color: var(--text-2); cursor: pointer; text-align: left;
-}
-.sb-logout:hover { background: var(--surface-hover); color: var(--text); }
-.sb-logout svg { flex-shrink: 0; }
 
 /* Account switcher in the top bar — compact button, menu opens downward + right-aligned */
 .tb-acct { margin-bottom: 0; }

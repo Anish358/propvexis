@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext.jsx';
 import { NAV } from './nav.js';
 import { BRAND } from './theme.js';
 
@@ -43,6 +42,9 @@ const ICONS = {
   </>),
   backtesting: svg(<>
     <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" />
+  </>),
+  tools: svg(<>
+    <path d="M14.7 6.3a4 4 0 0 1-5.6 5.6l-6.4 6.4a1.5 1.5 0 0 0 2.1 2.1l6.4-6.4a4 4 0 0 1 5.6-5.6l-2.5 2.5-2-2z" />
   </>),
 };
 
@@ -91,8 +93,6 @@ function RailGroup({ item }) {
 }
 
 export default function Sidebar({ onToggle = () => {} }) {
-  const { logout } = useAuth();
-
   return (
     <aside className="sidebar">
       <div className="sb-head">
@@ -102,6 +102,7 @@ export default function Sidebar({ onToggle = () => {} }) {
         </button>
       </div>
 
+      {/* Sign-out lives in the top-bar avatar menu; the rail is nav-only. */}
       <nav className="sb-nav">
         {NAV.map((item) =>
           item.children
@@ -109,17 +110,6 @@ export default function Sidebar({ onToggle = () => {} }) {
             : <RailLink key={item.to} {...item} />
         )}
       </nav>
-
-      {/* Sign-out lives at the bottom-left of the rail; account switching + the
-          user's own settings moved to the top bar. */}
-      <div className="sb-foot">
-        <button className="sb-logout" onClick={logout} title="Sign out">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" />
-          </svg>
-          <span>Log out</span>
-        </button>
-      </div>
     </aside>
   );
 }
