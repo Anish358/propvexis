@@ -13,9 +13,11 @@ const Icon = ({ d, size = 16 }) => (
 const GOD = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 
-// Account selector (top-right): "All accounts (God)" + each BOUND account, plus
-// a "Manage accounts" entry. Pending accounts (no trades yet) live in the modal.
-// Menu opens downward from the top bar.
+// Account selector (top-right): "All accounts (God)" + each BOUND account as a
+// multi-select checkbox, plus a "Manage accounts" entry. The selection is 'all'
+// (god) or a comma-joined list of mt5 logins; picking two or more accounts gives
+// an aggregate (R-based) view restricted to them. Pending accounts live in the
+// modal. Menu opens downward from the top bar; checkboxes keep it open.
 function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -29,11 +31,20 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   // Bound + active only; archived accounts stay out of the switcher (still in the modal).
   const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
   const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
-  const current =
-    accountId === GOD
-      ? 'All accounts'
-      : acctLabel(accounts.find((a) => String(a.mt5_login) === String(accountId)) || {});
-  const pick = (id) => { setAccountId(id); setOpen(false); };
+
+  const selected = accountId === GOD ? [] : String(accountId).split(',');
+  const isSel = (login) => selected.includes(String(login));
+  const toggle = (login) => {
+    const key = String(login);
+    const next = isSel(key) ? selected.filter((l) => l !== key) : [...selected, key];
+    const sorted = next.map(Number).sort((a, b) => a - b).map(String);
+    setAccountId(sorted.length ? sorted.join(',') : GOD);
+  };
+
+  let current;
+  if (accountId === GOD) current = 'All accounts';
+  else if (selected.length === 1) current = acctLabel(bound.find((a) => String(a.mt5_login) === selected[0]) || {});
+  else current = `${selected.length} accounts`;
 
   return (
     <div className="acct-switch tb-acct" ref={ref}>
@@ -43,17 +54,15 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
       </button>
       {open && (
         <div className="acct-menu">
-          <button className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => pick(GOD)}>
+          <button className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => { setAccountId(GOD); setOpen(false); }}>
             ★ All accounts <span className="acct-opt-sub">God view</span>
           </button>
           {bound.map((a) => (
-            <button
-              key={a.id}
-              className={`acct-opt ${String(accountId) === String(a.mt5_login) ? 'sel' : ''}`}
-              onClick={() => pick(String(a.mt5_login))}
-            >
-              {acctLabel(a)} <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
-            </button>
+            <label key={a.id} className={`acct-opt acct-opt-check ${isSel(a.mt5_login) ? 'sel' : ''}`}>
+              <input type="checkbox" checked={isSel(a.mt5_login)} onChange={() => toggle(a.mt5_login)} />
+              <span className="acct-opt-name">{acctLabel(a)}</span>
+              <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
+            </label>
           ))}
           <div className="acct-menu-sep" />
           <button className="acct-opt manage" onClick={() => { setOpen(false); onManage(); }}>

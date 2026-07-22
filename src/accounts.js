@@ -18,20 +18,37 @@ export async function ownedLogins(userId) {
 }
 
 // Resolve a requested account selection to the concrete list of logins to
-// filter on. `requested` is a specific login, or null/''/'all' for the god view
-// (every account the user owns). Returns { logins, god } or null when the
-// requested account isn't owned by this user (caller should 403/404).
+// filter on. `requested` is null/''/'all' for the god view (every account the
+// user owns), a single login, or a comma-separated list of logins (multi-select).
+// Returns { god, userId, logins, filterCol } or null when NONE of the requested
+// logins are owned by this user (caller should 403/404).
 export async function resolveScope(userId, requested) {
   const owned = await ownedLogins(userId);
   if (requested == null || requested === '' || requested === 'all') {
     // God / strategy view = EVERY trade the user owns (account-linked OR not).
     // Filter by user_id so account-less trades (imports + manual) are included.
-    return { god: true, userId, logins: owned, filterCol: 'user_id', filterVal: userId };
+    return { god: true, userId, logins: owned, filterCol: 'user_id' };
   }
-  const want = Number(requested);
-  if (Number.isNaN(want) || !owned.includes(want)) return null;
-  // Single account = only that account's trades (account-less ones excluded).
-  return { god: false, userId, logins: [want], filterCol: 'account_id', filterVal: want };
+  // A single login or a comma-separated list; keep only the ones this user owns.
+  const wanted = [...new Set(
+    String(requested).split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n))
+  )];
+  const logins = wanted.filter((n) => owned.includes(n));
+  if (!logins.length) return null;
+  // A single account keeps its $-based single view; selecting multiple accounts
+  // aggregates like the god view (R-based) but restricted to the chosen ones.
+  // Either way, account_id filtering excludes account-less (import/manual) trades.
+  return { god: logins.length > 1, userId, logins, filterCol: 'account_id' };
+}
+
+// Build the SQL scope predicate, parameterizing values via `add(val) -> '$n'`.
+// God (all accounts) filters by user_id so account-less trades are included; an
+// explicit selection (one or many) filters by account_id = ANY(logins).
+// `filterCol` is code-controlled, never user input — safe to branch on.
+export function scopeCondition(scope, add) {
+  return scope.filterCol === 'user_id'
+    ? `user_id = ${add(scope.userId)}`
+    : `account_id = ANY(${add(scope.logins)})`;
 }
 
 // The user's accounts with their latest live balance (LEFT JOIN so accounts

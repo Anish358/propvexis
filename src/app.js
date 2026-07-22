@@ -12,6 +12,7 @@ import { pool, query } from './db.js';
 import { registerAuth } from './auth.js';
 import {
   resolveScope,
+  scopeCondition,
   listAccounts,
   tradeOwnerUserId,
   ownedLogins,
@@ -28,6 +29,7 @@ import { financeSummary, roiProgression } from './finance.js';
 import { passBreachSummary } from './insights.js';
 import { phasePassedAlert } from './alerts.js';
 import { evaluateAccountAlerts, insertNotifications, listNotifications, markRead } from './notifications.js';
+import { getViewState, saveViewState } from './viewState.js';
 import {
   challengeHistory,
   challengesForScope,
@@ -408,8 +410,9 @@ app.get('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
   if (!scope) return reply.code(403).send({ error: 'account not found' });
 
   const { tagged, limit = 200 } = req.query;
-  const params = [scope.filterVal];
-  const where = [`${scope.filterCol} = $1`];
+  const params = [];
+  const add = (v) => { params.push(v); return `$${params.length}`; };
+  const where = [scopeCondition(scope, add)];
   if (tagged === 'true' || tagged === 'false') {
     params.push(tagged === 'true');
     where.push(`tagged = $${params.length}`);
@@ -1225,6 +1228,20 @@ app.post('/api/notifications/read', { preHandler: app.requireAuth }, async (req)
   const ids = Array.isArray(b.ids) ? b.ids.map(Number).filter(Number.isFinite) : null;
   const unread = await markRead(req.user.uid, { ids, all: !!b.all });
   return { unread };
+});
+
+// ---------------------------------------------------------------------------
+// View state — per-user display unit + data filters + widget overrides + trade
+// settings, synced across the user's browsers/devices (was browser localStorage).
+// The blob shape is owned by the client; the server stores it opaquely.
+// ---------------------------------------------------------------------------
+app.get('/api/view-state', { preHandler: app.requireAuth }, async (req) =>
+  ({ state: await getViewState(req.user.uid) })
+);
+
+app.put('/api/view-state', { preHandler: app.requireAuth }, async (req) => {
+  const state = await saveViewState(req.user.uid, req.body?.state);
+  return { state };
 });
 
 // ---------------------------------------------------------------------------

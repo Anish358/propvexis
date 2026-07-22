@@ -27,7 +27,9 @@ export const emptyFilters = () => ({
 // Absent ids fall back to the widget's own per-scope default (see dashboardWidgets
 // `defaultOn`), so new widgets get sensible defaults without a migration.
 export const defaultConfig = (accountId) => ({
-  unit: accountId === 'all' || accountId == null ? 'R' : 'USD',
+  // A single account defaults to its currency ($); the god view and any
+  // multi-account selection (comma-joined logins) default to R (cross-account).
+  unit: accountId === 'all' || accountId == null || String(accountId).includes(',') ? 'R' : 'USD',
   filters: emptyFilters(),
   widgets: { overrides: {} },
 });

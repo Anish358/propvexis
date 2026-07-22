@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import { applyBeRounding } from './metrics.js';
@@ -22,10 +22,23 @@ import Settings from './Settings.jsx';
 import Account from './Account.jsx';
 import { LEGACY_REDIRECTS } from './nav.js';
 
-const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login
-const VIEWCFG_KEY = 'amey.viewConfigs'; // per-scope { unit, filters } map
-const TRADE_SETTINGS_KEY = 'amey.tradeSettings'; // global journal settings (BE rounding, columns)
+const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login (per-device nav state)
 const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
+
+// Legacy localStorage keys (view state now lives server-side). Read once on the
+// first post-upgrade login to seed the server, then cleared.
+const LEGACY_VIEWCFG_KEY = 'amey.viewConfigs';
+const LEGACY_TRADE_SETTINGS_KEY = 'amey.tradeSettings';
+function readLegacyViewState() {
+  try {
+    const viewConfigs = JSON.parse(localStorage.getItem(LEGACY_VIEWCFG_KEY)) || null;
+    const tradeSettings = JSON.parse(localStorage.getItem(LEGACY_TRADE_SETTINGS_KEY)) || null;
+    return viewConfigs || tradeSettings ? { viewConfigs, tradeSettings } : null;
+  } catch { return null; }
+}
+function clearLegacyViewState() {
+  try { localStorage.removeItem(LEGACY_VIEWCFG_KEY); localStorage.removeItem(LEGACY_TRADE_SETTINGS_KEY); } catch { /* ignore */ }
+}
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -52,20 +65,53 @@ export default function App() {
     setAccountIdState(id);
   }
 
-  // Per-scope view config (display unit + data filters), persisted. The active
-  // scope is the god view or the selected account.
-  const [viewConfigs, setViewConfigs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(VIEWCFG_KEY)) || {}; } catch { return {}; }
-  });
-  useEffect(() => { localStorage.setItem(VIEWCFG_KEY, JSON.stringify(viewConfigs)); }, [viewConfigs]);
+  // View state (the selected account, per-scope display unit + data filters +
+  // widget overrides, and the global trade settings) is stored SERVER-SIDE per user
+  // — so it follows the user across browsers/devices instead of sticking to one
+  // machine's localStorage. localStorage still mirrors accountId as a fast-paint
+  // cache for the first render before the server hydrate lands. Starts at defaults;
+  // hydrated from the server on login (below), then any change is debounced up.
+  const [viewConfigs, setViewConfigs] = useState({});
+  const [tradeSettings, setTradeSettings] = useState(defaultTradeSettings);
+  const viewStateLoaded = useRef(false); // gate saves until the initial hydrate lands
+  const saveTimer = useRef(null);
 
-  // Global journal settings (not per-scope): breakeven rounding + trade-log
-  // column visibility. Persisted; merged over defaults so older stored blobs load.
-  const [tradeSettings, setTradeSettings] = useState(() => {
-    try { return { ...defaultTradeSettings(), ...(JSON.parse(localStorage.getItem(TRADE_SETTINGS_KEY)) || {}) }; }
-    catch { return defaultTradeSettings(); }
-  });
-  useEffect(() => { localStorage.setItem(TRADE_SETTINGS_KEY, JSON.stringify(tradeSettings)); }, [tradeSettings]);
+  // Hydrate view state from the server on login; reset it on logout. One-time
+  // migration: if the server has nothing yet but this browser holds the old
+  // localStorage blobs, adopt them (the save effect then pushes them up) and clear
+  // the legacy keys — so upgrading users keep their current filters/prefs once.
+  useEffect(() => {
+    if (!user) { viewStateLoaded.current = false; setViewConfigs({}); setTradeSettings(defaultTradeSettings()); return undefined; }
+    let cancelled = false;
+    fetchViewState()
+      .then((state) => {
+        if (cancelled) return;
+        const hasServer = state && Object.keys(state).length > 0;
+        const legacy = hasServer ? null : readLegacyViewState();
+        setViewConfigs((hasServer ? state.viewConfigs : legacy?.viewConfigs) || {});
+        setTradeSettings({ ...defaultTradeSettings(), ...((hasServer ? state.tradeSettings : legacy?.tradeSettings) || {}) });
+        // Server-synced selected account wins over this device's cached one.
+        // (Ownership is re-validated by the accounts loader, which drops a stale
+        // login back to god view.) Absent on pre-sync blobs → keep the local one.
+        if (hasServer && state.accountId != null) setAccountId(String(state.accountId));
+        if (legacy) clearLegacyViewState();
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) viewStateLoaded.current = true; });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Persist (debounced) whenever the synced state changes — but only AFTER the
+  // initial hydrate, so we never clobber the saved state with startup defaults.
+  useEffect(() => {
+    if (!user || !viewStateLoaded.current) return undefined;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveViewState({ accountId, viewConfigs, tradeSettings }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(saveTimer.current);
+  }, [user, accountId, viewConfigs, tradeSettings]);
+
   const setBeRounding = (on) => setTradeSettings((s) => ({ ...s, beRounding: !!on }));
   const setColumnVisible = (id, visible) => setTradeSettings((s) => ({ ...s, columns: { ...s.columns, [id]: visible } }));
   const resetColumns = () => setTradeSettings((s) => ({ ...s, columns: {} }));
@@ -101,10 +147,11 @@ export default function App() {
   const filteredTrades = useMemo(() => filterTrades(normalizedTrades, filters, unit, tradeSettings.beRounding), [normalizedTrades, filters, unit, tradeSettings.beRounding]);
   const filterOptions = useMemo(() => availableOptions(trades), [trades]);
 
-  // does an incoming socket event belong to the account currently in view?
+  // does an incoming socket event belong to the account(s) currently in view?
+  // The selection is 'all' (god) or a comma-joined list of mt5 logins.
   const inView = (acctId) => {
     const sel = accountIdRef.current;
-    return sel === 'all' || String(acctId) === String(sel);
+    return sel === 'all' || String(sel).split(',').includes(String(acctId));
   };
 
   function upsertLocal(trade) {
@@ -129,14 +176,17 @@ export default function App() {
   const accountsRef = useRef([]);
   useEffect(() => { accountsRef.current = accounts; }, [accounts]);
 
-  // Load the user's accounts; drop a stale selection that isn't owned.
+  // Load the user's accounts; drop any stale logins from the selection (which may
+  // be 'all' or a comma-joined list). An emptied selection falls back to god view.
   function reloadAccounts() {
     return fetchAccounts()
       .then((list) => {
         setAccounts(list);
-        setAccountIdState((cur) =>
-          cur === 'all' || list.some((a) => String(a.mt5_login) === String(cur)) ? cur : 'all'
-        );
+        setAccountIdState((cur) => {
+          if (cur === 'all') return cur;
+          const kept = String(cur).split(',').filter((l) => list.some((a) => String(a.mt5_login) === l));
+          return kept.length ? kept.join(',') : 'all';
+        });
         return list;
       })
       .catch(() => {});
@@ -206,7 +256,8 @@ export default function App() {
   // accounts are known before trusting a specific (non-god) selection.
   useEffect(() => {
     if (!user) { setTrades([]); setAccount(null); setPayouts([]); setFees([]); return; }
-    const owned = accountId === 'all' || accounts.some((a) => String(a.mt5_login) === String(accountId));
+    const owned = accountId === 'all'
+      || String(accountId).split(',').every((l) => accounts.some((a) => String(a.mt5_login) === l));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
     fetchTrades(accountId).then(setTrades).catch((e) => setLoadError(e.message));

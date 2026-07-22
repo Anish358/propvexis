@@ -172,6 +172,22 @@ export async function fetchPropInsights(accountId) {
   return getJson(`/api/prop/insights?_=1${acctq(accountId)}`);
 }
 
+// ---- View state (per-user display prefs + filters; synced across devices) ----
+// The blob shape is owned by App.jsx; the server stores it opaquely.
+export async function fetchViewState() {
+  return (await getJson('/api/view-state?_=1')).state || {};
+}
+
+export async function saveViewState(state) {
+  const res = await apiFetch('/api/view-state', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ state }),
+  });
+  if (!res.ok) throw new Error(`saveViewState ${res.status}`);
+  return (await res.json()).state;
+}
+
 // ---- Notifications (in-app alert feed for the logged-in user) ----
 export async function fetchNotifications() {
   return getJson('/api/notifications?_=1');
