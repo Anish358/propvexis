@@ -44,6 +44,9 @@ const ICONS = {
   backtesting: svg(<>
     <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" />
   </>),
+  tools: svg(<>
+    <path d="M14.7 6.3a4 4 0 0 1-5.6 5.6l-6.4 6.4a1.5 1.5 0 0 0 2.1 2.1l6.4-6.4a4 4 0 0 1 5.6-5.6l-2.5 2.5-2-2z" />
+  </>),
 };
 
 // One flat rail item.

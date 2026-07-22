@@ -37,6 +37,13 @@ export const NAV = [
   { to: '/backtesting', label: 'Backtesting', icon: 'backtesting', soon: true },
   { to: '/alerts', label: 'Alerts', icon: 'alerts' },
   { to: '/reports', label: 'Reports', icon: 'reports' },
+  {
+    label: 'Tools', icon: 'tools', base: '/tools',
+    children: [
+      { to: '/tools/lot-calculator', label: 'Lot Calculator', soon: true },
+      { to: '/tools/news-calendar', label: 'News Calendar', soon: true },
+    ],
+  },
   { to: '/account', label: 'Account', icon: 'account' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
