@@ -339,6 +339,13 @@ export default function App() {
 
             <Route path="strategies" element={<Strategies />} />
             <Route path="backtesting" element={<ComingSoon title="Backtesting" blurb="Test strategies against historical data before risking capital." />} />
+
+            {/* Tools module */}
+            <Route path="tools">
+              <Route path="lot-calculator" element={<ComingSoon title="Lot Calculator" blurb="Work out position size from account risk, stop-loss and entry price." />} />
+              <Route path="news-calendar" element={<ComingSoon title="News Calendar" blurb="Upcoming high-impact economic events." />} />
+            </Route>
+
             <Route path="alerts" element={<Alerts />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
