@@ -23,15 +23,14 @@ export const emptyFilters = () => ({
 
 // god defaults to R (cross-account risk multiples), a single account to its
 // currency ($). Both are now overridable by the user via the filter bar.
-// `widgets.overrides` is a per-scope map of widget id -> explicit on/off choice.
-// Absent ids fall back to the widget's own per-scope default (see dashboardWidgets
-// `defaultOn`), so new widgets get sensible defaults without a migration.
+// `dashboard.pinnedAccounts` is the god-scope Dashboard's chosen set of account
+// logins to show as health cards (max 3); empty = default to the first 3.
 export const defaultConfig = (accountId) => ({
   // A single account defaults to its currency ($); the god view and any
   // multi-account selection (comma-joined logins) default to R (cross-account).
   unit: accountId === 'all' || accountId == null || String(accountId).includes(',') ? 'R' : 'USD',
   filters: emptyFilters(),
-  widgets: { overrides: {} },
+  dashboard: { pinnedAccounts: [] },
 });
 
 // Apply the data filters to a trade list. The display unit + precision setting

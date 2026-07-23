@@ -121,7 +121,7 @@ export default function App() {
   // pre-widget Phase A configs) still get sane values.
   const config = { ...defaultConfig(accountId), ...(viewConfigs[sk] || {}) };
   const { unit, filters } = config;
-  const widgetOverrides = config.widgets?.overrides || {};
+  const pinnedAccounts = config.dashboard?.pinnedAccounts || [];
 
   const mutateConfig = (fn) => setViewConfigs((prev) => {
     const cur = { ...defaultConfig(accountId), ...(prev[sk] || {}) };
@@ -130,11 +130,8 @@ export default function App() {
   const setUnit = (u) => mutateConfig((c) => ({ ...c, unit: u }));
   const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...c.filters, ...p } }));
   const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
-  // Explicit per-scope widget choice; absent ids fall back to the widget default.
-  const setWidgetVisible = (id, visible) => mutateConfig((c) => ({
-    ...c, widgets: { ...c.widgets, overrides: { ...(c.widgets?.overrides || {}), [id]: visible } },
-  }));
-  const resetWidgets = () => mutateConfig((c) => ({ ...c, widgets: { overrides: {} } }));
+  // The Dashboard's chosen account logins for the health-card stack (god scope).
+  const setPinnedAccounts = (logins) => mutateConfig((c) => ({ ...c, dashboard: { ...c.dashboard, pinnedAccounts: logins } }));
 
   // Precision control snaps near-zero Fixed R to breakeven BEFORE filtering, so
   // outcome filters + every in-memory page/metric see the same classification.
@@ -356,9 +353,8 @@ export default function App() {
                 setUnit={setUnit}
                 patchFilters={patchFilters}
                 clearFilters={clearFilters}
-                widgetOverrides={widgetOverrides}
-                setWidgetVisible={setWidgetVisible}
-                resetWidgets={resetWidgets}
+                pinnedAccounts={pinnedAccounts}
+                setPinnedAccounts={setPinnedAccounts}
                 tradeSettings={tradeSettings}
                 setBeRounding={setBeRounding}
                 setColumnVisible={setColumnVisible}
