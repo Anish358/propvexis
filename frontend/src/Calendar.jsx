@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
-import MonthSummary from './MonthSummary.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
 import { computeMetrics, fmtVal, weekStart, dayKey, valueField } from './metrics.js';
 
@@ -50,7 +49,7 @@ function SummaryTable({ rows, unit }) {
               <td className="t-left">{g.label}</td>
               <td className="t-right">{g.trades}</td>
               <td className="t-right">{g.winRate}%</td>
-              <td className={`t-right ${tone(g.r)}`} style={{ fontWeight: 700 }}>{fmtVal(g.r, unit)}</td>
+              <td className={`t-right ${tone(g.r)}`} style={{ fontWeight: 400 }}>{fmtVal(g.r, unit)}</td>
             </tr>
           ))}
         </tbody>
@@ -71,7 +70,7 @@ export default function Calendar() {
 
   const dayMap = useMemo(() => {
     const map = new Map();
-    for (const d of m.days) map.set(d.key, { pnl: d.pnl, trades: d.trades });
+    for (const d of m.days) map.set(d.key, { pnl: d.pnl, trades: d.trades, wins: d.wins, losses: d.losses });
     return map;
   }, [m.days]);
 
@@ -81,6 +80,7 @@ export default function Calendar() {
 
   const prevMonth = () => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); };
   const nextMonth = () => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); };
+  const todayMonth = () => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); };
 
   return (
     <div className="page">
@@ -97,15 +97,12 @@ export default function Calendar() {
 
         {view === 'Calendar' && (
           <>
-            <div className="cal-layout">
-              <div className="panel">
-                <MonthCalendar
-                  year={calYear} month={calMonth} dayMap={dayMap} unit={unit}
-                  onPrev={prevMonth} onNext={nextMonth}
-                  onSelectDay={(c) => setSelectedDay(c.key)}
-                />
-              </div>
-              <MonthSummary trades={trades} year={calYear} month={calMonth} unit={unit} />
+            <div className="panel">
+              <MonthCalendar
+                year={calYear} month={calMonth} dayMap={dayMap} unit={unit}
+                onPrev={prevMonth} onNext={nextMonth} onToday={todayMonth}
+                onSelectDay={(c) => setSelectedDay(c.key)}
+              />
             </div>
           </>
         )}

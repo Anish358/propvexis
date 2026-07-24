@@ -175,29 +175,29 @@ const clamp01 = (x) => (x == null ? 0 : x < 0 ? 0 : x > 1 ? 1 : x);
 
 // Drawdown headroom → status. Colour is ALWAYS paired with this word + the figures
 // (status must never be colour-alone — green/red is the classic CVD confusion).
-function roomStatus(frac, breached) {
+export function roomStatus(frac, breached) {
   if (breached) return 'bad';
   if (frac == null) return 'na';
   if (frac >= 0.5) return 'good';
   if (frac >= 0.25) return 'warn';
   return 'bad';
 }
-const STATUS_WORD = { good: 'Healthy', warn: 'Caution', bad: 'At risk', na: '—' };
+export const STATUS_WORD = { good: 'Healthy', warn: 'Caution', bad: 'At risk', na: '—' };
 
-function healthStatus(score, breached) {
+export function healthStatus(score, breached) {
   if (breached) return 'bad';
   if (score >= 67) return 'good';
   if (score >= 34) return 'warn';
   return 'bad';
 }
 
-function PhaseBadge({ phase, status }) {
+export function PhaseBadge({ phase, status }) {
   const cls = status === 'breached' ? 'bad' : status === 'passed' ? 'good' : 'active';
   return <span className={`prop-phase ${cls}`}>{PHASE_LABEL[phase] || phase}{status !== 'active' ? ` · ${status}` : ''}</span>;
 }
 
 // Circular health gauge — one hero number, colour by status, ring fills to score.
-function HealthGauge({ score, breached }) {
+export function HealthGauge({ score, breached }) {
   const st = healthStatus(score, breached);
   const shown = breached ? 0 : score;
   const deg = Math.round((shown / 100) * 360);
@@ -215,7 +215,7 @@ function HealthGauge({ score, breached }) {
 
 // Linear headroom gauge. Fill = fraction of the allowance still intact (full green
 // = safe, shrinking amber/red = approaching the limit).
-function Meter({ label, frac, status, primary, secondary, explain }) {
+export function Meter({ label, frac, status, primary, secondary, explain }) {
   const pct = Math.round(clamp01(frac) * 100);
   return (
     <div className={`prop-meter ${status}`}>
@@ -232,7 +232,7 @@ function Meter({ label, frac, status, primary, secondary, explain }) {
   );
 }
 
-function TradingDays({ completed, required, met }) {
+export function TradingDays({ completed, required, met }) {
   const n = Math.max(required, completed, 1);
   return (
     <div className="prop-card">

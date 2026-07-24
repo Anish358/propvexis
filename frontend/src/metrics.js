@@ -120,10 +120,12 @@ export function computeMetrics(trades, unit = 'R', beRounding = false) {
   const byDay = new Map();
   for (const t of ts) {
     const k = dayKey(t._close);
-    if (!byDay.has(k)) byDay.set(k, { key: k, date: t._close, pnl: 0, trades: 0 });
+    if (!byDay.has(k)) byDay.set(k, { key: k, date: t._close, pnl: 0, trades: 0, wins: 0, losses: 0 });
     const d = byDay.get(k);
     d.pnl += t._pnl;
     d.trades += 1;
+    if (isWin(t)) d.wins += 1;
+    else if (isLoss(t)) d.losses += 1;
   }
   const days = [...byDay.values()].sort((a, b) => a.date - b.date);
   const daily = days.map((d) => ({ label: `${d.date.getDate()} ${MONTHS[d.date.getMonth()]}`, pnl: round(d.pnl), date: d.date }));

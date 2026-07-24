@@ -5,7 +5,7 @@ const GREEN = token('--profit'); // trade profit — green, NOT the blue brand a
 const RED = token('--loss');
 const TRACK = '#23232a';
 
-// Semicircle gauge (0..1) — used for Trade Win %.
+// Semicircle gauge (0..1) — used for Trade Win % / Day Win %.
 export function GaugeArc({ value, size = 84 }) {
   const v = Math.max(0, Math.min(1, value || 0));
   const r = size / 2 - 8;
@@ -27,7 +27,7 @@ export function GaugeArc({ value, size = 84 }) {
   );
 }
 
-// Full circular progress ring (0..1).
+// Full circular progress ring (0..1) — used for Profit Factor.
 export function Ring({ value, size = 60, color = GREEN }) {
   const v = Math.max(0, Math.min(1, value || 0));
   const r = size / 2 - 5;

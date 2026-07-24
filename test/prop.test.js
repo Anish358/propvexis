@@ -147,6 +147,18 @@ test('profitTargetState: eval tracks profit toward the target; funded is null', 
   assert.equal(profitTargetState(FUNDED, 26000), null);
 });
 
+test('profitTargetState: a funded account tracks toward a target exactly like eval once profit_target_pct is set (the "manual target" dashboard UI writes this field directly)', () => {
+  // A trader sets a flat $2,500 target on a $25k funded account — the UI
+  // converts that to a percentage of the starting balance before saving.
+  const manualPct = (2500 / FUNDED.start_balance) * 100;
+  const withTarget = { ...FUNDED, profit_target_pct: manualPct };
+  const pt = profitTargetState(withTarget, 26669.87);
+  assert.equal(pt.target, 2500);
+  assert.equal(pt.current, 1669.87);
+  assert.equal(pt.pctToTarget, 1669.87 / 2500);
+  assert.equal(pt.reached, false);
+});
+
 // --- health score ---------------------------------------------------------
 test('healthScore: weighted blend, breach floors it to 0', () => {
   const full = healthScore({ maxDdFrac: 1, dailyDdFrac: 1, progressFrac: 1, breached: false });

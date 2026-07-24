@@ -1,0 +1,25 @@
+# SPA caching rules for the PropVexis frontend. Imported INSIDE each site's
+# handle {} block in the box Caddyfile (/etc/caddy/Caddyfile) — see the one-time
+# import wiring below. Versioned here (like monitoring/caddy/grafana.caddy) so a
+# box rebuild doesn't lose it; the deploy rsyncs monitoring/ to the box.
+#
+# Why: the browser must always revalidate the SPA shell so a new deploy is picked
+# up without a manual hard-refresh, while the content-addressed (hashed) assets
+# can be cached forever. Without this, Caddy served index.html with no
+# Cache-Control and browsers held a stale bundle after deploys (see the
+# deploy-cache incident: a stale shell rendered an old plan badge).
+#
+# One-time box wiring (Caddyfile is box-only, not in the repo — same model as
+# grafana.caddy). Inside each site block's `handle { root ...; ... }`, replace the
+# inline @assets/@spa rules with:
+#     import /opt/amey-journal/monitoring/caddy/spa-cache.caddy
+# then: caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+#       sudo systemctl reload caddy
+
+# Fingerprinted assets never change under a given name -> cache hard.
+@assets path /assets/*
+header @assets Cache-Control "public, max-age=31536000, immutable"
+# The SPA shell (index.html, served for every route) must always revalidate so a
+# new deploy is picked up without a manual hard-refresh.
+@spa not path /assets/*
+header @spa Cache-Control "no-cache"
