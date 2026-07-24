@@ -37,13 +37,25 @@ export function Badge({ tone = 'neutral', className, children, ...rest }) {
   return <span className={cx('u-badge', `u-badge--${tone}`, className)} {...rest}>{children}</span>;
 }
 
-// Tabs — controlled segmented control. `tabs` = [{ value, label }].
+// Tabs — DESIGN SYSTEM RULE: the one tab/switcher pattern for the app. Use
+// this for any multi-view, filter, or category switcher instead of inventing
+// a new tab style. Underline-based (thin accent line under the active label,
+// muted/no-underline inactive, faint underline preview on hover) — no filled
+// pill, no bordered box. `tabs` = [{ value, label }].
+//
+// If a switcher needs richer per-tab content than a single label (icons,
+// multi-line text, dividers, fixed widths — e.g. the Dashboard's account
+// selector), it can't use this component's simple API, but it MUST still
+// follow the same underline interaction pattern for consistency; see
+// Dashboard.jsx's AccountHeader/.dash-acct-tab for that reference
+// implementation.
 export function Tabs({ tabs = [], value, onChange, className }) {
   return (
     <div className={cx('u-tabs', className)} role="tablist">
       {tabs.map((t) => (
         <button
           key={t.value}
+          type="button"
           role="tab"
           aria-selected={t.value === value}
           className={cx('u-tab', t.value === value && 'is-active')}

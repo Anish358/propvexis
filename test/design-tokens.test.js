@@ -19,16 +19,16 @@ const themeJs = readFileSync(
 // Pull the :root block so we assert against declarations, not usages.
 const root = css.slice(css.indexOf(':root'), css.indexOf('}', css.indexOf(':root')) + 1);
 
-test('brand accent is the indigo family, not green', () => {
-  assert.match(root, /--indigo-500:\s*#5e6ad2/i);   // Linear-exact accent
-  assert.match(root, /--accent:\s*var\(--indigo-500\)/);
+test('brand accent is the blue family, not green', () => {
+  assert.match(root, /--blue-500:\s*#3b82f6/i);   // brand primary blue
+  assert.match(root, /--accent:\s*var\(--blue-500\)/);
   // The old green brand color must be gone from the token layer.
   assert.doesNotMatch(root, /--accent:\s*#39d98a/i);
 });
 
 test('outcome + accent tokens exist and are the right hues', () => {
   assert.match(root, /--profit:\s*var\(--green-500\)/); // green = profit
-  assert.match(root, /--loss:\s*var\(--red-400\)/);     // red = loss
+  assert.match(root, /--loss:\s*var\(--red-500\)/);     // red = loss
   assert.match(root, /--ai:\s*var\(--purple-500\)/);    // purple = AI/insight
 });
 
@@ -46,7 +46,7 @@ test('no .win/profit rule is colored with the blue brand accent', () => {
   assert.deepEqual(offenders, [], `profit rules must use --profit, not --accent:\n${offenders.join('\n')}`);
 });
 
-test('theme.js JS fallback for --accent matches the indigo accent (chart/canvas parity)', () => {
-  assert.match(themeJs, /'--accent':\s*'#5e6ad2'/);
+test('theme.js JS fallback for --accent matches the brand blue (chart/canvas parity)', () => {
+  assert.match(themeJs, /'--accent':\s*'#3b82f6'/);
   assert.match(themeJs, /'--profit':\s*'#22c55e'/);
 });

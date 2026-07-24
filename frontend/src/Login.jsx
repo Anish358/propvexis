@@ -72,6 +72,7 @@ export default function Login() {
     <div className="login-screen">
       <div className="login-card">
         <div className="login-brand">{BRAND}</div>
+        <div className="login-tagline">The Operating System for Traders.</div>
         <div className="login-sub">Sign in to your trading journal</div>
         <div ref={btnRef} className="login-btn" />
         {error && <div className="login-error">{error}</div>}
