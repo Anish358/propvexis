@@ -44,6 +44,7 @@ export function Tabs({ tabs = [], value, onChange, className }) {
       {tabs.map((t) => (
         <button
           key={t.value}
+          type="button"
           role="tab"
           aria-selected={t.value === value}
           className={cx('u-tab', t.value === value && 'is-active')}

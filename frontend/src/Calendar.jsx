@@ -49,7 +49,7 @@ function SummaryTable({ rows, unit }) {
               <td className="t-left">{g.label}</td>
               <td className="t-right">{g.trades}</td>
               <td className="t-right">{g.winRate}%</td>
-              <td className={`t-right ${tone(g.r)}`} style={{ fontWeight: 700 }}>{fmtVal(g.r, unit)}</td>
+              <td className={`t-right ${tone(g.r)}`} style={{ fontWeight: 400 }}>{fmtVal(g.r, unit)}</td>
             </tr>
           ))}
         </tbody>

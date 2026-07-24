@@ -1,16 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useEffect, useMemo, useRef, useState,
+} from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import PageHeader from './PageHeader.jsx';
 import PayoutsModal from './PayoutsModal.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
 import Explain from './Explain.jsx';
-import { Card, Badge, Tabs, EmptyState } from './ui.jsx';
+import {
+  Card, Badge, Tabs, EmptyState,
+} from './ui.jsx';
 import { sevClass } from './Notifications.jsx';
 import { GaugeArc, Ring, SplitBar } from './DashWidgets.jsx';
 import { roomStatus, healthStatus } from './PropOS.jsx';
-import { fetchProp } from './api.js';
+import { fetchProp, updateAccount } from './api.js';
 import { token } from './theme.js';
 import {
   computeMetrics, computeProp, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome,
@@ -231,14 +236,14 @@ function CumulativePnlCard({ days, unit }) {
 
 // ---- Section 3 right: account health cards --------------------------------
 
-const STATUS_LABEL = { good: 'Healthy', warn: 'Warning', bad: 'At risk', na: '—' };
-const HEALTH_BADGE_TONE = { good: 'profit', warn: 'warn', bad: 'loss', na: 'neutral' };
 const PHASE_LABEL = { funded: 'Funded', p2: 'Phase 2', p1: 'Phase 1' };
 
 // A single "$used / $limit" row with a fill bar — used/limit framing (bar fills
 // UP as risk grows) rather than a room-remaining framing, so a nearly-full bar
 // reads as a warning at a glance.
-function UsageMeter({ label, used, limit, pct, tone, sub }) {
+function UsageMeter({
+  label, used, limit, pct, tone, sub,
+}) {
   const money = (n) => (n == null ? '—' : fmtMoney(n));
   return (
     <div className={`dash-usage prop-${tone}`}>
@@ -252,8 +257,203 @@ function UsageMeter({ label, used, limit, pct, tone, sub }) {
   );
 }
 
-function AccountCard({ data, onOpen }) {
-  const st = healthStatus(data.health.score, data.breach.breached);
+// Attention icon shown next to an account's name — ONLY for warn/bad. A
+// healthy account gets no icon at all (zero visual emphasis is the point);
+// warning gets a triangle, critical gets a fuller alert-circle so severity
+// reads as a shape difference too, not just color.
+function AccountAlertIcon({ status }) {
+  if (status === 'good') return null;
+  const label = status === 'warn' ? 'Warning' : 'Critical';
+  return (
+    <span className={`dash-acct-tab-alert dash-acct-tab-alert--${status}`} title={label} aria-label={label}>
+      {status === 'warn' ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+// Account header — a row of compact, tab-like account blocks (name / type /
+// health), not buttons — each is a name/type block with a small status dot,
+// separated from its neighbours by a hairline (matching the divider style of
+// the metrics row below). Up to 3 shown; the rest sit behind a "+N Accounts"
+// text link that opens the existing dropdown. Keeps the previously-selected
+// block visible (swapping the third slot) rather than always showing the
+// first 3 by phase order, so picking an account from the overflow menu
+// doesn't make it disappear again.
+function AccountHeader({ candidates, selectedId, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const firstThree = candidates.slice(0, 3);
+  const selectedAcc = candidates.find((a) => String(a.account_id) === String(selectedId));
+  const selInFirstThree = firstThree.some((a) => String(a.account_id) === String(selectedId));
+  const visible = (!selectedAcc || selInFirstThree) ? firstThree : [...firstThree.slice(0, 2), selectedAcc];
+  const visibleIds = new Set(visible.map((a) => String(a.account_id)));
+  const overflow = candidates.filter((a) => !visibleIds.has(String(a.account_id)));
+
+  return (
+    <div className="dash-acct-header">
+      <div className="dash-acct-tabs">
+        {visible.map((a) => {
+          const st = healthStatus(a.health.score, a.breach.breached);
+          const active = String(a.account_id) === String(selectedId);
+          return (
+            <div key={a.account_id} className="dash-acct-tab-cell">
+              <button
+                type="button"
+                className={`dash-acct-tab ${active ? 'is-active' : ''}`}
+                onClick={() => onSelect(a.account_id)}
+              >
+                <span className={`dash-acct-tab-dot dash-acct-tab-dot--${st}`} />
+                <span className="dash-acct-tab-text">
+                  <span className="dash-acct-tab-name-row">
+                    <span className="dash-acct-tab-name">{a.label || `Account ${a.account_id}`}</span>
+                    <AccountAlertIcon status={st} />
+                  </span>
+                  <span className="dash-acct-tab-type">{PHASE_LABEL[a.phase] || a.phase}</span>
+                </span>
+              </button>
+            </div>
+          );
+        })}
+        {overflow.length > 0 && (
+          <div className="dash-acct-tab-cell dash-acct-more" ref={ref}>
+            <button type="button" className="dash-acct-more-btn" onClick={() => setOpen((o) => !o)}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+              +{overflow.length} Account{overflow.length > 1 ? 's' : ''}
+            </button>
+            {open && (
+              <div className="wcz-menu dash-acct-more-menu">
+                {overflow.map((a) => (
+                  <button
+                    key={a.account_id}
+                    type="button"
+                    className="wcz-opt"
+                    onClick={() => { onSelect(a.account_id); setOpen(false); }}
+                  >
+                    <span>{a.label || `Account ${a.account_id}`}</span>
+                    {a.phase && <span className="dash-acct-tab-type muted">{PHASE_LABEL[a.phase] || a.phase}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Lets a trader set a manual profit target on a funded account (which carries
+// no target by default — see profitTargetState in src/prop.js). Writes
+// `profit_target_pct` on the account via the existing PATCH /api/accounts/:id
+// route (which already mirrors it onto the active challenge), so once saved
+// the account picks up the exact same "Profit target" meter eval accounts use.
+function SetTargetModal({
+  acct, startBalance, isEdit = false, initialMode = 'pct', initialValue = '', onClose, onSaved,
+}) {
+  const [mode, setMode] = useState(initialMode);
+  const [value, setValue] = useState(initialValue);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function save(e) {
+    e.preventDefault();
+    const n = Number(value);
+    if (!(n > 0)) { setErr('Enter a target greater than 0.'); return; }
+    let pct;
+    if (mode === 'pct') {
+      pct = n;
+    } else if (startBalance > 0) {
+      pct = (n / startBalance) * 100;
+    } else {
+      setErr('This account has no starting balance to base a dollar target on.');
+      return;
+    }
+    setBusy(true); setErr(null);
+    try {
+      await updateAccount(acct.id, { profit_target_pct: pct });
+      onSaved();
+    } catch (e2) {
+      setErr(e2.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm('Remove this payout target? The account will go back to tracking profit with no target.')) return;
+    setBusy(true); setErr(null);
+    try {
+      await updateAccount(acct.id, { profit_target_pct: null });
+      onSaved();
+    } catch (e2) {
+      setErr(e2.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal target-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>{isEdit ? 'Edit payout target' : 'Set payout target'}</h3>
+          <button className="modal-x" onClick={onClose}>✕</button>
+        </div>
+        <form className="payout-add" onSubmit={save}>
+          <Tabs
+            tabs={[{ value: 'pct', label: '% of balance' }, { value: 'amount', label: '$ amount' }]}
+            value={mode}
+            onChange={(m) => { setMode(m); setErr(null); }}
+          />
+          <label className="po-field">
+            <span>{mode === 'pct' ? 'Payout target (% of starting balance)' : 'Payout target ($ amount)'}</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={mode === 'pct' ? '10' : '2500'}
+            />
+          </label>
+          <button type="submit" className="primary" disabled={busy}>{busy ? 'Saving…' : isEdit ? 'Update target' : 'Save target'}</button>
+          {isEdit && (
+            <button type="button" className="danger-link" disabled={busy} onClick={remove}>Remove target</button>
+          )}
+          {err && <div className="login-error">{err}</div>}
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// The dashboard's single primary account card — spans the full width, with an
+// account header (tab row) so switching which account you're looking at
+// doesn't require leaving the page.
+function AccountCard({
+  data, candidates, selectedId, onSelect, onOpen, accounts, onChanged,
+}) {
+  const [targetOpen, setTargetOpen] = useState(false);
   const maxSt = roomStatus(data.maxDd?.fracRemaining, data.maxDd?.breached);
   const daySt = roomStatus(data.dailyDd?.fracRemaining, data.dailyDd?.breached);
   const money = (n) => (n == null ? '—' : fmtMoney(n));
@@ -262,27 +462,14 @@ function AccountCard({ data, onOpen }) {
   const maxUsed = data.maxDd ? data.maxDd.limit - data.maxDd.roomLeft : null;
   const maxPct = data.maxDd?.limit ? maxUsed / data.maxDd.limit : 0;
   const dayPct = data.dailyDd?.limit ? data.dailyDd.usedToday / data.dailyDd.limit : 0;
+  const fundedProfit = data.currentEquity != null && data.startBalance != null ? data.currentEquity - data.startBalance : null;
+  const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
 
   return (
-    <Card className="dash-acct-card">
-      <div className="dash-acct-head">
-        <span className="dash-acct-name">{data.label || `Account ${data.account_id}`}</span>
-        <Badge tone={HEALTH_BADGE_TONE[st]}>{STATUS_LABEL[st]}</Badge>
-      </div>
-      <div className="dash-acct-subrow">
-        <span className={`dash-acct-phase ${data.phase === 'funded' ? 'good' : ''}`}>{PHASE_LABEL[data.phase] || data.phase}</span>
-        <span className="dash-acct-balance">{money(data.currentEquity ?? data.startBalance)}</span>
-      </div>
+    <Card className="dash-acct-card dash-acct-card-wide">
+      <AccountHeader candidates={candidates} selectedId={selectedId} onSelect={onSelect} />
 
-      <div className="dash-acct-usages">
-        <UsageMeter
-          label="Max drawdown"
-          used={maxUsed}
-          limit={data.maxDd?.limit}
-          pct={maxPct}
-          tone={maxSt}
-          sub={`${pct1(maxPct)} used · ${money(data.maxDd?.roomLeft)} remaining`}
-        />
+      <div className="dash-acct-usages dash-acct-usages-grid">
         <UsageMeter
           label="Daily drawdown"
           used={data.dailyDd?.usedToday}
@@ -291,56 +478,74 @@ function AccountCard({ data, onOpen }) {
           tone={daySt}
           sub={`${pct1(dayPct)} used · ${money(data.dailyDd?.roomLeft)} remaining`}
         />
-        {data.profitTarget && (
+        <UsageMeter
+          label="Max drawdown"
+          used={maxUsed}
+          limit={data.maxDd?.limit}
+          pct={maxPct}
+          tone={maxSt}
+          sub={`${pct1(maxPct)} used · ${money(data.maxDd?.roomLeft)} remaining`}
+        />
+        {data.profitTarget ? (
           <UsageMeter
-            label="Profit target"
+            label={data.phase === 'funded' ? 'Payout target' : 'Profit target'}
             used={data.profitTarget.current}
             limit={data.profitTarget.target}
             pct={data.profitTarget.pctToTarget}
-            tone="target"
-            sub={data.profitTarget.reached
-              ? 'Target reached'
-              : `${pct1(data.profitTarget.pctToTarget)} of target · ${money(data.profitTarget.target - data.profitTarget.current)} to go`}
+            tone={data.phase === 'funded' ? 'payout' : 'target'}
+            sub={(
+              <>
+                <span>
+                  {data.profitTarget.reached
+                    ? 'Target reached'
+                    : `${pct1(data.profitTarget.pctToTarget)} of target · ${money(data.profitTarget.target - data.profitTarget.current)} to go`}
+                </span>
+                {data.phase === 'funded' && acctRecord && (
+                  <button
+                    type="button"
+                    className="dash-usage-settarget dash-usage-settarget--edit"
+                    onClick={() => setTargetOpen(true)}
+                  >
+                    Edit payout target
+                  </button>
+                )}
+              </>
+            )}
           />
-        )}
+        ) : data.phase === 'funded' ? (
+          <div className="dash-usage prop-na">
+            <div className="dash-usage-head">
+              <span className="dash-usage-label">Payout</span>
+              <span className="dash-usage-val">{money(fundedProfit)}</span>
+            </div>
+            <div className="prop-meter-track"><div className="prop-meter-fill" style={{ width: '0%' }} /></div>
+            <div className="dash-usage-sub">
+              No payout target set for this funded account.{' '}
+              {acctRecord && (
+                <button type="button" className="dash-usage-settarget" onClick={() => setTargetOpen(true)}>Set payout target</button>
+              )}
+            </div>
+          </div>
+        ) : <div className="dash-usage dash-usage-empty" />}
       </div>
 
-      <div className="dash-acct-days">{data.tradingDays.completed}/{data.tradingDays.required} days completed</div>
+      <div className="dash-acct-foot">
+        <span className="dash-acct-days">{data.tradingDays.completed}/{data.tradingDays.required} days completed</span>
+        <button type="button" className="dash-acct-view" onClick={onOpen}>View account →</button>
+      </div>
 
-      <button type="button" className="dash-acct-view" onClick={onOpen}>View account →</button>
-    </Card>
-  );
-}
-
-// Lets the user choose which accounts pin to the (max 3) health-card stack,
-// once there are more candidates than that. Persisted via setPinnedAccounts.
-function PinAccounts({ candidates, pinned, onChange }) {
-  const [open, setOpen] = useState(false);
-  const toggle = (id) => {
-    const key = String(id);
-    const cur = pinned.length ? pinned.map(String) : candidates.slice(0, 3).map((a) => String(a.account_id));
-    const next = cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key];
-    onChange(next.slice(0, 3));
-  };
-  return (
-    <div className="dash-pin">
-      <button type="button" className="wcz-btn" onClick={() => setOpen((o) => !o)}>Pin accounts</button>
-      {open && (
-        <div className="wcz-menu">
-          <div className="wcz-head">Show up to 3</div>
-          {candidates.map((a) => {
-            const key = String(a.account_id);
-            const active = pinned.length ? pinned.map(String).includes(key) : candidates.slice(0, 3).some((x) => String(x.account_id) === key);
-            return (
-              <label key={key} className="wcz-opt">
-                <input type="checkbox" checked={active} onChange={() => toggle(a.account_id)} />
-                <span>{a.label || `Account ${a.account_id}`}</span>
-              </label>
-            );
-          })}
-        </div>
+      {targetOpen && acctRecord && (
+        <SetTargetModal
+          acct={acctRecord}
+          startBalance={data.startBalance}
+          isEdit={!!data.profitTarget}
+          initialMode={data.profitTarget ? 'amount' : 'pct'}
+          initialValue={data.profitTarget ? String(data.profitTarget.target) : ''}
+          onClose={() => setTargetOpen(false)}
+          onSaved={() => { setTargetOpen(false); onChanged(); }}
+        />
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -352,7 +557,6 @@ export default function Dashboard() {
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
   } = useOutletContext();
 
-  const scope = accountId === 'all' ? 'god' : 'account';
   const beRounding = !!tradeSettings.beRounding;
   const m = useMemo(() => computeMetrics(trades, unit, beRounding), [trades, unit, beRounding]);
   const p = useMemo(() => computeProp(trades, account, payouts), [trades, account, payouts]);
@@ -387,23 +591,23 @@ export default function Dashboard() {
   // Prop OS challenge state for the account-health cards — same call PropOS
   // itself makes; god scope returns one item per account, single scope one item.
   const [propData, setPropData] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    setPropData(null);
-    fetchProp(accountId).then((d) => { if (!cancelled) setPropData(d); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [accountId]);
+  function loadProp() {
+    fetchProp(accountId).then((d) => setPropData(d)).catch(() => {});
+  }
+  useEffect(() => { setPropData(null); loadProp(); /* eslint-disable-next-line */ }, [accountId]);
 
   const candidates = useMemo(() => {
     const list = (propData?.god ? propData.accounts : propData ? [propData] : []).filter((a) => a.challengeId);
     return [...list].sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9));
   }, [propData]);
 
-  const shownAccounts = useMemo(() => {
-    if (!pinnedAccounts.length) return candidates.slice(0, 3);
-    const byId = new Map(candidates.map((a) => [String(a.account_id), a]));
-    const picked = pinnedAccounts.map((id) => byId.get(String(id))).filter(Boolean).slice(0, 3);
-    return picked.length ? picked : candidates.slice(0, 3);
+  // Single selected prop account for the account card — persisted the same way
+  // the old pinned-accounts stack was, just to one id instead of up to three.
+  const selectedAccount = useMemo(() => {
+    if (!candidates.length) return null;
+    const pinnedId = pinnedAccounts[0];
+    const found = pinnedId != null ? candidates.find((a) => String(a.account_id) === String(pinnedId)) : null;
+    return found || candidates[0];
   }, [candidates, pinnedAccounts]);
 
   return (
@@ -446,6 +650,25 @@ export default function Dashboard() {
           <AvgWinLossCard m={m} unit={unit} />
         </div>
 
+        {!selectedAccount ? (
+          <Card className="dash-acct-card dash-acct-card-wide">
+            <EmptyState
+              title="No prop accounts yet"
+              description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
+            />
+          </Card>
+        ) : (
+          <AccountCard
+            data={selectedAccount}
+            candidates={candidates}
+            selectedId={selectedAccount.account_id}
+            onSelect={(id) => setPinnedAccounts([id])}
+            onOpen={() => setAccountId(String(selectedAccount.account_id))}
+            accounts={accounts}
+            onChanged={loadProp}
+          />
+        )}
+
         <div className="dash-main">
           <div className="dash-col-left">
             <div className="panel dash-cal-panel">
@@ -460,31 +683,11 @@ export default function Dashboard() {
                 onSelectDay={(c) => setSelectedDay(c.key)}
               />
             </div>
-            <div className="dash-split-row">
-              <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />
-              <CumulativePnlCard days={m.days} unit={unit} />
-            </div>
           </div>
 
           <div className="dash-col-right">
-            <div className="panel dash-acct-panel">
-              <div className="dash-acct-stack-head">
-                <h3>Account Health</h3>
-                {scope === 'god' && candidates.length > 3 && (
-                  <PinAccounts candidates={candidates} pinned={pinnedAccounts} onChange={setPinnedAccounts} />
-                )}
-              </div>
-              <div className="dash-acct-stack-body">
-                {!candidates.length ? (
-                  <EmptyState
-                    title="No prop accounts yet"
-                    description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
-                  />
-                ) : shownAccounts.map((a) => (
-                  <AccountCard key={a.account_id} data={a} onOpen={() => setAccountId(String(a.account_id))} />
-                ))}
-              </div>
-            </div>
+            <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />
+            <CumulativePnlCard days={m.days} unit={unit} />
           </div>
         </div>
       </div>

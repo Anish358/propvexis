@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { dayKey, fmtValShort } from './metrics.js';
-import Explain from './Explain.jsx';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -38,6 +37,9 @@ export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onT
     return { rows, monthTotal: round2(monthTotal), tradingDays };
   }, [year, month, dayMap]);
 
+  const now = new Date();
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
   return (
     <div className="cal">
       <div className="cal-head">
@@ -46,12 +48,13 @@ export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onT
           <h3>{MONTHS[month]} {year}</h3>
           <button onClick={onNext} aria-label="Next month">›</button>
         </div>
-        {onToday && <button type="button" className="cal-today-btn" onClick={onToday}>This month</button>}
+        {onToday && isCurrentMonth && (
+          <button type="button" className="cal-today-btn" onClick={onToday}>
+            This month
+          </button>
+        )}
         <div className="cal-head-stats">
-          <span className="cal-stats-label">
-            Monthly stats
-            <Explain align="right">Total P&amp;L and number of trading days in {MONTHS[month]} {year}.</Explain>
-          </span>
+          <span className="cal-stats-label">Monthly stats:</span>
           <span className={`cal-stats-pill ${tone(monthTotal)}`}>{fmtValShort(monthTotal, unit)}</span>
           <span className="cal-stats-pill days">{tradingDays} day{tradingDays === 1 ? '' : 's'}</span>
         </div>

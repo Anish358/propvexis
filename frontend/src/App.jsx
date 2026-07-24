@@ -130,7 +130,7 @@ export default function App() {
   const setUnit = (u) => mutateConfig((c) => ({ ...c, unit: u }));
   const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...c.filters, ...p } }));
   const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
-  // The Dashboard's chosen account logins for the health-card stack (god scope).
+  // The Dashboard's selected prop account (god scope), passed as [login].
   const setPinnedAccounts = (logins) => mutateConfig((c) => ({ ...c, dashboard: { ...c.dashboard, pinnedAccounts: logins } }));
 
   // Precision control snaps near-zero Fixed R to breakeven BEFORE filtering, so

@@ -23,8 +23,9 @@ export const emptyFilters = () => ({
 
 // god defaults to R (cross-account risk multiples), a single account to its
 // currency ($). Both are now overridable by the user via the filter bar.
-// `dashboard.pinnedAccounts` is the god-scope Dashboard's chosen set of account
-// logins to show as health cards (max 3); empty = default to the first 3.
+// `dashboard.pinnedAccounts` holds the god-scope Dashboard's selected account
+// (single-element array, kept as an array for storage-shape compatibility);
+// empty = default to the first prop-challenge account.
 export const defaultConfig = (accountId) => ({
   // A single account defaults to its currency ($); the god view and any
   // multi-account selection (comma-joined logins) default to R (cross-account).

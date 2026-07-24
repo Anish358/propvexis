@@ -104,7 +104,26 @@ export async function createAccount(userId, { label, broker, currency, start_bal
   return { ...acct, mt5_login: loginNum(acct.mt5_login), pending: acct.mt5_login == null };
 }
 
-// Update editable metadata on the user's own account.
+// mt5_accounts.profit_target_pct is NOT NULL (the eval-template default, always
+// some %); challenges.profit_target_pct is nullable (NULL = no target, e.g. a
+// funded account's manual target being cleared). A caller sending
+// `profit_target_pct: null` means "clear the active challenge's target", which
+// must NOT be applied to this NOT NULL column — so strip it from the fields
+// going into the account-row update (server.js still passes the null through
+// to syncActiveChallengeRules unchanged).
+export function stripNullProfitTarget(fields) {
+  if (fields.profit_target_pct !== null) return fields;
+  const { profit_target_pct, ...rest } = fields;
+  return rest;
+}
+
+const shapeAcct = (r) => ({ ...r, mt5_login: loginNum(r.mt5_login), pending: r.mt5_login == null });
+
+// Update editable metadata on the user's own account. `fields` can end up
+// empty after stripNullProfitTarget removes its only key (clearing a funded
+// account's target touches no mt5_accounts column) — that's not "not found",
+// so it falls back to an ownership-checked read instead of skipping the query
+// and returning null (which the caller would otherwise 404 on).
 export async function updateAccount(userId, id, fields) {
   const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'is_active'];
   const sets = [];
@@ -112,7 +131,13 @@ export async function updateAccount(userId, id, fields) {
   for (const f of allowed) {
     if (f in fields) { params.push(fields[f]); sets.push(`${f} = $${params.length}`); }
   }
-  if (!sets.length) return null;
+  if (!sets.length) {
+    const { rows } = await query(
+      `SELECT ${ACCT_COLS} FROM mt5_accounts WHERE id = $1 AND user_id = $2;`,
+      [id, userId]
+    );
+    return rows.length ? shapeAcct(rows[0]) : null;
+  }
   params.push(id, userId);
   const { rows } = await query(
     `UPDATE mt5_accounts SET ${sets.join(', ')}
@@ -120,8 +145,7 @@ export async function updateAccount(userId, id, fields) {
       RETURNING ${ACCT_COLS};`,
     params
   );
-  if (!rows.length) return null;
-  return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login), pending: rows[0].mt5_login == null };
+  return rows.length ? shapeAcct(rows[0]) : null;
 }
 
 // Delete the user's own account (trades keep their account_id; just unowned).

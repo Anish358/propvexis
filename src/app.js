@@ -22,6 +22,7 @@ import {
   updateAccount,
   deleteAccount,
   ownedAccountByLogin,
+  stripNullProfitTarget,
 } from './accounts.js';
 import { listPayouts, createPayout, deletePayout, recordEaPayout } from './payouts.js';
 import { listFees, createFee, deleteFee, FEE_TYPES } from './fees.js';
@@ -952,11 +953,12 @@ app.post('/api/accounts', { preHandler: app.requireAuth }, async (req, reply) =>
 
 // Edit account metadata (label / broker / currency / start_balance).
 app.patch('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
-  const acct = await updateAccount(req.user.uid, Number(req.params.id), req.body ?? {});
+  const body = req.body ?? {};
+  const acct = await updateAccount(req.user.uid, Number(req.params.id), stripNullProfitTarget(body));
   if (!acct) return reply.code(404).send({ error: 'account not found' });
   // Mirror any changed rule fields onto the active challenge so Prop OS reflects
   // the correction immediately (ownership already enforced by updateAccount).
-  await syncActiveChallengeRules(Number(req.params.id), req.body ?? {});
+  await syncActiveChallengeRules(Number(req.params.id), body);
   if (acct.mt5_login != null) io.to(`acct:${acct.mt5_login}`).emit('prop:updated', { account_id: acct.mt5_login });
   return acct;
 });
