@@ -1,0 +1,22 @@
+name: Deploy dev
+
+# DEV (app-dev.propvexis.com) ← dev branch. Pushing dev auto-deploys to the dev
+# stack on the shared box (port 3002, /opt/amey-dev, SSM /amey-journal/dev/).
+# CI (ci.yml) still runs on dev pushes for a fast red check; this workflow re-runs
+# the tests as the deploy gate before shipping. No monitoring job (prod-only).
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-env.yml
+    with:
+      app_dir: /opt/amey-dev
+      pm2_app: amey-backend-dev
+    secrets: inherit

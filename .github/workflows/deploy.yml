@@ -1,149 +1,23 @@
 name: Deploy to AWS
 
+# PROD (app.propvexis.com). Merge to main auto-deploys. The heavy lifting lives
+# in the reusable deploy-env.yml; this caller just points it at the prod app dir
+# / pm2 app and enables the Prometheus+Grafana monitoring job (prod only).
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Never run two deploys at once; let an in-flight deploy finish.
+# Never run two prod deploys at once; let an in-flight deploy finish.
 concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: '20' # match the production box
-          cache: 'npm'
-
-      # Gate the deploy on the backend test suite — a red test aborts before
-      # anything is synced to the server.
-      - name: Test backend
-        run: |
-          npm ci
-          npm test
-
-      - name: Build frontend
-        env:
-          # Empty => the SPA calls the API/Socket.IO with RELATIVE same-origin URLs,
-          # so it works on EVERY domain Caddy fronts (journal.anishdevlops.xyz AND
-          # app.propvexis.com) and the SameSite=Lax session cookie is always sent.
-          # Do NOT hardcode a host here: a cross-domain absolute URL would break
-          # login (Lax cookie not sent cross-site). Each Caddy vhost proxies /api.
-          VITE_BACKEND_URL: ""
-          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-          # Public (client-side) Sentry DSN — safe to expose; baked into the bundle.
-          VITE_SENTRY_DSN: https://770769a772da9fa5b92512ca9279088b@o4508103223017472.ingest.us.sentry.io/4511670762799104
-        run: |
-          npm --prefix frontend ci
-          npm --prefix frontend run build
-
-      - name: Set up SSH
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          # Populate known_hosts with retries: ssh-keyscan can transiently fail to
-          # reach the host, and under `bash -e` that aborts the entire deploy
-          # (root cause of the PR #24 deploy failure). Retry, then fail loudly
-          # only if every attempt produced nothing.
-          for i in 1 2 3 4 5; do
-            if ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null && [ -s ~/.ssh/known_hosts ]; then
-              echo "known_hosts populated (attempt $i)"
-              break
-            fi
-            echo "ssh-keyscan attempt $i failed; retrying in 5s..."
-            sleep 5
-          done
-          test -s ~/.ssh/known_hosts
-
-      - name: Sync code to server
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          # App code (no --delete: leaves .env, node_modules, logs on the box untouched).
-          # `monitoring/` + the prod monitoring compose ship too so the monitoring
-          # job below can bring up Prometheus/Grafana; scripts/ (incl.
-          # monitoring-up.sh) is already in this list.
-          rsync -az -e "ssh -i ~/.ssh/deploy_key" \
-            package.json package-lock.json ecosystem.config.cjs src db scripts ea \
-            monitoring docker-compose.monitoring.prod.yml \
-            "$SSH_USER@$SSH_HOST:/opt/amey-journal/"
-          # Built UI (--delete clears stale hashed Vite assets)
-          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
-            frontend/dist/ \
-            "$SSH_USER@$SSH_HOST:/opt/amey-journal/frontend/dist/"
-
-      - name: Install deps, migrate DB, restart backend
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" 'set -e
-            cd /opt/amey-journal
-            npm install --omit=dev
-            # The migrate script is a standalone process (not pm2), so it needs the
-            # same bootstrap env pm2 gets — chiefly SSM_PREFIX, which tells the
-            # secrets loader to hydrate DATABASE_URL et al. from SSM. Source it from
-            # the SAME ecosystem file pm2 uses (single source of truth), then run.
-            export $(node -e "const e=require(\"./ecosystem.config.cjs\").apps[0].env; console.log(Object.entries(e).map(([k,v])=>k+\"=\"+v).join(\" \"))")
-            node scripts/migrate.js
-            # startOrReload applies the bootstrap env (SSM_PREFIX etc.) from the
-            # version-controlled ecosystem file, so it survives fresh starts and
-            # reboots. pm2 save persists the process list for reboot resurrection.
-            pm2 startOrReload ecosystem.config.cjs --update-env
-            pm2 save'
-
-  # Bring up / update the Prometheus + Grafana stack on the box. A SEPARATE job
-  # (needs: deploy) so a monitoring hiccup never marks the app deploy as failed —
-  # the backend is already live by the time this runs. The assets were rsynced by
-  # the deploy job above.
-  monitoring:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up SSH
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          for i in 1 2 3 4 5; do
-            if ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null && [ -s ~/.ssh/known_hosts ]; then
-              echo "known_hosts populated (attempt $i)"
-              break
-            fi
-            echo "ssh-keyscan attempt $i failed; retrying in 5s..."
-            sleep 5
-          done
-          test -s ~/.ssh/known_hosts
-
-      - name: Bring up monitoring stack
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          # Required: Grafana is internet-facing, so monitoring-up.sh fails
-          # closed if this GitHub secret is empty (no default-password fallback).
-          GRAFANA_PASSWORD: ${{ secrets.GRAFANA_PASSWORD }}
-        run: |
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
-            "GRAFANA_PASSWORD='${GRAFANA_PASSWORD}' bash /opt/amey-journal/scripts/monitoring-up.sh"
-
-      # Reload Caddy only if the Grafana site block changed this deploy (the
-      # rsync above ships monitoring/ but does not touch Caddy). No-op otherwise.
-      - name: Reload Caddy if Grafana site block changed
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
-            "bash /opt/amey-journal/scripts/caddy-reload-if-changed.sh"
+    uses: ./.github/workflows/deploy-env.yml
+    with:
+      app_dir: /opt/amey-journal
+      pm2_app: amey-backend
+      run_monitoring: true
+    secrets: inherit
