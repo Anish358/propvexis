@@ -48,6 +48,20 @@ export const config = {
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
   razorpayPlanPro: process.env.RAZORPAY_PLAN_PRO ?? '',
 
+  // ---- Economic calendar (dashboard high-impact events) ----
+  // Free public ForexFactory weekly JSON feed (no API key) — same $0-cost ethos
+  // as the EA-sourced candles. Override to point at a mirror; set to an empty
+  // string to disable (then /api/calendar returns no events and the banner shows
+  // its graceful fallback).
+  // Comma-separated feed URLs, merged before filtering. The free faireconomy
+  // (ForexFactory) feed only publishes the current week — so once this week's
+  // events are past (they cluster mid-week), the banner correctly shows its
+  // empty state until the next week's feed rolls over. Add mirror/next-week URLs
+  // here if a source becomes available.
+  econCalendarUrls: (
+    process.env.ECON_CALENDAR_URL ?? 'https://nfs.faireconomy.media/ff_calendar_thisweek.json'
+  ).split(',').map((s) => s.trim()).filter(Boolean),
+
   // ---- Observability (Sentry) ----
   // DSN from the Sentry project. Empty = Sentry disabled (a no-op), so local/dev
   // and unconfigured environments run without it. `environment`/`release` tag events.

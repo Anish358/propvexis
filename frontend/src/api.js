@@ -193,6 +193,11 @@ export async function fetchNotifications() {
   return getJson('/api/notifications?_=1');
 }
 
+// Upcoming high-impact economic events for the dashboard banner (global feed).
+export async function fetchCalendar() {
+  return getJson('/api/calendar');
+}
+
 export async function markNotificationsRead(body) {
   const res = await apiFetch('/api/notifications/read', {
     method: 'POST',
