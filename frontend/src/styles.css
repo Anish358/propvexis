@@ -416,7 +416,9 @@ label.full { margin-bottom: 16px; }
 /* ---- Dashboard V1 ---- */
 .dash-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
-  background: var(--panel); border-radius: var(--r-lg);
+  /* 14px to match the rest of the dashboard's cards/widgets (not var(--r-lg),
+     which is the app-wide button radius, not a card one). */
+  background: var(--panel); border-radius: 14px;
   /* Vertical padding explicit (not var(--s-4)) — this is the height lever for this
      box specifically. Measured: original box (16px padding) rendered at 73.98px
      total height; 21.52px padding renders the box at 85.03px, +15% over that. */
@@ -505,7 +507,9 @@ label.full { margin-bottom: 16px; }
 .dash-stat--refined .dash-stat-count {
   font-size: 9px; font-weight: var(--fw-medium); padding: 1.5px 5px; color: var(--text-2);
 }
-.dash-stat--refined .jo-kpi-value { font-size: 24px; margin-top: 0; }
+/* Bold (700) is a deliberate, explicitly-requested exception to this app's
+   600 hero-number ceiling — scoped to this element only. */
+.dash-stat--refined .jo-kpi-value { font-size: 24px; margin-top: 0; font-weight: 700; }
 .dash-stat--refined .jo-kpi-value.neg { color: var(--loss-quiet); }
 
 /* Contextual footer line — replaces a decorative accent bar with a small
@@ -525,10 +529,14 @@ label.full { margin-bottom: 16px; }
    1px hairline (inherited from .u-card/.panel elsewhere in the app) and relies
    on the panel/background contrast + shadow alone to read as a distinct box.
    Compound selectors (.u-card.dash-stat, not just .dash-stat) so this beats
-   .u-card's own border rule regardless of which comes later in the file. */
+   .u-card's own border rule regardless of which comes later in the file.
+   Dashboard-only corner radius: 14px, not the app-wide --r-2xl (20px) — this
+   page's cards/widgets are scoped separately rather than retuning the shared
+   token (which every other page's cards still use). */
 .u-card.dash-stat, .u-card.dash-activity, .u-card.dash-equity, .u-card.dash-acct-card,
 .panel.dash-cal-panel {
   border: none;
+  border-radius: 14px;
 }
 
 .dash-activity-body { margin-top: 16px; }
