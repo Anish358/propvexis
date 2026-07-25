@@ -38,6 +38,12 @@ function app({ name, cwd, port, ssmPrefix }) {
     env: {
       NODE_ENV: 'production',
       AWS_REGION: 'ap-south-1',
+      // Bind loopback: only Caddy (same box) proxies to these ports. Pinned here
+      // (not left to SSM) so every env binds 127.0.0.1 even if its SSM tree has
+      // no HOST param — the internet reaches the app only through Caddy's TLS
+      // vhosts, never the raw backend port. Prod already binds loopback, so this
+      // is a no-op there.
+      HOST: '127.0.0.1',
       PORT: String(port),
       SSM_PREFIX: ssmPrefix,
     },
