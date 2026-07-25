@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState } from './api.js';
 import { useAuth } from './AuthContext.jsx';
-import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
+import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import { applyBeRounding } from './metrics.js';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
@@ -65,12 +65,13 @@ export default function App() {
     setAccountIdState(id);
   }
 
-  // View state (the selected account, per-scope display unit + data filters +
-  // widget overrides, and the global trade settings) is stored SERVER-SIDE per user
-  // — so it follows the user across browsers/devices instead of sticking to one
-  // machine's localStorage. localStorage still mirrors accountId as a fast-paint
-  // cache for the first render before the server hydrate lands. Starts at defaults;
-  // hydrated from the server on login (below), then any change is debounced up.
+  // View state (the selected account, the global display unit, per-scope data
+  // filters + widget overrides, and the global trade settings) is stored
+  // SERVER-SIDE per user — so it follows the user across browsers/devices
+  // instead of sticking to one machine's localStorage. localStorage still
+  // mirrors accountId as a fast-paint cache for the first render before the
+  // server hydrate lands. Starts at defaults; hydrated from the server on
+  // login (below), then any change is debounced up.
   const [viewConfigs, setViewConfigs] = useState({});
   const [tradeSettings, setTradeSettings] = useState(defaultTradeSettings);
   const viewStateLoaded = useRef(false); // gate saves until the initial hydrate lands
@@ -119,15 +120,19 @@ export default function App() {
   const sk = scopeKey(accountId);
   // Merge over defaults so configs persisted before a field existed (e.g. the
   // pre-widget Phase A configs) still get sane values.
-  const config = { ...defaultConfig(accountId), ...(viewConfigs[sk] || {}) };
-  const { unit, filters } = config;
+  const config = { ...defaultConfig(), ...(viewConfigs[sk] || {}) };
+  const { filters } = config;
   const pinnedAccounts = config.dashboard?.pinnedAccounts || [];
+  // Unlike filters/dashboard, the display unit is global — stored at the top
+  // level of viewConfigs, not per scope — so it never changes on an account
+  // switch, only on a manual toggle click.
+  const unit = viewConfigs.unit || DEFAULT_UNIT;
 
   const mutateConfig = (fn) => setViewConfigs((prev) => {
-    const cur = { ...defaultConfig(accountId), ...(prev[sk] || {}) };
+    const cur = { ...defaultConfig(), ...(prev[sk] || {}) };
     return { ...prev, [sk]: fn(cur) };
   });
-  const setUnit = (u) => mutateConfig((c) => ({ ...c, unit: u }));
+  const setUnit = (u) => setViewConfigs((prev) => ({ ...prev, unit: u }));
   const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...c.filters, ...p } }));
   const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
   // The Dashboard's selected prop account (god scope), passed as [login].

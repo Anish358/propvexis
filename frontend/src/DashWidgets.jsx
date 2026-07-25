@@ -53,3 +53,15 @@ export function SplitBar({ winShare }) {
     </div>
   );
 }
+
+// Contextual footer line for a KPI card — a small "vs. now" datapoint (e.g.
+// "Today +$24") in place of a purely decorative accent. Reusable across any
+// .dash-stat card that wants the same treatment.
+export function StatContext({ label, value, tone }) {
+  return (
+    <div className="dash-stat-context">
+      <span className="dash-stat-context-label">{label}</span>
+      <span className={`dash-stat-context-value ${tone}`}>{value}</span>
+    </div>
+  );
+}

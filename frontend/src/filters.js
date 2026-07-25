@@ -21,15 +21,15 @@ export const emptyFilters = () => ({
   setups: [], symbols: [], sessions: [], probability: [], outcome: [], from: null, to: null,
 });
 
-// god defaults to R (cross-account risk multiples), a single account to its
-// currency ($). Both are now overridable by the user via the filter bar.
-// `dashboard.pinnedAccounts` holds the god-scope Dashboard's selected account
-// (single-element array, kept as an array for storage-shape compatibility);
-// empty = default to the first prop-challenge account.
-export const defaultConfig = (accountId) => ({
-  // A single account defaults to its currency ($); the god view and any
-  // multi-account selection (comma-joined logins) default to R (cross-account).
-  unit: accountId === 'all' || accountId == null || String(accountId).includes(',') ? 'R' : 'USD',
+// The display unit (R/$) is a single global preference, not scoped per
+// account — it only changes when the user clicks the toggle, never as a
+// side effect of switching accounts. `dashboard.pinnedAccounts` holds the
+// god-scope Dashboard's selected account (single-element array, kept as an
+// array for storage-shape compatibility); empty = default to the first
+// prop-challenge account.
+export const DEFAULT_UNIT = 'R';
+
+export const defaultConfig = () => ({
   filters: emptyFilters(),
   dashboard: { pinnedAccounts: [] },
 });

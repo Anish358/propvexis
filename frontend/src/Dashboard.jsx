@@ -13,12 +13,12 @@ import {
   Card, Badge, Tabs, EmptyState,
 } from './ui.jsx';
 import { sevClass } from './Notifications.jsx';
-import { GaugeArc, Ring, SplitBar } from './DashWidgets.jsx';
+import { GaugeArc, Ring, SplitBar, StatContext } from './DashWidgets.jsx';
 import { roomStatus, healthStatus } from './PropOS.jsx';
 import { fetchProp, updateAccount } from './api.js';
 import { token } from './theme.js';
 import {
-  computeMetrics, computeProp, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome,
+  computeMetrics, computeProp, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome, dayKey,
 } from './metrics.js';
 
 // Chart theming from design tokens (matches Analytics.jsx's equity curve).
@@ -63,12 +63,17 @@ function DailyBanner({ notifications = [] }) {
 // numbers (TradeZella-style headline cards).
 
 function NetPnlCard({ m, unit }) {
-  const winShare = m.grossProfit + m.grossLoss > 0 ? m.grossProfit / (m.grossProfit + m.grossLoss) : 1;
+  const today = m.days.find((d) => d.key === dayKey(new Date()));
+  const todayPnl = today ? today.pnl : 0;
   return (
-    <Card className="dash-stat">
-      <div className="jo-kpi-label">Net P&L <span className="dash-stat-count">{m.tradeCount}T</span></div>
+    <Card className="dash-stat dash-stat--refined">
+      <div className="jo-kpi-label">
+        Net P&L
+        <Explain size={13} nudgeY={-1} openUp>Total realized P&amp;L across all closed trades in the current filter.</Explain>
+        <span className="dash-stat-count">{m.tradeCount} Trade{m.tradeCount === 1 ? '' : 's'}</span>
+      </div>
       <div className={`jo-kpi-value ${signTone(m.net)}`}>{fmtVal(m.net, unit)}</div>
-      <SplitBar winShare={winShare} />
+      <StatContext label="Today" value={fmtVal(todayPnl, unit)} tone={signTone(todayPnl)} />
     </Card>
   );
 }

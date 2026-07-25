@@ -10,7 +10,7 @@
   --blue-400:#60a5fa; --blue-500:#3b82f6; --blue-600:#2563eb; --blue-700:#1d4ed8;
   --slate-400:#94a3b8; --slate-500:#64748b;   /* secondary/tertiary text */
   --green-400:#4ade80; --green-500:#22c55e; --green-600:#16a34a;
-  --red-400:#f87171;  --red-500:#ef4444;  --red-600:#dc2626;
+  --red-400:#f87171;  --red-500:#ef4444;  --red-600:#dc2626;  --red-muted:#d95a5a;
   --amber-400:#fbbf24; --amber-500:#f59e0b;
   --purple-400:#a78bfa; --purple-500:#8b5cf6;
   --cyan-400:#38bdf8;
@@ -54,6 +54,9 @@
   --loss: var(--red-500);
   --loss-strong: var(--red-600);
   --loss-bg: rgba(239,68,68,0.13);
+  /* Desaturated red for large negative KPI figures — reads as performance
+     data, not an error/alert state. --loss stays as-is for chips/badges/bars. */
+  --loss-quiet: var(--red-muted);
   --be: var(--text-2); --be-bg: rgba(255,255,255,0.06);
   /* legacy P&L aliases still referenced across the sheet-mirrored pills */
   --green: var(--green-600);
@@ -70,9 +73,11 @@
   --status-info: #7aa2f7;
 
   /* ===== RADIUS ===== */
-  /* Buttons + small form components (inputs/selects/chips) share one radius,
-     distinct from the card and large-container tiers below it. */
-  --r-sm:6px; --r-md:8px; --r-btn:10px; --r-lg:12px; --r-xl:16px; --r-2xl:20px; --r-full:999px;
+  /* Radius audit: a handful of fixed steps, not arbitrary values per component.
+     Cards -> --r-2xl (20px). Buttons -> --r-lg (12px). Inputs -> --r-input
+     (10px). Badges/pills/chips -> --r-full (999px). --r-sm/--r-md remain for
+     smaller chrome (icon buttons, menu rows) that isn't one of those four. */
+  --r-sm:6px; --r-md:8px; --r-input:10px; --r-lg:12px; --r-xl:16px; --r-2xl:20px; --r-full:999px;
 
   /* ===== SPACING — 8px grid; allowed steps are 4/8/12/16/24/32/40/48 only
      (4 is the sole sub-8 exception, for hairline gaps). ===== */
@@ -277,18 +282,18 @@ label.full { margin-bottom: 16px; }
 .dash-loading { padding: 40px; color: var(--muted); text-align: center; }
 
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: var(--s-4); box-shadow: var(--sh-1); }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: var(--s-4); box-shadow: var(--sh-1); }
 .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
 .kpi-value { font-size: var(--fs-primary-metric); font-weight: var(--fw-semibold); margin-top: 4px; }
 .kpi-value.win { color: var(--profit); } .kpi-value.loss { color: var(--loss); }
 .kpi-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: var(--s-4); box-shadow: var(--sh-1); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: var(--s-4); box-shadow: var(--sh-1); }
 .panel h3 { margin: 0 0 12px; font-size: var(--fs-card-title); font-weight: var(--fw-semibold); }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .bd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-.bd { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: var(--s-4); box-shadow: var(--sh-1); }
+.bd { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: var(--s-4); box-shadow: var(--sh-1); }
 .bd h3 { margin: 0 0 8px; font-size: var(--fs-card-title); }
 .bd table, .yearly { width: 100%; border-collapse: collapse; }
 .bd th, .yearly th { text-align: right; color: var(--muted); font-size: 11px; font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--line); }
@@ -305,8 +310,8 @@ label.full { margin-bottom: 16px; }
 .page { min-height: 100vh; }
 .page-body { padding: 16px 24px 40px; display: flex; flex-direction: column; gap: 16px; }
 /* Dashboard-only: unify every gap in this layout (KPI row, banner-to-row,
-   row-to-calendar, calendar/account-health columns) to one consistent 11.2px. */
-.page-body.dash-page-body { gap: 12px; }
+   row-to-calendar, calendar/account-health columns) to one consistent 16px. */
+.page-body.dash-page-body { gap: 16px; }
 
 /* ---- page header ---- */
 .pagehead {
@@ -432,8 +437,9 @@ label.full { margin-bottom: 16px; }
 /* Scoped to .jo-kpis.dash-stats (higher specificity than .jo-kpis alone) so this
    only affects the dashboard's 5-up KPI row, not other .jo-kpis grids (Journal
    Overview). Matches .dash-page-body/.dash-main/.dash-col-left/right below —
-   every gap in the dashboard layout is the same 11.2px for a consistent rhythm. */
-.jo-kpis.dash-stats { gap: 12px; }
+   every gap in the dashboard layout is the same 16px for a consistent
+   rhythm. */
+.jo-kpis.dash-stats { gap: 16px; }
 .dash-stat { padding: 10.8px var(--s-4); }
 .dash-stat .jo-kpi-value { margin-top: 4px; font-size: 23px; }
 .dash-stat-count {
@@ -452,9 +458,56 @@ label.full { margin-bottom: 16px; }
 .dash-stat-foot .win { color: var(--profit); }
 .dash-stat-foot .loss { color: var(--loss); }
 
+/* Refined KPI card treatment — polish pass, applied to Net P&L first. The rest
+   of .dash-stats will pick up `.dash-stat--refined` once they're polished too,
+   so this stays a reusable modifier rather than a one-off. */
+.u-card.dash-stat.dash-stat--refined {
+  /* Extra top padding (vs. 16px elsewhere) drops the label 8px lower and
+     grows the card by that same 8px — a deliberate pair, not independent. */
+  padding: 24px 20px 16px;
+  border: 1px solid transparent; /* invisible at rest, brightens on hover */
+  /* Inset shadow (not background-color) so the wash sits behind child chrome
+     (e.g. the trade-count pill) instead of overwriting it to the same color. */
+  box-shadow: inset 0 0 0 999px transparent;
+  transition: box-shadow 200ms var(--ease), border-color 200ms var(--ease), transform 200ms var(--ease);
+  /* Column flex + space-between: label pins to the top, the context line
+     pins to the bottom, and the value — the middle child — lands exactly in
+     the leftover space between them, i.e. vertically centered in the card
+     (the card itself is already full row-height via CSS Grid's default
+     stretch). `gap` is the floor so they never crowd on a short card. */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+}
+.dash-stat--refined:hover {
+  box-shadow: inset 0 0 0 999px var(--surface-hover);
+  border-color: var(--line-strong);
+  transform: translateY(-2px);
+}
+.dash-stat--refined .jo-kpi-label {
+  display: flex; align-items: center; gap: 8px;
+  text-transform: none; letter-spacing: 0;
+  font-size: 13px; font-weight: var(--fw-regular); color: var(--text); opacity: .68;
+}
+.dash-stat--refined .dash-stat-count {
+  font-size: 9px; font-weight: var(--fw-medium); padding: 1.5px 5px; color: var(--text-2);
+}
+.dash-stat--refined .jo-kpi-value { font-size: 24px; margin-top: 0; }
+.dash-stat--refined .jo-kpi-value.neg { color: var(--loss-quiet); }
+
+/* Contextual footer line — replaces a decorative accent bar with a small
+   "vs. now" datapoint (e.g. "Today +$24"). Reusable across any .dash-stat card. */
+.dash-stat-context { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
+.dash-stat--refined .dash-stat-context { margin-top: 0; }
+.dash-stat-context-label { color: var(--text-3); }
+.dash-stat-context-value { font-family: var(--font-mono); color: var(--text-2); }
+.dash-stat-context-value.pos { color: var(--profit); }
+.dash-stat-context-value.neg { color: var(--loss-quiet); }
+
 /* Calendar (left, ~65-70%) + Recent Trades/cumulative P&L (right, ~30-35%). */
-.dash-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 0.9fr); gap: 12px; align-items: start; }
-.dash-col-left, .dash-col-right { display: flex; flex-direction: column; gap: 12px; }
+.dash-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 0.9fr); gap: 16px; align-items: start; }
+.dash-col-left, .dash-col-right { display: flex; flex-direction: column; gap: 16px; }
 
 /* Borderless widgets: every boxed element in the dashboard layout drops its
    1px hairline (inherited from .u-card/.panel elsewhere in the app) and relies
@@ -931,7 +984,7 @@ label.full { margin-bottom: 16px; }
 .billing-sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
 .billing-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
 .billing-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 24px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 24px;
   display: flex; flex-direction: column;
 }
 .billing-card.highlight { border-color: var(--accent-border); }
@@ -1098,6 +1151,7 @@ label.full { margin-bottom: 16px; }
 }
 .explain-left .explain-pop { left: 0; }
 .explain-right .explain-pop { right: 0; }
+.explain-up .explain-pop { top: auto; bottom: calc(100% + 8px); transform: translateY(4px); }
 .explain:hover .explain-pop, .explain:focus-within .explain-pop {
   opacity: 1; visibility: visible; transform: translateY(0);
 }
@@ -1376,7 +1430,7 @@ label.full { margin-bottom: 16px; }
   background: var(--panel); border: 1px dashed var(--line); border-radius: 8px; }
 
 .strat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.strat-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 16px 16px; }
+.strat-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 16px 16px; }
 .strat-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .strat-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .strat-name { font-size: 14px; font-weight: 400; }
@@ -1501,10 +1555,10 @@ label.full { margin-bottom: 16px; }
 .prop-breach { margin: 0 24px; background: var(--loss-bg); color: var(--loss); border: 1px solid #5c2424; padding: 12px 16px; border-radius: 8px; font-weight: 400; }
 
 .prop-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 0 24px 24px; }
-.prop-card, .prop-hero { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 16px; }
+.prop-card, .prop-hero { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 16px; }
 
 /* Meters (linear headroom gauges) */
-.prop-meter { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 16px; }
+.prop-meter { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 16px; }
 .prop-meter-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .prop-meter-label { color: var(--text); font-weight: 400; font-size: 14px; }
 .prop-meter-word { font-size: 12px; font-weight: 400; color: var(--status); }
@@ -1725,7 +1779,7 @@ label.full { margin-bottom: 16px; }
 .u-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   font: 600 13px/1 var(--font-sans); letter-spacing: .01em;
-  padding: 8px 16px; border-radius: var(--r-btn); border: 1px solid transparent;
+  padding: 8px 16px; border-radius: var(--r-lg); border: 1px solid transparent;
   cursor: pointer; white-space: nowrap; user-select: none; text-decoration: none;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
               color var(--dur-fast) var(--ease), opacity var(--dur-fast);
@@ -1745,7 +1799,7 @@ label.full { margin-bottom: 16px; }
 .u-btn--block { width: 100%; }
 
 /* ---- Card ---- */
-.u-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); padding: var(--s-4); }
+.u-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: var(--s-4); }
 .u-card--flush { padding: 0; overflow: hidden; }
 .u-card--hover { transition: border-color var(--dur-fast) var(--ease); }
 .u-card--hover:hover { border-color: var(--line-strong); }
@@ -1793,7 +1847,7 @@ label.full { margin-bottom: 16px; }
 .u-field-label { font-size: 12px; font-weight: 500; color: var(--text-2); }
 .u-input, .u-select, .u-textarea {
   width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--text);
-  border-radius: var(--r-btn); padding: 8px 12px; font: 14px/1.4 var(--font-sans);
+  border-radius: var(--r-input); padding: 8px 12px; font: 14px/1.4 var(--font-sans);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .u-input:focus, .u-select:focus, .u-textarea:focus {
