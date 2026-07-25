@@ -15,7 +15,7 @@ import {
 import { sevClass } from './Notifications.jsx';
 import { GaugeArc, Ring, SplitBar, StatContext } from './DashWidgets.jsx';
 import { roomStatus, healthStatus } from './PropOS.jsx';
-import { fetchProp, updateAccount } from './api.js';
+import { fetchProp, updateAccount, fetchCalendar } from './api.js';
 import { token } from './theme.js';
 import {
   computeMetrics, computeProp, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome, dayKey,
@@ -38,13 +38,49 @@ const PHASE_ORDER = { funded: 0, p2: 1, p1: 2 };
 
 // ---- Section 1: daily banner --------------------------------------------
 
+// Event time relative to now: "2:30 PM" if today, else "Mon 2:30 PM". Rendered
+// in the viewer's local timezone from the feed's tz-aware ISO timestamp.
+function fmtEventTime(iso, now = new Date()) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  return `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
+}
+
 function DailyBanner({ notifications = [] }) {
   const alerts = notifications.filter((n) => !n.read_at || n.severity !== 'info').slice(0, 3);
+
+  // Upcoming high-impact macro events (global feed via /api/calendar). null while
+  // loading; [] when the feed is empty or errored — the banner never blocks.
+  const [events, setEvents] = useState(null);
+  useEffect(() => {
+    let live = true;
+    fetchCalendar()
+      .then((d) => { if (live) setEvents(d.events || []); })
+      .catch(() => { if (live) setEvents([]); });
+    return () => { live = false; };
+  }, []);
+
   return (
     <div className="dash-banner">
       <div className="dash-banner-news">
         <div className="dash-banner-label">High-impact events</div>
-        <div className="dash-banner-empty muted">Economic calendar — coming soon.</div>
+        {events == null ? (
+          <div className="dash-banner-empty muted">Loading economic calendar…</div>
+        ) : events.length === 0 ? (
+          <div className="dash-banner-empty muted">No high-impact events on the calendar.</div>
+        ) : (
+          <ul className="dash-events">
+            {events.slice(0, 4).map((e, i) => (
+              <li key={`${e.date}-${e.title}-${i}`} className="dash-event">
+                <span className="dash-event-ccy">{e.country}</span>
+                <span className="dash-event-title" title={e.title}>{e.title}</span>
+                <span className="dash-event-time">{fmtEventTime(e.date)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="dash-banner-alerts">
         {alerts.length === 0 ? (
