@@ -462,10 +462,18 @@ label.full { margin-bottom: 16px; }
   text-transform: none; letter-spacing: 0;
 }
 .dash-stat-gauge-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Gauge + its win/be/loss pills stacked as one column (pills sit centered
+   under the arc, not next to the value) — used by Trade win % / Day win %. */
+.dash-stat-gauge-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .dash-stat-chips { display: flex; gap: 8px; margin-top: 4px; }
 .chip { font-size: 12px; font-weight: 400; padding: 4px 8px; border-radius: 10px; }
 .chip.win { background: #14361f; color: var(--profit); }
 .chip.loss { background: #361618; color: var(--loss); }
+.chip.be { background: var(--be-bg); color: var(--be); }
+/* Gauge-col pills only: -15% size (12px/4px/8px -> 10.2/3.4/6.8), and normal
+   (not semibold) text — .dash-stat-chips .chip's 2 classes beat the later
+   global `.chip { font-weight: var(--fw-semibold) }` badge-consistency rule. */
+.dash-stat-chips .chip { font-size: 10.2px; font-weight: var(--fw-regular); padding: 3.4px 6.8px; }
 .splitbar { height: 4.5px; border-radius: 3px; background: var(--loss)44; overflow: hidden; margin-top: 8px; }
 .splitbar-fill { height: 100%; background: var(--profit); border-radius: 3px; }
 .dash-stat-foot { display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px; }
@@ -496,13 +504,18 @@ label.full { margin-bottom: 16px; }
 }
 .dash-stat--refined:hover {
   box-shadow: inset 0 0 0 999px var(--surface-hover);
-  border-color: var(--line-strong);
   transform: translateY(-2px);
 }
+/* 3-class selector so this beats the borderless-widgets rule below (2 classes,
+   same specificity, later in the file) — otherwise its `border: none` silently
+   wins on every render and the hover border-color above never actually shows. */
+.u-card.dash-stat.dash-stat--refined:hover { border-color: var(--line-strong); }
 .dash-stat--refined .jo-kpi-label {
   display: flex; align-items: center; gap: 8px;
   text-transform: none; letter-spacing: 0;
-  font-size: 13px; font-weight: var(--fw-regular); color: var(--text); opacity: .68;
+  /* Same muted slate as the Account card's "Payout" label (--text-2), at full
+     opacity — not var(--text) dimmed to .68 anymore. */
+  font-size: 13px; font-weight: var(--fw-regular); color: var(--text-2);
 }
 .dash-stat--refined .dash-stat-count {
   font-size: 9px; font-weight: var(--fw-medium); padding: 1.5px 5px; color: var(--text-2);
@@ -511,6 +524,35 @@ label.full { margin-bottom: 16px; }
    600 hero-number ceiling — scoped to this element only. */
 .dash-stat--refined .jo-kpi-value { font-size: 24px; margin-top: 0; font-weight: 700; }
 .dash-stat--refined .jo-kpi-value.neg { color: var(--loss-quiet); }
+
+/* Typography + hover match to Net P&L (Card 1) for cards that aren't on the
+   full .dash-stat--refined system — deliberately omits padding/display/flex-
+   layout (this card's own box model is untouched). Border is added at 1px
+   transparent (box-sizing:border-box means this doesn't change the outer
+   card size) purely so the hover border-color below has something to color,
+   exactly mirroring Card 1's hover treatment. */
+.u-card.dash-stat.dash-stat--typo-match {
+  border: 1px solid transparent;
+  box-shadow: inset 0 0 0 999px transparent;
+  transition: box-shadow 200ms var(--ease), border-color 200ms var(--ease), transform 200ms var(--ease);
+}
+.dash-stat--typo-match:hover {
+  box-shadow: inset 0 0 0 999px var(--surface-hover);
+  transform: translateY(-2px);
+}
+.u-card.dash-stat.dash-stat--typo-match:hover { border-color: var(--line-strong); }
+/* margin-top on the label compensates for this card's smaller top padding
+   vs Card 1's, so the label text still lines up on the same row. */
+.dash-stat--typo-match .jo-kpi-label {
+  display: flex; align-items: center; gap: 8px;
+  text-transform: none; letter-spacing: 0;
+  font-size: 13px; font-weight: var(--fw-regular); color: var(--text-2);
+  margin-top: 9px;
+}
+/* +6px so the value's vertical position matches Card 1's exactly (measured:
+   Card 1's value sits 50.5px from the card top, these cards' 44.5px). */
+.dash-stat--typo-match .jo-kpi-value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+.dash-stat--typo-match .jo-kpi-value.neg { color: var(--loss-quiet); }
 
 /* Contextual footer line — replaces a decorative accent bar with a small
    "vs. now" datapoint (e.g. "Today +$24"). Reusable across any .dash-stat card. */

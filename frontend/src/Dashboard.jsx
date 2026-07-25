@@ -13,7 +13,7 @@ import {
   Card, Badge, Tabs, EmptyState,
 } from './ui.jsx';
 import { sevClass } from './Notifications.jsx';
-import { GaugeArc, Ring, SplitBar, StatContext } from './DashWidgets.jsx';
+import { StatContext } from './DashWidgets.jsx';
 import { roomStatus, healthStatus } from './PropOS.jsx';
 import { fetchProp, updateAccount, fetchCalendar } from './api.js';
 import { token } from './theme.js';
@@ -116,63 +116,48 @@ function NetPnlCard({ m, unit }) {
 
 function TradeWinCard({ m }) {
   return (
-    <Card className="dash-stat">
-      <div className="jo-kpi-label">Trade win %</div>
-      <div className="dash-stat-gauge-row">
-        <div>
-          <div className="jo-kpi-value">{m.winRate.toFixed(2)}%</div>
-          <div className="dash-stat-chips">
-            <span className="chip win">{m.wins}</span>
-            <span className="chip loss">{m.losses}</span>
-          </div>
-        </div>
-        <GaugeArc value={m.winRate / 100} size={59.4} />
+    <Card className="dash-stat dash-stat--typo-match">
+      <div className="jo-kpi-label">
+        Trade win %
+        <Explain size={13} nudgeY={-1} openUp>Share of decided trades (wins + losses, excluding breakeven) that closed as a win.</Explain>
       </div>
+      <div className="jo-kpi-value">{m.winRate.toFixed(2)}%</div>
     </Card>
   );
 }
 
 function ProfitFactorCard({ m }) {
   return (
-    <Card className="dash-stat">
-      <div className="jo-kpi-label">Profit factor</div>
-      <div className="dash-stat-gauge-row">
-        <div className="jo-kpi-value">{m.profitFactor === 999 ? '∞' : m.profitFactor.toFixed(2)}</div>
-        <Ring value={Math.min(1, m.profitFactor / 3)} size={41.4} />
+    <Card className="dash-stat dash-stat--typo-match">
+      <div className="jo-kpi-label">
+        Profit factor
+        <Explain size={13} nudgeY={-1} openUp>Gross profit divided by gross loss. Above 1 means the account is net profitable.</Explain>
       </div>
+      <div className="jo-kpi-value">{m.profitFactor === 999 ? '∞' : m.profitFactor.toFixed(2)}</div>
     </Card>
   );
 }
 
 function DayWinCard({ days }) {
   return (
-    <Card className="dash-stat">
-      <div className="jo-kpi-label">Day win %</div>
-      <div className="dash-stat-gauge-row">
-        <div>
-          <div className="jo-kpi-value">{days.rate.toFixed(2)}%</div>
-          <div className="dash-stat-chips">
-            <span className="chip win">{days.winDays}</span>
-            <span className="chip loss">{days.lossDays}</span>
-          </div>
-        </div>
-        <GaugeArc value={days.rate / 100} size={59.4} />
+    <Card className="dash-stat dash-stat--typo-match">
+      <div className="jo-kpi-label">
+        Day win %
+        <Explain size={13} nudgeY={-1} openUp>Share of trading days that closed net positive.</Explain>
       </div>
+      <div className="jo-kpi-value">{days.rate.toFixed(2)}%</div>
     </Card>
   );
 }
 
-function AvgWinLossCard({ m, unit }) {
-  const winShare = m.avgWin + m.avgLoss > 0 ? m.avgWin / (m.avgWin + m.avgLoss) : 1;
+function AvgWinLossCard({ m }) {
   return (
-    <Card className="dash-stat">
-      <div className="jo-kpi-label">Avg win/loss trade</div>
-      <div className="jo-kpi-value">{m.avgWinLoss === Infinity ? '∞' : m.avgWinLoss.toFixed(2)}</div>
-      <SplitBar winShare={winShare} />
-      <div className="dash-stat-foot">
-        <span className="win">{fmtValShort(m.avgWin, unit)}</span>
-        <span className="loss">{fmtValShort(-m.avgLoss, unit)}</span>
+    <Card className="dash-stat dash-stat--typo-match">
+      <div className="jo-kpi-label">
+        Avg win/loss trade
+        <Explain size={13} nudgeY={-1} openUp>Average size of a winning trade divided by the average size of a losing trade.</Explain>
       </div>
+      <div className="jo-kpi-value">{m.avgWinLoss === Infinity ? '∞' : m.avgWinLoss.toFixed(2)}</div>
     </Card>
   );
 }
