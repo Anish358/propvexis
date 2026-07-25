@@ -6,6 +6,7 @@ import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions }
 import { applyBeRounding } from './metrics.js';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
+import Onboarding from './Onboarding.jsx';
 import Dashboard from './Dashboard.jsx';
 import TradeLog from './TradeLog.jsx';
 import Analytics from './Analytics.jsx';
@@ -41,7 +42,7 @@ function clearLegacyViewState() {
 }
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, setUser } = useAuth();
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -320,7 +321,12 @@ export default function App() {
       {loadError && user && <div className="banner error">Could not reach backend: {loadError}</div>}
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-        {user ? (
+        <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Login mode="signup" />} />
+        {user && !user.onboarded_at ? (
+          // First-run users are routed to the setup wizard for every path until
+          // it's completed; completing it sets onboarded_at and re-renders here.
+          <Route path="*" element={<Onboarding onDone={setUser} />} />
+        ) : user ? (
           <Route
             element={
               <Layout
