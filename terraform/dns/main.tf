@@ -49,12 +49,22 @@ resource "aws_route53_record" "mx" {
   records = var.mx_records
 }
 
-resource "aws_route53_record" "spf" {
+# Apex TXT record set. Route 53 keeps ALL TXT values for a name in ONE record
+# set, so SPF and the Google Search Console domain-verification token share this
+# resource (compact() drops the verification entry until the token is set).
+resource "aws_route53_record" "apex_txt" {
   zone_id = aws_route53_zone.primary.zone_id
   name    = var.domain
   type    = "TXT"
   ttl     = 3600
-  records = [var.spf_txt]
+  records = compact([var.spf_txt, var.google_site_verification])
+}
+
+# Rename from the SPF-only resource without destroying/recreating the record
+# (avoids a momentary SPF gap on apply).
+moved {
+  from = aws_route53_record.spf
+  to   = aws_route53_record.apex_txt
 }
 
 resource "aws_route53_record" "dmarc" {

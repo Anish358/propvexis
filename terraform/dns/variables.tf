@@ -58,6 +58,14 @@ variable "spf_txt" {
   default     = "v=spf1 include:secureserver.net -all"
 }
 
+# Google Search Console domain-property verification. Not secret (it is public
+# in DNS). Shares the apex TXT record set with SPF. Empty = not yet set.
+variable "google_site_verification" {
+  description = "Full 'google-site-verification=...' token from GSC (apex TXT)."
+  type        = string
+  default     = "google-site-verification=Ba8P-F9WOmLc5kWYXThM1540lfOLvtbBGghjaPxBe7Q"
+}
+
 variable "dmarc_txt" {
   description = "DMARC policy TXT record (_dmarc.<domain>)."
   type        = string
