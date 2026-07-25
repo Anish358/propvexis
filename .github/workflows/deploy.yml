@@ -2,7 +2,13 @@ name: Deploy to AWS
 
 # PROD (app.propvexis.com). Merge to main auto-deploys. The heavy lifting lives
 # in the reusable deploy-env.yml; this caller just points it at the prod app dir
-# / pm2 app and enables the Prometheus+Grafana monitoring job (prod only).
+# / pm2 app.
+#
+# run_monitoring is OFF: the box was downsized to t3.micro and the Prometheus +
+# Grafana Docker stack is stopped to fit 3 envs in ~1GB RAM. The monitoring job
+# would only fail on "Cannot connect to the Docker daemon" and mark the whole
+# deploy red (the app deploy job itself is independent and unaffected). Flip this
+# back to true — and start Docker on the box — when the instance is upsized.
 on:
   push:
     branches: [main]
@@ -19,5 +25,5 @@ jobs:
     with:
       app_dir: /opt/amey-journal
       pm2_app: amey-backend
-      run_monitoring: true
+      run_monitoring: false
     secrets: inherit
