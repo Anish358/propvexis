@@ -27,11 +27,15 @@ function loadGsi() {
   });
 }
 
-export default function Login() {
+// mode: 'login' (default) or 'signup'. Google sign-in is the same OAuth flow for
+// both (a new Google account is created on first use), so this only changes the
+// copy + the Google button label. The marketing site deep-links to /signup.
+export default function Login({ mode = 'login' }) {
   const { setUser } = useAuth();
   const navigate = useNavigate();
   const btnRef = useRef(null);
   const [error, setError] = useState(null);
+  const isSignup = mode === 'signup';
 
   useEffect(() => {
     if (!CLIENT_ID) {
@@ -60,22 +64,31 @@ export default function Login() {
           theme: 'filled_black',
           size: 'large',
           shape: 'pill',
-          text: 'signin_with',
+          text: isSignup ? 'signup_with' : 'signin_with',
           width: 280,
         });
       })
       .catch(() => setError('Could not load Google sign-in. Check your connection.'));
     return () => { cancelled = true; };
-  }, [navigate, setUser]);
+  }, [navigate, setUser, isSignup]);
 
   return (
     <div className="login-screen">
       <div className="login-card">
         <div className="login-brand">{BRAND}</div>
         <div className="login-tagline">The Operating System for Traders.</div>
-        <div className="login-sub">Sign in to your trading journal</div>
+        <div className="login-sub">
+          {isSignup ? 'Create your free account' : 'Sign in to your trading journal'}
+        </div>
         <div ref={btnRef} className="login-btn" />
         {error && <div className="login-error">{error}</div>}
+        <div className="login-alt">
+          {isSignup ? (
+            <>Already have an account? <a href="/login">Sign in</a></>
+          ) : (
+            <>New to {BRAND}? <a href="/signup">Create an account</a></>
+          )}
+        </div>
       </div>
     </div>
   );

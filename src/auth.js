@@ -3,6 +3,7 @@ import jwt from '@fastify/jwt';
 import { OAuth2Client } from 'google-auth-library';
 import { config } from './config.js';
 import { isEmailPermitted } from './access.js';
+import { needsOnboarding } from './onboarding.js';
 import { pool, query } from './db.js';
 
 const COOKIE_NAME = 'session';
@@ -37,7 +38,7 @@ async function findOrCreateUser({ sub, email, name, picture }) {
     if (rows.length) {
       ({ rows } = await client.query(
         `UPDATE users SET email = $2, name = $3, picture = $4, last_login_at = now()
-         WHERE id = $1 RETURNING id, email, name, picture;`,
+         WHERE id = $1 RETURNING id, email, name, picture, plan, onboarded_at;`,
         [rows[0].id, email, name, picture]
       ));
     } else {
@@ -46,13 +47,13 @@ async function findOrCreateUser({ sub, email, name, picture }) {
       if (rows.length) {
         ({ rows } = await client.query(
           `UPDATE users SET google_sub = $2, name = $3, picture = $4, last_login_at = now()
-           WHERE id = $1 RETURNING id, email, name, picture;`,
+           WHERE id = $1 RETURNING id, email, name, picture, plan, onboarded_at;`,
           [rows[0].id, sub, name, picture]
         ));
       } else {
         ({ rows } = await client.query(
           `INSERT INTO users (google_sub, email, name, picture)
-           VALUES ($1, $2, $3, $4) RETURNING id, email, name, picture;`,
+           VALUES ($1, $2, $3, $4) RETURNING id, email, name, picture, plan, onboarded_at;`,
           [sub, email, name, picture]
         ));
       }
@@ -156,7 +157,7 @@ export async function registerAuth(app) {
   // -------------------------------------------------------------------------
   app.get('/api/auth/me', { preHandler: app.requireAuth }, async (req, reply) => {
     const { rows } = await query(
-      'SELECT id, email, name, picture, plan, created_at, last_login_at FROM users WHERE id = $1',
+      'SELECT id, email, name, picture, plan, onboarded_at, created_at, last_login_at FROM users WHERE id = $1',
       [req.user.uid]
     );
     if (!rows.length) {
@@ -165,6 +166,30 @@ export async function registerAuth(app) {
       return reply.code(401).send({ error: 'user no longer exists' });
     }
     return { user: rows[0] };
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/onboarding/complete — mark the setup wizard done. Idempotent:
+  // the timestamp is only stamped the first time, so re-calls are safe.
+  // -------------------------------------------------------------------------
+  app.post('/api/onboarding/complete', { preHandler: app.requireAuth }, async (req, reply) => {
+    const { rows } = await query(
+      'SELECT id, email, name, picture, plan, onboarded_at, created_at, last_login_at FROM users WHERE id = $1',
+      [req.user.uid]
+    );
+    if (!rows.length) {
+      reply.clearCookie(COOKIE_NAME, { path: '/' });
+      return reply.code(401).send({ error: 'user no longer exists' });
+    }
+    let user = rows[0];
+    if (needsOnboarding(user)) {
+      ({ rows: [user] } = await query(
+        `UPDATE users SET onboarded_at = now() WHERE id = $1
+         RETURNING id, email, name, picture, plan, onboarded_at, created_at, last_login_at;`,
+        [req.user.uid]
+      ));
+    }
+    return { user };
   });
 
   // -------------------------------------------------------------------------

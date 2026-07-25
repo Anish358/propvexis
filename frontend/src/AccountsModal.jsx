@@ -11,7 +11,8 @@ const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : String(n)
 // Prop-firm template picker: choose firm → size → phase, then Apply to pre-fill
 // the rule fields below (all still editable). Catalog lives in propFirms.js.
 // onApply(fields, suggestedLabel) — suggestedLabel is used only by the add form.
-function TemplatePicker({ onApply }) {
+// Exported so the onboarding wizard reuses the exact same picker.
+export function TemplatePicker({ onApply }) {
   const [firmId, setFirmId] = useState('');
   const [size, setSize] = useState('');
   const [phaseId, setPhaseId] = useState('');
@@ -49,13 +50,13 @@ function TemplatePicker({ onApply }) {
 // EA attach (a synced MT5 account) is a Pro+ feature. Free users see an upgrade
 // prompt instead of the add-account form. The backend enforces the real cap;
 // this is just the UI gate. (Only 'free' lacks EA — pro & premium both have it.)
-const eaAllowed = (plan) => plan === 'pro' || plan === 'premium';
+export const eaAllowed = (plan) => plan === 'pro' || plan === 'premium';
 
 // EA setup card shown for an account. The downloaded EA is pre-filled with this
 // account's ingest endpoint + token (injected client-side), so the user just
 // downloads and attaches — no in-MT5 configuration. The MT5 login auto-binds
 // from the first trade.
-function SetupCard({ account }) {
+export function SetupCard({ account }) {
   const [copied, setCopied] = useState(null);
   const [preparing, setPreparing] = useState(false);
   const [dlError, setDlError] = useState(null);
@@ -121,7 +122,7 @@ function SetupCard({ account }) {
 // Prop-firm config fields shared by the add + edit forms. `v` holds the current
 // values; `set(field, value)` updates one. Limits are percentages of the start
 // balance; profit target only applies to eval accounts.
-function PropFields({ v, set }) {
+export function PropFields({ v, set }) {
   return (
     <div className="acct-prop">
       <label>
@@ -172,7 +173,7 @@ function PropFields({ v, set }) {
 
 // Turn form strings into the numeric/typed payload the API expects.
 const numOrNull = (s) => (s === '' || s == null ? null : Number(s));
-const toPayload = (v) => ({
+export const toPayload = (v) => ({
   account_type: v.account_type,
   start_balance: numOrNull(v.start_balance),
   daily_dd_pct: numOrNull(v.daily_dd_pct),
@@ -185,7 +186,7 @@ const toPayload = (v) => ({
   firm_name: v.firm_name || null,
 });
 
-const formFrom = (a) => ({
+export const formFrom = (a) => ({
   account_type: a?.account_type || 'eval',
   start_balance: a?.start_balance ?? '',
   daily_dd_pct: a?.daily_dd_pct ?? '',
@@ -200,7 +201,7 @@ const formFrom = (a) => ({
 
 // Merge a template's resolved fields (numbers/nulls from templateToFields) into
 // the string-based form state; null → '' so inputs stay controlled.
-const applyTemplateToForm = (prev, fields) => ({
+export const applyTemplateToForm = (prev, fields) => ({
   ...prev,
   account_type: fields.account_type,
   start_balance: fields.start_balance ?? '',
