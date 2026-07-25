@@ -5,8 +5,10 @@ import { BRAND } from './theme.js';
 
 // Icon registry — nav.js references these by string key so the IA config stays
 // JSX-free (and testable from node). Add a key here when adding one there.
+// 19.8 = 18 * 1.1 — nav icons scaled up alongside the nav label text (see
+// .sb-item in styles.css) so the icon/text ratio stays exactly as it was.
 const svg = (paths) => () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" width="19.8" height="19.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     {paths}
   </svg>
 );
@@ -76,7 +78,7 @@ function RailGroup({ item }) {
         aria-expanded={expanded}
       >
         <Icon /><span>{item.label}</span>
-        <svg className="sb-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+        <svg className="sb-chev" width="15.4" height="15.4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
       </button>
       {expanded && (
         <div className="sb-sub">
