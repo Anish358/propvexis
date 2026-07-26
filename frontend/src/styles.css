@@ -563,8 +563,9 @@ label.full { margin-bottom: 16px; }
 .dash-stat-context-value.pos { color: var(--profit); }
 .dash-stat-context-value.neg { color: var(--loss-quiet); }
 
-/* Calendar (left, ~65-70%) + Recent Trades/cumulative P&L (right, ~30-35%). */
-.dash-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 0.9fr); gap: 16px; align-items: start; }
+/* Calendar (left) + Recent Trades/cumulative P&L (right): locked 66.66/33.33
+   split (2fr/1fr) — keep this ratio for any future changes to this row. */
+.dash-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .dash-col-left, .dash-col-right { display: flex; flex-direction: column; gap: 16px; }
 
 /* Borderless widgets: every boxed element in the dashboard layout drops its
