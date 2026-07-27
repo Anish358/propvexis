@@ -4,8 +4,6 @@ import React, {
 import { useOutletContext } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import PageHeader from './PageHeader.jsx';
-import PayoutsModal from './PayoutsModal.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
 import Explain from './Explain.jsx';
@@ -18,7 +16,7 @@ import { roomStatus, healthStatus } from './PropOS.jsx';
 import { fetchProp, updateAccount, fetchCalendar } from './api.js';
 import { token } from './theme.js';
 import {
-  computeMetrics, computeProp, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome, dayKey,
+  computeMetrics, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome, dayKey,
 } from './metrics.js';
 
 // Chart theming from design tokens (matches Analytics.jsx's equity curve).
@@ -579,21 +577,12 @@ function AccountCard({
 
 export default function Dashboard() {
   const {
-    trades = [], account, accounts = [], payouts = [], reloadPayouts, accountId = 'all', setAccountId,
+    trades = [], accounts = [], accountId = 'all', setAccountId,
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
   } = useOutletContext();
 
   const beRounding = !!tradeSettings.beRounding;
   const m = useMemo(() => computeMetrics(trades, unit, beRounding), [trades, unit, beRounding]);
-  const p = useMemo(() => computeProp(trades, account, payouts), [trades, account, payouts]);
-
-  const [payoutsOpen, setPayoutsOpen] = useState(false);
-  const fundedAccounts = useMemo(() => {
-    const funded = accounts.filter((a) => a.account_type === 'funded');
-    return accountId === 'all' ? funded : funded.filter((a) => String(a.mt5_login) === String(accountId));
-  }, [accounts, accountId]);
-  const showPayoutTracker = fundedAccounts.length > 0;
-  const payoutTotal = p.payout?.trader ?? 0;
 
   const now = new Date();
   const [calYear, setCalYear] = useState(now.getFullYear());
@@ -638,25 +627,6 @@ export default function Dashboard() {
 
   return (
     <div className="page">
-      <PageHeader
-        right={showPayoutTracker && (
-          <button className="ph-payout" onClick={() => setPayoutsOpen(true)} title="View & record payouts">
-            <span className="ph-payout-label">Total payout</span>
-            <span className="ph-payout-val">{fmtMoney(payoutTotal)}</span>
-          </button>
-        )}
-      />
-
-      {payoutsOpen && (
-        <PayoutsModal
-          payouts={payouts}
-          fundedAccounts={fundedAccounts}
-          defaultLogin={accountId === 'all' ? undefined : accountId}
-          onClose={() => setPayoutsOpen(false)}
-          onChanged={() => reloadPayouts?.()}
-        />
-      )}
-
       <DayTradesModal
         dayKeyStr={selectedDay}
         trades={trades}

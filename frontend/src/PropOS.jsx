@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend,
@@ -7,9 +7,10 @@ import PageHeader from './PageHeader.jsx';
 import { LoadingBlock } from './ui.jsx';
 import Explain from './Explain.jsx';
 import { fetchProp, fetchPropFinance, fetchPropInsights, advanceChallenge, updateAccount } from './api.js';
-import { fmtMoney, fmtMoneyShort } from './metrics.js';
+import { computeProp, fmtMoney, fmtMoneyShort } from './metrics.js';
 import { token } from './theme.js';
 import FeesModal from './FeesModal.jsx';
+import PayoutsModal from './PayoutsModal.jsx';
 
 // Chart theming from design tokens (matches the rest of the app).
 const C_EARNED = token('--profit');
@@ -476,7 +477,10 @@ export function PropFinance() {
 }
 
 export default function PropOS() {
-  const { accountId, setAccountId, connected, toggleSidebar } = useOutletContext();
+  const {
+    accountId, setAccountId, connected, toggleSidebar,
+    trades = [], account, accounts = [], payouts = [], reloadPayouts,
+  } = useOutletContext();
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
 
@@ -493,10 +497,43 @@ export default function PropOS() {
     </span>
   );
 
+  // Total-payout tracker — Prop OS Overview only (moved off the Dashboard).
+  const [payoutsOpen, setPayoutsOpen] = useState(false);
+  const fundedAccounts = useMemo(() => {
+    const funded = accounts.filter((a) => a.account_type === 'funded');
+    return accountId === 'all' ? funded : funded.filter((a) => String(a.mt5_login) === String(accountId));
+  }, [accounts, accountId]);
+  const showPayoutTracker = fundedAccounts.length > 0;
+  const payoutTotal = useMemo(() => computeProp(trades, account, payouts).payout?.trader ?? 0, [trades, account, payouts]);
+
   const page = (body) => (
     <div className="page">
-      <PageHeader title="Prop OS" connected={connected} onMenu={toggleSidebar} right={modeBadge} />
+      <PageHeader
+        title="Prop OS"
+        connected={connected}
+        onMenu={toggleSidebar}
+        right={(
+          <>
+            {modeBadge}
+            {showPayoutTracker && (
+              <button className="ph-payout" onClick={() => setPayoutsOpen(true)} title="View & record payouts">
+                <span className="ph-payout-label">Total payout</span>
+                <span className="ph-payout-val">{fmtMoney(payoutTotal)}</span>
+              </button>
+            )}
+          </>
+        )}
+      />
       {body}
+      {payoutsOpen && (
+        <PayoutsModal
+          payouts={payouts}
+          fundedAccounts={fundedAccounts}
+          defaultLogin={accountId === 'all' ? undefined : accountId}
+          onClose={() => setPayoutsOpen(false)}
+          onChanged={() => reloadPayouts?.()}
+        />
+      )}
     </div>
   );
 
