@@ -83,6 +83,13 @@ export const config = {
     process.env.ECON_CALENDAR_URL ?? 'https://nfs.faireconomy.media/ff_calendar_thisweek.json'
   ).split(',').map((s) => s.trim()).filter(Boolean),
 
+  // ---- Redis (optional: shared socket adapter + cache invalidation) ----
+  // Empty = disabled, and the app runs exactly as it did single-process (see
+  // src/redis.js). Accepts redis:// and rediss:// (TLS), so the same value works
+  // for a native redis-server on the box, Upstash, or ElastiCache. REQUIRED
+  // before running more than one pm2 worker — see src/cluster.js.
+  redisUrl: process.env.REDIS_URL ?? '',
+
   // ---- Observability (Sentry) ----
   // DSN from the Sentry project. Empty = Sentry disabled (a no-op), so local/dev
   // and unconfigured environments run without it. `environment`/`release` tag events.

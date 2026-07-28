@@ -7,7 +7,13 @@
 import client from 'prom-client';
 import { pool } from './db.js';
 import { statsCache } from './statsCache.js';
+import { statsBus } from './statsBus.js';
+import { redisStatus } from './redis.js';
 import { clusterSafety, isClustered } from './cluster.js';
+
+// Cross-worker state is only genuinely working when Redis is BOTH wired and up.
+const sharedStateOk = () => statsBus.shared && redisStatus.connected;
+const busStats = () => statsBus.stats();
 
 export const registry = new client.Registry();
 
@@ -100,11 +106,48 @@ new client.Gauge({
   help: '1 when running multiple workers without shared socket/cache state (stale reads + lost realtime events)',
   registers: [registry],
   collect() {
+    // Sampled live: Redis can drop long after a healthy boot, at which point the
+    // socket adapter silently stops crossing workers.
+    const shared = sharedStateOk();
     const { safe } = clusterSafety({
       clustered: isClustered(),
-      hasSharedSocketAdapter: false,
-      hasSharedStatsCache: false,
+      hasSharedSocketAdapter: shared,
+      hasSharedStatsCache: shared,
     });
     this.set(safe ? 0 : 1);
   },
+});
+
+// ---- Redis (shared socket adapter + cache invalidation) ----
+// 0/1 rather than absent-when-off, so "Redis was configured and has now dropped"
+// is alertable. redis_configured stays 0 when the feature is deliberately unused.
+new client.Gauge({
+  name: 'redis_configured',
+  help: '1 when REDIS_URL is set (shared socket adapter + cache invalidation intended)',
+  registers: [registry],
+  collect() { this.set(redisStatus.configured ? 1 : 0); },
+});
+new client.Gauge({
+  name: 'redis_connected',
+  help: '1 when the Redis connection is currently up',
+  registers: [registry],
+  collect() { this.set(redisStatus.connected ? 1 : 0); },
+});
+new client.Gauge({
+  name: 'stats_invalidations_published_total',
+  help: 'Cache invalidations fanned out to other workers',
+  registers: [registry],
+  collect() { this.set(busStats().published); },
+});
+new client.Gauge({
+  name: 'stats_invalidations_received_total',
+  help: 'Cache invalidations applied from other workers',
+  registers: [registry],
+  collect() { this.set(busStats().received); },
+});
+new client.Gauge({
+  name: 'stats_invalidation_publish_errors_total',
+  help: 'Failed invalidation fanouts (other workers stale until TTL)',
+  registers: [registry],
+  collect() { this.set(busStats().publishErrors); },
 });

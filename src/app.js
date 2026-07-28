@@ -7,6 +7,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { Server as IOServer } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { config, assertProdSecrets } from './config.js';
 import { pool, query } from './db.js';
 import { registerAuth } from './auth.js';
@@ -62,6 +63,8 @@ import {
 import { computeStats, computeYearly } from './aggregations.js';
 import { statsCache, cacheKey } from './statsCache.js';
 import { clusterSafety, isClustered } from './cluster.js';
+import { createRedisPair, redisStatus } from './redis.js';
+import { statsBus, INVALIDATE_CHANNEL } from './statsBus.js';
 import { registry as metricsRegistry, recordHttp } from './metrics.js';
 import { buildReport, propStatesForScope, reportCsvRows, toCsv } from './reports.js';
 import { getHighImpactEvents } from './calendar.js';
@@ -126,6 +129,27 @@ const io = new IOServer(app.server, {
   cors: { origin: config.corsOrigin === '*' ? true : config.corsOrigin, credentials: true },
 });
 
+// ---------------------------------------------------------------------------
+// Cross-process state (optional, REDIS_URL-gated). Two things need it before a
+// second worker can exist: the Socket.IO adapter (so a broadcast reaches clients
+// on every worker) and analytics-cache invalidation. With no Redis this whole
+// block is inert and behaviour is identical to before.
+// ---------------------------------------------------------------------------
+const redis = await createRedisPair(app.log);
+if (redis) {
+  io.adapter(createAdapter(redis.pub, redis.sub));
+  app.log.info('socket.io using the redis adapter');
+}
+
+if (redis) {
+  // pub/sub only; the subscriber connection cannot issue other commands.
+  statsBus.setTransport((channel, message) => redis.pub.publish(channel, message));
+  // Local-only handling — onMessage must never re-publish, or workers ping-pong.
+  await redis.sub.subscribe(INVALIDATE_CHANNEL, (message) => statsBus.onMessage(message));
+}
+// Every write path goes through this, so the fanout can't be forgotten at a call site.
+const invalidateStats = (userId) => statsBus.invalidate(userId);
+
 // Authenticate each socket from the session cookie and join it to a room per
 // account the user owns, so trade events are delivered only to their owner —
 // never broadcast to every connected client.
@@ -155,7 +179,7 @@ const emitTrade = (event, trade) => {
   // Any trade write invalidates that user's cached aggregates. Doing it here
   // covers ingest + manual add + edit, which all funnel through emitTrade;
   // delete, CSV import and strategy rename invalidate at their own call sites.
-  statsCache.invalidateUser(trade.user_id);
+  invalidateStats(trade.user_id);
 };
 
 // Recompute one account's prop state and push any newly-crossed alerts to the
@@ -584,7 +608,7 @@ app.post('/api/trades/import', { preHandler: app.requireAuth, bodyLimit: 12 * 10
     } finally {
       client.release();
     }
-    statsCache.invalidateUser(req.user.uid);
+    invalidateStats(req.user.uid);
   }
   return { dryRun: false, imported: fresh.length, ...summary };
 });
@@ -704,7 +728,7 @@ app.delete('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply
   const t = rows[0];
   const room = t.user_id != null ? `user:${t.user_id}` : `acct:${t.account_id}`;
   io.to(room).emit('trade:deleted', { id });
-  statsCache.invalidateUser(t.user_id);
+  invalidateStats(t.user_id);
   return { id, deleted: true };
 });
 
@@ -1005,7 +1029,7 @@ app.patch('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, re
     if (!s) return reply.code(404).send({ error: 'strategy not found' });
     // A rename cascades onto trades.setup (regrouping bySetup) and a rules edit
     // changes the adherence split — both are cached aggregates.
-    statsCache.invalidateUser(req.user.uid);
+    invalidateStats(req.user.uid);
     return s;
   } catch (err) {
     if (err.code === 'INVALID') return reply.code(400).send({ error: err.message });
@@ -1017,7 +1041,7 @@ app.patch('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, re
 app.delete('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const ok = await deleteStrategy(req.user.uid, Number(req.params.id));
   if (!ok) return reply.code(404).send({ error: 'strategy not found' });
-  statsCache.invalidateUser(req.user.uid);
+  invalidateStats(req.user.uid);
   return { id: Number(req.params.id), deleted: true };
 });
 
@@ -1455,14 +1479,15 @@ app.post('/api/billing/webhook', { config: { rateLimit: false } }, async (req, r
 const start = async () => {
   try {
     assertProdSecrets();
-    // If someone raises `instances` in ecosystem.config.cjs before the shared
-    // Redis adapter/cache exists, realtime delivery and cached analytics both go
-    // subtly wrong rather than failing outright — so say so loudly at boot.
-    // Both flags are false until that work lands; see src/cluster.js.
+    // If someone raises `instances` in ecosystem.config.cjs while Redis is
+    // absent or down, realtime delivery and cached analytics both go subtly
+    // wrong rather than failing outright — so say so loudly at boot. Both flags
+    // are live, not compile-time: Redis can drop long after a good boot, and the
+    // socket adapter then goes quietly one-way. See src/cluster.js.
     const safety = clusterSafety({
       clustered: isClustered(),
-      hasSharedSocketAdapter: false,
-      hasSharedStatsCache: false,
+      hasSharedSocketAdapter: !!redis && redisStatus.connected,
+      hasSharedStatsCache: statsBus.shared && redisStatus.connected,
     });
     if (!safety.safe) {
       for (const reason of safety.reasons) {
