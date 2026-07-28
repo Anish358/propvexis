@@ -1,10 +1,42 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { OUTCOME_OPTIONS, activeFilterCount } from './filters.js';
+import { navTitle } from './nav.js';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
 import AccountsModal from './AccountsModal.jsx';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
+
+// Light/dark switch — NOT CURRENTLY MOUNTED. The light theme is authored (see
+// :root[data-theme="light"] in styles.css) and its contrast is verified, but it
+// hasn't been visually reviewed and the UI is still changing fast, so exposing it
+// would ship a half-finished look. Kept intact rather than deleted: re-enabling is
+// putting <ThemeToggle theme={theme} setTheme={setTheme} /> back next to
+// <NotificationBell> below. Shows the theme you'd GET by clicking — a sun while
+// you're in dark — which reads faster than showing the state you're already in.
+function ThemeToggle({ theme, setTheme }) {
+  const toLight = theme !== 'light';
+  return (
+    <button
+      type="button"
+      className="tb-icon-btn"
+      onClick={() => setTheme(toLight ? 'light' : 'dark')}
+      title={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
+      aria-label={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
+    >
+      {toLight ? (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+      ) : (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 const Icon = ({ d, size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -227,35 +259,49 @@ export default function FilterBar({
   accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {},
   tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   collapsed = false, onToggleSidebar = () => {}, slotRef,
+  theme = 'dark', setTheme = () => {},
 }) {
   const active = activeFilterCount(filters);
   const [manageOpen, setManageOpen] = useState(false);
+  // Which page you're on, resolved from the same NAV config the sidebar renders
+  // — so the two can't disagree. null on an unrecognized path; render nothing
+  // rather than guess a name.
+  const title = navTitle(useLocation().pathname);
 
   return (
     <div className="topbar">
+      {/* The view controls moved across to the right; the left now holds the
+          sidebar re-opener and the current page's name. */}
       <div className="tb-left">
         {collapsed && (
           <button className="tb-menu" onClick={onToggleSidebar} title="Show sidebar" aria-label="Show sidebar">
             <span /><span /><span />
           </button>
         )}
-        <div className="fb-unit" role="group" aria-label="Display unit">
-          <button className={`fb-unit-btn ${unit === 'R' ? 'on' : ''}`} onClick={() => setUnit('R')}>R</button>
-          <button className={`fb-unit-btn ${unit === 'USD' ? 'on' : ''}`} onClick={() => setUnit('USD')}>$</button>
-        </div>
-        <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
+        {title && (
+          <h1 className="tb-title">
+            {title.module && <span className="tb-title-module">{title.module}</span>}
+            <span className="tb-title-page">{title.page}</span>
+          </h1>
+        )}
       </div>
 
       {/* Per-page actions portal here (PageHeader → this node). */}
       <div className="tb-page" ref={slotRef} />
 
       <div className="tb-right">
+        <div className="fb-unit" role="group" aria-label="Display unit">
+          <button className={`fb-unit-btn ${unit === 'R' ? 'on' : ''}`} onClick={() => setUnit('R')}>R</button>
+          <button className={`fb-unit-btn ${unit === 'USD' ? 'on' : ''}`} onClick={() => setUnit('USD')}>$</button>
+        </div>
+        <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
         <AccountSwitcher
           accounts={accounts}
           accountId={accountId}
           setAccountId={setAccountId}
           onManage={() => setManageOpen(true)}
         />
+        {/* <ThemeToggle theme={theme} setTheme={setTheme} /> — parked, see above */}
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
         <UserMenu
           unit={unit}

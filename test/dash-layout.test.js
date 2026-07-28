@@ -231,7 +231,8 @@ test('editor renders a titled panel with Reset Layout and Close', () => {
   assert.match(editor, /className="dle-x"[\s\S]*aria-label="Close"/);
   // Centered, and a LIGHT backdrop so the live dashboard stays visible behind it.
   assert.match(css, /\.dle-backdrop \{[\s\S]*align-items: center; justify-content: center/);
-  assert.match(css, /\.dle-backdrop \{[\s\S]*background: rgba\(0, 0, 0, 0\.35\)/);
+  // Scrim is a token now (--scrim-1) so it can lighten under a light theme.
+  assert.match(css, /\.dle-backdrop \{[\s\S]*background: var\(--scrim-1\)/);
 });
 
 test('editor mirrors the real grid instead of describing it', () => {

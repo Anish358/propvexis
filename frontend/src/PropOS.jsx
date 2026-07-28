@@ -8,19 +8,11 @@ import { LoadingBlock } from './ui.jsx';
 import Explain from './Explain.jsx';
 import { fetchProp, fetchPropFinance, fetchPropInsights, advanceChallenge, updateAccount } from './api.js';
 import { computeProp, fmtMoney, fmtMoneyShort } from './metrics.js';
-import { token } from './theme.js';
+import { chartPalette } from './theme.js';
 import FeesModal from './FeesModal.jsx';
 import PayoutsModal from './PayoutsModal.jsx';
 
 // Chart theming from design tokens (matches the rest of the app).
-const C_EARNED = token('--profit');
-const C_SPENT = token('--loss');
-const C_NET = token('--accent');
-const C_GRID = token('--line');
-const C_AXIS = token('--text-3');
-const C_REF = token('--line-strong');
-const C_LABEL = token('--text-2');
-const propTip = { background: token('--surface-2'), border: `1px solid ${token('--line')}`, borderRadius: 8, color: token('--text') };
 
 // Cumulative earned / spent / net over time (data from finance.roiProgression).
 // Line palette matches the app's equity-curve charts (Analytics/Reports).
@@ -31,19 +23,19 @@ function RoiProgressionChart({ series }) {
       <h4 className="prop-roi-title">ROI progression</h4>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={series} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
-          <CartesianGrid stroke={C_GRID} />
-          <XAxis dataKey="date" stroke={C_AXIS} fontSize={11} tickFormatter={(d) => d.slice(5)} />
-          <YAxis stroke={C_AXIS} fontSize={11} tickFormatter={(v) => fmtMoneyShort(v)} />
+          <CartesianGrid stroke={chartPalette().grid} />
+          <XAxis dataKey="date" stroke={chartPalette().axis} fontSize={11} tickFormatter={(d) => d.slice(5)} />
+          <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtMoneyShort(v)} />
           <Tooltip
-            contentStyle={propTip}
+            contentStyle={chartPalette().tip}
             formatter={(v, n) => [fmtMoney(v), n]}
-            labelStyle={{ color: C_LABEL }}
+            labelStyle={{ color: chartPalette().label }}
           />
-          <ReferenceLine y={0} stroke={C_REF} />
+          <ReferenceLine y={0} stroke={chartPalette().gridStrong} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Line type="monotone" dataKey="earned" name="Earned" stroke={C_EARNED} strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="spent" name="Spent" stroke={C_SPENT} strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="net" name="Net" stroke={C_NET} strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="earned" name="Earned" stroke={chartPalette().profit} strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="spent" name="Spent" stroke={chartPalette().loss} strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="net" name="Net" stroke={chartPalette().accent} strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>

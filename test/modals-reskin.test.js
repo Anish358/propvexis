@@ -19,5 +19,7 @@ test('modal base controls use the token radius', () => {
 });
 
 test('form controls get the shared brand focus ring', () => {
-  assert.match(css, /\.modal input:focus[^]*box-shadow: 0 0 0 3px rgba\(59,130,246,\.18\)/);
+  // The ring colour is a token now (--accent-ring) so it can shift under a light
+  // theme; the 3px geometry is what this test is really pinning.
+  assert.match(css, /\.modal input:focus[^]*box-shadow: 0 0 0 3px var\(--accent-ring\)/);
 });

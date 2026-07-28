@@ -24,17 +24,12 @@ import { sevClass } from './Notifications.jsx';
 import { StatContext } from './DashWidgets.jsx';
 import { roomStatus, healthStatus } from './PropOS.jsx';
 import { fetchProp, updateAccount, fetchCalendar } from './api.js';
-import { token } from './theme.js';
+import { chartPalette } from './theme.js';
 import {
   computeMetrics, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome, dayKey,
 } from './metrics.js';
 
 // Chart theming from design tokens (matches Analytics.jsx's equity curve).
-const CHART_PROFIT = token('--profit');
-const CHART_ACCENT = token('--accent');
-const CHART_GRID = token('--line');
-const CHART_AXIS = token('--text-3');
-const chartTip = { background: token('--surface-2'), border: `1px solid ${token('--line')}`, borderRadius: 8, color: token('--text') };
 
 // Dashboard V1 — the fixed morning-home layout (daily banner, headline stat
 // cards, calendar + recent activity, account health cards). Replaces the old
@@ -379,15 +374,15 @@ function CumulativePnlCard({ days, unit }) {
           <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
             <defs>
               <linearGradient id="dashEquityFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={CHART_PROFIT} stopOpacity={0.45} />
-                <stop offset="100%" stopColor={CHART_PROFIT} stopOpacity={0} />
+                <stop offset="0%" stopColor={chartPalette().profit} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={chartPalette().profit} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="label" stroke={CHART_AXIS} fontSize={11} minTickGap={40} />
-            <YAxis stroke={CHART_AXIS} fontSize={11} tickFormatter={(v) => fmtValShort(v, unit)} width={52} />
-            <Tooltip contentStyle={chartTip} formatter={(v) => fmtVal(v, unit)} labelStyle={{ color: token('--text-2') }} />
-            <Area type="monotone" dataKey="cum" stroke={CHART_ACCENT} strokeWidth={2} fill="url(#dashEquityFill)" />
+            <CartesianGrid stroke={chartPalette().grid} strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="label" stroke={chartPalette().axis} fontSize={11} minTickGap={40} />
+            <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtValShort(v, unit)} width={52} />
+            <Tooltip contentStyle={chartPalette().tip} formatter={(v) => fmtVal(v, unit)} labelStyle={{ color: chartPalette().label }} />
+            <Area type="monotone" dataKey="cum" stroke={chartPalette().accent} strokeWidth={2} fill="url(#dashEquityFill)" />
           </AreaChart>
         </ResponsiveContainer>
       )}

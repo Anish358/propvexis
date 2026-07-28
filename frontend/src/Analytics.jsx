@@ -8,18 +8,10 @@ import PageHeader from './PageHeader.jsx';
 import { LoadingBlock } from './ui.jsx';
 import { fetchStats, fetchYearly } from './api.js';
 import { fmtVal, fmtAxis } from './metrics.js';
-import { token } from './theme.js';
+import { chartPalette } from './theme.js';
 
 // Chart theming from design tokens (matches the rest of the app).
-const PROFIT = token('--profit');
-const LOSS = token('--loss');
-const NEUTRAL = token('--text-2');
-const GRID = token('--line');
-const AXIS = token('--text-3');
-const AXIS_STRONG = token('--line-strong');
-const ACCENT = token('--accent');
-const chartTip = { background: token('--surface-2'), border: `1px solid ${token('--line')}`, borderRadius: 8, color: token('--text') };
-const rColor = (r) => (r > 0 ? PROFIT : r < 0 ? LOSS : NEUTRAL);
+const rColor = (r) => (r > 0 ? chartPalette().profit : r < 0 ? chartPalette().loss : chartPalette().label);
 
 function Kpi({ label, value, sub, tone }) {
   return (
@@ -99,12 +91,12 @@ export default function Analytics() {
         <h3>Equity Curve (cumulative {unit === 'USD' ? 'P&L' : 'R'})</h3>
         <ResponsiveContainer width="100%" height={260}>
           <LineChart data={stats.equityCurve} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
-            <CartesianGrid stroke={GRID} />
-            <XAxis dataKey="i" stroke={AXIS} fontSize={11} />
-            <YAxis stroke={AXIS} fontSize={11} tickFormatter={(v) => fmtAxis(v, unit)} />
-            <Tooltip contentStyle={chartTip} formatter={(v) => fmtVal(v, unit)} />
-            <ReferenceLine y={0} stroke={AXIS_STRONG} />
-            <Line type="monotone" dataKey="cumR" stroke={ACCENT} strokeWidth={2} dot={false} />
+            <CartesianGrid stroke={chartPalette().grid} />
+            <XAxis dataKey="i" stroke={chartPalette().axis} fontSize={11} />
+            <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtAxis(v, unit)} />
+            <Tooltip contentStyle={chartPalette().tip} formatter={(v) => fmtVal(v, unit)} />
+            <ReferenceLine y={0} stroke={chartPalette().gridStrong} />
+            <Line type="monotone" dataKey="cumR" stroke={chartPalette().accent} strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -114,13 +106,13 @@ export default function Analytics() {
         <h3>R-Outcome Distribution</h3>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={stats.rDistribution} margin={{ top: 8, right: 8, bottom: 4, left: -20 }}>
-            <CartesianGrid stroke={GRID} vertical={false} />
-            <XAxis dataKey="label" stroke={AXIS} fontSize={10} />
-            <YAxis stroke={AXIS} fontSize={11} allowDecimals={false} />
-            <Tooltip contentStyle={chartTip} cursor={{ fill: '#ffffff08' }} />
+            <CartesianGrid stroke={chartPalette().grid} vertical={false} />
+            <XAxis dataKey="label" stroke={chartPalette().axis} fontSize={10} />
+            <YAxis stroke={chartPalette().axis} fontSize={11} allowDecimals={false} />
+            <Tooltip contentStyle={chartPalette().tip} cursor={{ fill: '#ffffff08' }} />
             <Bar dataKey="count">
               {stats.rDistribution.map((b, i) => (
-                <Cell key={i} fill={b.label.includes('-') || b.label === 'BE' ? LOSS : PROFIT} />
+                <Cell key={i} fill={b.label.includes('-') || b.label === 'BE' ? chartPalette().loss : chartPalette().profit} />
               ))}
             </Bar>
           </BarChart>

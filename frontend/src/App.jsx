@@ -136,6 +136,17 @@ export default function App() {
   });
   const setUnit = (u) => setViewConfigs((prev) => ({ ...prev, unit: u }));
 
+  // Colour theme — global like `unit`, and server-synced so it follows the user
+  // across devices. Dark is the default, and :root already holds the dark values,
+  // so the attribute is only set when the theme is light.
+  const theme = viewConfigs.theme === 'light' ? 'light' : 'dark';
+  const setTheme = (t) => setViewConfigs((prev) => ({ ...prev, theme: t === 'light' ? 'light' : 'dark' }));
+  useEffect(() => {
+    const el = document.documentElement;
+    if (theme === 'light') el.dataset.theme = 'light';
+    else delete el.dataset.theme;
+  }, [theme]);
+
   // Dashboard layout — global like `unit`, not per scope, so switching accounts
   // never rearranges the page. Sanitized on read rather than on hydrate so a
   // blob saved before a widget existed still resolves to a complete layout.
@@ -401,6 +412,8 @@ export default function App() {
                 setDashVisible={setDashVisible}
                 moveDashWidget={moveDashWidget}
                 resetDashLayout={resetDashLayout}
+                theme={theme}
+                setTheme={setTheme}
                 briefPrefs={briefPrefs}
                 patchBriefPrefs={patchBriefPrefs}
                 setBriefSection={setBriefSection}
