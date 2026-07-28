@@ -14,6 +14,9 @@ export default function Layout({
   connected, flashId, saveTrade, removeTrade, addManualTrade,
   unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
   pinnedAccounts, setPinnedAccounts,
+  dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
+  theme = 'dark', setTheme = () => {},
+  briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
   tradeSettings, setBeRounding, setColumnVisible, resetColumns,
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -48,8 +51,10 @@ export default function Layout({
           setBeRounding={setBeRounding}
           setColumnVisible={setColumnVisible}
           resetColumns={resetColumns}
+          theme={theme}
+          setTheme={setTheme}
         />
-        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, pinnedAccounts, setPinnedAccounts, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
+        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, pinnedAccounts, setPinnedAccounts, theme, setTheme, dashLayout, setDashVisible, moveDashWidget, resetDashLayout, briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>
     </div>
   );

@@ -39,7 +39,7 @@ test('card family uses the token radius scale (not raw 8px)', () => {
   for (const sel of ['.panel {', '.kpi {', '.bd {']) {
     const line = css.split('\n').find((l) => l.trimStart().startsWith(sel));
     assert.ok(line, `rule ${sel} exists`);
-    assert.ok(line.includes('var(--r-xl)'), `${sel} should use var(--r-xl)`);
+    assert.ok(line.includes('var(--r-2xl)'), `${sel} should use var(--r-2xl)`);
     assert.ok(!/border-radius:\s*8px/.test(line), `${sel} should not hardcode 8px radius`);
   }
 });

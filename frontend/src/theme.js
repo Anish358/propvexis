@@ -14,6 +14,7 @@ const FALLBACKS = {
   '--status-bad': '#ef4444',
   '--red': '#ef4444',
   '--muted': '#94a3b8',
+  '--neutral-7': '#23232a',  // gauge/ring track (DashWidgets)
 };
 
 export function token(name) {
@@ -22,4 +23,41 @@ export function token(name) {
     if (v) return v;
   }
   return FALLBACKS[name] || '';
+}
+
+// The chart palette, resolved from the token layer.
+//
+// Call this DURING RENDER, never into a module-level const. Capturing at import
+// pins the palette to whichever theme was active on first load, so switching
+// theme would leave every chart on the old colours until a reload — the exact
+// bug this replaced.
+//
+// Cached per theme so the repeat calls are free: getComputedStyle is not, and a
+// gauge would otherwise pay for it on every render. The cache key is the live
+// data-theme attribute, so it invalidates itself the moment the theme changes —
+// which is why callers need no theme prop, context or memo.
+let paletteCache = null;
+let paletteKey = null;
+
+export function chartPalette() {
+  const key = (typeof document !== 'undefined' && document.documentElement.dataset.theme) || 'dark';
+  if (paletteCache && paletteKey === key) return paletteCache;
+  paletteKey = key;
+  paletteCache = {
+    profit: token('--profit'),
+    loss: token('--loss'),
+    accent: token('--accent'),
+    grid: token('--line'),
+    gridStrong: token('--line-strong'),
+    axis: token('--text-3'),
+    label: token('--text-2'),
+    track: token('--neutral-7'),
+    tip: {
+      background: token('--surface-2'),
+      border: `1px solid ${token('--line')}`,
+      borderRadius: 8,
+      color: token('--text'),
+    },
+  };
+  return paletteCache;
 }

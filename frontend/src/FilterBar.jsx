@@ -1,10 +1,44 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { OUTCOME_OPTIONS, activeFilterCount } from './filters.js';
+import { Link, useLocation } from 'react-router-dom';
+import { activeFilterCount } from './filters.js';
+import { navTitle } from './nav.js';
+import FilterPanel from './FilterPanel.jsx';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
 import AccountsModal from './AccountsModal.jsx';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
+
+// Light/dark switch. Shows the theme you'd GET by clicking — a sun while you're in
+// dark — which reads faster than showing the state you're already in.
+//
+// The light theme it toggles is KNOWINGLY UNFINISHED: contrast is verified but the
+// palette hasn't been tuned, and it currently reads flat (white sidebar against a
+// near-white page, cards barely separated from it). Mounted deliberately anyway so
+// it can be improved in place. Dark is unaffected either way — dark is :root, and
+// the toggle only adds data-theme="light" to <html>.
+function ThemeToggle({ theme, setTheme }) {
+  const toLight = theme !== 'light';
+  return (
+    <button
+      type="button"
+      className="tb-icon-btn"
+      onClick={() => setTheme(toLight ? 'light' : 'dark')}
+      title={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
+      aria-label={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
+    >
+      {toLight ? (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+      ) : (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 const Icon = ({ d, size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -74,46 +108,10 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   );
 }
 
-// A single multi-select dropdown (checkbox list) that closes on outside click.
-function MultiSelect({ label, options, selected = [], onChange }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
-  const toggle = (v) => onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
-  const count = selected.length;
-
-  return (
-    <div className={`fb-ms ${count ? 'active' : ''}`} ref={ref}>
-      <button type="button" className="fb-ms-btn" onClick={() => setOpen((o) => !o)}>
-        {label}{count ? ` (${count})` : ''}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {open && (
-        <div className="fb-ms-menu">
-          {options.length === 0 && <div className="fb-ms-empty">No values</div>}
-          {options.map((o) => (
-            <label key={o.value} className="fb-ms-opt">
-              <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} />
-              <span>{o.label}</span>
-            </label>
-          ))}
-          {count > 0 && <button type="button" className="fb-ms-clear" onClick={() => onChange([])}>Clear</button>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const opts = (values) => values.map((v) => ({ value: v, label: v }));
-
-// All filters collapse behind one funnel button (Linear-style) — a popover holds
-// the category multi-selects + date range, keeping the top bar to a single line.
+// The Filters button — position, look and badge unchanged. What opens under it is
+// now FilterPanel: a filter BUILDER (chips + a cascading Add-filter menu) instead
+// of the fixed stack of dropdowns this used to hold, which grew a row taller with
+// every new filter. The button owns only open/closed and the outside-click close.
 function FiltersButton({ options, filters, patchFilters, clearFilters, active }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -123,33 +121,23 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
-  const set = (key) => (vals) => patchFilters({ [key]: vals });
 
   return (
     <div className="tb-filters" ref={ref}>
-      <button type="button" className={`tb-btn ${active ? 'active' : ''}`} onClick={() => setOpen((o) => !o)} aria-label="Filters">
+      <button type="button" className={`tb-btn ${active ? 'active' : ''}`} onClick={() => setOpen((o) => !o)} aria-label="Filters" aria-expanded={open}>
         <Icon d={<path d="M3 4h18l-7 8v6l-4 2v-8z" />} />
         <span>Filters</span>
         {active > 0 && <span className="tb-badge">{active}</span>}
       </button>
       {open && (
-        <div className="tb-filters-menu">
-          <div className="tb-filters-grid">
-            <MultiSelect label="Strategy" options={opts(options.setups)} selected={filters.setups} onChange={set('setups')} />
-            <MultiSelect label="Pair" options={opts(options.symbols)} selected={filters.symbols} onChange={set('symbols')} />
-            <MultiSelect label="Session" options={opts(options.sessions)} selected={filters.sessions} onChange={set('sessions')} />
-            <MultiSelect label="Probability" options={opts(options.probability)} selected={filters.probability} onChange={set('probability')} />
-            <MultiSelect label="Profit" options={OUTCOME_OPTIONS} selected={filters.outcome} onChange={set('outcome')} />
-          </div>
-          <div className="tb-filters-dates">
-            <input type="date" className="u-input" value={filters.from || ''} max={filters.to || undefined}
-              onChange={(e) => patchFilters({ from: e.target.value || null })} title="From date" />
-            <span className="tb-date-sep">→</span>
-            <input type="date" className="u-input" value={filters.to || ''} min={filters.from || undefined}
-              onChange={(e) => patchFilters({ to: e.target.value || null })} title="To date" />
-          </div>
-          {active > 0 && <button type="button" className="tb-filters-clear" onClick={clearFilters}>Clear all filters</button>}
-        </div>
+        <FilterPanel
+          options={options}
+          filters={filters}
+          patchFilters={patchFilters}
+          clearFilters={clearFilters}
+          active={active}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   );
@@ -216,8 +204,9 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
   );
 }
 
-// The single global bar. Left: view controls (unit + filters). Middle→right:
-// per-page actions portaled in from PageHeader (slotRef). Right: the always-on
+// The single global bar. Left: only the sidebar re-opener, when the sidebar is
+// collapsed. Middle→right: per-page actions portaled in from PageHeader
+// (slotRef). Right: the view controls (unit + filters) followed by the always-on
 // controls — account scope switcher, notifications, account avatar. Page content
 // starts directly below this bar (pages no longer render their own header row).
 export default function FilterBar({
@@ -226,35 +215,49 @@ export default function FilterBar({
   accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {},
   tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   collapsed = false, onToggleSidebar = () => {}, slotRef,
+  theme = 'dark', setTheme = () => {},
 }) {
   const active = activeFilterCount(filters);
   const [manageOpen, setManageOpen] = useState(false);
+  // Which page you're on, resolved from the same NAV config the sidebar renders
+  // — so the two can't disagree. null on an unrecognized path; render nothing
+  // rather than guess a name.
+  const title = navTitle(useLocation().pathname);
 
   return (
     <div className="topbar">
+      {/* The view controls moved across to the right; the left now holds the
+          sidebar re-opener and the current page's name. */}
       <div className="tb-left">
         {collapsed && (
           <button className="tb-menu" onClick={onToggleSidebar} title="Show sidebar" aria-label="Show sidebar">
             <span /><span /><span />
           </button>
         )}
-        <div className="fb-unit" role="group" aria-label="Display unit">
-          <button className={`fb-unit-btn ${unit === 'R' ? 'on' : ''}`} onClick={() => setUnit('R')}>R</button>
-          <button className={`fb-unit-btn ${unit === 'USD' ? 'on' : ''}`} onClick={() => setUnit('USD')}>$</button>
-        </div>
-        <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
+        {title && (
+          <h1 className="tb-title">
+            {title.module && <span className="tb-title-module">{title.module}</span>}
+            <span className="tb-title-page">{title.page}</span>
+          </h1>
+        )}
       </div>
 
       {/* Per-page actions portal here (PageHeader → this node). */}
       <div className="tb-page" ref={slotRef} />
 
       <div className="tb-right">
+        <div className="fb-unit" role="group" aria-label="Display unit">
+          <button className={`fb-unit-btn ${unit === 'R' ? 'on' : ''}`} onClick={() => setUnit('R')}>R</button>
+          <button className={`fb-unit-btn ${unit === 'USD' ? 'on' : ''}`} onClick={() => setUnit('USD')}>$</button>
+        </div>
+        <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
         <AccountSwitcher
           accounts={accounts}
           accountId={accountId}
           setAccountId={setAccountId}
           onManage={() => setManageOpen(true)}
         />
+        <ThemeToggle theme={theme} setTheme={setTheme} />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
         <UserMenu
           unit={unit}

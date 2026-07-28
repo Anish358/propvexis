@@ -1,0 +1,249 @@
+// Today's Brief widget preferences.
+//
+// Scope: this model configures the Today's Brief banner ONLY — which of its
+// sections show, and how its economic-event list is filtered and formatted.
+// Nothing here touches the dashboard layout, KPI cards, themes or any global
+// app setting; those live in dashLayout.js and Settings respectively.
+//
+// Pure (no React, no DOM) so the banner and the settings popover read identical
+// rules and the filtering is unit testable against a fixed `now`.
+//
+// Stored at the top level of `viewConfigs` as `briefPrefs` — a global user
+// preference like `unit`, not per account scope: your news filters shouldn't
+// change because you switched trading accounts.
+
+// ---- catalogues -------------------------------------------------------------
+
+// `soon: true` marks a section whose content isn't built yet. The preference is
+// already modelled and persisted so each one lights up the day it ships; the
+// popover renders those rows disabled with a "Soon" badge rather than offering a
+// toggle that visibly does nothing.
+export const BRIEF_SECTIONS = [
+  { id: 'events', label: 'High Impact Events' },
+  { id: 'alerts', label: 'Account Alerts' },
+  { id: 'summary', label: 'Daily Summary', soon: true },
+  { id: 'session', label: 'Market Session', soon: true },
+  { id: 'ai', label: 'AI Briefing', soon: true },
+];
+
+export const BRIEF_IMPORTANCE = [
+  { id: 'high', label: 'High Impact Only' },
+  { id: 'highMedium', label: 'High + Medium' },
+  { id: 'all', label: 'All Events' },
+];
+
+export const BRIEF_CURRENCIES = ['USD', 'EUR', 'GBP', 'AUD', 'NZD', 'CAD', 'CHF', 'JPY', 'CNY'];
+
+export const BRIEF_WINDOWS = [
+  { id: '4h', label: 'Next 4 Hours' },
+  { id: 'today', label: 'Today' },
+  { id: '24h', label: 'Next 24 Hours' },
+  { id: 'week', label: 'This Week' },
+];
+
+// Broker Time is deliberately absent: no broker/server offset is stored anywhere
+// (not in the DB, not sent by the EA), and guessing one would print the wrong
+// time for a release a trader is planning around. Add it here once an offset
+// exists per account.
+export const BRIEF_TIMEZONES = [
+  { id: 'local', label: 'Local Time' },
+  { id: 'utc', label: 'UTC' },
+];
+
+const SECTION_IDS = BRIEF_SECTIONS.map((s) => s.id);
+const IMPORTANCE_IDS = BRIEF_IMPORTANCE.map((i) => i.id);
+const WINDOW_IDS = BRIEF_WINDOWS.map((w) => w.id);
+const TIMEZONE_IDS = BRIEF_TIMEZONES.map((t) => t.id);
+
+// Which impact labels each importance level admits. Holiday rows ride with
+// 'all' only — they're calendar context, not tradeable news.
+const IMPACTS_FOR = {
+  high: ['high'],
+  highMedium: ['high', 'medium'],
+  all: ['high', 'medium', 'low', 'holiday'],
+};
+
+// ---- defaults + persistence -------------------------------------------------
+
+export const defaultBriefPrefs = () => ({
+  sections: { events: true, alerts: true, summary: true, session: true, ai: false },
+  importance: 'high',
+  currencies: ['USD', 'EUR', 'GBP'],
+  window: 'today',
+  timezone: 'local',
+  hideEmpty: true,
+});
+
+const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
+
+// Reconcile a persisted blob with the current catalogue: unknown section ids and
+// currencies are dropped, enum fields fall back to their default when the saved
+// value is no longer valid, and a missing field takes the default. Fail-safe so a
+// corrupt blob can never leave the banner unrenderable.
+export function sanitizeBriefPrefs(saved) {
+  const base = defaultBriefPrefs();
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return base;
+
+  const sections = { ...base.sections };
+  if (saved.sections && typeof saved.sections === 'object' && !Array.isArray(saved.sections)) {
+    for (const id of SECTION_IDS) {
+      if (typeof saved.sections[id] === 'boolean') sections[id] = saved.sections[id];
+    }
+  }
+
+  // An empty array is a MEANINGFUL saved value here (see filterBriefEvents), so
+  // it must survive sanitizing — only a non-array falls back to the default set.
+  const currencies = Array.isArray(saved.currencies)
+    ? BRIEF_CURRENCIES.filter((c) => saved.currencies.includes(c))
+    : base.currencies;
+
+  return {
+    sections,
+    importance: oneOf(saved.importance, IMPORTANCE_IDS, base.importance),
+    currencies,
+    window: oneOf(saved.window, WINDOW_IDS, base.window),
+    timezone: oneOf(saved.timezone, TIMEZONE_IDS, base.timezone),
+    hideEmpty: typeof saved.hideEmpty === 'boolean' ? saved.hideEmpty : base.hideEmpty,
+  };
+}
+
+export function isDefaultBriefPrefs(prefs) {
+  const p = sanitizeBriefPrefs(prefs);
+  const d = defaultBriefPrefs();
+  return SECTION_IDS.every((id) => p.sections[id] === d.sections[id])
+    && p.importance === d.importance
+    && p.window === d.window
+    && p.timezone === d.timezone
+    && p.hideEmpty === d.hideEmpty
+    && p.currencies.length === d.currencies.length
+    && p.currencies.every((c, i) => c === d.currencies[i]);
+}
+
+export const briefSectionOn = (prefs, id) => !!prefs?.sections?.[id];
+
+// ---- event filtering --------------------------------------------------------
+
+export const impactAllowed = (prefs, impact) =>
+  (IMPACTS_FOR[prefs?.importance] || IMPACTS_FOR.high).includes(impact || 'low');
+
+// Start/end of the selected window, in ms. All four windows are FORWARD-looking
+// from `now` — the feed only carries upcoming events (the route drops anything
+// over an hour old), so "Today" means the rest of today, not since midnight.
+//
+// Day and week boundaries are computed in the display timezone: with UTC
+// selected, "Today" ends at 00:00Z, which is the same instant the times on
+// screen roll over. Using local boundaries while printing UTC times would show
+// a "Today" list running past the visible date change.
+export function briefWindowRange(prefs, now = new Date(), timezone = prefs?.timezone) {
+  const from = now.getTime();
+  const utc = timezone === 'utc';
+  const endOfDay = () => {
+    const d = new Date(from);
+    if (utc) d.setUTCHours(24, 0, 0, 0); else d.setHours(24, 0, 0, 0);
+    return d.getTime();
+  };
+  switch (prefs?.window) {
+    case '4h': return { from, to: from + 4 * 3600e3 };
+    case '24h': return { from, to: from + 24 * 3600e3 };
+    case 'week': {
+      // Through the end of the 7th day, so "This Week" covers the feed's window
+      // rather than cutting off mid-day-7.
+      return { from, to: endOfDay() + 6 * 86400e3 };
+    }
+    case 'today':
+    default: return { from, to: endOfDay() };
+  }
+}
+
+// Apply importance + currency + time window to the raw event list.
+//
+// NOTE the currency rule: an EMPTY selection means "show nothing", not "no
+// filter". That's the opposite of the convention in filters.js (where an empty
+// array means unfiltered), and it's deliberate — the user asked that clearing
+// every currency produce an empty state rather than silently firehosing every
+// event on the calendar. Callers distinguish the two empties via
+// `briefEmptyReason`.
+export function filterBriefEvents(events, prefs, now = new Date()) {
+  if (!Array.isArray(events)) return [];
+  const p = sanitizeBriefPrefs(prefs);
+  if (p.currencies.length === 0) return [];
+  const { from, to } = briefWindowRange(p, now);
+  // `from` is inclusive of in-play events: the route already keeps anything that
+  // started within the last hour, and dropping them here would hide a release
+  // that's happening right now.
+  const graceFrom = from - 3600e3;
+  return events.filter((e) => {
+    if (!e) return false;
+    if (!impactAllowed(p, e.impact)) return false;
+    if (!p.currencies.includes(e.country)) return false;
+    const ts = Date.parse(e.date);
+    return Number.isFinite(ts) && ts >= graceFrom && ts <= to;
+  });
+}
+
+// Why the event list is empty, so the banner can say something useful instead of
+// a generic "nothing found". null when there are events to show.
+export function briefEmptyReason(events, prefs, now = new Date()) {
+  const p = sanitizeBriefPrefs(prefs);
+  if (p.currencies.length === 0) return 'no-currencies';
+  if (filterBriefEvents(events, p, now).length > 0) return null;
+  // Something is available but this filter combination excludes all of it —
+  // worth distinguishing from "the feed itself is empty/down".
+  return Array.isArray(events) && events.length > 0 ? 'filtered-out' : 'no-events';
+}
+
+// ---- formatting -------------------------------------------------------------
+
+// Today's day + date for the banner heading, e.g. "Tuesday, Jul 28".
+//
+// Follows the SAME timezone pref as the event times below it: with UTC selected,
+// a viewer whose local clock has already rolled past midnight would otherwise see
+// a heading date that disagrees with the times listed under it.
+export function formatBriefDate(now = new Date(), timezone = 'local') {
+  const utc = timezone === 'utc';
+  return now.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'short', day: 'numeric',
+    ...(utc ? { timeZone: 'UTC' } : {}),
+  });
+}
+
+// The wall clock for the banner heading, e.g. "3:42 PM".
+//
+// UTC gets an explicit suffix: with that mode selected every time in the widget
+// is UTC, and the clock is the natural place to say so — otherwise a viewer sees
+// a time that silently disagrees with the one on their taskbar.
+export function formatBriefClock(now = new Date(), timezone = 'local') {
+  const utc = timezone === 'utc';
+  const t = now.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', ...(utc ? { timeZone: 'UTC' } : {}),
+  });
+  return utc ? `${t} UTC` : t;
+}
+
+// The events section's own label tracks the importance setting — leaving it
+// reading "High-impact events" while the list also carries medium/low ones would
+// misdescribe what's on screen.
+export function briefEventsLabel(prefs) {
+  switch (sanitizeBriefPrefs(prefs).importance) {
+    case 'all': return 'Economic events';
+    case 'highMedium': return 'High & medium events';
+    default: return 'High-impact events';
+  }
+}
+
+// Event time in the selected timezone. Same-day events show just the time;
+// anything further out is prefixed with its weekday, so a "This Week" list
+// stays readable. `now` is injectable for tests.
+export function formatBriefTime(iso, timezone = 'local', now = new Date()) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const utc = timezone === 'utc';
+  const opts = { hour: 'numeric', minute: '2-digit', ...(utc ? { timeZone: 'UTC' } : {}) };
+  const time = d.toLocaleTimeString('en-US', opts);
+  const sameDay = utc
+    ? d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth() && d.getUTCDate() === now.getUTCDate()
+    : d.toDateString() === now.toDateString();
+  if (sameDay) return time;
+  const day = d.toLocaleDateString('en-US', { weekday: 'short', ...(utc ? { timeZone: 'UTC' } : {}) });
+  return `${day} ${time}`;
+}

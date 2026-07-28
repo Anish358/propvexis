@@ -1,11 +1,17 @@
-// Economic calendar — high-impact macro events for the dashboard banner.
+// Economic calendar — upcoming macro events for the dashboard's Today's Brief.
 //
 // Data source: the free public ForexFactory weekly JSON feed (faireconomy.media),
 // no API key — the same $0-cost ethos as the EA-sourced candles. The feed covers
 // roughly the current week; we fetch it at most once per TTL for the whole server
-// (it's the same for every user), cache it in-process, and expose only the
-// upcoming High-impact events. On a feed error we serve the last good cache, and
-// if we have nothing cached we return [] so the banner falls back gracefully.
+// (it's the same for every user), cache it in-process, and expose the upcoming
+// events. On a feed error we serve the last good cache, and if we have nothing
+// cached we return [] so the banner falls back gracefully.
+//
+// This route used to hard-filter to High impact and cap at 6. It now returns the
+// whole upcoming window WITH a normalized `impact` label, because Today's Brief
+// settings let the user pick importance (high / high+medium / all), currencies
+// and a time window — all of which are client-side filters over this one cached
+// payload. Filtering here would make those settings unable to widen their view.
 
 import { config } from './config.js';
 
@@ -15,18 +21,35 @@ const FETCH_TIMEOUT_MS = 8000;
 // Keep events that started within the last hour (still "in play") through the
 // rest of the feed window; drop anything older so the banner shows what's next.
 const GRACE_MS = 60 * 60 * 1000;
+// Generous cap: a full ForexFactory week across all impact levels runs to a few
+// hundred rows. High enough that "All events / This week" is genuinely complete,
+// bounded so a malformed feed can't return unbounded JSON.
+const DEFAULT_LIMIT = 400;
 
-// Pure core (unit-tested): normalize a raw feed array down to the upcoming
-// High-impact events, soonest first. `now` is injectable for tests.
-export function upcomingHighImpact(raw, now = new Date(), limit = 6) {
+// The feed's impact strings, lowercased to a closed set the client can rely on.
+// Anything unrecognized becomes 'low' rather than being dropped — an unfiltered
+// event with a conservative label beats a silently missing one.
+export function normalizeImpact(raw) {
+  const s = String(raw ?? '').toLowerCase();
+  if (s === 'high') return 'high';
+  if (s === 'medium') return 'medium';
+  if (s === 'low') return 'low';
+  if (s === 'holiday') return 'holiday';
+  return 'low';
+}
+
+// Pure core (unit-tested): normalize a raw feed array to the upcoming events,
+// soonest first, each carrying its impact. `now` is injectable for tests.
+export function upcomingEvents(raw, now = new Date(), limit = DEFAULT_LIMIT) {
   if (!Array.isArray(raw)) return [];
   const cutoff = now.getTime() - GRACE_MS;
   return raw
-    .filter((e) => e && String(e.impact).toLowerCase() === 'high')
+    .filter((e) => e && typeof e === 'object')
     .map((e) => ({
       title: e.title ?? '',
       country: e.country ?? '', // currency/region code, e.g. "USD"
       date: e.date ?? '',       // ISO 8601 with tz offset
+      impact: normalizeImpact(e.impact),
       forecast: e.forecast ?? '',
       previous: e.previous ?? '',
       ts: Date.parse(e.date),
@@ -51,11 +74,11 @@ let cache = null;      // { fetchedAt, raw } | null
 let cooldownUntil = 0; // set after a total failure so we don't refetch on every load
 
 // Cached fetcher used by the route. Fetches every configured feed, merges them,
-// and returns the upcoming high-impact events. A single feed failing doesn't sink
+// and returns the upcoming events. A single feed failing doesn't sink
 // the rest; if every feed fails we keep serving stale cache (or [] when there's
 // nothing cached) and back off for ERROR_TTL_MS before retrying — the feed
 // rate-limits (HTTP 429), so we must not hammer it on each dashboard load.
-export async function getHighImpactEvents(now = new Date()) {
+export async function getCalendarEvents(now = new Date()) {
   const urls = config.econCalendarUrls ?? [];
   if (!urls.length) return [];
 
@@ -71,5 +94,5 @@ export async function getHighImpactEvents(now = new Date()) {
       cooldownUntil = nowMs + ERROR_TTL_MS; // serve stale/empty until the backoff clears
     }
   }
-  return upcomingHighImpact(cache?.raw ?? [], now);
+  return upcomingEvents(cache?.raw ?? [], now);
 }

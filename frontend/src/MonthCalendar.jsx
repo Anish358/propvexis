@@ -34,6 +34,10 @@ export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onT
       for (const c of week) if (c?.data) { pnl += c.data.pnl; days += 1; }
       rows.push({ week, pnl: round2(pnl), days });
     }
+    // Always 6 week-rows (the max any month needs) so every row gets the same
+    // share of the grid's fixed height — a 4- or 5-row month gets blank
+    // trailing row(s) instead of shorter months growing taller cells.
+    while (rows.length < 6) rows.push({ blank: true });
     return { rows, monthTotal: round2(monthTotal), tradingDays };
   }, [year, month, dayMap]);
 
@@ -66,32 +70,38 @@ export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onT
 
         {rows.map((r, ri) => (
           <React.Fragment key={ri}>
-            {r.week.map((c, i) => {
-              if (!c) return <div key={`pad-${ri}-${i}`} className="cal-cell cal-empty" />;
-              const t = !c.data ? '' : tone(c.data.pnl);
-              const winPct = c.data && (c.data.wins + c.data.losses) > 0 ? Math.round((100 * c.data.wins) / (c.data.wins + c.data.losses)) : null;
-              return (
-                <div
-                  key={c.key}
-                  className={`cal-cell ${t} ${onSelectDay && c.data ? 'clickable' : ''}`}
-                  onClick={() => onSelectDay && c.data && onSelectDay(c)}
-                >
-                  <div className="cal-daynum">{c.day}</div>
-                  {c.data && (
-                    <div className="cal-cell-body">
-                      <div className="cal-pnl">{fmtValShort(c.data.pnl, unit)}</div>
-                      <div className="cal-tcount">{c.data.trades} trade{c.data.trades === 1 ? '' : 's'}</div>
-                      {winPct != null && <div className="cal-winpct">{winPct}%</div>}
+            {r.blank ? (
+              Array.from({ length: 8 }, (_, i) => <div key={`blank-${ri}-${i}`} className="cal-cell cal-empty" />)
+            ) : (
+              <>
+                {r.week.map((c, i) => {
+                  if (!c) return <div key={`pad-${ri}-${i}`} className="cal-cell cal-empty" />;
+                  const t = !c.data ? '' : tone(c.data.pnl);
+                  const winPct = c.data && (c.data.wins + c.data.losses) > 0 ? Math.round((100 * c.data.wins) / (c.data.wins + c.data.losses)) : null;
+                  return (
+                    <div
+                      key={c.key}
+                      className={`cal-cell ${t} ${onSelectDay && c.data ? 'clickable' : ''}`}
+                      onClick={() => onSelectDay && c.data && onSelectDay(c)}
+                    >
+                      <div className="cal-daynum">{c.day}</div>
+                      {c.data && (
+                        <div className="cal-cell-body">
+                          <div className="cal-pnl">{fmtValShort(c.data.pnl, unit)}</div>
+                          <div className="cal-tcount">{c.data.trades} trade{c.data.trades === 1 ? '' : 's'}</div>
+                          {winPct != null && <div className="cal-winpct">{winPct}%</div>}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  );
+                })}
+                <div className="cal-week-card">
+                  <div className="cal-week-label">Week {ri + 1}</div>
+                  <div className={`cal-week-val ${tone(r.pnl)}`}>{fmtValShort(r.pnl, unit)}</div>
+                  <span className="cal-week-days">{r.days} day{r.days === 1 ? '' : 's'}</span>
                 </div>
-              );
-            })}
-            <div className="cal-week-card">
-              <div className="cal-week-label">Week {ri + 1}</div>
-              <div className={`cal-week-val ${tone(r.pnl)}`}>{fmtValShort(r.pnl, unit)}</div>
-              <span className="cal-week-days">{r.days} day{r.days === 1 ? '' : 's'}</span>
-            </div>
+              </>
+            )}
           </React.Fragment>
         ))}
       </div>
