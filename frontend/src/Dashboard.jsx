@@ -8,8 +8,18 @@ import MonthCalendar from './MonthCalendar.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
 import Explain from './Explain.jsx';
 import {
-  Card, Badge, Tabs, EmptyState,
+  Card, Tabs, EmptyState, Button,
 } from './ui.jsx';
+import DashLayoutEditor from './DashLayoutEditor.jsx';
+import BriefSettingsPopover from './BriefSettingsPopover.jsx';
+import {
+  filterBriefEvents, briefEmptyReason, briefSectionOn, formatBriefTime,
+  briefEventsLabel, defaultBriefPrefs, formatBriefDate, formatBriefClock,
+} from './briefPrefs.js';
+import {
+  defaultDashLayout, visibleDashIds, isDashVisible, visibleSections,
+  widgetSpan, GRID_COLUMNS,
+} from './dashLayout.js';
 import { sevClass } from './Notifications.jsx';
 import { StatContext } from './DashWidgets.jsx';
 import { roomStatus, healthStatus } from './PropOS.jsx';
@@ -36,21 +46,42 @@ const PHASE_ORDER = { funded: 0, p2: 1, p1: 2 };
 
 // ---- Section 1: daily banner --------------------------------------------
 
-// Event time relative to now: "2:30 PM" if today, else "Mon 2:30 PM". Rendered
-// in the viewer's local timezone from the feed's tz-aware ISO timestamp.
-function fmtEventTime(iso, now = new Date()) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  if (d.toDateString() === now.toDateString()) return time;
-  return `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
+
+// Wall clock that re-renders on the minute. Two jobs: the time in the Brief's
+// heading stays honest (a `new Date()` computed once at mount would freeze at the
+// page-load time), and the time-window filter re-evaluates as events age out of
+// range — so a "Next 4 Hours" list empties on its own instead of needing a reload.
+function useMinuteClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let interval;
+    // Align the first tick to the next minute boundary so the displayed minute
+    // flips when the wall clock does, not up to 59s afterwards.
+    const timeout = setTimeout(() => {
+      setNow(new Date());
+      interval = setInterval(() => setNow(new Date()), 60_000);
+    }, 60_000 - (Date.now() % 60_000));
+    return () => { clearTimeout(timeout); clearInterval(interval); };
+  }, []);
+  return now;
 }
 
-function DailyBanner({ notifications = [] }) {
+// Copy for each reason the event list came back empty, so the banner explains
+// what to change instead of showing a dead-end "nothing found".
+const EMPTY_EVENT_COPY = {
+  'no-currencies': 'No currencies selected — pick at least one in Brief settings.',
+  'filtered-out': 'No events match your Brief settings for this window.',
+  'no-events': 'No events on the calendar right now.',
+};
+
+function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBriefSection, resetBriefPrefs }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const alerts = notifications.filter((n) => !n.read_at || n.severity !== 'info').slice(0, 3);
 
-  // Upcoming high-impact macro events (global feed via /api/calendar). null while
-  // loading; [] when the feed is empty or errored — the banner never blocks.
+  // The full upcoming feed (global, via /api/calendar) — importance, currency and
+  // time-window narrowing all happen here from the user's Brief prefs, so
+  // changing a setting re-filters instantly with no refetch. null while loading;
+  // [] when the feed is empty or errored — the banner never blocks.
   const [events, setEvents] = useState(null);
   useEffect(() => {
     let live = true;
@@ -60,33 +91,131 @@ function DailyBanner({ notifications = [] }) {
     return () => { live = false; };
   }, []);
 
+  // Stable between ticks, so it's safe as a memo dep — and including it is what
+  // lets the window filter age events out on its own.
+  const now = useMinuteClock();
+  const shown = useMemo(
+    () => filterBriefEvents(events || [], prefs, now).slice(0, 4),
+    [events, prefs, now],
+  );
+  const emptyReason = events == null ? null : briefEmptyReason(events, prefs, now);
+
+  // A section is rendered when its toggle is on AND either it has content or the
+  // user hasn't asked for empty sections to be hidden.
+  const showEvents = briefSectionOn(prefs, 'events') && (!prefs.hideEmpty || shown.length > 0);
+  const showAlerts = briefSectionOn(prefs, 'alerts') && (!prefs.hideEmpty || alerts.length > 0);
+  // With everything hidden the banner would collapse to a bare title bar, which
+  // reads as broken — say so instead.
+  const allQuiet = !showEvents && !showAlerts;
+
   return (
     <div className="dash-banner">
+      <div className="dash-banner-head">
+        <h3>Today's Brief</h3>
+        <span className="dash-banner-date">
+          {formatBriefDate(now, prefs.timezone)}
+          <span className="dash-banner-clock">{formatBriefClock(now, prefs.timezone)}</span>
+        </span>
+        <div className="bs-anchor">
+        <button
+          type="button"
+          className={`dash-banner-settings ${settingsOpen ? 'is-open' : ''}`}
+          title="Brief settings"
+          aria-label="Brief settings"
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen((o) => !o)}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V10a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+        <BriefSettingsPopover
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          prefs={prefs}
+          patchBriefPrefs={patchBriefPrefs}
+          setBriefSection={setBriefSection}
+          resetBriefPrefs={resetBriefPrefs}
+        />
+        </div>
+      </div>
+
+      {showEvents && (
       <div className="dash-banner-news">
-        <div className="dash-banner-label">High-impact events</div>
+        <div className="dash-banner-label">{briefEventsLabel(prefs)}</div>
         {events == null ? (
           <div className="dash-banner-empty muted">Loading economic calendar…</div>
-        ) : events.length === 0 ? (
-          <div className="dash-banner-empty muted">No high-impact events on the calendar.</div>
+        ) : shown.length === 0 ? (
+          <div className="dash-banner-empty muted">{EMPTY_EVENT_COPY[emptyReason] || EMPTY_EVENT_COPY['no-events']}</div>
         ) : (
           <ul className="dash-events">
-            {events.slice(0, 4).map((e, i) => (
+            {shown.map((e, i) => (
               <li key={`${e.date}-${e.title}-${i}`} className="dash-event">
                 <span className="dash-event-ccy">{e.country}</span>
                 <span className="dash-event-title" title={e.title}>{e.title}</span>
-                <span className="dash-event-time">{fmtEventTime(e.date)}</span>
+                <span className="dash-event-time">{formatBriefTime(e.date, prefs.timezone, now)}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
-      <div className="dash-banner-alerts">
-        {alerts.length === 0 ? (
-          <span className="muted">No account alerts right now.</span>
-        ) : alerts.map((n) => (
-          <span key={n.id} className={`dash-banner-alert ${sevClass(n.severity)}`}>{n.title}</span>
-        ))}
+      )}
+
+      {showAlerts && (
+        <div className="dash-banner-alerts">
+          {alerts.length === 0 ? (
+            <span className="muted">No account alerts right now.</span>
+          ) : alerts.map((n) => (
+            <span key={n.id} className={`dash-banner-alert ${sevClass(n.severity)}`}>{n.title}</span>
+          ))}
+        </div>
+      )}
+
+      {allQuiet && (
+        <div className="dash-banner-empty muted">
+          Every Brief section is hidden or empty — turn one back on in Brief settings.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Dashboard-level actions, sitting in the reserved strip between Today's Brief
+// and the KPI row. Deliberately chrome-free — no panel, border or divider — so
+// it reads as two controls floating in whitespace rather than a third section.
+// Sync Trades is still a placeholder (the timestamp is static copy); Customize
+// opens the layout panel.
+function DashActions({ onCustomize }) {
+  return (
+    <div className="dash-actions">
+      <div className="dash-actions-left">
+        <Button variant="secondary" size="sm" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+            <path d="M21 21v-5h-5" />
+          </svg>
+          Sync Trades
+        </Button>
+        <span className="dash-actions-status">Last synced: 2 min ago</span>
       </div>
+
+      <Button
+        variant="secondary"
+        size="sm"
+        type="button"
+        className="dash-actions-customize"
+        title="Customize layout"
+        aria-label="Customize layout"
+        onClick={onCustomize}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3" />
+          <path d="M14 2v4M8 10v4M16 18v4" />
+        </svg>
+      </Button>
     </div>
   );
 }
@@ -175,20 +304,28 @@ function RecentTrades({ trades, unit, beRounding }) {
     return <EmptyState title="No trades yet" description="Recent trades show up here once you have closed trades." />;
   }
   return (
-    <div className="jo-recent">
-      {recent.map((t) => {
-        const out = tradeOutcome(t, unit, beRounding);
-        const val = Number(t[field]);
-        return (
-          <div className="jo-trade" key={t.id}>
-            <span className="jo-trade-sym">{t.symbol_base || t.symbol}</span>
-            <Badge tone="neutral">{(t.direction || '').toUpperCase() || '—'}</Badge>
-            <span className={`jo-trade-val ${out === 'win' ? 'pos' : out === 'loss' ? 'neg' : ''}`}>{fmtVal(val, unit)}</span>
-            <span className="jo-trade-date">{fmtDate(t.close_time)}</span>
-          </div>
-        );
-      })}
-    </div>
+    <table className="jo-recent-table">
+      <thead>
+        <tr>
+          <th className="jo-rt-date">Date</th>
+          <th className="jo-rt-symbol">Symbol</th>
+          <th className="jo-rt-val">Net P&amp;L</th>
+        </tr>
+      </thead>
+      <tbody>
+        {recent.map((t) => {
+          const out = tradeOutcome(t, unit, beRounding);
+          const val = Number(t[field]);
+          return (
+            <tr key={t.id}>
+              <td className="jo-rt-date">{fmtDate(t.close_time)}</td>
+              <td className="jo-rt-symbol">{t.symbol_base || t.symbol}</td>
+              <td className={`jo-rt-val num jo-trade-val ${out === 'win' ? 'pos' : out === 'loss' ? 'neg' : ''}`}>{fmtVal(val, unit)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -204,7 +341,7 @@ function OpenPositions() {
 function ActivityCard({ trades, unit, beRounding }) {
   const [tab, setTab] = useState('recent');
   return (
-    <Card className="dash-activity">
+    <Card className="dash-activity card-md">
       <Tabs
         tabs={[{ value: 'recent', label: 'Recent Trades' }, { value: 'open', label: 'Open Positions' }]}
         value={tab}
@@ -230,7 +367,7 @@ function CumulativePnlCard({ days, unit }) {
   }, [days]);
 
   return (
-    <Card className="dash-equity">
+    <Card className="dash-equity card-md">
       <div className="dash-equity-head">
         <h3>Daily net cumulative {unit === 'USD' ? 'P&L' : 'R'}</h3>
         <Explain>Running total of each day's closed P&amp;L, in order, across all trades.</Explain>
@@ -579,7 +716,12 @@ export default function Dashboard() {
   const {
     trades = [], accounts = [], accountId = 'all', setAccountId,
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
+    dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
+    briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
   } = useOutletContext();
+  const layout = dashLayout || defaultDashLayout();
+  const brief = briefPrefs || defaultBriefPrefs();
+  const [customizeOpen, setCustomizeOpen] = useState(false);
 
   const beRounding = !!tradeSettings.beRounding;
   const m = useMemo(() => computeMetrics(trades, unit, beRounding), [trades, unit, beRounding]);
@@ -625,6 +767,108 @@ export default function Dashboard() {
     return found || candidates[0];
   }, [candidates, pinnedAccounts]);
 
+  // ---- layout-driven render ----
+  // Every customizable widget is a thunk keyed by its layout id, so the page's
+  // order is literally the order of the arrays in `layout`, and there is a single
+  // place that knows how to build each widget. The layout editor renders its
+  // wireframe from those same arrays, which is what keeps the two in step.
+  const kpiCard = {
+    netPnl: () => <NetPnlCard m={m} unit={unit} />,
+    tradeWin: () => <TradeWinCard m={m} />,
+    profitFactor: () => <ProfitFactorCard m={m} />,
+    dayWin: () => <DayWinCard days={dayStats} />,
+    avgWinLoss: () => <AvgWinLossCard m={m} unit={unit} />,
+  };
+
+  // Main-grid widgets. Each is placed by CSS Grid's dense auto-flow from its
+  // ordinal position + its catalogue size — no coordinates anywhere.
+  const gridWidget = {
+    account: () => (!selectedAccount ? (
+      <Card className="dash-acct-card dash-acct-card-wide">
+        <EmptyState
+          title="No prop accounts yet"
+          description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
+        />
+      </Card>
+    ) : (
+      <AccountCard
+        data={selectedAccount}
+        candidates={candidates}
+        selectedId={selectedAccount.account_id}
+        onSelect={(id) => setPinnedAccounts([id])}
+        onOpen={() => setAccountId(String(selectedAccount.account_id))}
+        accounts={accounts}
+        onChanged={loadProp}
+      />
+    )),
+    calendar: () => (
+      <div className="panel dash-cal-panel card-lg">
+        <MonthCalendar
+          year={calYear}
+          month={calMonth}
+          dayMap={dayMap}
+          unit={unit}
+          onPrev={() => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+          onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+          onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
+          onSelectDay={(c) => setSelectedDay(c.key)}
+        />
+      </div>
+    ),
+    activity: () => <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />,
+    cumulative: () => <CumulativePnlCard days={m.days} unit={unit} />,
+  };
+
+  const visibleKpis = visibleDashIds(layout, 'kpis');
+  const visibleWidgets = visibleDashIds(layout, 'main');
+
+  const sectionNode = {
+    brief: () => (
+      <DailyBanner
+        notifications={notifications}
+        prefs={brief}
+        patchBriefPrefs={patchBriefPrefs}
+        setBriefSection={setBriefSection}
+        resetBriefPrefs={resetBriefPrefs}
+      />
+    ),
+
+    // --kpi-count drives the column count, so hiding a card re-splits the row
+    // evenly instead of leaving a hole where it used to be.
+    kpis: () => (
+      <div className="jo-kpis dash-stats" style={{ '--kpi-count': visibleKpis.length }}>
+        {visibleKpis.map((id) => <React.Fragment key={id}>{kpiCard[id]()}</React.Fragment>)}
+      </div>
+    ),
+
+    // The content grid. GRID_COLUMNS wide with dense packing, and row height is
+    // the existing --dash-card-h-md card unit — so a `large` (2x2) calendar comes
+    // out at exactly the height the old fixed card-lg class produced.
+    main: () => (
+      <div className="dash-grid" style={{ '--dash-grid-cols': GRID_COLUMNS }}>
+        {visibleWidgets.map((id) => {
+          const { cols, rows } = widgetSpan(id);
+          return (
+            <div
+              key={id}
+              className="dash-grid-cell"
+              style={{ gridColumn: `span ${cols}`, gridRow: `span ${rows}` }}
+            >
+              {gridWidget[id]()}
+            </div>
+          );
+        })}
+      </div>
+    ),
+  };
+
+  const sections = visibleSections(layout);
+  // The action strip is fixed chrome, not a customizable widget — it rides
+  // directly under Today's Brief (preserving the designed arrangement even if
+  // the Brief is dragged elsewhere). With the Brief hidden it goes to the top,
+  // so the Customize button is never unreachable.
+  const stripAfter = isDashVisible(layout, 'brief') ? 'brief' : null;
+
   return (
     <div className="page">
       <DayTradesModal
@@ -635,57 +879,23 @@ export default function Dashboard() {
         onClose={() => setSelectedDay(null)}
       />
 
+      <DashLayoutEditor
+        open={customizeOpen}
+        onClose={() => setCustomizeOpen(false)}
+        layout={layout}
+        setDashVisible={setDashVisible}
+        moveDashWidget={moveDashWidget}
+        resetDashLayout={resetDashLayout}
+      />
+
       <div className="page-body dash-page-body">
-        <DailyBanner notifications={notifications} />
-
-        <div className="jo-kpis dash-stats">
-          <NetPnlCard m={m} unit={unit} />
-          <TradeWinCard m={m} />
-          <ProfitFactorCard m={m} />
-          <DayWinCard days={dayStats} />
-          <AvgWinLossCard m={m} unit={unit} />
-        </div>
-
-        {!selectedAccount ? (
-          <Card className="dash-acct-card dash-acct-card-wide">
-            <EmptyState
-              title="No prop accounts yet"
-              description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
-            />
-          </Card>
-        ) : (
-          <AccountCard
-            data={selectedAccount}
-            candidates={candidates}
-            selectedId={selectedAccount.account_id}
-            onSelect={(id) => setPinnedAccounts([id])}
-            onOpen={() => setAccountId(String(selectedAccount.account_id))}
-            accounts={accounts}
-            onChanged={loadProp}
-          />
-        )}
-
-        <div className="dash-main">
-          <div className="dash-col-left">
-            <div className="panel dash-cal-panel">
-              <MonthCalendar
-                year={calYear}
-                month={calMonth}
-                dayMap={dayMap}
-                unit={unit}
-                onPrev={() => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
-                onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
-                onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
-                onSelectDay={(c) => setSelectedDay(c.key)}
-              />
-            </div>
-          </div>
-
-          <div className="dash-col-right">
-            <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />
-            <CumulativePnlCard days={m.days} unit={unit} />
-          </div>
-        </div>
+        {stripAfter === null && <DashActions onCustomize={() => setCustomizeOpen(true)} />}
+        {sections.map((id) => (
+          <React.Fragment key={id}>
+            {sectionNode[id]()}
+            {stripAfter === id && <DashActions onCustomize={() => setCustomizeOpen(true)} />}
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );

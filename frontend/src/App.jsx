@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, filterTrades, availableOptions } from './filters.js';
+import { sanitizeDashLayout, defaultDashLayout, moveDashIdBefore } from './dashLayout.js';
+import { sanitizeBriefPrefs, defaultBriefPrefs } from './briefPrefs.js';
 import { applyBeRounding } from './metrics.js';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
@@ -133,6 +135,41 @@ export default function App() {
     return { ...prev, [sk]: fn(cur) };
   });
   const setUnit = (u) => setViewConfigs((prev) => ({ ...prev, unit: u }));
+
+  // Dashboard layout — global like `unit`, not per scope, so switching accounts
+  // never rearranges the page. Sanitized on read rather than on hydrate so a
+  // blob saved before a widget existed still resolves to a complete layout.
+  const dashLayout = useMemo(() => sanitizeDashLayout(viewConfigs.dashLayout), [viewConfigs.dashLayout]);
+  const mutateDashLayout = (fn) => setViewConfigs((prev) => ({
+    ...prev,
+    dashLayout: fn(sanitizeDashLayout(prev.dashLayout)),
+  }));
+  const setDashVisible = (id, visible) => mutateDashLayout((l) => {
+    const hidden = { ...l.hidden };
+    if (visible) delete hidden[id]; else hidden[id] = true;
+    return { ...l, hidden };
+  });
+  // Addressed by id, not index: the layout editor reorders live during a drag, so
+  // an index captured at drag start is stale by the next pointermove.
+  const moveDashWidget = (zone, id, targetId) => mutateDashLayout((l) => ({
+    ...l,
+    [zone]: moveDashIdBefore(l[zone], id, targetId),
+  }));
+  const resetDashLayout = () => mutateDashLayout(() => defaultDashLayout());
+
+  // Today's Brief widget preferences — global like the dashboard layout, for the
+  // same reason: news filters shouldn't change on an account switch.
+  const briefPrefs = useMemo(() => sanitizeBriefPrefs(viewConfigs.briefPrefs), [viewConfigs.briefPrefs]);
+  const patchBriefPrefs = (patch) => setViewConfigs((prev) => ({
+    ...prev,
+    briefPrefs: { ...sanitizeBriefPrefs(prev.briefPrefs), ...patch },
+  }));
+  const setBriefSection = (id, on) => setViewConfigs((prev) => {
+    const cur = sanitizeBriefPrefs(prev.briefPrefs);
+    return { ...prev, briefPrefs: { ...cur, sections: { ...cur.sections, [id]: !!on } } };
+  });
+  const resetBriefPrefs = () => setViewConfigs((prev) => ({ ...prev, briefPrefs: defaultBriefPrefs() }));
+
   const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...c.filters, ...p } }));
   const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
   // The Dashboard's selected prop account (god scope), passed as [login].
@@ -360,6 +397,14 @@ export default function App() {
                 clearFilters={clearFilters}
                 pinnedAccounts={pinnedAccounts}
                 setPinnedAccounts={setPinnedAccounts}
+                dashLayout={dashLayout}
+                setDashVisible={setDashVisible}
+                moveDashWidget={moveDashWidget}
+                resetDashLayout={resetDashLayout}
+                briefPrefs={briefPrefs}
+                patchBriefPrefs={patchBriefPrefs}
+                setBriefSection={setBriefSection}
+                resetBriefPrefs={resetBriefPrefs}
                 tradeSettings={tradeSettings}
                 setBeRounding={setBeRounding}
                 setColumnVisible={setColumnVisible}

@@ -62,7 +62,7 @@ import {
 import { computeStats, computeYearly } from './aggregations.js';
 import { registry as metricsRegistry, recordHttp } from './metrics.js';
 import { buildReport, propStatesForScope, reportCsvRows, toCsv } from './reports.js';
-import { getHighImpactEvents } from './calendar.js';
+import { getCalendarEvents } from './calendar.js';
 import {
   priceToPips,
   pipSize,
@@ -1234,13 +1234,16 @@ app.post('/api/notifications/read', { preHandler: app.requireAuth }, async (req)
 });
 
 // ---------------------------------------------------------------------------
-// Economic calendar — upcoming high-impact macro events for the dashboard
-// banner. Global (not user-scoped): the free ForexFactory weekly feed is the
-// same for everyone, cached in-process (src/calendar.js). Never fails the page —
-// on a feed error it returns [] and the banner shows its fallback.
+// Economic calendar — the upcoming macro events for Today's Brief, each with a
+// normalized `impact` label. Global (not user-scoped): the free ForexFactory
+// weekly feed is the same for everyone, cached in-process (src/calendar.js).
+// Returns the whole upcoming window unfiltered; importance/currency/time-window
+// filtering is a per-user Today's Brief preference applied client-side. Never
+// fails the page — on a feed error it returns [] and the banner shows its
+// fallback.
 // ---------------------------------------------------------------------------
 app.get('/api/calendar', { preHandler: app.requireAuth }, async () =>
-  ({ events: await getHighImpactEvents() })
+  ({ events: await getCalendarEvents() })
 );
 
 // ---------------------------------------------------------------------------
