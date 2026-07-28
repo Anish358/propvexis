@@ -220,8 +220,8 @@ async function loadAdherence(scope, unit, filters, beRound) {
 
 // `scope` from resolveScope: god -> user_id = me, an explicit account selection
 // -> account_id = ANY(logins). The predicate is built by scopeCondition (safe).
-// `filters` are the global data filters (setups/symbols/sessions/probability/
-// outcome/date range) applied app-wide.
+// `filters` are the global data filters — the SQL half of the client's filter
+// registry, built by buildTradeWhere in statsSql.js — applied app-wide.
 export async function computeStats(scope, unit = 'R', filters = {}, beRound = false) {
   const { sql, params } = statsQuery(scope, unit, filters, beRound);
   const [{ rows }, adherence] = await Promise.all([

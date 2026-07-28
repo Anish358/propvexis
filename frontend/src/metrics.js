@@ -145,6 +145,7 @@ export function computeMetrics(trades, unit = 'R', beRounding = false) {
     tradeCount: ts.length,
     wins: wins.length,
     losses: losses.length,
+    breakevens: ts.length - wins.length - losses.length,
     winRate: round(winRate, 1),
     profitFactor: round(profitFactor),
     avgWin: round(avgWin),

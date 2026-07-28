@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NAV, LEGACY_REDIRECTS, navRoutes } from '../frontend/src/nav.js';
+import { NAV, LEGACY_REDIRECTS, navRoutes, navTitle, OFF_NAV_TITLES } from '../frontend/src/nav.js';
 
 // The IA config (frontend/src/nav.js) is deliberately JSX-free so we can guard
 // its invariants here: the Sidebar and the route table both render from it, so
@@ -60,5 +60,60 @@ test('navRoutes excludes redirect sources', () => {
   const routes = navRoutes();
   for (const from of Object.keys(LEGACY_REDIRECTS)) {
     assert.ok(!routes.includes(from), `${from} should be a redirect, not a route`);
+  }
+});
+
+// ---- navTitle: the top bar's "you are here" label ---------------------------
+// It reads from this same config, so the top bar and sidebar can never disagree
+// about which page is open.
+
+test('navTitle: top-level routes name themselves, with no module', () => {
+  assert.deepEqual(navTitle('/'), { module: null, page: 'Dashboard' });
+  assert.deepEqual(navTitle('/strategies'), { module: null, page: 'Strategies' });
+  assert.deepEqual(navTitle('/alerts'), { module: null, page: 'Alerts' });
+  assert.deepEqual(navTitle('/settings'), { module: null, page: 'Settings' });
+});
+
+test('navTitle: module routes carry the module name', () => {
+  // The module is what disambiguates: Trade Journal and Prop OS BOTH have an
+  // Analytics page, so a bare leaf label would be identical for two routes.
+  assert.deepEqual(navTitle('/journal/analytics'), { module: 'Trade Journal', page: 'Analytics' });
+  assert.deepEqual(navTitle('/prop/analytics'), { module: 'Prop OS', page: 'Analytics' });
+  assert.deepEqual(navTitle('/journal/trades'), { module: 'Trade Journal', page: 'Trade Log' });
+  assert.deepEqual(navTitle('/prop/finance'), { module: 'Prop OS', page: 'Finance' });
+});
+
+test('navTitle: `end` entries own only their exact path', () => {
+  // '/' is end:true, so it must not swallow every route in the app.
+  assert.deepEqual(navTitle('/journal'), { module: 'Trade Journal', page: 'Overview' });
+  assert.deepEqual(navTitle('/prop'), { module: 'Prop OS', page: 'Overview' });
+  assert.notDeepEqual(navTitle('/strategies'), { module: null, page: 'Dashboard' });
+});
+
+test('navTitle: normalizes trailing slashes and legacy paths', () => {
+  assert.deepEqual(navTitle('/journal/trades/'), { module: 'Trade Journal', page: 'Trade Log' });
+  assert.deepEqual(navTitle('/'), navTitle('/'));
+  // A legacy path resolves rather than blanking for the frame before the
+  // router's redirect lands.
+  for (const [from, to] of Object.entries(LEGACY_REDIRECTS)) {
+    assert.deepEqual(navTitle(from), navTitle(to), `${from} should title the same as ${to}`);
+  }
+});
+
+test('navTitle: unknown paths return null instead of guessing', () => {
+  for (const p of ['/nope', '/journal-ish', '/login', '']) {
+    assert.equal(navTitle(p), null, `${p} should have no title`);
+  }
+  assert.deepEqual(navTitle(), { module: null, page: 'Dashboard' }, 'defaults to root');
+});
+
+test('navTitle: every real route in the app has a name', () => {
+  // A route with no title renders a blank top-left corner, which reads as a bug.
+  for (const to of navRoutes()) {
+    assert.ok(navTitle(to), `no title for nav route ${to}`);
+  }
+  // Routes reached from a menu rather than the sidebar are covered too.
+  for (const [path, label] of Object.entries(OFF_NAV_TITLES)) {
+    assert.deepEqual(navTitle(path), { module: null, page: label });
   }
 });
