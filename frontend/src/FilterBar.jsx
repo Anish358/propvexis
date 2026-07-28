@@ -7,13 +7,14 @@ import { NotificationBell } from './Notifications.jsx';
 import AccountsModal from './AccountsModal.jsx';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
 
-// Light/dark switch — NOT CURRENTLY MOUNTED. The light theme is authored (see
-// :root[data-theme="light"] in styles.css) and its contrast is verified, but it
-// hasn't been visually reviewed and the UI is still changing fast, so exposing it
-// would ship a half-finished look. Kept intact rather than deleted: re-enabling is
-// putting <ThemeToggle theme={theme} setTheme={setTheme} /> back next to
-// <NotificationBell> below. Shows the theme you'd GET by clicking — a sun while
-// you're in dark — which reads faster than showing the state you're already in.
+// Light/dark switch. Shows the theme you'd GET by clicking — a sun while you're in
+// dark — which reads faster than showing the state you're already in.
+//
+// The light theme it toggles is KNOWINGLY UNFINISHED: contrast is verified but the
+// palette hasn't been tuned, and it currently reads flat (white sidebar against a
+// near-white page, cards barely separated from it). Mounted deliberately anyway so
+// it can be improved in place. Dark is unaffected either way — dark is :root, and
+// the toggle only adds data-theme="light" to <html>.
 function ThemeToggle({ theme, setTheme }) {
   const toLight = theme !== 'light';
   return (
@@ -301,7 +302,7 @@ export default function FilterBar({
           setAccountId={setAccountId}
           onManage={() => setManageOpen(true)}
         />
-        {/* <ThemeToggle theme={theme} setTheme={setTheme} /> — parked, see above */}
+        <ThemeToggle theme={theme} setTheme={setTheme} />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
         <UserMenu
           unit={unit}

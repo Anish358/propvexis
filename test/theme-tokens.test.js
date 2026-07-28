@@ -264,11 +264,11 @@ test('the theme toggle is wired to a server-synced preference', () => {
   assert.match(app, /el\.dataset\.theme = 'light'/);
   assert.match(app, /delete el\.dataset\.theme/);
   for (const p of ['theme', 'setTheme']) assert.ok(layout.includes(p), `Layout must pass ${p}`);
-  // The button is deliberately PARKED: the light palette is authored and its
-  // contrast verified, but it hasn't been reviewed on screen and the UI is still
-  // moving, so it isn't mounted. The component stays so re-enabling is one line.
-  assert.match(bar, /function ThemeToggle/, 'keep the component for when it is re-enabled');
-  assert.match(bar, /\{\/\* <ThemeToggle/, 'the mount point should be commented, not deleted');
+  // Mounted, sitting next to the notification bell. The light palette it switches
+  // to is knowingly unfinished; dark is unaffected, since dark is :root and the
+  // toggle only adds data-theme="light".
+  assert.match(bar, /function ThemeToggle/);
+  assert.ok(bar.indexOf('<ThemeToggle') < bar.indexOf('<NotificationBell'));
   assert.match(bar, /aria-label=\{toLight \? 'Switch to light theme' : 'Switch to dark theme'\}/);
 });
 
