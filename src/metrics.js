@@ -77,6 +77,15 @@ new client.Gauge({
   registers: [registry],
   collect() { this.set(pool.waitingCount); },
 });
+// The ceiling, so saturation is computable (total/max) instead of guessed, and so
+// the effective PG_POOL_MAX is observable — it can arrive from SSM at runtime,
+// which means it is not visible in the process's exec-time environment.
+new client.Gauge({
+  name: 'pg_pool_max_connections',
+  help: 'Configured max clients for this process pool (PG_POOL_MAX)',
+  registers: [registry],
+  collect() { this.set(pool.options.max); },
+});
 
 // ---- analytics cache + cluster safety ----
 // Hit ratio tells us whether the /api/stats cache is earning its keep; the
