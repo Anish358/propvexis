@@ -2383,6 +2383,41 @@ label.full { margin-bottom: 16px; }
   position: sticky; top: 0; z-index: var(--z-nav);
 }
 .tb-left, .tb-right { display: flex; align-items: center; gap: 8px; }
+/* .tb-left can be empty (sidebar showing, unrecognized route). Collapse it away
+   or .topbar's 12px gap leaves a phantom indent before the page-actions slot. */
+.tb-left:empty { display: none; }
+
+/* Current page name. Resolved from the same NAV config the sidebar renders, so
+   the two can't drift. Inside a module it reads "Trade Journal › Analytics" —
+   the module matters because both Journal and Prop OS have an Analytics page.
+   Sized as a label, not a page heading: the sidebar already marks where you are,
+   this just names it, so it stays quieter than the sidebar's active item. */
+.tb-title {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0; min-width: 0;
+  /* 18px — deliberately between --fs-section-title (16px) and --fs-page-title
+     (24px), which would crowd a bar whose controls are 30px tall. Hierarchy
+     between module and page comes from color + weight below, so both parts stay
+     one size. */
+  font-size: 18px; font-weight: 400; white-space: nowrap;
+}
+/* Quiet icon-only control for the top bar's right-hand group (theme switch).
+   Matches the notification bell's footprint so the group stays evenly spaced. */
+.tb-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex: none;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-md);
+  color: var(--text-2); cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.tb-icon-btn:hover { color: var(--text); background: var(--surface-hover); border-color: var(--line); }
+.tb-icon-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+
+.tb-title-module { color: var(--text-3); }
+/* The separator is generated rather than markup — it only exists when there's a
+   module to separate from. */
+.tb-title-module::after { content: '›'; margin-left: 6px; }
+.tb-title-page { color: var(--text); font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; }
 
 /* Unit toggle — subtle segmented control (no outer border) */
 .fb-unit { display: inline-flex; background: var(--surface-2); border: 0; border-radius: var(--r-md); padding: 4px; overflow: hidden; }

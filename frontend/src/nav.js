@@ -60,6 +60,45 @@ export const LEGACY_REDIRECTS = {
   '/journal/backtesting': '/backtesting',
 };
 
+// Routes that exist in the router but deliberately aren't in the sidebar (reached
+// from a menu instead), so the top bar can still name them.
+export const OFF_NAV_TITLES = {
+  '/billing': 'Manage plan',
+};
+
+// Which nav entry is the given pathname currently on? Returns
+// `{ module, page }` — `module` is only set for a route inside a module, so the
+// top bar can read "Trade Journal › Trade Log" rather than a bare "Trade Log"
+// that could belong to either module's Analytics page. null for an unknown path,
+// which the caller renders as nothing rather than guessing.
+//
+// Pure and JSX-free like the rest of this file, so it's unit testable and the
+// sidebar and top bar can never disagree about what page you're on.
+export function navTitle(pathname = '/') {
+  // Trailing slash, and legacy paths in case one is hit before the redirect
+  // lands (the title would otherwise blank for a frame).
+  let path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  if (path in LEGACY_REDIRECTS) path = LEGACY_REDIRECTS[path];
+
+  // `end` entries (Dashboard, each module's Overview) own only their exact path;
+  // everything else also owns its subtree.
+  const owns = (to, end) => (end ? path === to : path === to || path.startsWith(`${to}/`));
+
+  for (const item of NAV) {
+    if (item.children) {
+      if (!owns(item.base, false)) continue;
+      const child = item.children.find((c) => owns(c.to, c.end));
+      // A module path with no matching child (e.g. a page not yet in the IA)
+      // still names the module rather than falling through to null.
+      return { module: item.label, page: child ? child.label : item.label };
+    }
+    if (owns(item.to, item.end)) return { module: null, page: item.label };
+  }
+
+  if (path in OFF_NAV_TITLES) return { module: null, page: OFF_NAV_TITLES[path] };
+  return null;
+}
+
 // Flat list of every real (non-redirect) route the NAV points at — used by tests
 // to assert the route table and the nav config never drift apart.
 export function navRoutes() {

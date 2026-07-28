@@ -216,8 +216,9 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
   );
 }
 
-// The single global bar. Left: view controls (unit + filters). Middle→right:
-// per-page actions portaled in from PageHeader (slotRef). Right: the always-on
+// The single global bar. Left: only the sidebar re-opener, when the sidebar is
+// collapsed. Middle→right: per-page actions portaled in from PageHeader
+// (slotRef). Right: the view controls (unit + filters) followed by the always-on
 // controls — account scope switcher, notifications, account avatar. Page content
 // starts directly below this bar (pages no longer render their own header row).
 export default function FilterBar({
