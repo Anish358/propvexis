@@ -52,6 +52,29 @@ export async function loginWithGoogle(credential) {
   return (await res.json()).user;
 }
 
+// Email + password. Both return the user; both throw an Error whose message is
+// the server's user-facing string (the auth routes are written to be quotable
+// straight into the form).
+async function postCredentials(path, body) {
+  const res = await fetch(`${BACKEND_URL}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const msg = await res.json().catch(() => ({}));
+    throw new Error(msg.error || `request failed (${res.status})`);
+  }
+  return (await res.json()).user;
+}
+
+export const signupWithPassword = ({ name, email, password }) =>
+  postCredentials('/api/auth/signup', { name, email, password });
+
+export const loginWithPassword = ({ email, password }) =>
+  postCredentials('/api/auth/login', { email, password });
+
 export async function logout() {
   await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
 }

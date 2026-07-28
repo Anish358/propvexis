@@ -1552,26 +1552,67 @@ label.full { margin-bottom: 16px; }
 .auth-alt a { color: var(--accent); text-decoration: none; font-weight: var(--fw-medium); }
 .auth-alt a:hover { text-decoration: underline; text-underline-offset: 2px; }
 
-.auth-cta { margin-top: var(--s-8); }
-.auth-gsi { min-height: 44px; }
-.auth-gsi-wait { font-size: 12px; color: var(--text-3); }
-.auth-note { margin: var(--s-3) 0 0; max-width: 330px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
-.auth-error { margin-top: var(--s-4); max-width: 330px; text-align: left; }
+/* -- email + password form -- */
+.auth-form { max-width: 340px; margin-top: var(--s-6); display: flex; flex-direction: column; gap: var(--s-3); }
+.auth-field { display: flex; flex-direction: column; gap: 6px; }
+.auth-field > span { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--text-2); }
+.auth-field em { font-style: normal; font-size: 11px; color: var(--text-3); }
+.auth-field input {
+  width: 100%; box-sizing: border-box; font-family: inherit; font-size: 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-input);
+  padding: 11px 12px; color: var(--text);
+}
+.auth-field input::placeholder { color: var(--text-3); }
+.auth-field input:focus {
+  outline: none; border-color: var(--accent-border-strong); box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.auth-field input:disabled { opacity: 0.6; }
+.auth-pw { position: relative; display: block; }
+.auth-pw input { padding-right: 42px; }
+.auth-pw-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  display: flex; padding: 6px; border: 0; background: transparent; cursor: pointer;
+  color: var(--text-3); border-radius: var(--r-sm);
+}
+.auth-pw-toggle:hover { color: var(--text-2); }
+.auth-submit {
+  margin-top: var(--s-2); min-height: 44px; border: 0; border-radius: var(--r-full);
+  background: var(--accent-strong); color: var(--on-accent); cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: var(--fw-medium);
+  transition: background var(--dur-fast) var(--ease);
+}
+.auth-submit:hover:not(:disabled) { background: var(--accent); }
+.auth-submit:disabled { opacity: 0.65; cursor: default; }
 
-.auth-points {
-  margin: var(--s-8) 0 0; padding: var(--s-6) 0 0; list-style: none;
-  border-top: 1px solid var(--line); max-width: 360px;
-  display: flex; flex-direction: column; gap: var(--s-3);
+.auth-or {
+  display: flex; align-items: center; gap: var(--s-3);
+  max-width: 340px; margin: var(--s-4) 0; font-size: 12px; color: var(--text-3);
 }
-.auth-points li {
-  position: relative; padding-left: var(--s-6);
-  font-size: 13px; line-height: 1.5; color: var(--text-2);
+.auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* Google: our styled face, with the real widget stacked over it at zero opacity
+   so the click still lands on Google's own button. The widget is an iframe —
+   unstylable, and its white logo tile fights the dark page — so this is the only
+   way to get a button that matches the rest of the form. */
+.auth-google { position: relative; max-width: 340px; height: 44px; }
+.auth-google-face {
+  position: absolute; inset: 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; gap: var(--s-2);
+  border: 1px solid var(--line-strong); border-radius: var(--r-full);
+  background: var(--surface-2); color: var(--text); font-size: 14px;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
-.auth-points li::before {
-  content: ''; position: absolute; left: 0; top: 7px;
-  width: 6px; height: 6px; border-radius: var(--r-full);
-  background: var(--accent-border-strong);
+.auth-google:hover .auth-google-face { background: var(--surface-hover); border-color: var(--accent-border); }
+.auth-google:focus-within .auth-google-face {
+  border-color: var(--accent-border-strong); box-shadow: 0 0 0 3px var(--accent-ring);
 }
+/* Until the GSI script has rendered its button there's nothing to click. */
+.auth-google[data-ready="no"] .auth-google-face { opacity: 0.45; }
+.auth-gsi { position: absolute; inset: 0; opacity: 0; }
+.auth-gsi > div, .auth-gsi iframe { width: 100% !important; }
+
+.auth-note { margin: var(--s-4) 0 0; max-width: 340px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
+.auth-error { max-width: 340px; text-align: left; }
 
 .auth-foot {
   position: relative; z-index: 2; flex: none;
