@@ -42,9 +42,12 @@ export function decodeInvalidation(raw) {
   }
 }
 
-export function createStatsBus({ cache, publish = null, origin = newOrigin(), log = console } = {}) {
+export function createStatsBus({
+  cache, publish = null, origin = newOrigin(), log = console, channel: initialChannel = INVALIDATE_CHANNEL,
+} = {}) {
   let published = 0, received = 0, ignored = 0, publishErrors = 0;
   let send = publish;
+  let channel = initialChannel;
 
   return {
     origin,
@@ -53,7 +56,14 @@ export function createStatsBus({ cache, publish = null, origin = newOrigin(), lo
 
     // Redis is connected asynchronously at boot, after this module is imported,
     // so the transport is attached late rather than passed to the constructor.
-    setTransport(fn) { send = typeof fn === 'function' ? fn : null; },
+    // `ch` namespaces the channel per environment — three envs share one Redis
+    // and pub/sub is global, so an un-namespaced channel would let one env's
+    // invalidations flush another's cache.
+    setTransport(fn, ch = null) {
+      send = typeof fn === 'function' ? fn : null;
+      if (ch) channel = ch;
+    },
+    get channel() { return channel; },
 
     // Call this instead of cache.invalidateUser() on every write path.
     invalidate(userId) {
@@ -61,7 +71,7 @@ export function createStatsBus({ cache, publish = null, origin = newOrigin(), lo
       cache.invalidateUser(userId);
       if (typeof send !== 'function') return;
       try {
-        send(INVALIDATE_CHANNEL, encodeInvalidation(userId, origin));
+        send(channel, encodeInvalidation(userId, origin));
         published += 1;
       } catch (err) {
         // A failed fanout leaves OTHER workers stale until their TTL. Loud, but

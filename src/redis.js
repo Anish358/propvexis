@@ -29,6 +29,13 @@ export const redisStatus = {
 
 export const redisEnabled = () => !!config.redisUrl;
 
+// Every shared Redis key/channel MUST start with this. prod/staging/dev share one
+// Redis instance and Redis pub/sub is global (databases do NOT isolate it), so an
+// un-namespaced channel would cross environments — and since staging/dev DBs are
+// replicas of prod, the user ids match and a prod trade event would land in a
+// staging browser session. Derived from APP_ENV, which is set per pm2 app.
+export const redisNamespace = (env = config.appEnv) => `propvexis:${env || 'local'}`;
+
 // How long to wait for the initial connect before giving up and running
 // single-process. Short on purpose: boot latency is user-visible via the deploy's
 // health check, and the fallback is safe.

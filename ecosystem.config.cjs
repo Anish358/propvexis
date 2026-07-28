@@ -57,7 +57,7 @@
 // ---------------------------------------------------------------------------
 const WORKERS = { prod: 1, staging: 1, dev: 1 };
 
-function app({ name, cwd, port, ssmPrefix, workers = 1 }) {
+function app({ name, cwd, port, ssmPrefix, appEnv, workers = 1 }) {
   return {
     name,
     script: 'src/server.js',
@@ -77,6 +77,12 @@ function app({ name, cwd, port, ssmPrefix, workers = 1 }) {
       HOST: '127.0.0.1',
       PORT: String(port),
       SSM_PREFIX: ssmPrefix,
+      // Which deployment this is. NODE_ENV can't distinguish them (all three are
+      // 'production'), and the three envs SHARE ONE REDIS whose pub/sub is global
+      // across databases — so this prefix is what stops a prod socket broadcast
+      // reaching a staging client. Those DBs are replicas of prod, so the user
+      // ids match and the events would actually be delivered.
+      APP_ENV: appEnv,
     },
   };
 }
@@ -88,6 +94,7 @@ module.exports = {
       cwd: '/opt/amey-journal',
       port: 3000,
       ssmPrefix: '/amey-journal/prod/',
+      appEnv: 'prod',
       workers: WORKERS.prod,
     }),
     app({
@@ -95,6 +102,7 @@ module.exports = {
       cwd: '/opt/amey-staging',
       port: 3011,
       ssmPrefix: '/amey-journal/staging/',
+      appEnv: 'staging',
       workers: WORKERS.staging,
     }),
     app({
@@ -102,6 +110,7 @@ module.exports = {
       cwd: '/opt/amey-dev',
       port: 3012,
       ssmPrefix: '/amey-journal/dev/',
+      appEnv: 'dev',
       workers: WORKERS.dev,
     }),
   ],

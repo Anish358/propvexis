@@ -63,7 +63,7 @@ import {
 import { computeStats, computeYearly } from './aggregations.js';
 import { statsCache, cacheKey } from './statsCache.js';
 import { clusterSafety, isClustered } from './cluster.js';
-import { createRedisPair, redisStatus } from './redis.js';
+import { createRedisPair, redisStatus, redisNamespace } from './redis.js';
 import { statsBus, INVALIDATE_CHANNEL } from './statsBus.js';
 import { registry as metricsRegistry, recordHttp } from './metrics.js';
 import { buildReport, propStatesForScope, reportCsvRows, toCsv } from './reports.js';
@@ -136,16 +136,21 @@ const io = new IOServer(app.server, {
 // block is inert and behaviour is identical to before.
 // ---------------------------------------------------------------------------
 const redis = await createRedisPair(app.log);
+// Namespace EVERYTHING by environment: prod/staging/dev share one Redis and its
+// pub/sub is global (databases do not isolate it), so un-prefixed channels would
+// deliver a prod broadcast to a staging client — same user ids, since those DBs
+// are replicas of prod.
+const ns = redisNamespace();
 if (redis) {
-  io.adapter(createAdapter(redis.pub, redis.sub));
-  app.log.info('socket.io using the redis adapter');
-}
-
-if (redis) {
+  io.adapter(createAdapter(redis.pub, redis.sub, { key: `${ns}:socket.io` }));
   // pub/sub only; the subscriber connection cannot issue other commands.
-  statsBus.setTransport((channel, message) => redis.pub.publish(channel, message));
+  statsBus.setTransport(
+    (channel, message) => redis.pub.publish(channel, message),
+    `${ns}:${INVALIDATE_CHANNEL}`
+  );
   // Local-only handling — onMessage must never re-publish, or workers ping-pong.
-  await redis.sub.subscribe(INVALIDATE_CHANNEL, (message) => statsBus.onMessage(message));
+  await redis.sub.subscribe(statsBus.channel, (message) => statsBus.onMessage(message));
+  app.log.info({ namespace: ns, channel: statsBus.channel }, 'socket.io using the redis adapter');
 }
 // Every write path goes through this, so the fanout can't be forgotten at a call site.
 const invalidateStats = (userId) => statsBus.invalidate(userId);
