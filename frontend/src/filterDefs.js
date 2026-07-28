@@ -54,13 +54,15 @@ const durationOf = (t) => {
   if (!Number.isFinite(open) || !Number.isFinite(close)) return null;
   return (close - open) / 60000;
 };
-// ISO weekday (Mon=1 … Sun=7) of the CLOSE, matching how every other date-based
-// filter and aggregation keys off close_time. Read in the viewer's timezone, the
-// same convention the from/to window already uses.
+// ISO weekday (Mon=1 … Sun=7) of the CLOSE. Read in UTC, not the viewer's zone:
+// the stats layer extracts every timestamp part `AT TIME ZONE 'UTC'` (see
+// src/statsSql.js), and the weekday a trade is filtered by has to be the same
+// weekday it is grouped under, or the KPI cards and the trade table disagree for
+// anyone east or west of UTC.
 const weekdayOf = (t) => {
   const d = new Date(t.close_time);
   if (Number.isNaN(d.getTime())) return null;
-  return String(d.getDay() === 0 ? 7 : d.getDay());
+  return String(d.getUTCDay() === 0 ? 7 : d.getUTCDay());
 };
 
 // Every live filter reads a column the EA or an import actually populates. The

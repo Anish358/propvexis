@@ -1,29 +1,42 @@
 import { query } from './db.js';
-import { scopeCondition } from './accounts.js';
 import { listStrategies } from './strategies.js';
 import { evaluateAdherence } from './adherence.js';
+import {
+  BE_THRESHOLD, MONTHS, DOW, unitField,
+  buildTradeWhere, statsQuery, yearlyQuery, adherenceQuery,
+} from './statsSql.js';
 
-// All dashboard analytics are computed in JS over the full trade set — simplest
-// and most flexible for a personal journal, and lets us match the sheet exactly.
+// Dashboard analytics. The COUNT/SUM/GROUP BY work happens in Postgres
+// (statsSql.js); everything derived from those counts — rounding, strike rate,
+// averages, profit factor, expectancy, sort order — happens here, in the
+// functions that were always here and are already tested.
+//
+// The functions marked REFERENCE below are the original all-in-JS
+// implementations. They are the oracle test/stats-sql.test.js pins the SQL
+// against (shapePerf(counts) must equal perf(list)), which is how the SQL path
+// is verified without needing a database in CI. Do not "clean them up" — they
+// are load-bearing for the tests, not dead code.
 
 const round = (n, dp = 2) => (n == null || Number.isNaN(n) ? null : Math.round(n * 10 ** dp) / 10 ** dp);
 const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+const num = (v) => Number(v ?? 0);
 
-// Precision control: mirror the client's breakeven rounding (metrics.js). When
-// on, any trade whose Fixed R is within ±BE_THRESHOLD of zero is snapped to an
-// exact 0R, so server aggregates classify it as breakeven like the rest of the app.
-const BE_THRESHOLD = 0.1;
-function snapBeRounding(trades, beRound) {
+// Re-exported so existing importers (and test/scope.test.js) keep their path.
+export { buildTradeWhere };
+
+// REFERENCE. Mirrors the SQL value expression: with breakeven rounding on, a
+// Fixed R within ±BE_THRESHOLD is treated as an exact 0R. Exported so the
+// equivalence test can build the pre-SQL trade list the old code would have.
+export function snapBeRounding(trades, beRound) {
   if (!beRound) return trades;
   return trades.map((t) =>
     t.fixed_r != null && Math.abs(Number(t.fixed_r)) <= BE_THRESHOLD
       ? { ...t, fixed_r: 0 }
       : t);
 }
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Monday-anchored week label for a close Date, e.g. "30 Jun 2026".
+// Monday-anchored week label for a close Date, e.g. "30 Jun 2026". Still used to
+// label the SQL `date_trunc('week', ...)` buckets.
 function weekKey(d) {
   const day = d.getUTCDay(); // 0=Sun..6=Sat
   const monday = new Date(Date.UTC(
@@ -32,11 +45,10 @@ function weekKey(d) {
   return `${monday.getUTCDate()} ${MONTHS[monday.getUTCMonth()]} ${monday.getUTCFullYear()}`;
 }
 
-// Win/loss/breakeven for a trade under the display unit + precision setting —
-// mirrors the client's tradeOutcome (metrics.js). With breakeven rounding on, a
-// trade whose Fixed R is within ±BE_THRESHOLD is breakeven in EVERY unit ($ too),
-// though its real $ value is still summed into totals. `field` is the unit's value
-// column. Returns 'win' | 'loss' | 'be' | null.
+// REFERENCE. Win/loss/breakeven for a trade under the display unit + precision
+// setting — the JS twin of outcomeSql(). With breakeven rounding on, a trade
+// whose Fixed R is within ±BE_THRESHOLD is breakeven in EVERY unit ($ too),
+// though its real $ value is still summed into totals.
 function outcomeOf(t, field, beRound) {
   const v = t[field];
   if (v == null) return null;
@@ -45,9 +57,9 @@ function outcomeOf(t, field, beRound) {
   return n > 0 ? 'win' : n < 0 ? 'loss' : 'be';
 }
 
-// performance of an arbitrary subset of trades (trades / strike rate / P&L).
-// `field` selects the P&L unit: 'fixed_r' (R) or 'pnl_money' (account currency).
-function perf(list, field = 'fixed_r', beRound = false) {
+// REFERENCE. Performance of an arbitrary subset of trades. Still used live for
+// the adherence split (which needs per-trade rule evaluation anyway).
+export function perf(list, field = 'fixed_r', beRound = false) {
   const scored = list.filter((t) => t[field] != null);
   const wins = scored.filter((t) => outcomeOf(t, field, beRound) === 'win');
   const losses = scored.filter((t) => outcomeOf(t, field, beRound) === 'loss');
@@ -63,11 +75,55 @@ function perf(list, field = 'fixed_r', beRound = false) {
   };
 }
 
+// The SQL twin of perf(): the same output shape, built from the five aggregates
+// Postgres returned instead of from a row list. Every derivation (sr, rounding)
+// is the identical expression, which is what makes the two provably equal.
+export function shapePerf(row = {}) {
+  const trades = num(row.trades);
+  const wins = num(row.wins);
+  return {
+    trades,
+    wins,
+    losses: num(row.losses),
+    breakeven: num(row.breakeven),
+    sr: trades ? round((100 * wins) / trades) : null,
+    r: round(num(row.r_sum)),
+  };
+}
+
+// Group ordering, shared by the reference groupPerf and the SQL path so both
+// sort identically. With an explicit `order` list, unknown keys land first
+// (indexOf -1) — preserved deliberately; the sort is stable, so ties keep the
+// incoming order (first appearance in close_time order).
+function orderGroups(rows, order) {
+  const out = [...rows];
+  if (order) out.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  else out.sort((a, b) => (b.r ?? 0) - (a.r ?? 0));
+  return out;
+}
+
+// REFERENCE. group trades by a key function -> [{ key, ...perf }]
+export function groupPerf(list, keyFn, order, field = 'fixed_r', beRound = false) {
+  const m = new Map();
+  for (const t of list) {
+    const k = keyFn(t);
+    if (k == null || k === '') continue;
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(t);
+  }
+  return orderGroups([...m.entries()].map(([key, ts]) => ({ key, ...perf(ts, field, beRound) })), order);
+}
+
+// SQL rows -> the same [{ key, ...perf }] shape. `label` maps a row to its
+// display key (the DB returns raw parts: a weekday number, a year+month pair).
+const shapeGroups = (rows = [], order = null, label = (r) => r.key) =>
+  orderGroups(rows.map((r) => ({ key: label(r), ...shapePerf(r) })), order);
+
 // Objective rule adherence: for every trade whose strategy defines rules, decide
 // whether it FOLLOWED or BROKE them (see adherence.js), then contrast the two
-// sets' performance. `rulesByName` maps strategy name -> its rules array. Returns
-// per-strategy rows + an overall followed-vs-broken split, so the app can answer
-// "how do I do when I follow my rules vs when I don't?" — the Phase 2 headline.
+// sets' performance. Stays in JS: the rule engine evaluates JSONB predicates
+// per trade, which SQL cannot express. Only rule-bearing trades are ever
+// fetched, so the row cost is zero for users with no rules.
 function computeAdherence(list, rulesByName, field = 'fixed_r', beRound = false) {
   const groups = new Map(); // name -> { followed:[], broken:[], unassessed:0 }
   const allFollowed = [], allBroken = [];
@@ -113,21 +169,6 @@ function computeAdherence(list, rulesByName, field = 'fixed_r', beRound = false)
   return { overall, byStrategy };
 }
 
-// group trades by a key function -> [{ key, ...perf }] sorted by descending P&L
-function groupPerf(list, keyFn, order, field = 'fixed_r', beRound = false) {
-  const m = new Map();
-  for (const t of list) {
-    const k = keyFn(t);
-    if (k == null || k === '') continue;
-    if (!m.has(k)) m.set(k, []);
-    m.get(k).push(t);
-  }
-  let out = [...m.entries()].map(([key, ts]) => ({ key, ...perf(ts, field, beRound) }));
-  if (order) out.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
-  else out.sort((a, b) => (b.r ?? 0) - (a.r ?? 0));
-  return out;
-}
-
 // Distinct setups present in a trade set, ordered by the user's strategy catalog
 // first (their chosen order), then any unmanaged setups alphabetically. Pure +
 // multi-tenant: replaces the old hardcoded ['Continue','Liq-run','Fractal','SMC']
@@ -141,8 +182,9 @@ export function orderSetups(present = [], catalogOrder = []) {
   return [...inCatalog, ...extras];
 }
 
-// longest run of consecutive wins / losses (breakeven resets both)
-function streaks(orderedTrades, field, beRound) {
+// REFERENCE. longest run of consecutive wins / losses (breakeven resets both) —
+// the JS twin of the gap-and-islands CTE.
+export function streaks(orderedTrades, field, beRound) {
   let win = 0, loss = 0, maxWin = 0, maxLoss = 0;
   for (const t of orderedTrades) {
     const o = outcomeOf(t, field, beRound);
@@ -155,98 +197,44 @@ function streaks(orderedTrades, field, beRound) {
   return { winStreak: maxWin, lossStreak: maxLoss };
 }
 
-// The SQL half of the client's filter registry (frontend/src/filterDefs.js): each
-// filter key maps to the EXPRESSION it constrains. Keeping them as tables rather
-// than a wall of ifs is what makes the two halves checkable against each other —
-// test/filter-panel.test.js asserts every live client def has an entry here, so a
-// filter can't ship that narrows the trade log while the dashboard KPIs ignore it.
-//
-// Keys are code-controlled (they name columns); the VALUES are always parameterized.
-const MULTI_COLS = {
-  setups: 'setup',
-  symbols: 'COALESCE(symbol_base, symbol)',
-  sessions: 'session',
-  probability: 'probability',
-  mtf: 'mtf_phase',
-  // Compared as text so the array parameter stays text[] like every other multi.
-  // ISO weekday (Mon=1…Sun=7) of the close, read in the DB session's timezone —
-  // the same assumption the from/to window already makes.
-  dows: 'EXTRACT(ISODOW FROM close_time)::text',
-};
-const RANGE_COLS = {
-  pnl: 'pnl_money',
-  r: 'fixed_r',
-  maxR: 'max_r',
-  risk: 'sl_size_pips',
-  vol: 'volume',
-  dur: '(EXTRACT(EPOCH FROM (close_time - open_time)) / 60)',
-};
+const R_BUCKETS = ['≤ -1R', '-1–0R', 'BE', '0–1R', '1–2R', '2–3R', '> 3R'];
+const R_BUCKET_COLS = ['b_le_m1', 'b_m1_0', 'b_be', 'b_0_1', 'b_1_2', 'b_2_3', 'b_gt3'];
 
-// Build the WHERE clause for a trade query from the scope + global data filters
-// (+ an optional year). `scope.filterCol` and the field used for outcome are
-// code-controlled; every user-supplied value is parameterized. Returns
-// { where, params } with params positioned for the returned placeholders.
-export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null, beRound = false) {
-  const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const conds = [];
-  const params = [];
-  const add = (val) => { params.push(val); return `$${params.length}`; };
+// Fetch the user's rule-bearing strategies and, only if there are any, the
+// narrow set of trades they cover. Returns the adherence block. With no rules
+// this issues no query at all and returns the same zeroed shape as before.
+async function loadAdherence(scope, unit, filters, beRound) {
+  const field = unitField(unit);
+  const ruleBearing = (await listStrategies(scope.userId))
+    .filter((s) => Array.isArray(s.rules) && s.rules.length > 0);
+  if (!ruleBearing.length) return computeAdherence([], new Map(), field, beRound);
 
-  if (year != null) conds.push(`EXTRACT(YEAR FROM close_time) = ${add(year)}`);
-  if (scope) conds.push(scopeCondition(scope, add));
-  for (const [key, col] of Object.entries(MULTI_COLS)) {
-    if (filters[key]?.length) conds.push(`${col} = ANY(${add(filters[key].map(String))})`);
-  }
-  for (const [key, col] of Object.entries(RANGE_COLS)) {
-    const { min, max } = filters[key] || {};
-    // A NULL column can't satisfy a bound — matching the client, where an unset
-    // value is excluded from a range rather than treated as zero.
-    if (min != null) conds.push(`${col} >= ${add(min)}`);
-    if (max != null) conds.push(`${col} <= ${add(max)}`);
-  }
-  if (filters.direction) conds.push(`direction = ${add(filters.direction)}`);
-  if (filters.journaled) conds.push(`tagged = ${add(filters.journaled === 'yes')}`);
-  if (filters.from) conds.push(`close_time >= ${add(filters.from)}`);
-  if (filters.to) conds.push(`close_time <= ${add(`${filters.to} 23:59:59`)}`);
-  if (filters.outcome?.length) {
-    // Match the client's tradeOutcome. With breakeven rounding on, a trade whose
-    // Fixed R is within ±BE_THRESHOLD is breakeven in EITHER unit ($ too); wins and
-    // losses are then the sign of the unit's value AMONG non-rounded trades.
-    // (BE_THRESHOLD is a code constant, so it's safe to inline in SQL.)
-    const beByR = 'fixed_r IS NOT NULL AND abs(fixed_r) <= ' + BE_THRESHOLD;
-    const notBeByR = '(fixed_r IS NULL OR abs(fixed_r) > ' + BE_THRESHOLD + ')';
-    const parts = [];
-    if (filters.outcome.includes('win')) parts.push(beRound ? `(${field} > 0 AND ${notBeByR})` : `${field} > 0`);
-    if (filters.outcome.includes('loss')) parts.push(beRound ? `(${field} < 0 AND ${notBeByR})` : `${field} < 0`);
-    if (filters.outcome.includes('be')) parts.push(beRound ? `(${field} IS NOT NULL AND ((${beByR}) OR ${field} = 0))` : `${field} = 0`);
-    if (parts.length) conds.push(`(${parts.join(' OR ')})`);
-  }
-  return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
+  const rulesByName = new Map(ruleBearing.map((s) => [s.name, s.rules]));
+  const { sql, params } = adherenceQuery(scope, unit, filters, beRound, ruleBearing.map((s) => s.name));
+  const { rows } = await query(sql, params);
+  // Present the rows the way perf()/outcomeOf() expect: the unit's value under
+  // its own column name, and fixed_r already breakeven-snapped by SQL.
+  const list = rows.map((r) => ({ ...r, [field]: r.val, fixed_r: r.r_val }));
+  return computeAdherence(list, rulesByName, field, beRound);
 }
 
 // `scope` from resolveScope: god -> user_id = me, an explicit account selection
 // -> account_id = ANY(logins). The predicate is built by scopeCondition (safe).
-// `filters` are the global data filters (see MULTI_COLS / RANGE_COLS above, plus
-// outcome, direction, journaled and the date range) applied app-wide.
+// `filters` are the global data filters — the SQL half of the client's filter
+// registry, built by buildTradeWhere in statsSql.js — applied app-wide.
 export async function computeStats(scope, unit = 'R', filters = {}, beRound = false) {
-  const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const { where, params } = buildTradeWhere(scope, unit, filters, null, beRound);
-  const { rows } = await query(`SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`, params);
-  const trades = snapBeRounding(rows.map((r) => ({ ...r, close: new Date(r.close_time) })), beRound);
-  // Rule adherence uses the user's strategy catalog (rules keyed by name == setup).
-  const rulesByName = new Map((await listStrategies(scope.userId)).map((s) => [s.name, s.rules]));
-  // P&L-based stats use the selected unit; R-distribution + MFE always use R.
-  const scored = trades.filter((t) => t[field] != null);
-  const rScored = trades.filter((t) => t.fixed_r != null);
+  const { sql, params } = statsQuery(scope, unit, filters, beRound);
+  const [{ rows }, adherence] = await Promise.all([
+    query(sql, params),
+    loadAdherence(scope, unit, filters, beRound),
+  ]);
+  const d = rows[0]?.data ?? {};
+  const h = d.headline ?? {};
 
-  const base = perf(trades, field, beRound);
+  const base = shapePerf(h);
   // Win/loss sums exclude breakeven trades (their $ stays in totalReturn, not here).
-  const winsR = sum(scored.filter((t) => outcomeOf(t, field, beRound) === 'win').map((t) => Number(t[field])));
-  const lossR = sum(scored.filter((t) => outcomeOf(t, field, beRound) === 'loss').map((t) => Number(t[field])));
-  const avgWin = base.wins ? round(winsR / base.wins) : null;
-  const avgLoss = base.losses ? round(lossR / base.losses) : null;
-  const pf = lossR !== 0 ? round(winsR / Math.abs(lossR)) : null;
-  const { winStreak, lossStreak } = streaks(scored, field, beRound);
+  const winsR = num(h.win_sum);
+  const lossR = num(h.loss_sum);
 
   const headline = {
     unit,
@@ -256,92 +244,89 @@ export async function computeStats(scope, unit = 'R', filters = {}, beRound = fa
     wins: base.wins,
     losses: base.losses,
     breakeven: base.breakeven,
-    avgWin,
-    avgLoss,
-    profitFactor: pf,
+    avgWin: base.wins ? round(winsR / base.wins) : null,
+    avgLoss: base.losses ? round(lossR / base.losses) : null,
+    profitFactor: lossR !== 0 ? round(winsR / Math.abs(lossR)) : null,
     // NOTE: standard expectancy = total / trades. The sheet shows 0.54 via a
     // different range; swap this line once the exact cell formula is confirmed.
     expectancy: base.trades ? round(base.r / base.trades) : null,
-    winStreak,
-    lossStreak,
+    winStreak: num(d.streaks?.win_streak),
+    lossStreak: num(d.streaks?.loss_streak),
   };
-
-  // equity curve (cumulative P&L in the selected unit) over time
-  let cum = 0;
-  const equityCurve = scored.map((t, i) => {
-    cum += Number(t[field]);
-    return { i: i + 1, date: t.close_time, cumR: round(cum) };
-  });
-
-  // distribution of realized R outcomes
-  const buckets = [
-    { label: '≤ -1R', test: (r) => r <= -1 },
-    { label: '-1–0R', test: (r) => r > -1 && r < 0 },
-    { label: 'BE', test: (r) => r === 0 },
-    { label: '0–1R', test: (r) => r > 0 && r <= 1 },
-    { label: '1–2R', test: (r) => r > 1 && r <= 2 },
-    { label: '2–3R', test: (r) => r > 2 && r <= 3 },
-    { label: '> 3R', test: (r) => r > 3 },
-  ];
-  // R-distribution is intrinsically in R, so always compute it from fixed_r.
-  const rDistribution = buckets.map((b) => ({
-    label: b.label,
-    count: rScored.filter((t) => b.test(t.fixed_r)).length,
-  }));
 
   // MFE efficiency — how far trades ran (Max R) vs what was captured. Always in
   // R: Max R is a ratio, and capture only makes sense as realized-R ÷ available-R.
-  const rNet = sum(rScored.map((t) => Number(t.fixed_r)));
-  const rPerTrade = rScored.length ? rNet / rScored.length : null;
-  const withMfe = rScored.filter((t) => t.max_r != null);
-  const avgMaxR = withMfe.length ? round(sum(withMfe.map((t) => Number(t.max_r))) / withMfe.length) : null;
-  const mfeEfficiency = {
-    avgMaxR,
-    avgRealized: rPerTrade != null ? round(rPerTrade) : null,
-    capture: avgMaxR ? round(rPerTrade / avgMaxR) : null, // realized ÷ available (R)
-  };
+  const m = d.mfe ?? {};
+  const rCount = num(m.r_count);
+  const rPerTrade = rCount ? num(m.r_net) / rCount : null;
+  const maxRCount = num(m.max_r_count);
+  const avgMaxR = maxRCount ? round(num(m.max_r_sum) / maxRCount) : null;
 
   return {
     headline,
     // By strategy — data-driven, sorted best-first (by P&L). No hardcoded list,
     // so each user sees their own strategies.
-    bySetup: groupPerf(trades, (t) => t.setup, null, field, beRound),
-    byInstrument: groupPerf(trades, (t) => t.symbol_base || t.symbol, null, field, beRound),
-    byProbability: groupPerf(trades, (t) => t.probability, ['HIGH', 'MED', 'LOW'], field, beRound),
-    bySession: groupPerf(trades, (t) => t.session, ['LDN', 'NY', 'ASIA'], field, beRound),
-    byDay: groupPerf(trades, (t) => DOW[t.close.getUTCDay()], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], field, beRound),
-    byMonth: groupPerf(trades, (t) => `${MONTHS[t.close.getUTCMonth()]} ${t.close.getUTCFullYear()}`, null, field, beRound),
-    byWeek: groupPerf(trades, (t) => weekKey(t.close), null, field, beRound),
-    equityCurve,
-    rDistribution,
-    mfeEfficiency,
-    adherence: computeAdherence(trades, rulesByName, field, beRound),
+    bySetup: shapeGroups(d.bySetup),
+    byInstrument: shapeGroups(d.byInstrument),
+    byProbability: shapeGroups(d.byProbability, ['HIGH', 'MED', 'LOW']),
+    bySession: shapeGroups(d.bySession, ['LDN', 'NY', 'ASIA']),
+    byDay: shapeGroups(d.byDay, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], (r) => DOW[Number(r.key)]),
+    byMonth: shapeGroups(d.byMonth, null, (r) => `${MONTHS[Number(r.mon) - 1]} ${Number(r.yr)}`),
+    byWeek: shapeGroups(d.byWeek, null, (r) => weekKey(new Date(`${r.key}T00:00:00Z`))),
+    equityCurve: (d.equity ?? []).map((p) => ({ i: Number(p.i), date: p.date, cumR: round(Number(p.cum)) })),
+    // R-distribution is intrinsically in R, so it is always computed from fixed_r.
+    rDistribution: R_BUCKETS.map((label, i) => ({ label, count: num((d.rDist ?? {})[R_BUCKET_COLS[i]]) })),
+    mfeEfficiency: {
+      avgMaxR,
+      avgRealized: rPerTrade != null ? round(rPerTrade) : null,
+      capture: avgMaxR ? round(rPerTrade / avgMaxR) : null, // realized ÷ available (R)
+    },
+    adherence,
   };
 }
 
-// Yearly view: monthly performance (overall + per setup) for one year.
+// Sum the additive aggregate columns of several group rows. Valid because
+// trades/wins/losses/breakeven/r_sum are all plain sums — so a month's "overall"
+// is the sum of its per-setup cells, and rounding still happens once, at the end.
+const addCells = (rows) => rows.reduce(
+  (acc, r) => ({
+    trades: acc.trades + num(r.trades),
+    wins: acc.wins + num(r.wins),
+    losses: acc.losses + num(r.losses),
+    breakeven: acc.breakeven + num(r.breakeven),
+    r_sum: acc.r_sum + num(r.r_sum),
+  }),
+  { trades: 0, wins: 0, losses: 0, breakeven: 0, r_sum: 0 }
+);
+
+// Yearly view: monthly performance (overall + per setup) for one year, from a
+// single GROUP BY (month, setup) instead of the year's full row set.
 export async function computeYearly(year, scope, unit = 'R', filters = {}, beRound = false) {
-  const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
-  const { where, params } = buildTradeWhere(scope, unit, filters, year, beRound);
-  const { rows } = await query(
-    `SELECT * FROM trades ${where} ORDER BY close_time ASC, id ASC`,
-    params
-  );
-  const trades = snapBeRounding(rows.map((r) => ({ ...r, close: new Date(r.close_time) })), beRound);
+  const { sql, params } = yearlyQuery(year, scope, unit, filters, beRound);
+  const [{ rows }, catalog] = await Promise.all([
+    query(sql, params),
+    listStrategies(scope.userId).then((ss) => ss.map((s) => s.name)),
+  ]);
+  const cells = rows[0]?.data?.cells ?? [];
+
   // Strategy columns come from the user's own catalog (ordered), plus any
   // unmanaged setups actually traded — never a hardcoded, single-tenant list.
-  const catalog = (await listStrategies(scope.userId)).map((s) => s.name);
-  const setups = orderSetups(trades.map((t) => t.setup), catalog);
+  const setups = orderSetups(cells.map((c) => c.setup), catalog);
+
+  const at = new Map(); // `${mon}|${setup}` -> cell
+  for (const c of cells) at.set(`${Number(c.mon)}|${c.setup ?? ''}`, c);
+  const inMonth = (mi) => cells.filter((c) => Number(c.mon) - 1 === mi);
 
   const months = MONTHS.map((name, mi) => {
-    const inMonth = trades.filter((t) => t.close.getUTCMonth() === mi);
-    const row = { month: name, overall: perf(inMonth, field, beRound) };
-    for (const s of setups) row[s] = perf(inMonth.filter((t) => t.setup === s), field, beRound);
+    const row = { month: name, overall: shapePerf(addCells(inMonth(mi))) };
+    for (const s of setups) row[s] = shapePerf(at.get(`${mi + 1}|${s}`) ?? {});
     return row;
   });
 
-  const total = { month: 'TOTAL', overall: perf(trades, field, beRound) };
-  for (const s of setups) total[s] = perf(trades.filter((t) => t.setup === s), field, beRound);
+  const total = { month: 'TOTAL', overall: shapePerf(addCells(cells)) };
+  for (const s of setups) {
+    total[s] = shapePerf(addCells(cells.filter((c) => c.setup === s)));
+  }
 
   return { year, setups, unit, months, total };
 }

@@ -139,6 +139,111 @@ curl localhost:3000/health    # {"ok":true}
 The container image is the packaging artifact; the live deploy currently stays
 rsync + pm2 (see below). Frontend runs separately via `vite`.
 
+### Database connection pool
+
+The `pg` pool is explicitly sized in [`src/db.js`](src/db.js) (`poolOptions`) from
+`PG_POOL_*` env vars rather than riding node-pg's defaults, which capped the app at
+10 clients and — with no `connectionTimeoutMillis` — made an exhausted pool queue
+requests *forever* instead of erroring. Defaults: `max=20`, `idleTimeoutMillis=30s`,
+`connectionTimeoutMillis=5s`, `maxUses=7500`. The pool also carries an `error`
+listener, so a dead idle client (DB restart, `pg_terminate_backend`) is evicted and
+logged instead of crashing the process on an unhandled error event.
+
+**Sizing is per process.** Total connections to Postgres are
+`cluster workers × PG_POOL_MAX`, and the prod/staging/dev environments share one
+native PG16 instance (`max_connections=100`, 3 superuser-reserved). Check headroom
+before raising it:
+
+```bash
+psql -c "show max_connections"
+psql -c "select application_name, count(*) from pg_stat_activity group by 1 order by 2 desc"
+```
+
+Each pool tags itself `propvexis-<NODE_ENV>` via `application_name`, so that second
+query attributes connections to the environment holding them. Pool saturation is
+also exported to Prometheus (`pg_pool_total_connections`, `pg_pool_idle_connections`,
+`pg_pool_waiting_requests` — a rising `waiting` count is the canonical signal that
+`PG_POOL_MAX` is the bottleneck).
+
+### Analytics aggregation & caching
+
+Dashboard/analytics numbers are aggregated **in Postgres**, not in Node.
+[`src/statsSql.js`](src/statsSql.js) builds one CTE query per request (headline,
+every `GROUP BY` block, R-distribution, MFE, equity curve, and win/loss streaks
+via gap-and-islands); [`src/aggregations.js`](src/aggregations.js) turns those
+counts into the API shape.
+
+The split is deliberate: **SQL does only `COUNT`/`SUM`/`GROUP BY`, and every
+derived number — rounding, strike rate, averages, profit factor, expectancy,
+group sort order — stays in JS.** So `shapePerf(countsFromSql)` must equal
+`perf(theSameTrades)`, which `test/stats-sql.test.js` asserts directly against
+the original implementation. A SQL mistake surfaces as a count mismatch, never as
+a quietly different formula. All timestamp extraction is pinned to UTC, because
+the JS original used `getUTC*` exclusively.
+
+Rule **adherence** stays in JS — it evaluates JSONB rule predicates per trade,
+which SQL can't express — but it is fetched separately and only for trades whose
+strategy actually defines rules, so users with no rules pay nothing.
+
+`/api/stats` and `/api/yearly` are cached per
+`(kind, scope, unit, filters, rounding, year)` in
+[`src/statsCache.js`](src/statsCache.js), invalidated on every write to that
+user's trades (ingest, manual add, edit, delete, CSV import, strategy
+rename/rules edit). The cache is bounded (LRU + TTL backstop) because the box has
+1GB of RAM, and scoped per user so one trader's ingest can't flush everyone's.
+`stats_cache_*` metrics expose the hit ratio.
+
+### Redis (optional) — shared socket adapter + cache invalidation
+
+`REDIS_URL` unset means the app behaves exactly as it does single-process:
+in-memory Socket.IO adapter, process-local analytics cache. Set it and two things
+become cross-process, which is what makes multiple workers possible:
+
+- **Socket.IO** uses `@socket.io/redis-adapter`, so a broadcast reaches clients
+  connected to any worker.
+- **Cache invalidation** fans out over Redis pub/sub
+  ([`src/statsBus.js`](src/statsBus.js)), so a trade written on one worker drops
+  the stale entries on all of them.
+
+Two availability rules are deliberate in [`src/redis.js`](src/redis.js): a failed
+connect is **not fatal** (the app logs and runs degraded rather than refusing to
+boot — a Redis outage must not take the API down), and both clients get `error`
+listeners before connecting, since an unhandled `error` event would kill the
+process. The `redis_configured` / `redis_connected` gauges make "configured but
+currently down" alertable, because the socket adapter goes quietly one-way then.
+
+The invariant in the invalidation bus: **local invalidation never depends on the
+transport.** If the publish fails, the worker that handled the write still drops
+its own entries — otherwise a Redis outage would show the writing user their own
+stale dashboard, which is worse than the cross-worker staleness this fixes.
+
+`redis://` and `rediss://` (TLS) both work, so one var covers a native
+`redis-server`, Upstash, or ElastiCache.
+
+### Multiple workers (pm2 cluster mode)
+
+Wired up in [`ecosystem.config.cjs`](ecosystem.config.cjs) but **shipped as one
+worker per env**. `exec_mode` flips to `cluster` automatically when `WORKERS` goes
+above 1. The two correctness blockers — shared socket adapter and shared cache
+invalidation — are **solved in code** by the Redis layer above. What remains
+before raising it:
+
+1. **Provision Redis** and set `REDIS_URL` for that env. Without it, clustered
+   workers drop realtime events and serve stale analytics.
+2. **Box headroom** — a 1GB t3.micro runs all three envs today (the Prometheus and
+   Grafana containers are stopped on purpose to fit). Each worker is ~90–150MB
+   RSS, so a second prod worker needs an upsize.
+3. **Lower `PG_POOL_MAX`** — total connections are `workers × PG_POOL_MAX` across
+   three envs against `max_connections=100`; `advisePoolMax()` in
+   [`src/cluster.js`](src/cluster.js) computes the ceiling.
+
+[`src/cluster.js`](src/cluster.js) re-checks at boot from **live** Redis state
+(not boot-time config, since Redis can drop later) and logs `UNSAFE CLUSTER MODE`
+per reason, with the `app_unsafe_cluster_mode` gauge as the alarm.
+
+> The box's Docker daemon is stopped to save memory, so Redis there wants a native
+> `apt install redis-server` bound to `127.0.0.1` (~10MB), not a container.
+
 ### Metrics (Prometheus + Grafana)
 
 The backend exposes Prometheus metrics at `GET /metrics` — RED metrics (request

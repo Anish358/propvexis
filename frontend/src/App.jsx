@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState, fetchMe } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './filters.js';
 import { sanitizeDashLayout, defaultDashLayout, moveDashIdBefore } from './dashLayout.js';
@@ -8,6 +8,7 @@ import { sanitizeBriefPrefs, defaultBriefPrefs } from './briefPrefs.js';
 import { applyBeRounding } from './metrics.js';
 import Layout from './Layout.jsx';
 import Login from './Login.jsx';
+import Onboarding from './Onboarding.jsx';
 import Dashboard from './Dashboard.jsx';
 import TradeLog from './TradeLog.jsx';
 import Analytics from './Analytics.jsx';
@@ -43,7 +44,7 @@ function clearLegacyViewState() {
 }
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, setUser } = useAuth();
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -346,6 +347,10 @@ export default function App() {
       pushToast(n);
     });
     socket.on('trade:deleted', ({ id }) => removeLocal(id));
+    // Razorpay's webhook is what actually grants a paid plan, so the upgrade
+    // lands server-side after checkout closes. Re-read /me instead of making the
+    // user reload to see what they just paid for.
+    socket.on('plan:updated', () => fetchMe().then(setUser).catch(() => {}));
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
     return () => socket.close();
@@ -378,7 +383,12 @@ export default function App() {
       {loadError && user && <div className="banner error">Could not reach backend: {loadError}</div>}
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-        {user ? (
+        <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Login mode="signup" />} />
+        {user && !user.onboarded_at ? (
+          // First-run users are routed to the setup wizard for every path until
+          // it's completed; completing it sets onboarded_at and re-renders here.
+          <Route path="*" element={<Onboarding onDone={setUser} />} />
+        ) : user ? (
           <Route
             element={
               <Layout

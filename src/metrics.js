@@ -6,6 +6,14 @@
 // without booting the app or a DB.
 import client from 'prom-client';
 import { pool } from './db.js';
+import { statsCache } from './statsCache.js';
+import { statsBus } from './statsBus.js';
+import { redisStatus } from './redis.js';
+import { clusterSafety, isClustered } from './cluster.js';
+
+// Cross-worker state is only genuinely working when Redis is BOTH wired and up.
+const sharedStateOk = () => statsBus.shared && redisStatus.connected;
+const busStats = () => statsBus.stats();
 
 export const registry = new client.Registry();
 
@@ -68,4 +76,87 @@ new client.Gauge({
   help: 'Requests queued waiting for a pg pool client',
   registers: [registry],
   collect() { this.set(pool.waitingCount); },
+});
+// The ceiling, so saturation is computable (total/max) instead of guessed, and so
+// the effective PG_POOL_MAX is observable — it can arrive from SSM at runtime,
+// which means it is not visible in the process's exec-time environment.
+new client.Gauge({
+  name: 'pg_pool_max_connections',
+  help: 'Configured max clients for this process pool (PG_POOL_MAX)',
+  registers: [registry],
+  collect() { this.set(pool.options.max); },
+});
+
+// ---- analytics cache + cluster safety ----
+// Hit ratio tells us whether the /api/stats cache is earning its keep; the
+// unsafe-cluster gauge is the alarm for "someone raised pm2 instances before the
+// shared Redis adapter existed", which otherwise shows up only as stale numbers
+// and missing realtime events. 0 = safe.
+new client.Gauge({
+  name: 'stats_cache_entries',
+  help: 'Entries currently held in the analytics cache',
+  registers: [registry],
+  collect() { this.set(statsCache.stats().size); },
+});
+new client.Gauge({
+  name: 'stats_cache_hits_total',
+  help: 'Analytics cache hits since boot',
+  registers: [registry],
+  collect() { this.set(statsCache.stats().hits); },
+});
+new client.Gauge({
+  name: 'stats_cache_misses_total',
+  help: 'Analytics cache misses since boot',
+  registers: [registry],
+  collect() { this.set(statsCache.stats().misses); },
+});
+new client.Gauge({
+  name: 'app_unsafe_cluster_mode',
+  help: '1 when running multiple workers without shared socket/cache state (stale reads + lost realtime events)',
+  registers: [registry],
+  collect() {
+    // Sampled live: Redis can drop long after a healthy boot, at which point the
+    // socket adapter silently stops crossing workers.
+    const shared = sharedStateOk();
+    const { safe } = clusterSafety({
+      clustered: isClustered(),
+      hasSharedSocketAdapter: shared,
+      hasSharedStatsCache: shared,
+    });
+    this.set(safe ? 0 : 1);
+  },
+});
+
+// ---- Redis (shared socket adapter + cache invalidation) ----
+// 0/1 rather than absent-when-off, so "Redis was configured and has now dropped"
+// is alertable. redis_configured stays 0 when the feature is deliberately unused.
+new client.Gauge({
+  name: 'redis_configured',
+  help: '1 when REDIS_URL is set (shared socket adapter + cache invalidation intended)',
+  registers: [registry],
+  collect() { this.set(redisStatus.configured ? 1 : 0); },
+});
+new client.Gauge({
+  name: 'redis_connected',
+  help: '1 when the Redis connection is currently up',
+  registers: [registry],
+  collect() { this.set(redisStatus.connected ? 1 : 0); },
+});
+new client.Gauge({
+  name: 'stats_invalidations_published_total',
+  help: 'Cache invalidations fanned out to other workers',
+  registers: [registry],
+  collect() { this.set(busStats().published); },
+});
+new client.Gauge({
+  name: 'stats_invalidations_received_total',
+  help: 'Cache invalidations applied from other workers',
+  registers: [registry],
+  collect() { this.set(busStats().received); },
+});
+new client.Gauge({
+  name: 'stats_invalidation_publish_errors_total',
+  help: 'Failed invalidation fanouts (other workers stale until TTL)',
+  registers: [registry],
+  collect() { this.set(busStats().publishErrors); },
 });

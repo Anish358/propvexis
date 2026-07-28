@@ -50,9 +50,15 @@ plan-first, one feature at a time; add a test with each; run `/security-review`
 on any credential handling. Benchmark product: **TradeZella** (see Plan.md
 "Reference" section).
 
-- **Now (top priority): module sub-nav restructure** — flat sidebar → primary rail
-  + per-module sub-nav (decided IA in Plan.md), module Overview pages,
-  Settings (user profile) vs Account (trading-account management) split.
-- **Then:** prop-firm rule templates → Prop OS Overview build-out (challenge
-  finance tracking, ROI/finance/passing/breach insights) → connector layer
-  (MetaApi, cTrader) → journal depth → platform shell → V2.
+- **Now (top priority): scale & hardening to the ≥1000-concurrent-user bar** —
+  pg pool `max`/timeouts → aggregations into SQL `GROUP BY` + per-scope cache →
+  pm2 cluster → Socket.IO Redis adapter → managed off-box Postgres + re-enable
+  Prometheus/Grafana after an instance upsize.
+- **Then:** Razorpay go-live → quick fixes (expectancy, adherence column,
+  Dependabot/Trivy) → Design B (empty/loading states, mobile, a11y) → connector
+  layer (**self-hosted MT4/5 farm — MetaApi is rejected**, then cTrader,
+  TradeLocker, DXtrade/Match-Trader, Tradovate + a separate sync-worker fleet and
+  credential encryption) → journal depth → platform shell → V2.
+- Sub-nav restructure, prop-firm rule templates, and the Prop OS Overview
+  build-out are **done**. Ordering detail lives in the auto-memory
+  `now-execution-queue`.

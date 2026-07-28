@@ -323,7 +323,9 @@ test('the server applies every live filter in SQL', () => {
     setups: 'setup', symbols: 'COALESCE(symbol_base, symbol)', sessions: 'session',
     probability: 'probability', mtf: 'mtf_phase', dows: 'ISODOW', direction: 'direction',
     journaled: 'tagged', pnl: 'pnl_money', r: 'fixed_r', maxR: 'max_r', risk: 'sl_size_pips',
-    vol: 'volume', dur: 'EXTRACT(EPOCH', outcome: 'fixed_r >', date: 'close_time >=',
+    // Outcome goes through the shared outcomeSql() CASE rather than restating the
+    // win/loss test, so a filter can't disagree with an aggregate about a win.
+    vol: 'volume', dur: 'EXTRACT(EPOCH', outcome: "THEN 'win'", date: 'close_time >=',
   };
   for (const d of LIVE_FILTERS) {
     assert.ok(expect[d.id], `no SQL expectation registered for ${d.id} — add one`);
@@ -335,6 +337,22 @@ test('the server applies every live filter in SQL', () => {
   assert.ok(where.includes('$1'), 'placeholders, not literals');
   // Nothing active = no WHERE at all.
   assert.equal(buildTradeWhere(null, 'R', emptyFilters(), null, false).where, '');
+});
+
+test('the weekday filter reads UTC on both sides', () => {
+  // The stats layer extracts every timestamp part AT TIME ZONE 'UTC', so the
+  // weekday a trade is FILTERED by has to be the weekday it is GROUPED under.
+  // Reading the client side in local time would split a Monday-evening UTC trade
+  // into Tuesday for anyone east of UTC — the trade table and the KPI cards would
+  // then disagree, silently, only for some users.
+  const { where } = buildTradeWhere(null, 'R', f({ dows: ['1'] }), null, false);
+  assert.match(where, /ISODOW FROM \(close_time AT TIME ZONE 'UTC'\)/);
+  assert.match(read('../frontend/src/filterDefs.js'), /d\.getUTCDay\(\)/);
+  // 2026-07-06T23:30Z is Monday in UTC and Tuesday at UTC+5:30 — it must filter
+  // as Monday wherever this runs.
+  const lateMonday = { close_time: '2026-07-06T23:30:00Z', open_time: '2026-07-06T23:00:00Z' };
+  assert.equal(filterTrades([lateMonday], f({ dows: ['1'] })).length, 1);
+  assert.equal(filterTrades([lateMonday], f({ dows: ['2'] })).length, 0);
 });
 
 test('a range with one open side only constrains that side', () => {

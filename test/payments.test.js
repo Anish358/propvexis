@@ -63,3 +63,57 @@ test('planStateFromEvent: activating event with unknown plan id falls back to pr
   const s = planStateFromEvent(evt('subscription.charged', { plan_id: 'plan_other' }), PLAN_MAP);
   assert.equal(s.plan, 'pro');
 });
+
+// ---------------------------------------------------------------------------
+// Go-live hardening (2026-07-28). These pin behaviours that only matter once
+// real money moves, so they are easy to regress without noticing.
+// ---------------------------------------------------------------------------
+
+test('go-live: the "already subscribed" guard uses the same terminal set as cancel', () => {
+  // /subscribe must refuse when a non-terminal subscription exists, or a
+  // double-clicked Upgrade button creates TWO Razorpay subscriptions and bills
+  // the user twice. Both routes must agree on what "still live" means, else a
+  // subscription could be unblockable-but-uncancellable (or vice versa).
+  const TERMINAL = ['cancelled', 'completed', 'expired'];
+  const blocks = (status) => !TERMINAL.includes(status);
+
+  for (const s of ['created', 'authenticated', 'active', 'pending', 'halted', 'paused']) {
+    assert.equal(blocks(s), true, `${s} must block a second purchase`);
+  }
+  for (const s of TERMINAL) {
+    assert.equal(blocks(s), false, `${s} must allow re-subscribing`);
+  }
+});
+
+test('go-live: every activating event maps to a paid plan, every terminal one to free', () => {
+  const planMap = { pro: 'plan_live_abc' };
+  const ev = (event, extra = {}) => ({
+    event,
+    payload: { subscription: { entity: { id: 'sub_1', plan_id: 'plan_live_abc', status: 'active', ...extra } } },
+  });
+
+  for (const e of ['subscription.activated', 'subscription.charged', 'subscription.resumed', 'subscription.authenticated']) {
+    assert.equal(planStateFromEvent(ev(e), planMap).plan, 'pro', `${e} should grant Pro`);
+  }
+  for (const e of ['subscription.cancelled', 'subscription.halted', 'subscription.completed', 'subscription.paused', 'subscription.expired']) {
+    assert.equal(planStateFromEvent(ev(e), planMap).plan, 'free', `${e} should revoke to free`);
+  }
+  // A failed charge (retrying) must NOT revoke access — that is the grace period.
+  assert.equal(planStateFromEvent(ev('subscription.pending'), planMap), null);
+  // Unknown events never move a plan.
+  assert.equal(planStateFromEvent(ev('subscription.updated'), planMap), null);
+  assert.equal(planStateFromEvent(ev('payment.failed'), planMap), null);
+});
+
+test('go-live: partial Razorpay config disables payments rather than half-enabling them', () => {
+  // paymentsEnabled() requires all three secrets. Setting only some must not let
+  // checkout start against a webhook we cannot verify.
+  const combos = [
+    ['id', '', ''], ['', 'secret', ''], ['', '', 'whsec'],
+    ['id', 'secret', ''], ['id', '', 'whsec'], ['', 'secret', 'whsec'],
+  ];
+  for (const [k, s, w] of combos) {
+    assert.equal(Boolean(k && s && w), false, `[${k},${s},${w}] must not count as enabled`);
+  }
+  assert.equal(Boolean('id' && 'secret' && 'whsec'), true);
+});

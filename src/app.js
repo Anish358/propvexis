@@ -7,6 +7,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { Server as IOServer } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { config, assertProdSecrets } from './config.js';
 import { pool, query } from './db.js';
 import { registerAuth } from './auth.js';
@@ -60,6 +61,10 @@ import {
   windowRequestStatus,
 } from './candles.js';
 import { computeStats, computeYearly } from './aggregations.js';
+import { statsCache, cacheKey } from './statsCache.js';
+import { clusterSafety, isClustered } from './cluster.js';
+import { createRedisPair, redisStatus, redisNamespace } from './redis.js';
+import { statsBus, INVALIDATE_CHANNEL } from './statsBus.js';
 import { registry as metricsRegistry, recordHttp } from './metrics.js';
 import { buildReport, propStatesForScope, reportCsvRows, toCsv } from './reports.js';
 import { getCalendarEvents } from './calendar.js';
@@ -124,6 +129,32 @@ const io = new IOServer(app.server, {
   cors: { origin: config.corsOrigin === '*' ? true : config.corsOrigin, credentials: true },
 });
 
+// ---------------------------------------------------------------------------
+// Cross-process state (optional, REDIS_URL-gated). Two things need it before a
+// second worker can exist: the Socket.IO adapter (so a broadcast reaches clients
+// on every worker) and analytics-cache invalidation. With no Redis this whole
+// block is inert and behaviour is identical to before.
+// ---------------------------------------------------------------------------
+const redis = await createRedisPair(app.log);
+// Namespace EVERYTHING by environment: prod/staging/dev share one Redis and its
+// pub/sub is global (databases do not isolate it), so un-prefixed channels would
+// deliver a prod broadcast to a staging client — same user ids, since those DBs
+// are replicas of prod.
+const ns = redisNamespace();
+if (redis) {
+  io.adapter(createAdapter(redis.pub, redis.sub, { key: `${ns}:socket.io` }));
+  // pub/sub only; the subscriber connection cannot issue other commands.
+  statsBus.setTransport(
+    (channel, message) => redis.pub.publish(channel, message),
+    `${ns}:${INVALIDATE_CHANNEL}`
+  );
+  // Local-only handling — onMessage must never re-publish, or workers ping-pong.
+  await redis.sub.subscribe(statsBus.channel, (message) => statsBus.onMessage(message));
+  app.log.info({ namespace: ns, channel: statsBus.channel }, 'socket.io using the redis adapter');
+}
+// Every write path goes through this, so the fanout can't be forgotten at a call site.
+const invalidateStats = (userId) => statsBus.invalidate(userId);
+
 // Authenticate each socket from the session cookie and join it to a room per
 // account the user owns, so trade events are delivered only to their owner —
 // never broadcast to every connected client.
@@ -150,6 +181,10 @@ io.on('connection', async (socket) => {
 const emitTrade = (event, trade) => {
   const room = trade.user_id != null ? `user:${trade.user_id}` : `acct:${trade.account_id}`;
   io.to(room).emit(event, trade);
+  // Any trade write invalidates that user's cached aggregates. Doing it here
+  // covers ingest + manual add + edit, which all funnel through emitTrade;
+  // delete, CSV import and strategy rename invalidate at their own call sites.
+  invalidateStats(trade.user_id);
 };
 
 // Recompute one account's prop state and push any newly-crossed alerts to the
@@ -578,6 +613,7 @@ app.post('/api/trades/import', { preHandler: app.requireAuth, bodyLimit: 12 * 10
     } finally {
       client.release();
     }
+    invalidateStats(req.user.uid);
   }
   return { dryRun: false, imported: fresh.length, ...summary };
 });
@@ -697,6 +733,7 @@ app.delete('/api/trades/:id', { preHandler: app.requireAuth }, async (req, reply
   const t = rows[0];
   const room = t.user_id != null ? `user:${t.user_id}` : `acct:${t.account_id}`;
   io.to(room).emit('trade:deleted', { id });
+  invalidateStats(t.user_id);
   return { id, deleted: true };
 });
 
@@ -995,6 +1032,9 @@ app.patch('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, re
   try {
     const s = await updateStrategy(req.user.uid, Number(req.params.id), req.body ?? {});
     if (!s) return reply.code(404).send({ error: 'strategy not found' });
+    // A rename cascades onto trades.setup (regrouping bySetup) and a rules edit
+    // changes the adherence split — both are cached aggregates.
+    invalidateStats(req.user.uid);
     return s;
   } catch (err) {
     if (err.code === 'INVALID') return reply.code(400).send({ error: err.message });
@@ -1006,6 +1046,7 @@ app.patch('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, re
 app.delete('/api/strategies/:id', { preHandler: app.requireAuth }, async (req, reply) => {
   const ok = await deleteStrategy(req.user.uid, Number(req.params.id));
   if (!ok) return reply.code(404).send({ error: 'strategy not found' });
+  invalidateStats(req.user.uid);
   return { id: Number(req.params.id), deleted: true };
 });
 
@@ -1304,17 +1345,31 @@ const parseFilters = (q) => ({
   to: q.to || null,
 });
 
+// Both aggregate endpoints are cached per (scope, unit, filters, rounding) and
+// invalidated on any write to that user's trades — see src/statsCache.js. The
+// numbers are a pure function of the trade set, so a hit is always as correct as
+// a recompute.
 app.get('/api/stats', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
-  return computeStats(scope, parseUnit(req.query), parseFilters(req.query), parseBeRound(req.query));
+  const [unit, filters, beRound] = [parseUnit(req.query), parseFilters(req.query), parseBeRound(req.query)];
+  return statsCache.wrap(
+    cacheKey('stats', scope, unit, filters, beRound),
+    scope,
+    () => computeStats(scope, unit, filters, beRound)
+  );
 });
 
 app.get('/api/yearly', { preHandler: app.requireAuth }, async (req, reply) => {
   const scope = await resolveScope(req.user.uid, req.query.account_id);
   if (!scope) return reply.code(403).send({ error: 'account not found' });
   const year = Number(req.query.year) || new Date().getUTCFullYear();
-  return computeYearly(year, scope, parseUnit(req.query), parseFilters(req.query), parseBeRound(req.query));
+  const [unit, filters, beRound] = [parseUnit(req.query), parseFilters(req.query), parseBeRound(req.query)];
+  return statsCache.wrap(
+    cacheKey('yearly', scope, unit, filters, beRound, year),
+    scope,
+    () => computeYearly(year, scope, unit, filters, beRound)
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -1382,6 +1437,24 @@ app.post('/api/billing/subscribe', { preHandler: app.requireAuth }, async (req, 
   if (plan !== 'pro') return reply.code(400).send({ error: 'only the Pro plan is purchasable right now' });
   if (!config.razorpayPlanPro) return reply.code(503).send({ error: 'the Pro plan is not configured' });
 
+  // Refuse a second subscription. Without this, a double-clicked Upgrade button
+  // or a back-navigation creates TWO Razorpay subscriptions for one user and
+  // bills them twice — and the webhook would happily mark both active. Uses the
+  // same "not terminal" set as /cancel, so anything cancellable blocks a re-buy.
+  const existing = await query(
+    `SELECT razorpay_subscription_id, status FROM subscriptions
+      WHERE user_id = $1 AND status NOT IN ('cancelled','completed','expired')
+      ORDER BY created_at DESC LIMIT 1`,
+    [req.user.uid]
+  );
+  if (existing.rows.length) {
+    return reply.code(409).send({
+      error: 'you already have a subscription in progress',
+      subscription_id: existing.rows[0].razorpay_subscription_id,
+      status: existing.rows[0].status,
+    });
+  }
+
   let sub;
   try {
     sub = await createSubscription({ userId: req.user.uid, planId: config.razorpayPlanPro });
@@ -1447,6 +1520,9 @@ app.post('/api/billing/webhook', { config: { rateLimit: false } }, async (req, r
     [userId, subId, state.status, state.currentEnd]
   );
   await query('UPDATE users SET plan = $2 WHERE id = $1', [userId, state.plan]);
+  // Tell the browser its entitlements changed. Without this the user pays and the
+  // UI stays locked until they happen to reload — a poor moment to feel broken.
+  io.to(`user:${userId}`).emit('plan:updated', { plan: state.plan });
   req.log.info({ userId, plan: state.plan, event: req.body?.event }, 'billing webhook applied');
   return { ok: true };
 });
@@ -1455,6 +1531,33 @@ app.post('/api/billing/webhook', { config: { rateLimit: false } }, async (req, r
 const start = async () => {
   try {
     assertProdSecrets();
+    // If someone raises `instances` in ecosystem.config.cjs while Redis is
+    // absent or down, realtime delivery and cached analytics both go subtly
+    // wrong rather than failing outright — so say so loudly at boot. Both flags
+    // are live, not compile-time: Redis can drop long after a good boot, and the
+    // socket adapter then goes quietly one-way. See src/cluster.js.
+    const safety = clusterSafety({
+      clustered: isClustered(),
+      hasSharedSocketAdapter: !!redis && redisStatus.connected,
+      hasSharedStatsCache: statsBus.shared && redisStatus.connected,
+    });
+    if (!safety.safe) {
+      for (const reason of safety.reasons) {
+        app.log.error({ workerIndex: process.env.NODE_APP_INSTANCE }, `UNSAFE CLUSTER MODE: ${reason}`);
+      }
+    }
+    // Partial Razorpay config fails SAFE (billing 503s) but silently — the
+    // dashboard shows keys set while checkout is dead. Name the missing var.
+    const rzpMissing = ['razorpayKeyId', 'razorpayKeySecret', 'razorpayWebhookSecret']
+      .filter((k) => !config[k]);
+    if (rzpMissing.length && rzpMissing.length < 3) {
+      app.log.error(
+        { missing: rzpMissing.map((k) => k.replace(/^razorpay/, 'RAZORPAY_').replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase()) },
+        'PAYMENTS DISABLED: Razorpay is partially configured — billing routes will 503'
+      );
+    } else if (!rzpMissing.length && !config.razorpayPlanPro) {
+      app.log.error('PAYMENTS: keys are set but RAZORPAY_PLAN_PRO is missing — /subscribe will 503');
+    }
     await app.listen({ port: config.port, host: config.host });
   } catch (err) {
     app.log.error(err);

@@ -56,6 +56,13 @@ export async function logout() {
   await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
 }
 
+// Mark the setup wizard done; returns the updated user (onboarded_at set).
+export async function completeOnboarding() {
+  const res = await apiFetch('/api/onboarding/complete', { method: 'POST' });
+  if (!res.ok) throw new Error(`completeOnboarding ${res.status}`);
+  return (await res.json()).user;
+}
+
 // ---- Data (all scoped to the logged-in user; optional accountId selects one) ----
 const acctq = (accountId) => (accountId && accountId !== 'all' ? `&account_id=${accountId}` : '');
 
