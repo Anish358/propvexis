@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginWithGoogle } from './api.js';
+import { loginWithGoogle, loginWithPassword, signupWithPassword } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { BRAND } from './theme.js';
 import AuthArt from './AuthArt.jsx';
@@ -8,6 +8,7 @@ import Logo from './Logo.jsx';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
+const PASSWORD_MIN = 8;   // mirrors PASSWORD_MIN in src/credentials.js
 
 // Where the wordmark points. On the deployed app that's the marketing site; on
 // a dev box there is no local marketing site, and being thrown out to
@@ -36,28 +37,52 @@ function loadGsi() {
   });
 }
 
-const POINTS = [
-  'Closed trades sync straight from MetaTrader — no spreadsheet.',
-  'R-based analytics, prop-firm rules and drawdown tracked live.',
-  'Free to start. No card, no trial clock.',
-];
+function EyeIcon({ off }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+      {off && <line x1="3" y1="21" x2="21" y2="3" />}
+    </svg>
+  );
+}
 
-// mode: 'login' (default) or 'signup'. Google sign-in is the same OAuth flow for
-// both (a new account is created on first use), so this only changes the copy +
-// the Google button label. The marketing site deep-links to /signup.
+function GoogleIcon() {
+  // Google's four-brand-colour G, required by their branding guidelines even on
+  // a custom button.
+  return (
+    <svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62Z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.34 0-4.32-1.58-5.03-3.71H.96v2.34A9 9 0 0 0 9 18Z" />
+      <path fill="#FBBC05" d="M3.97 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.96a9 9 0 0 0 0 8.08l3.01-2.33Z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.96l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z" />
+    </svg>
+  );
+}
+
+// mode: 'login' (default) or 'signup'. One screen serves both — the fields, copy
+// and endpoint change, the layout doesn't.
 export default function Login({ mode = 'login' }) {
   const { setUser } = useAuth();
   const navigate = useNavigate();
   const btnRef = useRef(null);
   const [error, setError] = useState(null);
   const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
   const isSignup = mode === 'signup';
 
+  const done = (user) => {
+    setUser(user);
+    navigate('/', { replace: true });
+  };
+
   useEffect(() => {
-    if (!CLIENT_ID) {
-      setError('Google sign-in is not configured (missing VITE_GOOGLE_CLIENT_ID).');
-      return;
-    }
+    // Google is optional now: without a client id the email form still works,
+    // so this is no longer a page-level error.
+    if (!CLIENT_ID) return;
     let cancelled = false;
     loadGsi()
       .then(() => {
@@ -66,9 +91,7 @@ export default function Login({ mode = 'login' }) {
           client_id: CLIENT_ID,
           callback: async ({ credential }) => {
             try {
-              const user = await loginWithGoogle(credential);
-              setUser(user);
-              navigate('/', { replace: true });
+              done(await loginWithGoogle(credential));
             } catch (e) {
               setError(e.message === 'this account is not allowed'
                 ? 'This Google account is not on the allowlist.'
@@ -76,18 +99,43 @@ export default function Login({ mode = 'login' }) {
             }
           },
         });
+        // Rendered at the real size but visually hidden — our own button sits
+        // underneath it (see .auth-google in styles.css), because the widget is
+        // an iframe we can't restyle and its white logo tile clashes with the
+        // dark page.
         window.google.accounts.id.renderButton(btnRef.current, {
           theme: 'filled_black',
           size: 'large',
           shape: 'pill',
           text: isSignup ? 'signup_with' : 'signin_with',
-          width: 300,
+          width: 320,
         });
         setReady(true);
       })
-      .catch(() => setError('Could not load Google sign-in. Check your connection.'));
+      .catch(() => setError('Could not load Google sign-in. Use your email and password.'));
     return () => { cancelled = true; };
   }, [navigate, setUser, isSignup]);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    const email = form.email.trim();
+    if (!email || !form.password) return setError('Enter your email and password.');
+    if (isSignup && form.password.length < PASSWORD_MIN) {
+      return setError(`Use at least ${PASSWORD_MIN} characters for your password.`);
+    }
+    setBusy(true);
+    try {
+      done(isSignup
+        ? await signupWithPassword({ name: form.name.trim(), email, password: form.password })
+        : await loginWithPassword({ email, password: form.password }));
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="auth-screen">
@@ -136,20 +184,73 @@ export default function Login({ mode = 'login' }) {
             )}
           </p>
 
-          <div className="auth-cta">
-            <div ref={btnRef} className="auth-gsi" />
-            {!ready && !error && <div className="auth-gsi-wait" aria-live="polite">Loading sign-in…</div>}
-            <p className="auth-note">
-              {BRAND} uses Google sign-in only — no extra password to manage.
-              {isSignup && ' Your account is created the first time you sign in.'}
-            </p>
-          </div>
+          <form className="auth-form" onSubmit={submit} noValidate>
+            {isSignup && (
+              <label className="auth-field">
+                <span>Name <em>optional</em></span>
+                <input
+                  type="text" name="name" autoComplete="name" value={form.name}
+                  onChange={set('name')} placeholder="Anish Shejawale" disabled={busy}
+                />
+              </label>
+            )}
+            <label className="auth-field">
+              <span>Email</span>
+              <input
+                type="email" name="email" autoComplete="email" required value={form.email}
+                onChange={set('email')} placeholder="you@email.com" disabled={busy}
+              />
+            </label>
+            <label className="auth-field">
+              <span>Password</span>
+              <span className="auth-pw">
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  name="password"
+                  autoComplete={isSignup ? 'new-password' : 'current-password'}
+                  required
+                  minLength={isSignup ? PASSWORD_MIN : undefined}
+                  value={form.password}
+                  onChange={set('password')}
+                  placeholder={isSignup ? `At least ${PASSWORD_MIN} characters` : '••••••••'}
+                  disabled={busy}
+                />
+                <button
+                  type="button" className="auth-pw-toggle" onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? 'Hide password' : 'Show password'} aria-pressed={showPw}
+                >
+                  <EyeIcon off={showPw} />
+                </button>
+              </span>
+            </label>
 
-          {error && <div className="login-error auth-error" role="alert">{error}</div>}
+            {error && <div className="login-error auth-error" role="alert">{error}</div>}
 
-          <ul className="auth-points">
-            {POINTS.map((p) => <li key={p}>{p}</li>)}
-          </ul>
+            <button type="submit" className="auth-submit" disabled={busy}>
+              {busy ? 'One moment…' : isSignup ? 'Create account' : 'Log in'}
+            </button>
+          </form>
+
+          {CLIENT_ID && (
+            <>
+              <div className="auth-or"><span>or</span></div>
+              {/* Our button is the visible layer; the real (transparent) Google
+                  widget is stacked on top so the click still goes to Google. */}
+              <div className="auth-google" data-ready={ready ? 'yes' : 'no'}>
+                <span className="auth-google-face" aria-hidden="true">
+                  <GoogleIcon />
+                  {isSignup ? 'Sign up with Google' : 'Log in with Google'}
+                </span>
+                <div ref={btnRef} className="auth-gsi" />
+              </div>
+            </>
+          )}
+
+          <p className="auth-note">
+            {isSignup
+              ? 'Free plan, no card. If you later sign in with Google on this address it takes over the same account, replacing the password.'
+              : 'Signed up with Google? Use the Google button above.'}
+          </p>
         </div>
       </main>
 
