@@ -165,6 +165,53 @@ also exported to Prometheus (`pg_pool_total_connections`, `pg_pool_idle_connecti
 `pg_pool_waiting_requests` — a rising `waiting` count is the canonical signal that
 `PG_POOL_MAX` is the bottleneck).
 
+### Analytics aggregation & caching
+
+Dashboard/analytics numbers are aggregated **in Postgres**, not in Node.
+[`src/statsSql.js`](src/statsSql.js) builds one CTE query per request (headline,
+every `GROUP BY` block, R-distribution, MFE, equity curve, and win/loss streaks
+via gap-and-islands); [`src/aggregations.js`](src/aggregations.js) turns those
+counts into the API shape.
+
+The split is deliberate: **SQL does only `COUNT`/`SUM`/`GROUP BY`, and every
+derived number — rounding, strike rate, averages, profit factor, expectancy,
+group sort order — stays in JS.** So `shapePerf(countsFromSql)` must equal
+`perf(theSameTrades)`, which `test/stats-sql.test.js` asserts directly against
+the original implementation. A SQL mistake surfaces as a count mismatch, never as
+a quietly different formula. All timestamp extraction is pinned to UTC, because
+the JS original used `getUTC*` exclusively.
+
+Rule **adherence** stays in JS — it evaluates JSONB rule predicates per trade,
+which SQL can't express — but it is fetched separately and only for trades whose
+strategy actually defines rules, so users with no rules pay nothing.
+
+`/api/stats` and `/api/yearly` are cached per
+`(kind, scope, unit, filters, rounding, year)` in
+[`src/statsCache.js`](src/statsCache.js), invalidated on every write to that
+user's trades (ingest, manual add, edit, delete, CSV import, strategy
+rename/rules edit). The cache is bounded (LRU + TTL backstop) because the box has
+1GB of RAM, and scoped per user so one trader's ingest can't flush everyone's.
+`stats_cache_*` metrics expose the hit ratio.
+
+### Multiple workers (pm2 cluster mode)
+
+Wired up in [`ecosystem.config.cjs`](ecosystem.config.cjs) but **shipped as one
+worker per env**. `exec_mode` flips to `cluster` automatically when `WORKERS` goes
+above 1, but two pieces of per-process state must become shared first, or
+correctness degrades silently rather than failing:
+
+1. **Socket.IO's in-memory adapter** — broadcasts reach only clients on the same
+   worker, and polling handshakes need sticky sessions pm2 doesn't provide.
+2. **The analytics cache** — invalidation is a local `Map` delete, so a write on
+   one worker leaves the others serving stale numbers until their TTL lapses.
+
+Both are the same follow-up (a Redis-backed adapter + invalidation channel).
+[`src/cluster.js`](src/cluster.js) re-checks at boot and logs
+`UNSAFE CLUSTER MODE` per reason, with the `app_unsafe_cluster_mode` gauge as the
+alarm. Also lower `PG_POOL_MAX` before raising worker count —
+`advisePoolMax()` computes the ceiling (`workers × PG_POOL_MAX` across three envs
+against `max_connections=100`).
+
 ### Metrics (Prometheus + Grafana)
 
 The backend exposes Prometheus metrics at `GET /metrics` — RED metrics (request
