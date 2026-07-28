@@ -32,30 +32,32 @@
 // WORKERS PER ENV — deliberately 1. Read this before changing it.
 //
 // More than one worker is the fix for "one Node process pinned to one core", and
-// the code supports it (exec_mode flips to cluster automatically below). It is
-// OFF because three things must land first, and enabling it without them
-// degrades CORRECTNESS, not just performance:
+// the code supports it (exec_mode flips to cluster automatically below).
 //
-//   1. SHARED SOCKET ADAPTER. Socket.IO's default adapter is in-memory, so a
-//      broadcast only reaches clients on the same worker, and the HTTP polling
-//      handshake needs sticky sessions that pm2 cluster mode does not provide.
-//      Needs @socket.io/redis-adapter.
-//   2. SHARED CACHE INVALIDATION. src/statsCache.js invalidates a local Map, so
-//      a trade written on worker A leaves worker B serving stale analytics until
-//      its TTL lapses. Same Redis work.
-//   3. HEADROOM. The box is a 1GB t3.micro running all three envs (the
+// The two CORRECTNESS blockers are now solved in code by the Redis layer:
+//   * shared Socket.IO adapter  (@socket.io/redis-adapter, wired in app.js)
+//   * shared cache invalidation (src/statsBus.js over Redis pub/sub)
+// Both are inert unless REDIS_URL is set.
+//
+// It is still 1 because of the OPERATIONAL prerequisites:
+//   1. REDIS_URL must be provisioned for the env (SSM). Without it, clustered
+//      workers drop realtime events and serve stale analytics. The box's Docker
+//      daemon is stopped to save memory, so prefer a native
+//      `apt install redis-server` bound to 127.0.0.1 (~10MB) over a container.
+//   2. HEADROOM. The box is a 1GB t3.micro running all three envs (the
 //      observability containers are stopped on purpose to fit). Each worker is
-//      ~90-150MB RSS, so a second prod worker needs an upsize. Postgres
-//      connections are also workers x PG_POOL_MAX against max_connections=100
-//      shared by three envs — see advisePoolMax() in src/cluster.js and lower
-//      PG_POOL_MAX before raising this.
+//      ~90-150MB RSS, so a second prod worker needs an instance upsize.
+//   3. Postgres connections are workers x PG_POOL_MAX against
+//      max_connections=100 shared by three envs — see advisePoolMax() in
+//      src/cluster.js and LOWER PG_POOL_MAX before raising this.
 //
-// src/cluster.js re-checks 1 and 2 at boot and logs a loud warning if the app
-// finds itself clustered without them, so this cannot silently regress.
+// src/cluster.js re-checks the shared-state blockers at boot from LIVE Redis
+// state and logs a loud warning (plus the app_unsafe_cluster_mode gauge) if the
+// app finds itself clustered without them, so this cannot silently regress.
 // ---------------------------------------------------------------------------
 const WORKERS = { prod: 1, staging: 1, dev: 1 };
 
-function app({ name, cwd, port, ssmPrefix, workers = 1 }) {
+function app({ name, cwd, port, ssmPrefix, appEnv, workers = 1 }) {
   return {
     name,
     script: 'src/server.js',
@@ -75,6 +77,12 @@ function app({ name, cwd, port, ssmPrefix, workers = 1 }) {
       HOST: '127.0.0.1',
       PORT: String(port),
       SSM_PREFIX: ssmPrefix,
+      // Which deployment this is. NODE_ENV can't distinguish them (all three are
+      // 'production'), and the three envs SHARE ONE REDIS whose pub/sub is global
+      // across databases — so this prefix is what stops a prod socket broadcast
+      // reaching a staging client. Those DBs are replicas of prod, so the user
+      // ids match and the events would actually be delivered.
+      APP_ENV: appEnv,
     },
   };
 }
@@ -86,6 +94,7 @@ module.exports = {
       cwd: '/opt/amey-journal',
       port: 3000,
       ssmPrefix: '/amey-journal/prod/',
+      appEnv: 'prod',
       workers: WORKERS.prod,
     }),
     app({
@@ -93,6 +102,7 @@ module.exports = {
       cwd: '/opt/amey-staging',
       port: 3011,
       ssmPrefix: '/amey-journal/staging/',
+      appEnv: 'staging',
       workers: WORKERS.staging,
     }),
     app({
@@ -100,6 +110,7 @@ module.exports = {
       cwd: '/opt/amey-dev',
       port: 3012,
       ssmPrefix: '/amey-journal/dev/',
+      appEnv: 'dev',
       workers: WORKERS.dev,
     }),
   ],

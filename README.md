@@ -193,24 +193,56 @@ rename/rules edit). The cache is bounded (LRU + TTL backstop) because the box ha
 1GB of RAM, and scoped per user so one trader's ingest can't flush everyone's.
 `stats_cache_*` metrics expose the hit ratio.
 
+### Redis (optional) — shared socket adapter + cache invalidation
+
+`REDIS_URL` unset means the app behaves exactly as it does single-process:
+in-memory Socket.IO adapter, process-local analytics cache. Set it and two things
+become cross-process, which is what makes multiple workers possible:
+
+- **Socket.IO** uses `@socket.io/redis-adapter`, so a broadcast reaches clients
+  connected to any worker.
+- **Cache invalidation** fans out over Redis pub/sub
+  ([`src/statsBus.js`](src/statsBus.js)), so a trade written on one worker drops
+  the stale entries on all of them.
+
+Two availability rules are deliberate in [`src/redis.js`](src/redis.js): a failed
+connect is **not fatal** (the app logs and runs degraded rather than refusing to
+boot — a Redis outage must not take the API down), and both clients get `error`
+listeners before connecting, since an unhandled `error` event would kill the
+process. The `redis_configured` / `redis_connected` gauges make "configured but
+currently down" alertable, because the socket adapter goes quietly one-way then.
+
+The invariant in the invalidation bus: **local invalidation never depends on the
+transport.** If the publish fails, the worker that handled the write still drops
+its own entries — otherwise a Redis outage would show the writing user their own
+stale dashboard, which is worse than the cross-worker staleness this fixes.
+
+`redis://` and `rediss://` (TLS) both work, so one var covers a native
+`redis-server`, Upstash, or ElastiCache.
+
 ### Multiple workers (pm2 cluster mode)
 
 Wired up in [`ecosystem.config.cjs`](ecosystem.config.cjs) but **shipped as one
 worker per env**. `exec_mode` flips to `cluster` automatically when `WORKERS` goes
-above 1, but two pieces of per-process state must become shared first, or
-correctness degrades silently rather than failing:
+above 1. The two correctness blockers — shared socket adapter and shared cache
+invalidation — are **solved in code** by the Redis layer above. What remains
+before raising it:
 
-1. **Socket.IO's in-memory adapter** — broadcasts reach only clients on the same
-   worker, and polling handshakes need sticky sessions pm2 doesn't provide.
-2. **The analytics cache** — invalidation is a local `Map` delete, so a write on
-   one worker leaves the others serving stale numbers until their TTL lapses.
+1. **Provision Redis** and set `REDIS_URL` for that env. Without it, clustered
+   workers drop realtime events and serve stale analytics.
+2. **Box headroom** — a 1GB t3.micro runs all three envs today (the Prometheus and
+   Grafana containers are stopped on purpose to fit). Each worker is ~90–150MB
+   RSS, so a second prod worker needs an upsize.
+3. **Lower `PG_POOL_MAX`** — total connections are `workers × PG_POOL_MAX` across
+   three envs against `max_connections=100`; `advisePoolMax()` in
+   [`src/cluster.js`](src/cluster.js) computes the ceiling.
 
-Both are the same follow-up (a Redis-backed adapter + invalidation channel).
-[`src/cluster.js`](src/cluster.js) re-checks at boot and logs
-`UNSAFE CLUSTER MODE` per reason, with the `app_unsafe_cluster_mode` gauge as the
-alarm. Also lower `PG_POOL_MAX` before raising worker count —
-`advisePoolMax()` computes the ceiling (`workers × PG_POOL_MAX` across three envs
-against `max_connections=100`).
+[`src/cluster.js`](src/cluster.js) re-checks at boot from **live** Redis state
+(not boot-time config, since Redis can drop later) and logs `UNSAFE CLUSTER MODE`
+per reason, with the `app_unsafe_cluster_mode` gauge as the alarm.
+
+> The box's Docker daemon is stopped to save memory, so Redis there wants a native
+> `apt install redis-server` bound to `127.0.0.1` (~10MB), not a container.
 
 ### Metrics (Prometheus + Grafana)
 

@@ -83,6 +83,22 @@ export const config = {
     process.env.ECON_CALENDAR_URL ?? 'https://nfs.faireconomy.media/ff_calendar_thisweek.json'
   ).split(',').map((s) => s.trim()).filter(Boolean),
 
+  // Which deployment this process is: 'prod' | 'staging' | 'dev' | 'local'.
+  // NOT the same as NODE_ENV — all three box envs run NODE_ENV=production, so
+  // NODE_ENV cannot tell them apart. Set per app in ecosystem.config.cjs.
+  // Used to namespace shared Redis channels: the three envs share ONE Redis, and
+  // Redis pub/sub is global (NOT per-database), so without this prefix a prod
+  // socket broadcast would be delivered to staging/dev clients — which hold the
+  // same user ids, because those DBs are replicas of prod.
+  appEnv: process.env.APP_ENV ?? 'local',
+
+  // ---- Redis (optional: shared socket adapter + cache invalidation) ----
+  // Empty = disabled, and the app runs exactly as it did single-process (see
+  // src/redis.js). Accepts redis:// and rediss:// (TLS), so the same value works
+  // for a native redis-server on the box, Upstash, or ElastiCache. REQUIRED
+  // before running more than one pm2 worker — see src/cluster.js.
+  redisUrl: process.env.REDIS_URL ?? '',
+
   // ---- Observability (Sentry) ----
   // DSN from the Sentry project. Empty = Sentry disabled (a no-op), so local/dev
   // and unconfigured environments run without it. `environment`/`release` tag events.

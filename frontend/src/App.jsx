@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState } from './api.js';
+import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState, fetchMe } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, emptyFilters, filterTrades, availableOptions } from './filters.js';
 import { applyBeRounding } from './metrics.js';
@@ -289,6 +289,10 @@ export default function App() {
       pushToast(n);
     });
     socket.on('trade:deleted', ({ id }) => removeLocal(id));
+    // Razorpay's webhook is what actually grants a paid plan, so the upgrade
+    // lands server-side after checkout closes. Re-read /me instead of making the
+    // user reload to see what they just paid for.
+    socket.on('plan:updated', () => fetchMe().then(setUser).catch(() => {}));
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
     return () => socket.close();
