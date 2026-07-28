@@ -1411,6 +1411,24 @@ app.post('/api/billing/subscribe', { preHandler: app.requireAuth }, async (req, 
   if (plan !== 'pro') return reply.code(400).send({ error: 'only the Pro plan is purchasable right now' });
   if (!config.razorpayPlanPro) return reply.code(503).send({ error: 'the Pro plan is not configured' });
 
+  // Refuse a second subscription. Without this, a double-clicked Upgrade button
+  // or a back-navigation creates TWO Razorpay subscriptions for one user and
+  // bills them twice — and the webhook would happily mark both active. Uses the
+  // same "not terminal" set as /cancel, so anything cancellable blocks a re-buy.
+  const existing = await query(
+    `SELECT razorpay_subscription_id, status FROM subscriptions
+      WHERE user_id = $1 AND status NOT IN ('cancelled','completed','expired')
+      ORDER BY created_at DESC LIMIT 1`,
+    [req.user.uid]
+  );
+  if (existing.rows.length) {
+    return reply.code(409).send({
+      error: 'you already have a subscription in progress',
+      subscription_id: existing.rows[0].razorpay_subscription_id,
+      status: existing.rows[0].status,
+    });
+  }
+
   let sub;
   try {
     sub = await createSubscription({ userId: req.user.uid, planId: config.razorpayPlanPro });
@@ -1476,6 +1494,9 @@ app.post('/api/billing/webhook', { config: { rateLimit: false } }, async (req, r
     [userId, subId, state.status, state.currentEnd]
   );
   await query('UPDATE users SET plan = $2 WHERE id = $1', [userId, state.plan]);
+  // Tell the browser its entitlements changed. Without this the user pays and the
+  // UI stays locked until they happen to reload — a poor moment to feel broken.
+  io.to(`user:${userId}`).emit('plan:updated', { plan: state.plan });
   req.log.info({ userId, plan: state.plan, event: req.body?.event }, 'billing webhook applied');
   return { ok: true };
 });
@@ -1498,6 +1519,18 @@ const start = async () => {
       for (const reason of safety.reasons) {
         app.log.error({ workerIndex: process.env.NODE_APP_INSTANCE }, `UNSAFE CLUSTER MODE: ${reason}`);
       }
+    }
+    // Partial Razorpay config fails SAFE (billing 503s) but silently — the
+    // dashboard shows keys set while checkout is dead. Name the missing var.
+    const rzpMissing = ['razorpayKeyId', 'razorpayKeySecret', 'razorpayWebhookSecret']
+      .filter((k) => !config[k]);
+    if (rzpMissing.length && rzpMissing.length < 3) {
+      app.log.error(
+        { missing: rzpMissing.map((k) => k.replace(/^razorpay/, 'RAZORPAY_').replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase()) },
+        'PAYMENTS DISABLED: Razorpay is partially configured — billing routes will 503'
+      );
+    } else if (!rzpMissing.length && !config.razorpayPlanPro) {
+      app.log.error('PAYMENTS: keys are set but RAZORPAY_PLAN_PRO is missing — /subscribe will 503');
     }
     await app.listen({ port: config.port, host: config.host });
   } catch (err) {
