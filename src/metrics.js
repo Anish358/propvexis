@@ -6,6 +6,8 @@
 // without booting the app or a DB.
 import client from 'prom-client';
 import { pool } from './db.js';
+import { statsCache } from './statsCache.js';
+import { clusterSafety, isClustered } from './cluster.js';
 
 export const registry = new client.Registry();
 
@@ -68,4 +70,41 @@ new client.Gauge({
   help: 'Requests queued waiting for a pg pool client',
   registers: [registry],
   collect() { this.set(pool.waitingCount); },
+});
+
+// ---- analytics cache + cluster safety ----
+// Hit ratio tells us whether the /api/stats cache is earning its keep; the
+// unsafe-cluster gauge is the alarm for "someone raised pm2 instances before the
+// shared Redis adapter existed", which otherwise shows up only as stale numbers
+// and missing realtime events. 0 = safe.
+new client.Gauge({
+  name: 'stats_cache_entries',
+  help: 'Entries currently held in the analytics cache',
+  registers: [registry],
+  collect() { this.set(statsCache.stats().size); },
+});
+new client.Gauge({
+  name: 'stats_cache_hits_total',
+  help: 'Analytics cache hits since boot',
+  registers: [registry],
+  collect() { this.set(statsCache.stats().hits); },
+});
+new client.Gauge({
+  name: 'stats_cache_misses_total',
+  help: 'Analytics cache misses since boot',
+  registers: [registry],
+  collect() { this.set(statsCache.stats().misses); },
+});
+new client.Gauge({
+  name: 'app_unsafe_cluster_mode',
+  help: '1 when running multiple workers without shared socket/cache state (stale reads + lost realtime events)',
+  registers: [registry],
+  collect() {
+    const { safe } = clusterSafety({
+      clustered: isClustered(),
+      hasSharedSocketAdapter: false,
+      hasSharedStatsCache: false,
+    });
+    this.set(safe ? 0 : 1);
+  },
 });
