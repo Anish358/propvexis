@@ -4,10 +4,17 @@ import { loginWithGoogle } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { BRAND } from './theme.js';
 import AuthArt from './AuthArt.jsx';
+import Logo from './Logo.jsx';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
-const SITE = 'https://propvexis.com';
+
+// Where the wordmark points. On the deployed app that's the marketing site; on
+// a dev box there is no local marketing site, and being thrown out to
+// production mid-test is worse than a no-op — so stay on this origin.
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]', ''];
+const isLocal = typeof window !== 'undefined' && LOCAL_HOSTS.includes(window.location.hostname);
+const SITE = isLocal ? '/' : 'https://propvexis.com';
 
 // Load the Google Identity Services script once.
 function loadGsi() {
@@ -108,14 +115,10 @@ export default function Login({ mode = 'login' }) {
       </svg>
 
       <header className="auth-top">
-        <a className="auth-logo" href={SITE}>
-          <span className="auth-logo-mark" />
+        <a className="auth-logo" href={SITE} aria-label={`${BRAND} home`}>
+          <Logo size={22} />
           <span>{BRAND}<span className="auth-accent-dot">.</span></span>
         </a>
-        <nav className="auth-top-nav">
-          <a href={SITE}>Home</a>
-          <Link to={isSignup ? '/login' : '/signup'}>{isSignup ? 'Log in' : 'Join'}</Link>
-        </nav>
       </header>
 
       <main className="auth-main">

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { NAV } from './nav.js';
 import { BRAND } from './theme.js';
+import Logo from './Logo.jsx';
 
 // Icon registry — nav.js references these by string key so the IA config stays
 // JSX-free (and testable from node). Add a key here when adding one there.
@@ -98,7 +99,9 @@ export default function Sidebar({ onToggle = () => {} }) {
   return (
     <aside className="sidebar">
       <div className="sb-head">
-        <Link to="/" className="sb-brand">{BRAND}</Link>
+        {/* Router Link, not an href — the mark stays inside whichever origin
+            the app is served from (localhost in dev, the deployed host in prod). */}
+        <Link to="/" className="sb-brand"><Logo size={24} />{BRAND}</Link>
         <button className="sb-collapse" onClick={onToggle} title="Hide sidebar" aria-label="Hide sidebar">
           <span /><span /><span />
         </button>

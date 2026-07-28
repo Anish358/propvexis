@@ -1,38 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#15151b"/>
-      <stop offset="1" stop-color="#0a0a0c"/>
-    </linearGradient>
-    <linearGradient id="line" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#7c5cff"/>
-      <stop offset="0.55" stop-color="#39d98a"/>
-      <stop offset="1" stop-color="#5cffb0"/>
-    </linearGradient>
-    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="1.6" result="b"/>
-      <feMerge>
-        <feMergeNode in="b"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-
-  <!-- rounded tile -->
-  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bg)" stroke="#2a2a32" stroke-width="1.5"/>
-
-  <!-- area under the trend -->
-  <path d="M10 44 L24 36 L34 41 L52 18 L52 52 L10 52 Z" fill="#39d98a" opacity="0.12"/>
-
-  <!-- funky zig-zag trend line -->
-  <g fill="none" stroke="url(#line)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
-    <path d="M10 44 L24 36 L34 41 L52 18"/>
-    <!-- arrowhead -->
-    <path d="M44 17 L52 18 L51 26"/>
-  </g>
-
-  <!-- data nodes -->
-  <circle cx="24" cy="36" r="2.6" fill="#0a0a0c" stroke="#39d98a" stroke-width="2"/>
-  <circle cx="34" cy="41" r="2.6" fill="#0a0a0c" stroke="#39d98a" stroke-width="2"/>
-  <circle cx="52" cy="18" r="3" fill="#5cffb0"/>
+<!-- Same geometry as the marketing site's mark (propvexis-web: public/favicon.svg
+     + src/components/Logo.astro) and the in-app <Logo /> — one brand mark
+     everywhere. Values are inlined because a favicon can't read CSS vars; they
+     mirror --panel / --accent-border / --accent / --profit. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="8" fill="#151922" stroke="#21396b"/>
+  <path d="M9 21.5 15 10l6 11.5" stroke="#3b82f6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="21" cy="21.5" r="1.7" fill="#22c55e"/>
 </svg>

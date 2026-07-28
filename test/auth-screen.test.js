@@ -18,10 +18,21 @@ test('one component serves both routes, differing only in copy', () => {
   assert.match(login, /isSignup = mode === 'signup'/);
   assert.match(login, /Create new account/);
   assert.match(login, /Log in to your journal/);
-  // Each mode links to the other one in-app (no full page reload).
-  assert.match(login, /to=\{isSignup \? '\/login' : '\/signup'\}/);
+  // Each mode links to the other one in-app (no full page reload). The header
+  // is wordmark-only — the Home/Join nav was removed, so this is the only route
+  // switch on the page.
   assert.match(login, /<Link to="\/login">Log in<\/Link>/);
   assert.match(login, /<Link to="\/signup">Create an account<\/Link>/);
+  assert.ok(!login.includes('auth-top-nav'), 'the auth header carries no nav links');
+});
+
+test('brand mark is the shared Logo, and the wordmark link stays on-origin locally', () => {
+  assert.match(login, /import Logo from '\.\/Logo\.jsx'/);
+  assert.match(login, /<Logo size=\{22\} \/>/);
+  assert.match(login, /const SITE = isLocal \? '\/' : 'https:\/\/propvexis\.com'/);
+  for (const host of ['localhost', '127.0.0.1']) {
+    assert.ok(login.includes(`'${host}'`), `${host} must count as local`);
+  }
 });
 
 test('sign-in stays Google-only and says so (no fake password field)', () => {

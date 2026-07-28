@@ -1223,11 +1223,10 @@ label.full { margin-bottom: 16px; }
 }
 .sb-collapse:hover, .tb-menu:hover { background: var(--surface-hover); }
 .sb-collapse span, .tb-menu span { width: 16px; height: 2px; border-radius: 2px; background: var(--text-2); }
-.sb-brand::before {
-  content: ''; width: 22px; height: 22px; border-radius: 7px; flex: none;
-  background: linear-gradient(140deg, var(--blue-400), var(--accent-strong));
-  box-shadow: 0 0 0 1px var(--line);
-}
+/* ===== Brand mark (Logo.jsx) — shared with the marketing site ===== */
+.pv-logo { display: inline-flex; align-items: center; gap: 9px; }
+.pv-logo-mark { flex: none; }
+.pv-logo-word { font-weight: var(--fw-semibold); letter-spacing: -0.02em; color: var(--text); }
 .sb-nav { display: flex; flex-direction: column; gap: 4px; }
 .sb-section { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin: 8px 8px 12px; }
 .sb-item {
@@ -1532,11 +1531,7 @@ label.full { margin-bottom: 16px; }
   display: flex; align-items: center; gap: 10px; text-decoration: none;
   font-size: 16px; font-weight: var(--fw-semibold); letter-spacing: -0.01em; color: var(--text);
 }
-.auth-logo-mark { width: 20px; height: 20px; border-radius: var(--r-full); background: var(--accent); flex: none; }
 .auth-accent-dot { color: var(--accent); }
-.auth-top-nav { display: flex; gap: var(--s-6); font-size: 13px; }
-.auth-top-nav a { color: var(--text-3); text-decoration: none; transition: color var(--dur-fast) var(--ease); }
-.auth-top-nav a:hover { color: var(--text); }
 
 /* -- left column -- */
 .auth-main {
