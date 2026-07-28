@@ -10,6 +10,27 @@ export const config = {
   port: Number(process.env.PORT ?? 3000),
   host: process.env.HOST ?? '0.0.0.0',
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://localhost:5432/amey_journal',
+
+  // ---- Postgres connection pool (see src/db.js poolOptions) ----
+  // node-pg defaults to max:10 with NO connectionTimeoutMillis, so a traffic
+  // burst silently queues forever on an exhausted pool instead of failing fast.
+  // That pairing was the top bottleneck for the >=1000-concurrent-user bar.
+  //
+  // SIZING IS PER PROCESS. Under pm2 cluster mode the box holds
+  // (workers x pgPoolMax) server connections, and prod/staging/dev share ONE
+  // native PG16 instance (max_connections=100, 3 superuser-reserved). Budget:
+  // prod 2 workers x 20 = 40, leaving room for the two small side envs.
+  // Raise PG_POOL_MAX only together with Postgres `max_connections`.
+  pgPoolMax: Number(process.env.PG_POOL_MAX ?? 20),
+  // Evict idle clients fairly quickly — each one is a real PG backend process
+  // (~5-10MB) and the box is a 1GB t3.micro.
+  pgPoolIdleTimeoutMs: Number(process.env.PG_POOL_IDLE_TIMEOUT_MS ?? 30_000),
+  // Fail fast when the pool is saturated: a queued request errors after this
+  // instead of hanging the HTTP handler indefinitely.
+  pgPoolConnectionTimeoutMs: Number(process.env.PG_POOL_CONNECTION_TIMEOUT_MS ?? 5_000),
+  // Recycle a client after this many checkouts, so a slow server-side leak
+  // (temp tables, prepared statements, session GUCs) can't accumulate forever.
+  pgPoolMaxUses: Number(process.env.PG_POOL_MAX_USES ?? 7_500),
   ingestToken: process.env.INGEST_TOKEN ?? 'dev-token-please-change',
   corsOrigin:
     (process.env.CORS_ORIGIN ?? '*') === '*'

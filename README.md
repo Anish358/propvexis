@@ -139,6 +139,32 @@ curl localhost:3000/health    # {"ok":true}
 The container image is the packaging artifact; the live deploy currently stays
 rsync + pm2 (see below). Frontend runs separately via `vite`.
 
+### Database connection pool
+
+The `pg` pool is explicitly sized in [`src/db.js`](src/db.js) (`poolOptions`) from
+`PG_POOL_*` env vars rather than riding node-pg's defaults, which capped the app at
+10 clients and — with no `connectionTimeoutMillis` — made an exhausted pool queue
+requests *forever* instead of erroring. Defaults: `max=20`, `idleTimeoutMillis=30s`,
+`connectionTimeoutMillis=5s`, `maxUses=7500`. The pool also carries an `error`
+listener, so a dead idle client (DB restart, `pg_terminate_backend`) is evicted and
+logged instead of crashing the process on an unhandled error event.
+
+**Sizing is per process.** Total connections to Postgres are
+`cluster workers × PG_POOL_MAX`, and the prod/staging/dev environments share one
+native PG16 instance (`max_connections=100`, 3 superuser-reserved). Check headroom
+before raising it:
+
+```bash
+psql -c "show max_connections"
+psql -c "select application_name, count(*) from pg_stat_activity group by 1 order by 2 desc"
+```
+
+Each pool tags itself `propvexis-<NODE_ENV>` via `application_name`, so that second
+query attributes connections to the environment holding them. Pool saturation is
+also exported to Prometheus (`pg_pool_total_connections`, `pg_pool_idle_connections`,
+`pg_pool_waiting_requests` — a rising `waiting` count is the canonical signal that
+`PG_POOL_MAX` is the bottleneck).
+
 ### Metrics (Prometheus + Grafana)
 
 The backend exposes Prometheus metrics at `GET /metrics` — RED metrics (request
