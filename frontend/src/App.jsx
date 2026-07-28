@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState } from './api.js';
 import { useAuth } from './AuthContext.jsx';
-import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, filterTrades, availableOptions } from './filters.js';
+import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './filters.js';
 import { sanitizeDashLayout, defaultDashLayout, moveDashIdBefore } from './dashLayout.js';
 import { sanitizeBriefPrefs, defaultBriefPrefs } from './briefPrefs.js';
 import { applyBeRounding } from './metrics.js';
@@ -123,7 +123,10 @@ export default function App() {
   // Merge over defaults so configs persisted before a field existed (e.g. the
   // pre-widget Phase A configs) still get sane values.
   const config = { ...defaultConfig(), ...(viewConfigs[sk] || {}) };
-  const { filters } = config;
+  // The merge above is shallow, so a config saved before a filter existed brings
+  // its own (short) filters object with it — every newer key missing. Rebuilt from
+  // the registry on read, which also drops anything malformed.
+  const filters = sanitizeFilters(config.filters);
   const pinnedAccounts = config.dashboard?.pinnedAccounts || [];
   // Unlike filters/dashboard, the display unit is global — stored at the top
   // level of viewConfigs, not per scope — so it never changes on an account
@@ -181,7 +184,9 @@ export default function App() {
   });
   const resetBriefPrefs = () => setViewConfigs((prev) => ({ ...prev, briefPrefs: defaultBriefPrefs() }));
 
-  const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...c.filters, ...p } }));
+  // Patched onto the SANITIZED state, not the raw stored one, so a partial saved
+  // blob is normalized by the first edit instead of being written back short.
+  const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...sanitizeFilters(c.filters), ...p } }));
   const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
   // The Dashboard's selected prop account (god scope), passed as [login].
   const setPinnedAccounts = (logins) => mutateConfig((c) => ({ ...c, dashboard: { ...c.dashboard, pinnedAccounts: logins } }));

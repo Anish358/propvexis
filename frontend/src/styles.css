@@ -547,32 +547,6 @@ label.full { margin-bottom: 16px; }
 .fb-unit-btn.on { background: var(--accent-border); color: var(--accent); }
 .fb-sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
 
-.fb-ms { position: relative; }
-.fb-ms-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: var(--panel); border: 1px solid var(--line); color: var(--text);
-  padding: 8px 12px; font-size: 13px; border-radius: 8px; cursor: pointer; white-space: nowrap;
-}
-.fb-ms.active .fb-ms-btn { border-color: var(--accent-border); color: var(--accent); }
-.fb-ms-btn:hover { border-color: var(--line-strong); }
-.fb-ms-menu {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; min-width: 160px;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px;
-  box-shadow: 0 10px 30px var(--shadow-50);
-}
-.fb-ms-opt {
-  display: flex; align-items: center; gap: 8px; padding: 8px 8px; font-size: 13px;
-  border-radius: 6px; cursor: pointer; white-space: nowrap;
-}
-.fb-ms-opt:hover { background: var(--surface-hover); }
-.fb-ms-opt input { accent-color: var(--accent); }
-.fb-ms-empty { padding: 8px 8px; color: var(--muted); font-size: 12px; }
-.fb-ms-clear {
-  width: 100%; margin-top: 4px; background: transparent; border: none; border-top: 1px solid var(--line);
-  color: var(--muted); padding: 8px; font-size: 12px; cursor: pointer;
-}
-.fb-ms-clear:hover { color: var(--text); }
-
 .fb-dates { display: inline-flex; align-items: center; gap: 8px; }
 .fb-date {
   background: var(--panel); border: 1px solid var(--line); color: var(--text);
@@ -2609,14 +2583,200 @@ label.full { margin-bottom: 16px; }
 .tb-btn:hover { background: var(--surface-hover); color: var(--text); }
 .tb-btn.active { color: var(--text); }
 .tb-badge { display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 400; }
-.tb-filters-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: var(--z-dropdown); width: 300px; padding: 12px; display: flex; flex-direction: column; gap: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-2); }
-.tb-filters-grid { display: flex; flex-direction: column; gap: 8px; }
-.tb-filters-grid .fb-ms { width: 100%; }
-.tb-filters-grid .fb-ms-btn { width: 100%; justify-content: space-between; background: var(--bg); }
-.tb-filters-dates { display: flex; align-items: center; gap: 8px; }
-.tb-filters-dates .u-input { padding: 8px 8px; font-size: 12px; }
-.tb-date-sep { color: var(--text-3); }
-.tb-filters-clear { background: transparent; border: none; color: var(--accent); font-size: 12px; font-weight: 400; cursor: pointer; text-align: left; padding: 4px 4px 0; }
+
+/* ---- Filter panel (the builder) ----
+   Two levels. The PANEL hangs under the Filters button; the CASCADE (the
+   "add filter" column, then the picked filter's values) hangs under the panel,
+   right-aligned with it. Within the cascade the columns run right-to-left, so
+   each new one grows LEFTWARD — the button lives at the right end of the top bar,
+   and cascading left keeps every column on screen without measuring the viewport.
+   Dropping the cascade below the panel (rather than beside it) also keeps a long
+   filter list from running up alongside the top bar. Under 720px there isn't room
+   for two columns side by side, so the cascade stacks (media query below). */
+.fp-stack {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--z-dropdown);
+  display: flex; flex-direction: column; align-items: flex-end; gap: var(--s-2);
+  /* A form inside a bar of centered flex rows — reset both inherited axes. */
+  text-align: left; cursor: default;
+}
+.fp-cascade { display: flex; flex-direction: row-reverse; align-items: flex-start; gap: var(--s-2); }
+.fp {
+  width: 268px; flex: none;
+  display: flex; flex-direction: column;
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: var(--r-xl); box-shadow: var(--sh-3);
+}
+.fp-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-2);
+  padding: 10px 12px; border-bottom: 1px solid var(--line);
+}
+.fp-head-title { font-size: 12px; font-weight: var(--fw-semibold); color: var(--text); }
+.fp-head-clear {
+  background: transparent; border: none; padding: 0; cursor: pointer;
+  font-size: 11px; color: var(--accent);
+}
+.fp-head-clear:hover { text-decoration: underline; }
+
+/* Active filters. Each chip is two buttons: the body re-opens that filter's value
+   column (editing beats remove-and-re-add), the ✕ removes only that one. */
+.fp-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 8px 4px; }
+.fp-chip {
+  display: inline-flex; align-items: stretch; max-width: 100%;
+  background: var(--sel-bg); border: 1px solid var(--line);
+  border-radius: var(--r-md); overflow: hidden;
+}
+.fp-chip.is-editing { border-color: var(--line-strong); background: var(--sel-bg-strong); }
+.fp-chip-main {
+  display: inline-flex; align-items: baseline; gap: 5px; min-width: 0;
+  background: transparent; border: none; padding: 4px 6px;
+  font-family: inherit; font-size: 11px; cursor: pointer;
+}
+.fp-chip-main:hover { background: var(--surface-hover); }
+.fp-chip-key { color: var(--text-2); flex: none; }
+.fp-chip-val { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-chip-x {
+  display: grid; place-items: center; flex: none; width: 20px;
+  background: transparent; border: none; border-left: 1px solid var(--line);
+  color: var(--text-3); cursor: pointer;
+}
+.fp-chip-x:hover { background: var(--surface-hover); color: var(--text); }
+
+.fp-add {
+  display: flex; align-items: center; gap: 6px; margin: 4px 8px 8px;
+  background: transparent; border: 1px dashed var(--line-strong); border-radius: var(--r-md);
+  color: var(--text-2); padding: 6px 8px;
+  font-family: inherit; font-size: 12px; cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.fp-add:hover, .fp-add.is-on { background: var(--surface-hover); color: var(--text); border-style: solid; }
+.fp-blank { margin: 0; padding: 0 12px 10px; font-size: 11px; color: var(--text-3); }
+
+/* A cascade column. Same surface as the panel so the three read as one object. */
+.fp-menu {
+  /* Capped against the viewport, not just a pixel value: the cascade now starts
+     below the panel, and a panel carrying several rows of chips pushes that start
+     point a long way down. The body scrolls; the column never runs off-screen. */
+  width: 216px; flex: none; max-height: min(56vh, 400px);
+  display: flex; flex-direction: column;
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: var(--r-xl); box-shadow: var(--sh-3);
+}
+.fp-menu-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 12px 0;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+}
+.fp-menu-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-menu-sub { margin-left: auto; flex: none; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.fp-menu-back {
+  display: grid; place-items: center; flex: none; width: 16px; height: 16px; margin-left: -2px;
+  background: transparent; border: none; border-radius: var(--r-sm);
+  color: var(--text-3); cursor: pointer;
+}
+.fp-menu-back:hover { background: var(--surface-hover); color: var(--text); }
+/* Search is present in every column that HAS a list — the fast path into a
+   registry that will eventually hold dozens of filters. Borderless so the column
+   reads as a menu rather than a form. */
+.fp-search {
+  margin: 6px 8px; padding: 5px 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-input);
+  color: var(--text); font-family: inherit; font-size: 12px;
+}
+.fp-search::placeholder { color: var(--text-3); }
+.fp-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.fp-menu-body { overflow-y: auto; padding: 0 6px 6px; }
+.fp-menu-group {
+  padding: 8px 6px 3px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-3);
+}
+.fp-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border-radius: var(--r-sm);
+  font-size: 12px; color: var(--text); cursor: pointer;
+}
+/* One highlight, driven by the keyboard cursor — hover just moves the cursor, so
+   pointer and keyboard can never disagree about what Enter would hit. */
+.fp-row.is-cursor { background: var(--sel-bg); }
+.fp-row-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-row-chev, .fp-row-count { flex: none; color: var(--text-3); }
+.fp-row-count { font-size: 11px; }
+/* An already-filtered dimension is dotted in the choose column, so the list shows
+   what's applied without cross-referencing the chips. */
+.fp-dot { flex: none; width: 5px; height: 5px; border-radius: var(--r-full); background: var(--text-2); }
+.fp-row--soon, .fp-row--soon.is-cursor { cursor: default; color: var(--text-3); background: transparent; }
+.fp-soon {
+  flex: none; font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+  padding: 1px 5px; border-radius: var(--r-full);
+  background: var(--surface-hover); border: 1px solid var(--line); color: var(--text-3);
+}
+.fp-empty { padding: 8px 6px; font-size: 11px; color: var(--text-3); }
+
+/* Checkbox (multi) and radio (single) drawn as spans: the rows are listbox
+   options, so state lives on aria-selected and a real input would duplicate it. */
+.fp-box {
+  flex: none; width: 13px; height: 13px; border-radius: 3px;
+  border: 1px solid var(--line-strong); background: var(--panel);
+}
+.fp-box--radio { border-radius: var(--r-full); }
+.fp-box.is-on { background: var(--text-2); border-color: var(--text-2); }
+.fp-box--radio.is-on { background: var(--panel); box-shadow: inset 0 0 0 3px var(--text-2); border-color: var(--text-2); }
+
+.fp-menu-foot { padding: 6px 8px 8px; border-top: 1px solid var(--line); }
+.fp-menu-clear {
+  background: transparent; border: none; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 11px; color: var(--accent);
+}
+.fp-menu-clear:hover { text-decoration: underline; }
+
+/* Numeric filters: a Minimum/Maximum pair, never a dropdown of buckets. */
+.fp-range { display: flex; flex-direction: column; gap: var(--s-2); padding: 10px 12px 4px; }
+.fp-field { display: flex; flex-direction: column; gap: 3px; }
+.fp-field-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.fp-field-input {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-input);
+  padding: 0 8px;
+}
+.fp-field-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.fp-field-input input {
+  flex: 1 1 auto; min-width: 0; padding: 5px 0;
+  background: transparent; border: none; color: var(--text);
+  font-family: var(--font-mono); font-size: 12px;
+}
+.fp-field-input input:focus { outline: none; }
+.fp-field-affix { flex: none; font-size: 11px; color: var(--text-3); }
+.fp-hint, .fp-note { margin: 0; padding: 0 12px 10px; font-size: 10px; color: var(--text-3); }
+.fp-note { color: var(--status-warn); }
+
+/* Date keeps the native pickers; the presets above them are the common case. */
+.fp-date { display: flex; flex-direction: column; gap: var(--s-2); padding: 8px 12px 12px; }
+.fp-presets { display: flex; flex-direction: column; gap: 2px; }
+.fp-preset {
+  text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--r-sm);
+  color: var(--text); padding: 5px 6px; font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.fp-preset:hover { background: var(--surface-hover); }
+.fp-preset.is-on { background: var(--sel-bg); border-color: var(--line); }
+.fp-date-pair { display: flex; gap: var(--s-2); padding-top: 6px; border-top: 1px solid var(--line); }
+.fp-date-pair .fp-field { flex: 1 1 0; min-width: 0; }
+.fp-date-input {
+  width: 100%; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-input);
+  color: var(--text); padding: 5px 6px; font-family: inherit; font-size: 11px;
+}
+.fp-date-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+
+/* No room for two columns side by side: stack them instead, still in open order
+   (choose, then values) — row-reverse would put them upside down, so the cascade
+   flips to a plain column. */
+@media (max-width: 720px) {
+  .fp-stack {
+    align-items: stretch;
+    width: min(288px, calc(100vw - 24px)); max-height: 80vh; overflow-y: auto;
+  }
+  .fp-cascade { flex-direction: column; }
+  .fp, .fp-menu { width: 100%; max-height: none; }
+}
 
 /* Right action cluster: notifications + sign-out + account avatar (one line) */
 .tb-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-md); background: transparent; border: none; color: var(--text-2); cursor: pointer; }
@@ -2701,8 +2861,7 @@ label.full { margin-bottom: 16px; }
 .nav button.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .prop-phase.active { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .cs-badge { background: var(--sel-bg); color: var(--text-2); border-color: var(--line); }
-.fb-ms.active .fb-ms-btn { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
-.fb-ms-opt input, .wcz-opt input, .ts-col-opt input { accent-color: var(--text-2); }
+.wcz-opt input, .ts-col-opt input { accent-color: var(--text-2); }
 .sb-plan-badge.pro { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .acct-badge.bound { background: var(--sel-bg); color: var(--text); }
 

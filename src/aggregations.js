@@ -155,6 +155,33 @@ function streaks(orderedTrades, field, beRound) {
   return { winStreak: maxWin, lossStreak: maxLoss };
 }
 
+// The SQL half of the client's filter registry (frontend/src/filterDefs.js): each
+// filter key maps to the EXPRESSION it constrains. Keeping them as tables rather
+// than a wall of ifs is what makes the two halves checkable against each other —
+// test/filter-panel.test.js asserts every live client def has an entry here, so a
+// filter can't ship that narrows the trade log while the dashboard KPIs ignore it.
+//
+// Keys are code-controlled (they name columns); the VALUES are always parameterized.
+const MULTI_COLS = {
+  setups: 'setup',
+  symbols: 'COALESCE(symbol_base, symbol)',
+  sessions: 'session',
+  probability: 'probability',
+  mtf: 'mtf_phase',
+  // Compared as text so the array parameter stays text[] like every other multi.
+  // ISO weekday (Mon=1…Sun=7) of the close, read in the DB session's timezone —
+  // the same assumption the from/to window already makes.
+  dows: 'EXTRACT(ISODOW FROM close_time)::text',
+};
+const RANGE_COLS = {
+  pnl: 'pnl_money',
+  r: 'fixed_r',
+  maxR: 'max_r',
+  risk: 'sl_size_pips',
+  vol: 'volume',
+  dur: '(EXTRACT(EPOCH FROM (close_time - open_time)) / 60)',
+};
+
 // Build the WHERE clause for a trade query from the scope + global data filters
 // (+ an optional year). `scope.filterCol` and the field used for outcome are
 // code-controlled; every user-supplied value is parameterized. Returns
@@ -167,10 +194,18 @@ export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null, be
 
   if (year != null) conds.push(`EXTRACT(YEAR FROM close_time) = ${add(year)}`);
   if (scope) conds.push(scopeCondition(scope, add));
-  if (filters.setups?.length) conds.push(`setup = ANY(${add(filters.setups)})`);
-  if (filters.symbols?.length) conds.push(`COALESCE(symbol_base, symbol) = ANY(${add(filters.symbols)})`);
-  if (filters.sessions?.length) conds.push(`session = ANY(${add(filters.sessions)})`);
-  if (filters.probability?.length) conds.push(`probability = ANY(${add(filters.probability)})`);
+  for (const [key, col] of Object.entries(MULTI_COLS)) {
+    if (filters[key]?.length) conds.push(`${col} = ANY(${add(filters[key].map(String))})`);
+  }
+  for (const [key, col] of Object.entries(RANGE_COLS)) {
+    const { min, max } = filters[key] || {};
+    // A NULL column can't satisfy a bound — matching the client, where an unset
+    // value is excluded from a range rather than treated as zero.
+    if (min != null) conds.push(`${col} >= ${add(min)}`);
+    if (max != null) conds.push(`${col} <= ${add(max)}`);
+  }
+  if (filters.direction) conds.push(`direction = ${add(filters.direction)}`);
+  if (filters.journaled) conds.push(`tagged = ${add(filters.journaled === 'yes')}`);
   if (filters.from) conds.push(`close_time >= ${add(filters.from)}`);
   if (filters.to) conds.push(`close_time <= ${add(`${filters.to} 23:59:59`)}`);
   if (filters.outcome?.length) {
@@ -191,8 +226,8 @@ export function buildTradeWhere(scope, unit = 'R', filters = {}, year = null, be
 
 // `scope` from resolveScope: god -> user_id = me, an explicit account selection
 // -> account_id = ANY(logins). The predicate is built by scopeCondition (safe).
-// `filters` are the global data filters (setups/symbols/sessions/probability/
-// outcome/date range) applied app-wide.
+// `filters` are the global data filters (see MULTI_COLS / RANGE_COLS above, plus
+// outcome, direction, journaled and the date range) applied app-wide.
 export async function computeStats(scope, unit = 'R', filters = {}, beRound = false) {
   const field = unit === 'USD' ? 'pnl_money' : 'fixed_r';
   const { where, params } = buildTradeWhere(scope, unit, filters, null, beRound);

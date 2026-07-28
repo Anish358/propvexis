@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { OUTCOME_OPTIONS, activeFilterCount } from './filters.js';
+import { activeFilterCount } from './filters.js';
 import { navTitle } from './nav.js';
+import FilterPanel from './FilterPanel.jsx';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
 import AccountsModal from './AccountsModal.jsx';
@@ -107,46 +108,10 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   );
 }
 
-// A single multi-select dropdown (checkbox list) that closes on outside click.
-function MultiSelect({ label, options, selected = [], onChange }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
-  const toggle = (v) => onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
-  const count = selected.length;
-
-  return (
-    <div className={`fb-ms ${count ? 'active' : ''}`} ref={ref}>
-      <button type="button" className="fb-ms-btn" onClick={() => setOpen((o) => !o)}>
-        {label}{count ? ` (${count})` : ''}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {open && (
-        <div className="fb-ms-menu">
-          {options.length === 0 && <div className="fb-ms-empty">No values</div>}
-          {options.map((o) => (
-            <label key={o.value} className="fb-ms-opt">
-              <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} />
-              <span>{o.label}</span>
-            </label>
-          ))}
-          {count > 0 && <button type="button" className="fb-ms-clear" onClick={() => onChange([])}>Clear</button>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const opts = (values) => values.map((v) => ({ value: v, label: v }));
-
-// All filters collapse behind one funnel button (Linear-style) — a popover holds
-// the category multi-selects + date range, keeping the top bar to a single line.
+// The Filters button — position, look and badge unchanged. What opens under it is
+// now FilterPanel: a filter BUILDER (chips + a cascading Add-filter menu) instead
+// of the fixed stack of dropdowns this used to hold, which grew a row taller with
+// every new filter. The button owns only open/closed and the outside-click close.
 function FiltersButton({ options, filters, patchFilters, clearFilters, active }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -156,33 +121,23 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
-  const set = (key) => (vals) => patchFilters({ [key]: vals });
 
   return (
     <div className="tb-filters" ref={ref}>
-      <button type="button" className={`tb-btn ${active ? 'active' : ''}`} onClick={() => setOpen((o) => !o)} aria-label="Filters">
+      <button type="button" className={`tb-btn ${active ? 'active' : ''}`} onClick={() => setOpen((o) => !o)} aria-label="Filters" aria-expanded={open}>
         <Icon d={<path d="M3 4h18l-7 8v6l-4 2v-8z" />} />
         <span>Filters</span>
         {active > 0 && <span className="tb-badge">{active}</span>}
       </button>
       {open && (
-        <div className="tb-filters-menu">
-          <div className="tb-filters-grid">
-            <MultiSelect label="Strategy" options={opts(options.setups)} selected={filters.setups} onChange={set('setups')} />
-            <MultiSelect label="Pair" options={opts(options.symbols)} selected={filters.symbols} onChange={set('symbols')} />
-            <MultiSelect label="Session" options={opts(options.sessions)} selected={filters.sessions} onChange={set('sessions')} />
-            <MultiSelect label="Probability" options={opts(options.probability)} selected={filters.probability} onChange={set('probability')} />
-            <MultiSelect label="Profit" options={OUTCOME_OPTIONS} selected={filters.outcome} onChange={set('outcome')} />
-          </div>
-          <div className="tb-filters-dates">
-            <input type="date" className="u-input" value={filters.from || ''} max={filters.to || undefined}
-              onChange={(e) => patchFilters({ from: e.target.value || null })} title="From date" />
-            <span className="tb-date-sep">→</span>
-            <input type="date" className="u-input" value={filters.to || ''} min={filters.from || undefined}
-              onChange={(e) => patchFilters({ to: e.target.value || null })} title="To date" />
-          </div>
-          {active > 0 && <button type="button" className="tb-filters-clear" onClick={clearFilters}>Clear all filters</button>}
-        </div>
+        <FilterPanel
+          options={options}
+          filters={filters}
+          patchFilters={patchFilters}
+          clearFilters={clearFilters}
+          active={active}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   );

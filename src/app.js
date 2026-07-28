@@ -1271,12 +1271,35 @@ const parseUnit = (q) => (q.unit === 'USD' ? 'USD' : 'R');
 // Precision control (Trade Settings): snap near-zero Fixed R to breakeven.
 const parseBeRound = (q) => q.beRound === '1' || q.beRound === 'true';
 const csv = (v) => (v ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : []);
+// A range filter travels as one param, `min..max`, either side omittable — so a
+// new numeric filter costs one query key instead of two. Anything unparseable on a
+// side means "no bound there" rather than a 400: filters are a view preference,
+// and a junk value should widen the view, never break the request.
+const qnum = (v) => (v === '' || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
+const range = (v) => {
+  const [a, b] = String(v ?? '').split('..');
+  const min = qnum(a); const max = qnum(b);
+  // Reversed bounds would match nothing at all; read them in the order meant.
+  return (min != null && max != null && min > max) ? { min: max, max: min } : { min, max };
+};
+const oneOf = (v, allowed) => (allowed.includes(v) ? v : null);
+// Keys here mirror frontend/src/filterDefs.js — each live def's `query` name.
 const parseFilters = (q) => ({
   setups: csv(q.setups),
   symbols: csv(q.symbols),
   sessions: csv(q.sessions),
   probability: csv(q.probability),
+  mtf: csv(q.mtf),
+  dows: csv(q.dows),
   outcome: csv(q.outcome),
+  direction: oneOf(q.direction, ['buy', 'sell']),
+  journaled: oneOf(q.journaled, ['yes', 'no']),
+  pnl: range(q.pnl),
+  r: range(q.r),
+  maxR: range(q.maxR),
+  risk: range(q.risk),
+  vol: range(q.vol),
+  dur: range(q.dur),
   from: q.from || null,
   to: q.to || null,
 });
