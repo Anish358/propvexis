@@ -45,3 +45,16 @@ export function fmtDuration(openIso, closeIso) {
   const d = Math.floor(h / 24), rh = h % 24;
   return rh ? `${d}d ${rh}h` : `${d}d`;
 }
+
+// Human labels for the objective adherence rule types (see src/adherence.js
+// RULE_TYPES). Shared by the trade-preview badge and the trade-log RULES column
+// so the two can never drift apart.
+export const RULE_LABEL = {
+  session: 'session',
+  direction: 'direction',
+  max_sl: 'max SL',
+  min_sl: 'min SL',
+  symbols: 'symbol',
+  weekdays: 'weekday',
+  hours: 'time',
+};

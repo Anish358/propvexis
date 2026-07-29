@@ -3,6 +3,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import { computeMetrics, valueField, tradeOutcome, fmtVal } from './metrics.js';
 import { Card, Badge, Button, EmptyState } from './ui.jsx';
+import Explain from './Explain.jsx';
 
 // Trade Journal module front door: headline performance + recent activity +
 // quick links across the module. Read-only — composed entirely from the trades
@@ -20,9 +21,12 @@ const MODULES = [
   { to: '/journal/strategies', name: 'Strategies', desc: 'Playbooks and rule adherence', icon: <><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z" /><path d="M9 12l2 2 4-4" /></> },
 ];
 
-const Kpi = ({ label, value, cls, sub }) => (
+const Kpi = ({ label, value, cls, sub, explain }) => (
   <Card>
-    <div className="jo-kpi-label">{label}</div>
+    <div className="jo-kpi-label">
+      {label}
+      {explain && <Explain nudgeY={-1}>{explain}</Explain>}
+    </div>
     <div className={`jo-kpi-value ${cls || ''}`}>{value}</div>
     {sub && <div className="jo-kpi-sub">{sub}</div>}
   </Card>
@@ -70,7 +74,23 @@ export default function JournalOverview() {
           <Kpi label="Net" value={fmtVal(m.net, unit)} cls={signClass(m.net)} sub={`${m.tradeCount} trades`} />
           <Kpi label="Win rate" value={`${m.winRate}%`} sub={`${m.wins}W · ${m.losses}L`} />
           <Kpi label="Profit factor" value={m.profitFactor === 999 ? '∞' : m.profitFactor.toFixed(2)} />
-          <Kpi label="Expectancy" value={fmtVal(m.expectancy, unit)} cls={signClass(m.expectancy)} sub="per trade" />
+          <Kpi
+            label="Expectancy"
+            value={fmtVal(m.expectancy, unit)}
+            cls={signClass(m.expectancy)}
+            sub="per trade"
+            explain={
+              <>
+                What one average trade is worth: <b>total ÷ number of trades</b>, over
+                the trades currently filtered in. Equivalently
+                (win rate × avg win) + (loss rate × avg loss) — the two are the same number.
+                <br /><br />
+                Breakeven trades <b>are</b> counted in the denominator (they contribute 0),
+                so a spreadsheet that averages over a fixed cell range including blank
+                rows will show a lower figure than this.
+              </>
+            }
+          />
           <Kpi label="Avg reward" value={`${m.avgRR.toFixed(2)}R`} sub="mean Max R" />
         </div>
 

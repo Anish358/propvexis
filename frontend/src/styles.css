@@ -2261,6 +2261,11 @@ label.full { margin-bottom: 16px; }
 .tp-adh.broken { background: var(--tint-loss-2); border: 1px solid var(--tint-loss-11); color: var(--tint-loss-14); }
 .tp-adh-icon { font-weight: 400; }
 
+/* Trade-log RULES column — the compact form of the .tp-adh badge above. Same
+   outcome tints, so "followed" reads identically in both places. */
+.pill.adh-followed { background: var(--tint-profit-4); color: var(--tint-profit-11); }
+.pill.adh-broken { background: var(--tint-loss-2); color: var(--tint-loss-14); }
+
 /* ---- Strategies: insights + compare (Phase 3) ----------------------------- */
 .strat-insights { display: flex; flex-direction: column; gap: 8px; }
 .strat-insight { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px;

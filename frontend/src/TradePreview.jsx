@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fmtDateTime, fmtNum, fmtDuration, slug } from './constants.js';
+import { fmtDateTime, fmtNum, fmtDuration, slug, RULE_LABEL } from './constants.js';
 import { fmtMoney, tradeOutcome } from './metrics.js';
 
 // Small pencil / trash icons (inline SVG so no asset dependency).
@@ -32,8 +32,6 @@ function Field({ label, children, wide }) {
 const Pill = ({ value, kind }) => (value ? <span className={`pill ${kind}-${slug(value)}`}>{value}</span> : null);
 
 // Human labels for the rule types surfaced when a trade breaks its strategy.
-const RULE_LABEL = { session: 'session', direction: 'direction', max_sl: 'max SL', min_sl: 'min SL', symbols: 'symbol', weekdays: 'weekday', hours: 'time' };
-
 const priceStr = (v) => (v == null ? '' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 5 }));
 
 export default function TradePreview({ trade, unit = 'R', beRounding = false, onClose, onEdit, onDelete, onReplay }) {

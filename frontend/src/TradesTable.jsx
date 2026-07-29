@@ -1,5 +1,5 @@
 import React from 'react';
-import { fmtDate, fmtTime, fmtNum, fmtDuration, slug } from './constants.js';
+import { fmtDate, fmtTime, fmtNum, fmtDuration, slug, RULE_LABEL } from './constants.js';
 import { fmtMoney, tradeOutcome } from './metrics.js';
 
 // Price formatting shared by the entry/exit price columns (mirrors TradePreview).
@@ -65,6 +65,33 @@ export function buildColumns(unit = 'R', beRounding = false) {
         const cls = out === 'win' ? 'cell-win' : out === 'loss' ? 'cell-loss' : out === 'be' ? 'cell-be' : '';
         const text = result == null ? '' : usd ? fmtMoney(result, { sign: true }) : fmtNum(result);
         return <td className={`num ${cls}`}>{text}</td>;
+      },
+    },
+    {
+      // Objective rule adherence for this trade, from its strategy's rules (see
+      // src/adherence.js). Server-enriched as t.adherence, so this renders the
+      // same verdict the trade-preview badge shows — no duplicate logic here.
+      // OFF by default: it is only meaningful once a strategy defines rules, and
+      // an opt-in column keeps existing layouts unchanged.
+      id: 'adherence', label: 'RULES', defaultOn: false,
+      cell: (t) => {
+        const status = t.adherence?.status;
+        if (status === 'followed') {
+          return <td><span className="pill adh-followed" title="Followed every evaluable rule">✓ Followed</span></td>;
+        }
+        if (status === 'broken') {
+          const broke = (t.adherence.brokenRules || []).map((r) => RULE_LABEL[r] || r);
+          return (
+            <td>
+              <span className="pill adh-broken" title={`Broke: ${broke.join(', ')}`}>
+                ⚠ {broke.length === 1 ? broke[0] : `${broke.length} rules`}
+              </span>
+            </td>
+          );
+        }
+        // 'unassessed' (rules exist but this trade lacks the fields) and
+        // 'norules' both read as a neutral dash — never as a failure.
+        return <td><span className="muted">—</span></td>;
       },
     },
     {
