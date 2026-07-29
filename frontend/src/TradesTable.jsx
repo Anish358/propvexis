@@ -1,6 +1,10 @@
 import React from 'react';
 import { fmtDate, fmtTime, fmtNum, fmtDuration, slug } from './constants.js';
 import { fmtMoney, tradeOutcome } from './metrics.js';
+import { TRADE_COLUMNS, colVisible } from './tradeColumns.js';
+
+// Re-exported so existing importers (TradeSettingsModal) keep their path.
+export { colVisible };
 
 // Price formatting shared by the entry/exit price columns (mirrors TradePreview).
 const fmtPrice = (v) => (v == null ? <span className="muted">—</span> : Number(v).toLocaleString('en-US', { maximumFractionDigits: 5 }));
@@ -19,73 +23,86 @@ function ChartLink({ url, label }) {
   );
 }
 
-// Column registry for the trade log. Each column has a stable `id` (used to
-// persist the user's show/hide choice), a header `label`, whether it shows by
-// default, and a `cell(t)` renderer returning the full <td>. The result column's
-// label + value depend on the display unit (R vs $), so columns are built per unit.
-export function buildColumns(unit = 'R', beRounding = false) {
-  const usd = unit === 'USD';
-  return [
-    {
-      id: 'datetime', label: 'DATE / TIME', defaultOn: true,
-      cell: (t) => <td className="cell-dt">{fmtDate(t.close_time)}<span className="cell-time">{fmtTime(t.close_time)}</span></td>,
-    },
-    {
-      id: 'duration', label: 'DURATION', defaultOn: true,
-      cell: (t) => <td className="cell-dur">{fmtDuration(t.open_time, t.close_time) || <span className="muted">—</span>}</td>,
-    },
-    {
-      id: 'type', label: 'TYPE', defaultOn: true,
-      cell: (t) => (
-        <td>{t.direction
-          ? <span className={`pill dir-${slug(t.direction)}`}>{t.direction === 'sell' ? 'Sell' : 'Buy'}</span>
-          : <span className="pill pill-empty">—</span>}
-        </td>
-      ),
-    },
-    { id: 'session', label: 'SESSION', defaultOn: true, cell: (t) => <td><Pill value={t.session} kind="session" /></td> },
-    { id: 'pair', label: 'PAIR', defaultOn: true, cell: (t) => <td><Pill value={t.symbol_base || t.symbol} kind="pair" /></td> },
-    { id: 'entry_price', label: 'ENTRY PRICE', defaultOn: false, cell: (t) => <td className="num">{fmtPrice(t.entry_price)}</td> },
-    { id: 'exit_price', label: 'EXIT PRICE', defaultOn: false, cell: (t) => <td className="num">{fmtPrice(t.exit_price)}</td> },
-    { id: 'volume', label: 'VOLUME / LOT', defaultOn: false, cell: (t) => <td className="num">{t.volume == null ? <span className="muted">—</span> : fmtNum(t.volume, 2)}</td> },
-    { id: 'setup', label: 'SETUP', defaultOn: true, cell: (t) => <td><Pill value={t.setup} kind="setup" /></td> },
-    { id: 'probability', label: 'PROBABILITY', defaultOn: true, cell: (t) => <td><Pill value={t.probability} kind="prob" /></td> },
-    { id: 'mtf', label: 'MTF PHASE', defaultOn: true, cell: (t) => <td><Pill value={t.mtf_phase} kind="mtf" /></td> },
-    { id: 'sl', label: 'SL Size', defaultOn: true, cell: (t) => <td className="num">{fmtNum(t.sl_size_pips, 1)}</td> },
-    { id: 'mfe', label: 'MFE', defaultOn: true, cell: (t) => <td className="num">{fmtNum(t.mfe_pips, 1)}</td> },
-    { id: 'maxr', label: 'MAX R', defaultOn: true, cell: (t) => <td className="num max-r">{fmtNum(t.max_r)}</td> },
-    {
-      // Result: real $ profit (pnl_money) per prop account, else Fixed R.
-      id: 'result', label: usd ? 'PROFIT' : 'FIXED R TARGET', defaultOn: true,
-      cell: (t) => {
-        const result = usd ? t.pnl_money : t.fixed_r;
-        // Color by the precision-aware outcome (a breakeven trade reads grey, not
-        // red) — but keep the real $ value in the text, never zeroed.
-        const out = tradeOutcome(t, unit, beRounding);
-        const cls = out === 'win' ? 'cell-win' : out === 'loss' ? 'cell-loss' : out === 'be' ? 'cell-be' : '';
-        const text = result == null ? '' : usd ? fmtMoney(result, { sign: true }) : fmtNum(result);
-        return <td className={`num ${cls}`}>{text}</td>;
-      },
-    },
-    {
-      id: 'commission', label: 'COMMISSION', defaultOn: true,
-      cell: (t) => <td className="num">{t.commission == null ? <span className="muted">—</span> : fmtMoney(t.commission, { sign: true })}</td>,
-    },
-    { id: 'm15', label: 'M15', defaultOn: true, cell: (t) => <td><ChartLink url={t.m15_url} label="M15" /></td> },
-    { id: 'h1', label: 'H1', defaultOn: true, cell: (t) => <td><ChartLink url={t.h1_url} label="H1" /></td> },
-    { id: 'h4', label: 'H4', defaultOn: true, cell: (t) => <td><ChartLink url={t.h4_url} label="H4" /></td> },
-    { id: 'comments', label: 'COMMENTS', defaultOn: true, cell: (t) => <td className="comments">{t.comments || ''}</td> },
-  ];
+const OUTCOME_LABEL = { win: 'Win', loss: 'Loss', be: 'BE' };
+
+// A note is an ICON, not the prose. The comment can run to paragraphs, and printing
+// it inline made one column as wide as all the others put together; the icon says
+// "there is a note here", hovering reads it, and the row opens the full text.
+function NoteMark({ text }) {
+  if (!text) return <span className="muted">—</span>;
+  return (
+    <span className="cell-note" title={text} aria-label="Has a note">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 5h16M4 10h16M4 15h10" />
+      </svg>
+    </span>
+  );
 }
 
-// Effective visibility: an explicit user override wins, else the column default.
-export const colVisible = (overrides, col) => overrides?.[col.id] ?? col.defaultOn;
+// Cell renderers, keyed by the column ids in tradeColumns.js. Each is a factory
+// over the display unit + precision setting, since a few cells read differently in
+// R than in $. WHICH columns exist, what they're called and which are on by default
+// is the spec next door — this file only knows how to draw one.
+const CELLS = {
+  datetime: () => (t) => <td className="cell-dt">{fmtDate(t.close_time)}<span className="cell-time">{fmtTime(t.close_time)}</span></td>,
+  duration: () => (t) => <td className="cell-dur">{fmtDuration(t.open_time, t.close_time) || <span className="muted">—</span>}</td>,
+  type: () => (t) => (
+    <td>{t.direction
+      ? <span className={`pill dir-${slug(t.direction)}`}>{t.direction === 'sell' ? 'Sell' : 'Buy'}</span>
+      : <span className="pill pill-empty">—</span>}
+    </td>
+  ),
+  session: () => (t) => <td><Pill value={t.session} kind="session" /></td>,
+  pair: () => (t) => <td><Pill value={t.symbol_base || t.symbol} kind="pair" /></td>,
+  entry_price: () => (t) => <td className="num">{fmtPrice(t.entry_price)}</td>,
+  exit_price: () => (t) => <td className="num">{fmtPrice(t.exit_price)}</td>,
+  volume: () => (t) => <td className="num cell-center">{t.volume == null ? <span className="muted">—</span> : fmtNum(t.volume, 2)}</td>,
+  sl: () => (t) => <td className="num">{fmtNum(t.sl_size_pips, 1)}</td>,
+  mfe: () => (t) => <td className="num">{fmtNum(t.mfe_pips, 1)}</td>,
+  maxr: () => (t) => <td className="num max-r">{fmtNum(t.max_r)}</td>,
+  setup: () => (t) => <td><Pill value={t.setup} kind="setup" /></td>,
+  probability: () => (t) => <td><Pill value={t.probability} kind="prob" /></td>,
+  mtf: () => (t) => <td><Pill value={t.mtf_phase} kind="mtf" /></td>,
+  // Win / Loss / BE in words. Same precision-aware classification as the P&L
+  // cell's colour, so the two can never contradict each other.
+  status: (unit, beRounding) => (t) => {
+    const out = tradeOutcome(t, unit, beRounding);
+    return <td>{out ? <span className={`pill out-${out}`}>{OUTCOME_LABEL[out]}</span> : <span className="pill pill-empty">—</span>}</td>;
+  },
+  // Net P&L: real $ profit (pnl_money) per prop account, else Fixed R.
+  result: (unit, beRounding) => (t) => {
+    const result = unit === 'USD' ? t.pnl_money : t.fixed_r;
+    // Colour by the precision-aware outcome (a breakeven trade reads blue, not
+    // red) — but keep the real value in the text, never zeroed.
+    const out = tradeOutcome(t, unit, beRounding);
+    const cls = out === 'win' ? 'cell-win' : out === 'loss' ? 'cell-loss' : out === 'be' ? 'cell-be' : '';
+    const text = result == null ? '' : unit === 'USD' ? fmtMoney(result, { sign: true }) : fmtNum(result);
+    return <td className={`num ${cls}`}>{text}</td>;
+  },
+  commission: () => (t) => <td className="num">{t.commission == null ? <span className="muted">—</span> : fmtMoney(t.commission, { sign: true })}</td>,
+  m15: () => (t) => <td><ChartLink url={t.m15_url} label="M15" /></td>,
+  h1: () => (t) => <td><ChartLink url={t.h1_url} label="H1" /></td>,
+  h4: () => (t) => <td><ChartLink url={t.h4_url} label="H4" /></td>,
+  comments: () => (t) => <td className="cell-notes"><NoteMark text={t.comments} /></td>,
+};
+
+// The spec plus its renderers. A column with no renderer would render as an empty
+// cell forever, so that's a hard error rather than a silent hole.
+export function buildColumns(unit = 'R', beRounding = false) {
+  return TRADE_COLUMNS.map((col) => {
+    const make = CELLS[col.id];
+    if (!make) throw new Error(`trade column "${col.id}" has no cell renderer`);
+    return { ...col, cell: make(unit, beRounding) };
+  });
+}
 
 export default function TradesTable({ trades, onRowClick, highlightId, unit = 'R', columnOverrides = {}, beRounding = false }) {
   const cols = buildColumns(unit, beRounding).filter((c) => colVisible(columnOverrides, c));
   return (
     <div className="grid-wrap">
-      <table className="grid">
+      {/* Column count drives the table's minimum width (see .grid), so showing
+          more columns widens the table instead of squeezing every one of them. */}
+      <table className="grid" style={{ '--grid-cols': cols.length }}>
         <thead>
           <tr>{cols.map((c) => <th key={c.id}>{c.label}</th>)}</tr>
         </thead>

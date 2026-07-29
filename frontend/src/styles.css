@@ -57,7 +57,12 @@
   /* Desaturated red for large negative KPI figures — reads as performance
      data, not an error/alert state. --loss stays as-is for chips/badges/bars. */
   --loss-quiet: var(--red-muted);
-  --be: var(--text-2); --be-bg: rgba(255,255,255,0.06);
+  /* Breakeven is the THIRD outcome, so it gets its own hue rather than grey: grey
+     reads as "no data" sitting between green and red rows, when a flat close is a
+     result like any other. Blue is otherwise the brand colour, and this is the one
+     place it carries data meaning — there is no fourth outcome to confuse it with,
+     and a breakeven cell is never a brand affordance. */
+  --be: var(--blue-400); --be-bg: var(--accent-bg);
   /* legacy P&L aliases still referenced across the sheet-mirrored pills */
   --green: var(--green-600);
   --red: var(--red-500);
@@ -326,21 +331,55 @@ body {
 
 /* ---- grid ---- */
 .grid-wrap { overflow-x: auto; }
-.grid { border-collapse: collapse; width: 100%; min-width: 1100px; }
+/* table-layout: fixed divides the width evenly across however many columns are
+   visible, so no column can claim more room than another because of what happens
+   to be in its cells (which is what let the old Comments column swallow the
+   table). The floor is per-column rather than a flat 1100px, so the default
+   eleven columns fit any normal desktop while a full twenty-one still stay
+   legible (and scroll) instead of being crushed. --grid-cols is set inline by
+   TradesTable from the number of visible columns. */
+.grid { border-collapse: collapse; width: 100%; min-width: calc(var(--grid-cols, 11) * 92px); table-layout: fixed; }
 .grid th {
-  position: sticky; top: 0; background: var(--surface-2); color: var(--text-2);
-  text-align: left; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  /* Sticks to the bottom edge of the top bar as the PAGE scrolls — the table has
+     no scroll box of its own (see .log-panel). --topbar-h is measured and
+     published by FilterBar; the value here is only the pre-measurement fallback.
+     z-index stays under --z-nav so the bar always wins the 1px seam. */
+  position: sticky; top: var(--topbar-h, 50px); z-index: 1; background: var(--surface-2); color: var(--text-2);
+  /* Title case, as authored in tradeColumns.js — no text-transform. The wide
+     tracking went with the caps: 1px letter-spacing is there to open up an
+     all-caps eyebrow, and on mixed case it just reads as loose. 12px because
+     lowercase has less presence than caps at the same size. */
+  text-align: center; font-size: 12px; letter-spacing: 0;
   padding: 12px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
 }
-.grid td { padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+/* Fixed layout means over-long content overflows instead of widening its column,
+   so every cell has to be able to end in an ellipsis. */
+.grid td {
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .grid tbody tr { cursor: pointer; }
 .grid tbody tr:hover { background: var(--surface-hover); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Overrides .num's right alignment for quantity columns (lots), where the numbers
+   are short and fixed-width and a right edge reads as ragged. */
+.grid td.cell-center { text-align: center; }
 .max-r { color: var(--profit); font-weight: 400; }
 .cell-win { background: var(--win-bg); color: var(--profit); font-weight: 400; }
 .cell-loss { background: var(--loss-bg); color: var(--loss); font-weight: 400; }
-.cell-be { background: var(--be-bg); color: var(--muted); }
-.comments { color: var(--text-2); max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+/* Breakeven is BLUE, not grey — see the --be token. Grey read as "no data" next to
+   the green/red rows, when in fact the trade closed flat, which is a result. */
+.cell-be { background: var(--be-bg); color: var(--be); }
+/* Outcome pills (the optional Status column) reuse the outcome tokens, so Status
+   and the P&L cell's colour always agree. */
+.pill.out-win { background: var(--win-bg); color: var(--profit); }
+.pill.out-loss { background: var(--loss-bg); color: var(--loss); }
+.pill.out-be { background: var(--be-bg); color: var(--be); }
+/* Notes: an icon, centered, standing in for prose that would otherwise set this
+   column's width. The full text is the title attribute; the row opens it. */
+.cell-notes { text-align: center; }
+.cell-note { display: inline-flex; color: var(--text-2); vertical-align: middle; }
+.grid tbody tr:hover .cell-note { color: var(--text); }
 .empty, td.empty { text-align: center; color: var(--muted); padding: 40px; }
 .muted { color: var(--muted); }
 .cell-dt { white-space: nowrap; }
@@ -503,7 +542,13 @@ label.full { margin-bottom: 16px; }
 /* ============================================================
    New home dashboard (routed at /)
    ============================================================ */
-.page { min-height: 100vh; }
+/* Fills the space UNDER the top bar, not a whole viewport. The bar is a sibling
+   above this element inside .shell-main, so a flat 100vh here made every page
+   exactly one bar-height too tall — enough to scroll on a page with no content to
+   scroll to, which read as the layout sliding under the bar for no reason.
+   --topbar-h is measured and published by FilterBar; the literal is the
+   pre-measurement fallback. */
+.page { min-height: calc(100vh - var(--topbar-h, 50px)); }
 .page-body { padding: 16px 24px 40px; display: flex; flex-direction: column; gap: 16px; }
 /* Dashboard-only: unify every gap in this layout (KPI row, banner-to-row,
    row-to-calendar, calendar/account-health columns) to one consistent 16px. */
@@ -1228,7 +1273,22 @@ label.full { margin-bottom: 16px; }
   background: linear-gradient(140deg, var(--blue-400), var(--accent-strong));
   box-shadow: 0 0 0 1px var(--line);
 }
-.sb-nav { display: flex; flex-direction: column; gap: 4px; }
+/* The NAV is what scrolls when it outgrows the rail — not the rail, and not the
+   page. With both modules expanded the list is taller than the viewport, and
+   because .sidebar is a fixed 100vh box with no scroller of its own, that extra
+   height used to spill out of the box and become PAGE height. The page then
+   scrolled, and the sticky sidebar had nowhere to travel — .shell is only 100vh
+   when the main column is short — so the whole rail scrolled away with it, taking
+   the brand and the top nav items off-screen.
+   Bounding the nav here keeps the rail exactly 100vh, which is what makes its
+   `position: sticky` hold. `min-height: 0` is load-bearing: a flex item defaults
+   to min-height:auto and would refuse to shrink below its content, leaving the
+   overflow (and the bug) in place. overscroll-behavior stops a flick at the end of
+   the nav from chaining into a page scroll. */
+.sb-nav {
+  display: flex; flex-direction: column; gap: 4px;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+}
 .sb-section { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin: 8px 8px 12px; }
 .sb-item {
   display: flex; align-items: center; gap: 12px; padding: 12px 12px; border-radius: 8px;
@@ -1618,8 +1678,26 @@ label.full { margin-bottom: 16px; }
 .precision-chip.on:hover { background: var(--accent-hover-bg); }
 .log-count { color: var(--muted); font-size: 13px; }
 .log-untagged { background: var(--tint-warn-3); color: var(--warning); font-size: 12px; font-weight: 400; padding: 4px 12px; border-radius: var(--r-full); }
-.log-panel { padding: 0; overflow: hidden; }
-.log-panel .grid-wrap { border-radius: 12px; }
+/* NO overflow clipping anywhere between the header cells and the page. Both an
+   `overflow: hidden` panel and an `overflow-x: auto` wrapper count as a scroll
+   box, and a sticky header sticks to its nearest one — so either of them pins the
+   header to a box that never scrolls (invisible) or forces the table into a
+   second scrollbar of its own. The page is the only scroller: the panel runs the
+   full length of the log, the KPI cards and toolbar scroll away with it, and only
+   the column header stays put. */
+.log-panel { padding: 0; }
+.log-panel .grid-wrap { overflow: visible; }
+/* Rounding moves onto the outer cells, since the panel no longer clips to its
+   own radius. */
+.log-panel .grid thead th:first-child { border-top-left-radius: var(--r-2xl); }
+.log-panel .grid thead th:last-child { border-top-right-radius: var(--r-2xl); }
+.log-panel .grid tbody tr:last-child td { border-bottom: none; }
+.log-panel .grid tbody tr:last-child td:first-child { border-bottom-left-radius: var(--r-2xl); }
+.log-panel .grid tbody tr:last-child td:last-child { border-bottom-right-radius: var(--r-2xl); }
+
+/* No margin of its own: .page-body is a flex column with `gap: 16px`, which is the
+   app-wide spacing between major card sections. Adding a margin here stacked on
+   top of that gap and pushed the table 32px down — double the standard. */
 
 .add-trade-group { display: inline-flex; align-items: center; gap: 8px; }
 
@@ -2653,12 +2731,23 @@ label.full { margin-bottom: 16px; }
 .fp-stack {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--z-dropdown);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--s-2);
+  /* ONE width for every column, declared once. The panel and the cascade columns
+     stack vertically and share an edge, so a difference of a few px between them
+     reads as a mistake rather than as a hierarchy — and two separate literals
+     would drift the moment either is tuned. */
+  --fp-w: 268px;
   /* A form inside a bar of centered flex rows — reset both inherited axes. */
   text-align: left; cursor: default;
 }
-.fp-cascade { display: flex; flex-direction: row-reverse; align-items: flex-start; gap: var(--s-2); }
+/* Only the choose column is in flow; the values column is absolutely positioned
+   against this box so JS can line it up with the row that opened it. */
+.fp-cascade { position: relative; display: flex; flex-direction: row-reverse; align-items: flex-start; gap: var(--s-2); }
+/* Level with its row, one gap to the left of the list it came from. `top` is set
+   inline from a measurement (see FilterPanel's layout effect) — the value here is
+   only the pre-measurement fallback. */
+.fp-menu--values { position: absolute; top: 0; right: calc(100% + var(--s-2)); }
 .fp {
-  width: 268px; flex: none;
+  width: var(--fp-w); flex: none;
   display: flex; flex-direction: column;
   background: var(--surface-2); border: 1px solid var(--line-strong);
   border-radius: var(--r-xl); box-shadow: var(--sh-3);
@@ -2713,18 +2802,17 @@ label.full { margin-bottom: 16px; }
   /* Capped against the viewport, not just a pixel value: the cascade now starts
      below the panel, and a panel carrying several rows of chips pushes that start
      point a long way down. The body scrolls; the column never runs off-screen. */
-  width: 216px; flex: none; max-height: min(56vh, 400px);
+  width: var(--fp-w); flex: none; max-height: min(56vh, 400px);
   display: flex; flex-direction: column;
   background: var(--surface-2); border: 1px solid var(--line-strong);
   border-radius: var(--r-xl); box-shadow: var(--sh-3);
 }
 .fp-menu-head {
-  display: flex; align-items: center; gap: 6px;
-  padding: 9px 12px 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 12px 0;
   font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
 }
 .fp-menu-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fp-menu-sub { margin-left: auto; flex: none; letter-spacing: 0; text-transform: none; color: var(--text-3); }
 .fp-menu-back {
   display: grid; place-items: center; flex: none; width: 16px; height: 16px; margin-left: -2px;
   background: transparent; border: none; border-radius: var(--r-sm);
@@ -2735,28 +2823,39 @@ label.full { margin-bottom: 16px; }
    registry that will eventually hold dozens of filters. Borderless so the column
    reads as a menu rather than a form. */
 .fp-search {
-  margin: 6px 8px; padding: 5px 8px;
+  margin: 8px; padding: 7px 10px;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-input);
-  color: var(--text); font-family: inherit; font-size: 12px;
+  color: var(--text); font-family: inherit; font-size: 13px;
 }
 .fp-search::placeholder { color: var(--text-3); }
-.fp-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
-.fp-menu-body { overflow-y: auto; padding: 0 6px 6px; }
+/* No accent ring on focus. The field is focused the moment the column opens (that's
+   what makes typing-to-filter work), so an accent ring would render every column as
+   though something in it were selected. The caret is the indicator — the standard
+   one for a text input — and the border firms up just enough to read as active. */
+.fp-search:focus { outline: none; border-color: var(--line-strong); }
+.fp-menu-body { overflow-y: auto; padding: 0 8px 8px; }
 .fp-menu-group {
-  padding: 8px 6px 3px;
+  padding: 10px 10px 4px;
   font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-3);
 }
+/* Rows scale with the column: at the panel's full width a 12px label in a 5px-tall
+   cell reads as a cramped list rather than a menu. Roughly a 30px row — the same
+   height as the "+ Add filter" button it sits directly beneath. */
+/* Default cursor, not a pointer: these are menu rows, and a hand on every row of a
+   list this long turns pointing at things into a flicker. The highlight is what
+   says "this row is live". Buttons in the panel (chips, Add filter, Clear) keep
+   their pointer — they're buttons, not rows. */
 .fp-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 6px; border-radius: var(--r-sm);
-  font-size: 12px; color: var(--text); cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r-md);
+  font-size: 13px; color: var(--text); cursor: default;
 }
 /* One highlight, driven by the keyboard cursor — hover just moves the cursor, so
    pointer and keyboard can never disagree about what Enter would hit. */
 .fp-row.is-cursor { background: var(--sel-bg); }
 .fp-row-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fp-row-chev, .fp-row-count { flex: none; color: var(--text-3); }
-.fp-row-count { font-size: 11px; }
+.fp-row-count { font-size: 12px; }
 /* An already-filtered dimension is dotted in the choose column, so the list shows
    what's applied without cross-referencing the chips. */
 .fp-dot { flex: none; width: 5px; height: 5px; border-radius: var(--r-full); background: var(--text-2); }
@@ -2766,60 +2865,72 @@ label.full { margin-bottom: 16px; }
   padding: 1px 5px; border-radius: var(--r-full);
   background: var(--surface-hover); border: 1px solid var(--line); color: var(--text-3);
 }
-.fp-empty { padding: 8px 6px; font-size: 11px; color: var(--text-3); }
+.fp-empty { padding: 10px; font-size: 12px; color: var(--text-3); }
 
 /* Checkbox (multi) and radio (single) drawn as spans: the rows are listbox
-   options, so state lives on aria-selected and a real input would duplicate it. */
+   options, so state lives on aria-selected and a real input would duplicate it.
+   Hidden with OPACITY rather than display, so revealing one on hover doesn't
+   reflow the label beside it. */
 .fp-box {
-  flex: none; width: 13px; height: 13px; border-radius: 3px;
+  flex: none; width: 14px; height: 14px; border-radius: 3px;
   border: 1px solid var(--line-strong); background: var(--panel);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
+/* Shown on the row under the cursor — the box is an affordance for the row you're
+   about to act on, not decoration on every row. A TICKED box always shows,
+   whichever row the cursor is on: hiding it would hide the selection itself. */
+.fp-row.is-cursor .fp-box, .fp-box.is-on { opacity: 1; }
+/* Pointing AT the box lights it: the one accent-tinted state in the panel, and the
+   same role the accent plays everywhere else here — a focus/target ring, never a
+   selected-chrome fill (selection stays grayscale). */
+.fp-box:hover { border-color: var(--accent-border-strong); box-shadow: 0 0 0 3px var(--accent-bg); }
 .fp-box--radio { border-radius: var(--r-full); }
 .fp-box.is-on { background: var(--text-2); border-color: var(--text-2); }
 .fp-box--radio.is-on { background: var(--panel); box-shadow: inset 0 0 0 3px var(--text-2); border-color: var(--text-2); }
 
-.fp-menu-foot { padding: 6px 8px 8px; border-top: 1px solid var(--line); }
+.fp-menu-foot { padding: 8px 12px; border-top: 1px solid var(--line); }
 .fp-menu-clear {
   background: transparent; border: none; padding: 0; cursor: pointer;
-  font-family: inherit; font-size: 11px; color: var(--accent);
+  font-family: inherit; font-size: 12px; color: var(--accent);
 }
 .fp-menu-clear:hover { text-decoration: underline; }
 
 /* Numeric filters: a Minimum/Maximum pair, never a dropdown of buckets. */
-.fp-range { display: flex; flex-direction: column; gap: var(--s-2); padding: 10px 12px 4px; }
-.fp-field { display: flex; flex-direction: column; gap: 3px; }
+.fp-range { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-3) var(--s-3) var(--s-1); }
+.fp-field { display: flex; flex-direction: column; gap: 4px; }
 .fp-field-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
 .fp-field-input {
   display: flex; align-items: center; gap: 4px;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-input);
-  padding: 0 8px;
+  padding: 0 10px;
 }
 .fp-field-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 .fp-field-input input {
-  flex: 1 1 auto; min-width: 0; padding: 5px 0;
+  flex: 1 1 auto; min-width: 0; padding: 7px 0;
   background: transparent; border: none; color: var(--text);
-  font-family: var(--font-mono); font-size: 12px;
+  font-family: var(--font-mono); font-size: 13px;
 }
 .fp-field-input input:focus { outline: none; }
-.fp-field-affix { flex: none; font-size: 11px; color: var(--text-3); }
-.fp-hint, .fp-note { margin: 0; padding: 0 12px 10px; font-size: 10px; color: var(--text-3); }
+.fp-field-affix { flex: none; font-size: 12px; color: var(--text-3); }
+.fp-hint, .fp-note { margin: 0; padding: 0 var(--s-3) var(--s-3); font-size: 11px; color: var(--text-3); }
 .fp-note { color: var(--status-warn); }
 
 /* Date keeps the native pickers; the presets above them are the common case. */
-.fp-date { display: flex; flex-direction: column; gap: var(--s-2); padding: 8px 12px 12px; }
+.fp-date { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-2) var(--s-3) var(--s-3); }
 .fp-presets { display: flex; flex-direction: column; gap: 2px; }
 .fp-preset {
-  text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--r-sm);
-  color: var(--text); padding: 5px 6px; font-family: inherit; font-size: 12px; cursor: pointer;
+  text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--r-md);
+  color: var(--text); padding: 8px 10px; font-family: inherit; font-size: 13px; cursor: default;
 }
 .fp-preset:hover { background: var(--surface-hover); }
 .fp-preset.is-on { background: var(--sel-bg); border-color: var(--line); }
-.fp-date-pair { display: flex; gap: var(--s-2); padding-top: 6px; border-top: 1px solid var(--line); }
+.fp-date-pair { display: flex; gap: var(--s-2); padding-top: var(--s-2); border-top: 1px solid var(--line); }
 .fp-date-pair .fp-field { flex: 1 1 0; min-width: 0; }
 .fp-date-input {
   width: 100%; min-width: 0;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-input);
-  color: var(--text); padding: 5px 6px; font-family: inherit; font-size: 11px;
+  color: var(--text); padding: 7px 8px; font-family: inherit; font-size: 12px;
 }
 .fp-date-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 
@@ -2831,7 +2942,10 @@ label.full { margin-bottom: 16px; }
     align-items: stretch;
     width: min(288px, calc(100vw - 24px)); max-height: 80vh; overflow-y: auto;
   }
-  .fp-cascade { flex-direction: column; }
+  .fp-cascade { flex-direction: column; gap: var(--s-2); }
+  /* Back into flow, under the list it came from — there's no room beside it, and
+     `top` goes inert on a static box, so the inline offset is ignored. */
+  .fp-menu--values { position: static; }
   .fp, .fp-menu { width: 100%; max-height: none; }
 }
 

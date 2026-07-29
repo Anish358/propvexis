@@ -9,6 +9,8 @@ import TradeSettingsModal from './TradeSettingsModal.jsx';
 import TradePreview from './TradePreview.jsx';
 import ReplayModal from './ReplayModal.jsx';
 import Explain from './Explain.jsx';
+import { NetPnlCard, ProfitFactorCard, TradeWinCard, AvgWinLossCard } from './KpiCards.jsx';
+import { computeMetrics } from './metrics.js';
 
 export default function TradeLog() {
   const {
@@ -37,6 +39,13 @@ export default function TradeLog() {
 
   const untagged = useMemo(() => trades.filter((t) => !t.tagged).length, [trades]);
   const columnOverrides = tradeSettings.columns || {};
+  // The KPI row describes the rows underneath it. `trades` here is already the
+  // globally-filtered set, so narrowing the filters re-states the headline numbers
+  // for that subset rather than for the whole account.
+  const m = useMemo(
+    () => computeMetrics(trades, unit, !!tradeSettings.beRounding),
+    [trades, unit, tradeSettings.beRounding],
+  );
   const previewTrade = useMemo(() => trades.find((t) => t.id === previewId) || null, [trades, previewId]);
 
   async function deleteFromPreview(id) {
@@ -49,6 +58,15 @@ export default function TradeLog() {
       <PageHeader title="Trade Log" connected={connected} onMenu={toggleSidebar} />
 
       <div className="page-body">
+        {/* Same four cards the Dashboard renders, from the same components — Net
+            P&L is the locked master card and the others match its geometry. */}
+        <div className="jo-kpis dash-stats log-kpis" style={{ '--kpi-count': 4 }}>
+          <NetPnlCard m={m} unit={unit} />
+          <ProfitFactorCard m={m} />
+          <TradeWinCard m={m} />
+          <AvgWinLossCard m={m} />
+        </div>
+
         <div className="log-toolbar">
           <span className="log-count">{trades.length} trade{trades.length === 1 ? '' : 's'}</span>
           {untagged > 0 && <span className="log-untagged">{untagged} to tag</span>}
