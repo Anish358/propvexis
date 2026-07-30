@@ -35,10 +35,32 @@ test('the default view is exactly the requested columns, in order', () => {
 
 test('everything else is available but off by default', () => {
   const off = labels(cols().filter((c) => !colVisible({}, c)));
-  assert.deepEqual(off, ['Duration', 'SL Size', 'MFE', 'Max R', 'Commission']);
+  assert.deepEqual(off, ['Duration', 'SL Size', 'MFE', 'Max R', 'Rules', 'Commission']);
   // Off by default, not absent: Trade Settings builds its list from this spec, so
   // each one is still a checkbox there.
   for (const l of off) assert.ok(labels(settingsColumns()).includes(l), `${l} missing from settings`);
+});
+
+test('the Rules column survived the refactor it landed across', () => {
+  // dev added this column against the old inline registry while this branch was
+  // replacing that registry with a spec + renderer map. It has to exist in BOTH
+  // halves or it silently disappears in the merge.
+  const col = TRADE_COLUMNS.find((c) => c.id === 'adherence');
+  assert.ok(col, 'the adherence column is missing from the spec');
+  assert.equal(col.defaultOn, false, 'only meaningful once a strategy defines rules');
+  assert.ok(settingsColumns().some((c) => c.id === 'adherence'), 'must be a settings toggle');
+  assert.match(table, /adherence: \(\) => \(t\) => \{/);
+  // Renders the server's verdict rather than re-deciding it here.
+  assert.match(table, /t\.adherence\?\.status/);
+  assert.match(table, /RULE_LABEL\[r\] \|\| r/);
+  assert.match(table, /from '\.\/constants\.js'/);
+  // And it exports, like every other column that can be turned on.
+  assert.equal(exportValue({ adherence: { status: 'followed' } }, 'adherence'), 'Followed');
+  assert.equal(exportValue({ adherence: { status: 'broken' } }, 'adherence'), 'Broke rules');
+  // Not a verdict, so not a value: "unassessed" beside Followed/Broke in a
+  // spreadsheet column would read as a third outcome.
+  assert.equal(exportValue({ adherence: { status: 'unassessed' } }, 'adherence'), '');
+  assert.equal(exportValue({}, 'adherence'), '');
 });
 
 test('the chart-link and MTF columns are gone entirely', () => {

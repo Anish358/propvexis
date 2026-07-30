@@ -34,6 +34,10 @@ export const TRADE_COLUMNS = [
   { id: 'maxr', label: 'Max R', defaultOn: false },
   { id: 'setup', label: 'Setup', defaultOn: true },
   { id: 'probability', label: 'Probability', defaultOn: true },
+  // Objective rule adherence for the trade's strategy. Sits with the strategy
+  // fields it derives from. Off by default — it only means anything once a
+  // strategy actually defines rules.
+  { id: 'adherence', label: 'Rules', defaultOn: false },
   { id: 'status', label: 'Status', defaultOn: true },
   // Label is fixed in both display units, matching the Net P&L KPI card above the
   // table; only the VALUE switches between real $ (pnl_money) and Fixed R.

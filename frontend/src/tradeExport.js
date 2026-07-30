@@ -8,6 +8,7 @@ import { fmtDayShort, fmtTime, fmtDuration } from './constants.js';
 import { tradeOutcome } from './metrics.js';
 
 const OUTCOME_LABEL = { win: 'Win', loss: 'Loss', be: 'BE' };
+const ADHERENCE_LABEL = { followed: 'Followed', broken: 'Broke rules' };
 
 // One column id -> one cell value. Mirrors the table's cell renderers, minus the
 // presentation: same source field, same unit-dependence, no currency symbols.
@@ -28,6 +29,10 @@ export function exportValue(trade, columnId, unit = 'R', beRounding = false) {
     case 'setup': return t.setup || '';
     case 'probability': return t.probability || '';
     case 'status': return OUTCOME_LABEL[tradeOutcome(t, unit, beRounding)] || '';
+    // 'unassessed' and 'norules' export blank for the same reason they render as a
+    // dash: neither is a verdict, and "unassessed" in a spreadsheet column of
+    // Followed/Broke reads like a third outcome.
+    case 'adherence': return ADHERENCE_LABEL[t.adherence?.status] || '';
     // Follows the display unit, like the column it comes from.
     case 'result': return unit === 'USD' ? t.pnl_money : t.fixed_r;
     case 'commission': return t.commission;

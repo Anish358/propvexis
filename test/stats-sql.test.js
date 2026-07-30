@@ -178,3 +178,60 @@ test('buildTradeWhere: outcome filter reuses the one outcome definition', () => 
   const { params: p2 } = buildTradeWhere(SCOPE, 'R', { outcome: ['bogus'] });
   assert.equal(p2.length, 1, 'only the scope param remains');
 });
+
+// ---------------------------------------------------------------------------
+// Expectancy (memory `expectancy-open-item`). The dashboard shows total ÷ trades;
+// a spreadsheet was showing a lower number and it was never settled which was
+// right. These pin that our figure IS the textbook definition, so the difference
+// can only come from the denominator, not the formula.
+// ---------------------------------------------------------------------------
+
+test('expectancy identity: total/N === (winRate x avgWin) + (lossRate x avgLoss)', () => {
+  // These are the same quantity algebraically:
+  //   (W/N)(sumWins/W) + (L/N)(sumLosses/L) = (sumWins + sumLosses)/N = total/N
+  // so the "simple" formula is not a shortcut — it is the trading definition.
+  const cases = [
+    [2.5, -1, 3, -0.5, 1.5],
+    [1, 1, 1, -1, -1, -1],
+    [4, -1, -1, -1, 0],           // includes an exact breakeven
+    [0.5, 0.25, -2, 3.75],
+  ];
+  for (const list of cases) {
+    const trades = list.map((r) => ({ fixed_r: r }));
+    const p = perf(trades, 'fixed_r', false);
+    const N = p.trades;
+    const sumWins = list.filter((r) => r > 0).reduce((a, b) => a + b, 0);
+    const sumLosses = list.filter((r) => r < 0).reduce((a, b) => a + b, 0);
+    const avgWin = p.wins ? sumWins / p.wins : 0;
+    const avgLoss = p.losses ? sumLosses / p.losses : 0;
+
+    const simple = p.r / N;
+    const textbook = (p.wins / N) * avgWin + (p.losses / N) * avgLoss;
+    assert.ok(Math.abs(simple - textbook) < 1e-9, `${list}: ${simple} vs ${textbook}`);
+  }
+});
+
+test('expectancy counts breakeven trades in the denominator', () => {
+  // This is the whole source of the spreadsheet discrepancy: BE trades add 0 to
+  // the numerator but DO count as trades, and a sheet averaging over a fixed cell
+  // range that includes blank rows inflates N further still.
+  const withBe = [{ fixed_r: 2 }, { fixed_r: -1 }, { fixed_r: 0 }, { fixed_r: 0 }];
+  const p = perf(withBe, 'fixed_r', false);
+  assert.equal(p.trades, 4, 'breakevens are trades');
+  assert.equal(p.r, 1);
+  assert.equal(p.r / p.trades, 0.25, 'total 1 over 4 trades, not over 2');
+
+  // Unscored trades (no value in this unit) are NOT counted — they are unknown,
+  // not zero. That distinction is what keeps the figure honest.
+  const withNull = [...withBe, { fixed_r: null }];
+  assert.equal(perf(withNull, 'fixed_r', false).trades, 4, 'a null-R trade is excluded entirely');
+});
+
+test('expectancy: an inflated denominator reproduces a lower figure', () => {
+  // Demonstrates the arithmetic behind "our number looks too high": same total R,
+  // more rows in the divisor => smaller expectancy. Nothing about the formula.
+  const total = 23;
+  const real = 40;
+  assert.equal(Number((total / real).toFixed(4)), 0.575);
+  assert.ok(total / (real + 3) < total / real, 'padding the divisor only ever lowers it');
+});

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fmtDayShort, fmtTime, fmtNum, fmtDuration, slug } from './constants.js';
+import { fmtDayShort, fmtTime, fmtNum, fmtDuration, slug, RULE_LABEL } from './constants.js';
 import { fmtMoney, tradeOutcome } from './metrics.js';
 import { TRADE_COLUMNS, colVisible } from './tradeColumns.js';
 
@@ -90,6 +90,29 @@ const CELLS = {
   maxr: () => (t) => <td className="num max-r">{fmtNum(t.max_r)}</td>,
   setup: () => (t) => <td><Pill value={t.setup} kind="setup" /></td>,
   probability: () => (t) => <td><Pill value={t.probability} kind="prob" /></td>,
+  // Objective rule adherence, from the trade's strategy rules (see
+  // src/adherence.js). Server-enriched as t.adherence, so this renders the same
+  // verdict the trade-preview badge shows rather than re-deciding it here. Off by
+  // default: it only means anything once a strategy defines rules.
+  adherence: () => (t) => {
+    const status = t.adherence?.status;
+    if (status === 'followed') {
+      return <td><span className="pill adh-followed" title="Followed every evaluable rule">✓ Followed</span></td>;
+    }
+    if (status === 'broken') {
+      const broke = (t.adherence.brokenRules || []).map((r) => RULE_LABEL[r] || r);
+      return (
+        <td>
+          <span className="pill adh-broken" title={`Broke: ${broke.join(', ')}`}>
+            ⚠ {broke.length === 1 ? broke[0] : `${broke.length} rules`}
+          </span>
+        </td>
+      );
+    }
+    // 'unassessed' (rules exist but this trade lacks the fields) and 'norules'
+    // both read as a neutral dash — never as a failure.
+    return <td><span className="muted">—</span></td>;
+  },
   // Win / Loss / BE in words. Same precision-aware classification as the P&L
   // cell's colour, so the two can never contradict each other.
   status: ({ unit, beRounding }) => (t) => {
