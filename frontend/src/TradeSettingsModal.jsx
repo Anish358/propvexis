@@ -2,7 +2,9 @@ import React from 'react';
 import { BE_THRESHOLD } from './metrics.js';
 // The column SPEC, not the table: this list only needs each column's id, label and
 // default, so it doesn't pull the cell renderers (or React table markup) in.
-import { TRADE_COLUMNS, colVisible } from './tradeColumns.js';
+// settingsColumns() drops the structural ones (row selection) — those aren't a
+// show/hide choice.
+import { settingsColumns, colVisible } from './tradeColumns.js';
 
 // Trade Settings panel — user-controlled display + analysis options for the
 // journal. Two sections today:
@@ -15,7 +17,7 @@ export default function TradeSettingsModal({
   columnOverrides = {}, setColumnVisible, resetColumns,
 }) {
   if (!open) return null;
-  const cols = TRADE_COLUMNS;
+  const cols = settingsColumns();
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

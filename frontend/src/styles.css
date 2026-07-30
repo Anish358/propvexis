@@ -349,21 +349,41 @@ body {
      tracking went with the caps: 1px letter-spacing is there to open up an
      all-caps eyebrow, and on mixed case it just reads as loose. 12px because
      lowercase has less presence than caps at the same size. */
-  text-align: center; font-size: 12px; letter-spacing: 0;
-  padding: 12px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  text-align: center; font-size: 13px; letter-spacing: 0;
+  padding: 15px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
 }
 /* Fixed layout means over-long content overflows instead of widening its column,
    so every cell has to be able to end in an ellipsis. */
 .grid td {
   padding: 8px 12px; border-bottom: 1px solid var(--line);
+  text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .grid tbody tr { cursor: pointer; }
 .grid tbody tr:hover { background: var(--surface-hover); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
-/* Overrides .num's right alignment for quantity columns (lots), where the numbers
-   are short and fixed-width and a right edge reads as ragged. */
-.grid td.cell-center { text-align: center; }
+/* Every column in this table is centered, header and body alike — .num is shared
+   with other tables, so its right alignment is overridden here rather than dropped.
+   The tabular figures it brings are still wanted. */
+.grid td.num { text-align: center; }
+
+/* Row selection. Narrow by design — it holds a 14px box, so giving it an equal
+   share of the width would leave a gap the size of a data column. table-layout:
+   fixed honours this and splits the remainder between the real columns. */
+.grid th.col-select, .grid td.col-select { width: 44px; padding-left: 0; padding-right: 0; }
+.row-check {
+  width: 14px; height: 14px; margin: 0; vertical-align: middle;
+  accent-color: var(--accent); cursor: pointer;
+  /* Hidden until the row is hovered — a box on every row is noise. Opacity, not
+     display, so revealing one doesn't shift the row. A TICKED box always shows:
+     hiding it would hide the selection itself. */
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+}
+.grid tbody tr:hover .row-check, .row-check.is-on, .row-check:focus-visible { opacity: 1; }
+/* The header box is the select-all, and it stays visible — it's the control for the
+   column, not a per-row affordance. */
+.grid thead .row-check { opacity: 1; }
+.grid tbody tr.row-selected { background: var(--sel-bg); }
 .max-r { color: var(--profit); font-weight: 400; }
 .cell-win { background: var(--win-bg); color: var(--profit); font-weight: 400; }
 .cell-loss { background: var(--loss-bg); color: var(--loss); font-weight: 400; }
@@ -377,13 +397,15 @@ body {
 .pill.out-be { background: var(--be-bg); color: var(--be); }
 /* Notes: an icon, centered, standing in for prose that would otherwise set this
    column's width. The full text is the title attribute; the row opens it. */
-.cell-notes { text-align: center; }
+/* (Notes needs no alignment rule of its own — .grid td centers every column.) */
 .cell-note { display: inline-flex; color: var(--text-2); vertical-align: middle; }
 .grid tbody tr:hover .cell-note { color: var(--text); }
 .empty, td.empty { text-align: center; color: var(--muted); padding: 40px; }
 .muted { color: var(--muted); }
-.cell-dt { white-space: nowrap; }
-.cell-time { color: var(--muted); margin-left: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cell-dt { white-space: nowrap; line-height: 1.35; }
+/* Time on its own line under the date, so the pair reads as one timestamp instead
+   of two values competing for the column's width. */
+.cell-time { display: block; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .row-untagged { background: var(--tint-warn-1); }
 .row-untagged:hover { background: var(--tint-warn-2); }
@@ -1677,6 +1699,64 @@ label.full { margin-bottom: 16px; }
 .precision-chip.on .precision-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent)99; }
 .precision-chip.on:hover { background: var(--accent-hover-bg); }
 .log-count { color: var(--muted); font-size: 13px; }
+/* Selection readout — appears only while rows are selected. */
+.log-selected {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--sel-bg); border: 1px solid var(--line); color: var(--text);
+  font-size: 12px; padding: 4px 8px 4px 12px; border-radius: var(--r-full);
+}
+.log-selected-clear {
+  background: transparent; border: none; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 12px; color: var(--accent);
+}
+.log-selected-clear:hover { text-decoration: underline; }
+/* A bulk run can fail on some rows and succeed on others; this says which. */
+.log-bulk-error { color: var(--loss); font-size: 12px; }
+
+/* ---- bulk actions dropdown ---- */
+.bulk { position: relative; display: inline-flex; }
+.bulk-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: var(--r-md); padding: 8px 12px;
+  font-family: inherit; font-size: 13px; font-weight: 400; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.bulk-btn:hover:not(:disabled), .bulk-btn.is-open { border-color: var(--line-strong); }
+/* Inert with nothing selected — visibly so, rather than inviting a click that
+   would open a menu of no-ops. */
+.bulk-btn:disabled { color: var(--text-3); cursor: default; opacity: .6; }
+.bulk-chev { flex: none; transition: transform var(--dur-fast) var(--ease); }
+.bulk-chev.is-open { transform: rotate(180deg); }
+
+.bulk-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--z-dropdown);
+  min-width: 216px; padding: 6px;
+  display: flex; flex-direction: column;
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg); box-shadow: var(--sh-3);
+  text-align: left;
+}
+.bulk-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: transparent; border: none; border-radius: var(--r-md);
+  color: var(--text); padding: 8px 10px;
+  font-family: inherit; font-size: 13px; text-align: left; cursor: default;
+}
+.bulk-item:hover, .bulk-item.is-open { background: var(--sel-bg); }
+.bulk-item--danger { color: var(--loss); }
+.bulk-item--danger:hover { background: var(--loss-bg); }
+.bulk-sep { height: 1px; margin: 4px 2px; background: var(--line); }
+/* Inline expansion rather than a flyout: one column of choices, indented under the
+   action that opened it, with no second menu to position or dismiss. */
+.bulk-sub { display: flex; flex-direction: column; margin: 0 0 4px 10px; padding-left: 8px; border-left: 1px solid var(--line); }
+.bulk-sub-item {
+  background: transparent; border: none; border-radius: var(--r-sm);
+  color: var(--text-2); padding: 6px 8px;
+  font-family: inherit; font-size: 12px; text-align: left; cursor: default;
+}
+.bulk-sub-item:hover { background: var(--surface-hover); color: var(--text); }
+.bulk-empty { padding: 6px 8px; font-size: 11px; color: var(--text-3); }
 .log-untagged { background: var(--tint-warn-3); color: var(--warning); font-size: 12px; font-weight: 400; padding: 4px 12px; border-radius: var(--r-full); }
 /* NO overflow clipping anywhere between the header cells and the page. Both an
    `overflow: hidden` panel and an `overflow-x: auto` wrapper count as a scroll
@@ -1860,6 +1940,13 @@ label.full { margin-bottom: 16px; }
   border-radius: var(--r-md); padding: 8px 12px; font-size: 13px; font-weight: 400; cursor: pointer;
 }
 .ts-open-btn:hover { border-color: var(--line-strong); }
+/* Icon-only variant: square the padding out so the gear sits centered rather than
+   in a box still shaped for a label beside it. */
+.ts-open-btn--icon {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  color: var(--text-2);
+}
+.ts-open-btn--icon:hover { color: var(--text); }
 
 .ts-modal { max-width: 560px; width: 560px; }
 .ts-section { border-top: 1px solid var(--line); padding: 16px 0 4px; }

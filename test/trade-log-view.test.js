@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { TRADE_COLUMNS, colVisible, visibleColumns } from '../frontend/src/tradeColumns.js';
+import { TRADE_COLUMNS, colVisible, visibleColumns, settingsColumns } from '../frontend/src/tradeColumns.js';
+import { fmtDayShort } from '../frontend/src/constants.js';
+import { exportValue, csvText, tradesToCsv } from '../frontend/src/tradeExport.js';
 
 // The Trade Log's default view, table behaviour and headline KPI row. The column
 // SPEC is plain data (tradeColumns.js) so it can be asserted directly; the cells
@@ -13,6 +15,7 @@ const table = read('../frontend/src/TradesTable.jsx');
 const spec = read('../frontend/src/tradeColumns.js');
 const log = read('../frontend/src/TradeLog.jsx');
 const cards = read('../frontend/src/KpiCards.jsx');
+const bulk = read('../frontend/src/BulkActions.jsx');
 const dash = read('../frontend/src/Dashboard.jsx');
 const bar = read('../frontend/src/FilterBar.jsx');
 
@@ -22,19 +25,31 @@ const labels = (list) => list.map((c) => c.label);
 
 // ---- 1. default view --------------------------------------------------------
 
-test('the default view is exactly the eleven requested columns, in order', () => {
+test('the default view is exactly the requested columns, in order', () => {
   assert.deepEqual(labels(shown()), [
-    'Date & Time', 'Type', 'Symbol', 'Entry', 'Exit', 'Volume',
-    'Setup', 'Probability', 'Net P&L', 'Commission', 'Notes',
+    '',            // row selection — a checkbox, no heading text
+    'Date & Time', 'Symbol', 'Type', 'Session', 'Entry', 'Exit', 'Volume',
+    'Setup', 'Probability', 'Status', 'Net P&L', 'Notes',
   ]);
 });
 
 test('everything else is available but off by default', () => {
   const off = labels(cols().filter((c) => !colVisible({}, c)));
-  assert.deepEqual(off, ['Duration', 'Session', 'SL Size', 'MFE', 'Max R', 'MTF Phase', 'Status', 'M15', 'H1', 'H4']);
-  // Off by default, not absent: Trade Settings builds its list from this registry,
-  // so each one is still a checkbox there.
-  assert.equal(cols().length, 21);
+  assert.deepEqual(off, ['Duration', 'SL Size', 'MFE', 'Max R', 'Commission']);
+  // Off by default, not absent: Trade Settings builds its list from this spec, so
+  // each one is still a checkbox there.
+  for (const l of off) assert.ok(labels(settingsColumns()).includes(l), `${l} missing from settings`);
+});
+
+test('the chart-link and MTF columns are gone entirely', () => {
+  // Removed from the table, not just hidden — they must not reappear as toggles.
+  for (const id of ['m15', 'h1', 'h4', 'mtf']) {
+    assert.ok(!TRADE_COLUMNS.some((c) => c.id === id), `${id} should be removed from the spec`);
+    assert.ok(!settingsColumns().some((c) => c.id === id), `${id} should not be a settings toggle`);
+  }
+  // And their renderers went with them, along with the link component they used.
+  assert.ok(!/\bm15:|\bh1:|\bh4:|\bmtf:/.test(table), 'dead renderers left behind');
+  assert.ok(!table.includes('ChartLink'), 'ChartLink is unused now');
 });
 
 test('the default order holds however the registry grows', () => {
@@ -46,7 +61,55 @@ test('the default order holds however the registry grows', () => {
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b), 'defaults must stay in registry order');
   // And each optional column sits next to the data it belongs with.
   assert.ok(all.indexOf('Duration') === all.indexOf('Date & Time') + 1, 'Duration follows the timestamp');
-  assert.ok(all.indexOf('Status') === all.indexOf('Net P&L') - 1, 'Status precedes the P&L it describes');
+  assert.ok(all.indexOf('Commission') === all.indexOf('Net P&L') + 1, 'Commission follows the P&L it applies to');
+  // Selection is always first — it's the row's handle, not a data column.
+  assert.equal(TRADE_COLUMNS[0].id, 'select');
+});
+
+// ---- row selection ----------------------------------------------------------
+
+test('selection is a fixed column: always on, never a settings toggle', () => {
+  const sel = TRADE_COLUMNS.find((c) => c.id === 'select');
+  assert.equal(sel.fixed, true);
+  assert.equal(sel.narrow, true, 'it holds a checkbox, not a column of data');
+  // An override can't hide it — it's structural, so colVisible ignores overrides.
+  assert.ok(visibleColumns({ select: false }).some((c) => c.id === 'select'));
+  assert.ok(!settingsColumns().some((c) => c.id === 'select'));
+});
+
+test('checkboxes appear on hover, and never open the row', () => {
+  // A box on every row is noise; opacity (not display) so revealing one doesn't
+  // shift the row. A TICKED box stays visible or the selection would be invisible.
+  assert.match(css, /\.row-check \{[\s\S]*?opacity: 0;/);
+  assert.match(css, /\.grid tbody tr:hover \.row-check, \.row-check\.is-on, \.row-check:focus-visible \{ opacity: 1; \}/);
+  // The select-all in the header is the column's control, not a per-row hint.
+  assert.match(css, /\.grid thead \.row-check \{ opacity: 1; \}/);
+  // Clicking a box must not also open the preview panel behind it.
+  assert.match(table, /onClick=\{\(e\) => e\.stopPropagation\(\)\}/);
+  assert.match(table, /onChange=\{\(e\) => \{ e\.stopPropagation\(\); onChange\(e\.target\.checked\); \}\}/);
+  // Narrower than a data column — 44px for a 14px box.
+  assert.match(css, /\.grid th\.col-select, \.grid td\.col-select \{ width: \d+px/);
+});
+
+test('the header box reflects, and acts on, the rows in view', () => {
+  // After a filter narrows the table, "all" has to mean the visible rows — a header
+  // box that counted every trade on the account would sit unchecked forever.
+  assert.match(table, /allSelected: selectableCount > 0 && selectedHere === selectableCount/);
+  assert.match(table, /someSelected: selectedHere > 0/);
+  assert.match(table, /indeterminate=\{someSelected && !allSelected\}/);
+  // indeterminate is a DOM property, so it needs setting imperatively.
+  assert.match(table, /ref\.current\.indeterminate = indeterminate/);
+  assert.match(log, /selectAll = \(on\) => setSelectedIds\(on \? new Set\(trades\.map\(\(t\) => t\.id\)\) : new Set\(\)\)/);
+});
+
+test('a selected id cannot outlive the row it belongs to', () => {
+  // Filters change what's in view and trades get deleted; a stale id would keep
+  // being counted for a row that is no longer on screen.
+  assert.match(log, /const visible = new Set\(trades\.map\(\(t\) => t\.id\)\)/);
+  assert.match(log, /\[\.\.\.selectedIds\]\.filter\(\(id\) => visible\.has\(id\)\)/);
+  // Selecting shows something, or ticking a box looks inert.
+  assert.match(log, /\{selected\.size\} selected/);
+  assert.match(css, /\.log-selected \{/);
 });
 
 test('the P&L column label does not change with the display unit', () => {
@@ -61,7 +124,10 @@ test('every column in the spec has a renderer', () => {
   // buildColumns throws rather than rendering a silent hole. Verified from source
   // (node can't import the JSX) plus the id lists matching.
   assert.match(table, /has no cell renderer/);
-  const rendered = [...table.matchAll(/^ {2}([a-z0-9_]+): \(/gm)].map((m) => m[1]);
+  // Scoped to the CELLS map — the HEADERS map below it keys off the same ids, so an
+  // unscoped scan would double-count `select`.
+  const cellsBlock = table.slice(table.indexOf('const CELLS = {'), table.indexOf('const HEADERS = {'));
+  const rendered = [...cellsBlock.matchAll(/^ {2}([a-z0-9_]+): (\(|\{)/gm)].map((m) => m[1]);
   assert.deepEqual([...rendered].sort(), TRADE_COLUMNS.map((c) => c.id).sort());
 });
 
@@ -81,16 +147,18 @@ test('Notes is an icon, not the prose', () => {
   // The old full-text cell (and its width cap) is gone.
   assert.ok(!table.includes('className="comments"'), 'the prose cell should be gone');
   assert.ok(!css.includes('.comments {'), 'dead .comments rule left behind');
-  assert.match(css, /\.cell-notes \{ text-align: center; \}/);
+  // Centering comes from .grid td now that every column is centered — the column
+  // needs no rule of its own.
+  assert.ok(!css.includes('.cell-notes {'), 'redundant .cell-notes rule');
 });
 
 // ---- 7. status --------------------------------------------------------------
 
-test('Status is available, off by default, and agrees with the P&L colour', () => {
+test('Status is in the default view, and agrees with the P&L colour', () => {
   const col = cols().find((c) => c.id === 'status');
   assert.ok(col, 'no Status column');
   assert.equal(col.label, 'Status');
-  assert.equal(col.defaultOn, false);
+  assert.equal(col.defaultOn, true);
   // Both the Status pill and the P&L cell's tone come from tradeOutcome, so they
   // can never disagree about whether a trade won.
   const statusCell = table.slice(table.indexOf('  status: ('), table.indexOf('  result: ('));
@@ -182,22 +250,128 @@ test('columns are equal width with centered titles', () => {
   assert.match(table, /style=\{\{ '--grid-cols': cols\.length \}\}/);
 });
 
-test('volume is centered, other numeric columns stay right-aligned', () => {
-  assert.equal(cols().find((c) => c.id === 'volume').align, 'center');
-  assert.match(table, /volume: \(\) => \(t\) => <td className="num cell-center">/);
-  assert.match(css, /\.grid td\.cell-center \{ text-align: center; \}/);
-  // Prices and money keep the right edge, where a decimal column belongs.
-  const lines = table.split('\n');
-  for (const id of ['entry_price', 'exit_price', 'result', 'commission']) {
-    assert.equal(cols().find((c) => c.id === id).align, undefined, `${id} should stay right-aligned`);
-    // Only that renderer's own lines — a wider window runs into the next entry,
-    // and `volume` sits right after the price columns.
-    const start = lines.findIndex((l) => l.startsWith(`  ${id}: (`));
-    const rest = lines.slice(start + 1).findIndex((l) => /^ {2}[a-z0-9_]+: \(/.test(l));
-    const own = lines.slice(start, rest < 0 ? undefined : start + 1 + rest).join('\n');
-    assert.ok(!own.includes('cell-center'), `${id} cell should not be centered`);
-  }
+test('every column is centered, header and body alike', () => {
+  assert.match(css, /\.grid td \{[\s\S]*?text-align: center;/);
+  // .num is shared with other tables, so its right alignment is overridden here
+  // rather than removed — the tabular figures it brings are still wanted.
   assert.match(css, /\.num \{ text-align: right/);
+  assert.match(css, /\.grid td\.num \{ text-align: center; \}/);
+  // The old per-column centering hack is gone now that centering is the default.
+  assert.ok(!css.includes('.grid td.cell-center'), 'cell-center is redundant');
+  assert.ok(!table.includes('cell-center'), 'no cell should still ask to be centered');
+});
+
+test('the header is bigger, and taller than the rows', () => {
+  const th = css.slice(css.indexOf('.grid th {'), css.indexOf('}', css.indexOf('.grid th {')));
+  const size = Number(/font-size: (\d+)px/.exec(th)[1]);
+  const pad = Number(/padding: (\d+)px/.exec(th)[1]);
+  assert.ok(size >= 13, `header font should be at least 13px, got ${size}`);
+  const tdPad = Number(/padding: (\d+)px/.exec(css.slice(css.indexOf('.grid td {'), css.indexOf('}', css.indexOf('.grid td {'))))[1]);
+  assert.ok(pad > tdPad, `header padding (${pad}) should exceed the rows' (${tdPad})`);
+});
+
+test('the date reads "22 Jul 26" over the time', () => {
+  // A month NAME scans faster down a column than 22/07/26, which is also ambiguous
+  // to a US reader.
+  assert.equal(fmtDayShort('2026-07-22T17:45:00'), '22 Jul 26');
+  assert.equal(fmtDayShort(''), '');
+  assert.equal(fmtDayShort('nonsense'), '');
+  assert.match(table, /\{fmtDayShort\(t\.close_time\)\}/);
+  // On two lines: the time is a block under the date, not trailing beside it.
+  assert.match(css, /\.cell-time \{ display: block;/);
+  // fmtDate is left alone — it feeds fmtDateTime, which the tag modal and preview
+  // panel render inline and which this change doesn't cover.
+  assert.match(read('../frontend/src/constants.js'), /export function fmtDate\(/);
+});
+
+test('the Trade Settings button is icon-only', () => {
+  assert.ok(!log.includes('⚙ Trade Settings'), 'the label should be gone');
+  assert.match(log, /className="ts-open-btn ts-open-btn--icon"/);
+  // An icon-only control still needs an accessible name.
+  assert.match(log, /aria-label="Trade settings"/);
+  assert.match(log, /title="Trade settings"/);
+  assert.match(css, /\.ts-open-btn--icon \{/);
+});
+
+// ---- bulk actions -----------------------------------------------------------
+
+const TRADE = {
+  id: 1, symbol_base: 'EURUSD', direction: 'buy', session: 'LDN', setup: 'SMC', probability: 'HIGH',
+  entry_price: 1.13939, exit_price: 1.14115, volume: 1.59, pnl_money: 271.89, fixed_r: 2, commission: -7.95,
+  comments: 'SL sweep, then "clean" run', open_time: '2026-07-14T17:00:00Z', close_time: '2026-07-14T17:45:00Z',
+};
+
+test('bulk actions are inert until rows are selected', () => {
+  assert.match(bulk, /const disabled = count === 0 \|\| busy;/);
+  assert.match(bulk, /disabled=\{disabled\}/);
+  assert.match(css, /\.bulk-btn:disabled \{/);
+  // The count is in the label, so the button states what it will act on.
+  assert.match(bulk, /Bulk actions\$\{count \? ` \(\$\{count\}\)` : ''\}/);
+  // Losing the selection mid-menu (a filter change, a delete) must close it rather
+  // than leave it pointing at an empty set.
+  assert.match(bulk, /if \(disabled\) \{ setOpen\(false\); setSection\(null\); \}/);
+  // Sits to the right of Trade Settings.
+  assert.ok(log.indexOf('<BulkActions') > log.indexOf('ts-open-btn--icon'));
+});
+
+test('a partial failure is reported, not swallowed', () => {
+  // allSettled, not all(): one rejection must not abandon the rest half-applied
+  // and leave the user unable to tell which rows went through.
+  assert.match(log, /Promise\.allSettled\(ids\.map\(\(id\) => fn\(id\)\)\)/);
+  assert.match(log, /results\.filter\(\(r\) => r\.status === 'rejected'\)\.length/);
+  assert.match(log, /\$\{failed\} of \$\{ids\.length\} failed/);
+  // A failed delete keeps its row selected so it can be retried.
+  assert.match(log, /if \(!failed\) setSelectedIds\(new Set\(\)\)/);
+  assert.match(log, /className="log-bulk-error"/);
+});
+
+test('bulk delete confirms first', () => {
+  assert.match(log, /if \(!confirm\(`Delete \$\{ids\.length\} trade/);
+  assert.match(log, /cannot be undone/);
+});
+
+test('setting a field patches only that field', () => {
+  // The API updates only the keys it's given, so setting a strategy across a
+  // selection can't blank those trades' notes or probability.
+  assert.match(log, /saveTrade\(id, \{ \[field\]: value \}\)/);
+  assert.match(bulk, /onSetField\('setup', name\)/);
+  assert.match(bulk, /onSetField\('probability', p\)/);
+});
+
+test('export writes the visible columns, as raw values', () => {
+  const cols = visibleColumns({}).filter((c) => !c.fixed);
+  const out = tradesToCsv([TRADE], cols, 'USD', false).split('\r\n');
+  // Header is the on-screen columns in their on-screen order.
+  assert.equal(out[0], 'Date & Time,Symbol,Type,Session,Entry,Exit,Volume,Setup,Probability,Status,Net P&L,Notes');
+  // Raw numbers, not formatted cells — a spreadsheet wants 271.89, not "+$271.89".
+  assert.ok(out[1].includes(',271.89,'), `expected a bare number: ${out[1]}`);
+  assert.ok(!out[1].includes('$'), 'no currency symbols in the data');
+  // The selection column is a control, not data.
+  assert.ok(!out[0].includes('☐'));
+  assert.match(log, /visibleColumns\(columnOverrides\)\.filter\(\(c\) => !c\.fixed\)/);
+});
+
+test('export values follow the display unit and mirror the cells', () => {
+  assert.equal(exportValue(TRADE, 'result', 'USD'), 271.89);
+  assert.equal(exportValue(TRADE, 'result', 'R'), 2);
+  assert.equal(exportValue(TRADE, 'status', 'USD'), 'Win');
+  assert.equal(exportValue(TRADE, 'pair'), 'EURUSD');
+  assert.equal(exportValue(TRADE, 'datetime').startsWith('14 Jul 26'), true);
+  // An unknown id yields an empty cell rather than throwing mid-export.
+  assert.equal(exportValue(TRADE, 'nope'), '');
+  assert.equal(exportValue(null, 'pair'), '');
+  // Every visible column must produce something rather than undefined.
+  for (const c of visibleColumns({}).filter((x) => !x.fixed)) {
+    assert.notEqual(exportValue(TRADE, c.id, 'USD'), undefined, `${c.id} has no export value`);
+  }
+});
+
+test('csv quoting survives a free-text note', () => {
+  // Notes are free text; without quoting, one comma shifts every later column.
+  assert.equal(csvText([['a,b', 'say "hi"']]), '"a,b","say ""hi"""');
+  assert.equal(csvText([['line\nbreak']]), '"line\nbreak"');
+  assert.equal(csvText([['plain', 42, null]]), 'plain,42,');
+  assert.match(tradesToCsv([TRADE], [{ id: 'comments', label: 'Notes' }]), /"SL sweep, then ""clean"" run"/);
 });
 
 // ---- 3. KPI cards -----------------------------------------------------------

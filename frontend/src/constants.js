@@ -16,6 +16,18 @@ export function fmtDate(iso) {
   return `${dd}/${mm}/${yy}`;
 }
 
+// "22 Jul 26" — the trade log's date, where a month NAME reads faster down a
+// column than 22/07/26 (which is also ambiguous to a US reader). Separate from
+// fmtDate rather than replacing it: fmtDate feeds fmtDateTime, which the tag modal
+// and the preview panel render inline, and those aren't part of this change.
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function fmtDayShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
+}
+
 export function fmtTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
