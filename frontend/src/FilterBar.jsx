@@ -219,13 +219,28 @@ export default function FilterBar({
 }) {
   const active = activeFilterCount(filters);
   const [manageOpen, setManageOpen] = useState(false);
+  // Publish this bar's height as --topbar-h. Anything else that wants to sit
+  // directly beneath it while the page scrolls — the trade log's sticky column
+  // header — reads that instead of hardcoding a guess: too small and the header
+  // slides under the bar, too large and rows show through the gap. Measured, so it
+  // survives a wrap onto two lines or a font change.
+  const barRef = useRef(null);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const publish = () => document.documentElement.style.setProperty('--topbar-h', `${el.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // Which page you're on, resolved from the same NAV config the sidebar renders
   // — so the two can't disagree. null on an unrecognized path; render nothing
   // rather than guess a name.
   const title = navTitle(useLocation().pathname);
 
   return (
-    <div className="topbar">
+    <div className="topbar" ref={barRef}>
       {/* The view controls moved across to the right; the left now holds the
           sidebar re-opener and the current page's name. */}
       <div className="tb-left">

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   FILTER_GROUPS, FILTERS, FILTER_BY_ID, DATE_PRESETS,
   activeDefs, chipValue, clearPatch, isActive, presetRange, valueOptions,
@@ -35,7 +35,14 @@ const match = (text, q) => text.toLowerCase().includes(q.trim().toLowerCase());
 
 // One searchable, arrow-navigable menu column. Owns its query + cursor so opening
 // a submenu never disturbs the menu that spawned it.
-export function Menu({ title, subtitle, placeholder, items, onPick, onHover, onBack, footer, children, multi = false }) {
+// A column states what it is exactly ONCE, using whichever element it has: a list
+// column says it in the search placeholder ("Search probability…") and renders no
+// heading; a range or date column has no search box, so it gets the heading
+// instead. Passing `title` is what asks for the heading.
+export function Menu({
+  title, ariaLabel, placeholder, items, onPick, onHover, onBack, footer, children,
+  multi = false, menuRef, className = '', style,
+}) {
   const [q, setQ] = useState('');
   const [cursor, setCursor] = useState(0);
   const searchRef = useRef(null);
@@ -48,10 +55,10 @@ export function Menu({ title, subtitle, placeholder, items, onPick, onHover, onB
   // column open per row crossed. Only the pointer does this; arrowing with the
   // keyboard just moves the highlight, so browsing the list stays quiet.
   useEffect(() => () => clearTimeout(hoverTimer.current), []);
-  const hoverOpen = (row) => {
+  const hoverOpen = (row, el) => {
     if (!onHover || row.soon) return;
     clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => onHover(row), 110);
+    hoverTimer.current = setTimeout(() => onHover(row, el), 60);
   };
   const cancelHover = () => clearTimeout(hoverTimer.current);
 
@@ -88,7 +95,9 @@ export function Menu({ title, subtitle, placeholder, items, onPick, onHover, onB
     }
     if (e.key === 'Enter' && pickable[cursor]) {
       e.preventDefault();
-      onPick(pickable[cursor]);
+      // The highlighted row doubles as the anchor, so a keyboard open lands the
+      // values column beside the same row a pointer open would have.
+      onPick(pickable[cursor], bodyRef.current?.querySelector('.is-cursor'));
       // A multi-select stays open so several values can be picked in a row; the
       // search is cleared because the next value is a different search.
       if (multi) setQ('');
@@ -96,16 +105,17 @@ export function Menu({ title, subtitle, placeholder, items, onPick, onHover, onB
   };
 
   return (
-    <div className="fp-menu" onKeyDown={onKeyDown}>
-      <div className="fp-menu-head">
-        {onBack && (
-          <button type="button" className="fp-menu-back" onClick={onBack} aria-label="Back to filter list">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-          </button>
-        )}
-        <span className="fp-menu-title">{title}</span>
-        {subtitle && <span className="fp-menu-sub">{subtitle}</span>}
-      </div>
+    <div className={`fp-menu ${className}`} style={style} ref={menuRef} onKeyDown={onKeyDown}>
+      {title && (
+        <div className="fp-menu-head">
+          {onBack && (
+            <button type="button" className="fp-menu-back" onClick={onBack} aria-label="Back to filter list">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+          )}
+          <span className="fp-menu-title">{title}</span>
+        </div>
+      )}
       {items && (
         <input
           ref={searchRef}
@@ -114,6 +124,10 @@ export function Menu({ title, subtitle, placeholder, items, onPick, onHover, onB
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={placeholder}
+          // The placeholder names the input ("Search strategy…"); `ariaLabel` names
+          // the LIST below it ("Strategy"). Using the latter here would leave the
+          // field announced as "Strategy", which describes the list, not the box.
+          aria-label={placeholder}
           role="combobox"
           aria-expanded="true"
           aria-controls={id}
@@ -123,7 +137,9 @@ export function Menu({ title, subtitle, placeholder, items, onPick, onHover, onB
       )}
       {children}
       {items && (
-        <div className="fp-menu-body" ref={bodyRef} id={id} role="listbox" aria-multiselectable={multi || undefined}>
+        // aria-label carries the filter's name for a screen reader now that the
+        // heading is gone from the list columns.
+        <div className="fp-menu-body" ref={bodyRef} id={id} role="listbox" aria-label={ariaLabel} aria-multiselectable={multi || undefined}>
           {rows.map((row, i) => (row.group ? (
             <div key={`g-${row.group}-${i}`} className="fp-menu-group" role="presentation">{row.group}</div>
           ) : (
@@ -137,13 +153,18 @@ export function Menu({ title, subtitle, placeholder, items, onPick, onHover, onB
               // hint about the row's target, not a selection — marked with a dot.
               aria-selected={row.box ? !!row.on : undefined}
               aria-disabled={row.soon || undefined}
-              onMouseEnter={() => {
+              onMouseEnter={(e) => {
                 const at = pickable.findIndex((p) => p.id === row.id);
                 if (at >= 0) setCursor(at);
-                hoverOpen(row);
+                hoverOpen(row, e.currentTarget);
               }}
               onMouseLeave={cancelHover}
-              onClick={() => { if (!row.soon) { cancelHover(); onPick(row); if (multi) setQ(''); } }}
+              onClick={(e) => {
+                if (row.soon) return;
+                cancelHover();
+                onPick(row, e.currentTarget);
+                if (multi) setQ('');
+              }}
             >
               {row.box && <span className={`fp-box ${row.box === 'radio' ? 'fp-box--radio' : ''} ${row.on ? 'is-on' : ''}`} aria-hidden="true" />}
               <span className="fp-row-label">{row.label}</span>
@@ -264,8 +285,50 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
   const def = pickedId ? FILTER_BY_ID[pickedId] : null;
   const chips = activeDefs(filters);
 
-  const openDef = (id) => { setAdding(true); setPickedId(id); };
+  // The values column is anchored to the ROW that opened it (see the layout effect
+  // below), so it reads as belonging to that filter rather than to the panel.
+  // `anchorTop` is the row's offset within the cascade; null means "no row" (a chip
+  // opened it), which falls back to aligning with the top of the choose column.
+  const cascadeRef = useRef(null);
+  const valuesRef = useRef(null);
+  const [anchorTop, setAnchorTop] = useState(null);
+  const [valuesTop, setValuesTop] = useState(null);
+
+  const anchorFrom = (el) => {
+    const cascade = cascadeRef.current;
+    if (!el || !cascade) { setAnchorTop(null); return; }
+    setAnchorTop(el.getBoundingClientRect().top - cascade.getBoundingClientRect().top);
+  };
+
+  const openDef = (id, el) => { setAdding(true); setPickedId(id); anchorFrom(el); };
   const closeValues = () => setPickedId(null);
+
+  // Line the column's FIRST ROW up with the row that opened it — not the column's
+  // top edge, which would leave the header and search box pointing at it instead.
+  // The lead is measured rather than hardcoded so tuning the header or search
+  // padding can't silently break the alignment. Measured values are all internal
+  // (offset within the column, its own height), so setting `top` from them can't
+  // feed back into the next measurement.
+  // useLayoutEffect, not useEffect: the column has just appeared, so correcting its
+  // offset after paint would show it jumping from the top of the cascade.
+  useLayoutEffect(() => {
+    const el = valuesRef.current;
+    const cascade = cascadeRef.current;
+    if (!el || !cascade) return;
+    if (anchorTop == null) { setValuesTop(0); return; }
+    const box = el.getBoundingClientRect();
+    const first = el.querySelector('.fp-row, .fp-range, .fp-date');
+    const lead = first ? first.getBoundingClientRect().top - box.top : 0;
+    // Clamp into the viewport: a filter near the bottom of a long list would
+    // otherwise anchor its column half off-screen.
+    const cTop = cascade.getBoundingClientRect().top;
+    const min = 8 - cTop;
+    const max = Math.max(min, window.innerHeight - 8 - el.offsetHeight - cTop);
+    const next = Math.round(Math.min(Math.max(anchorTop - lead, min), max));
+    setValuesTop((prev) => (prev === next ? prev : next));
+    // The footer appears once a filter has a value, which changes the column's
+    // height and therefore the bottom clamp — so it belongs in the deps.
+  }, [pickedId, anchorTop, def ? isActive(def, filters) : false]);
 
   // Escape unwinds one column at a time: values → choose → the panel itself.
   // Bound on the document rather than the panel's own onKeyDown because the date
@@ -330,7 +393,6 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
     closeValues();
   };
 
-  const selectedCount = def && def.type === 'multi' ? (filters[def.id] || []).length : 0;
 
   return (
     // The panel sits under the button; the cascade sits under the PANEL, opening
@@ -390,26 +452,33 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
       </div>
 
       {/* The cascade hangs BELOW the panel rather than alongside it, so the
-          columns never run up beside the top bar. Inside this row they still open
-          one to the left of the other — the panel is the anchor, not the lid. */}
+          columns never run up beside the top bar. The values column opens to the
+          LEFT of the choose column and level with the row that opened it. */}
       {(adding || def) && (
-        <div className="fp-cascade">
+        <div className="fp-cascade" ref={cascadeRef}>
           {adding && (
             <Menu
               title="Add filter"
               placeholder="Search filters…"
               items={chooseItems}
-              onPick={(row) => setPickedId(row.id)}
-              // Hovering a filter opens its values; clicking is still fine.
-              onHover={(row) => setPickedId(row.id)}
+              onPick={(row, el) => { setPickedId(row.id); anchorFrom(el); }}
+              // Hovering a filter opens its values; clicking is still fine. Both
+              // hand over the row element so the column can line up with it.
+              onHover={(row, el) => { setPickedId(row.id); anchorFrom(el); }}
             />
           )}
 
           {def && (
             <Menu
               key={def.id}
-              title={def.label}
-              subtitle={selectedCount ? `${selectedCount} selected` : undefined}
+              menuRef={valuesRef}
+              className="fp-menu--values"
+              style={valuesTop == null ? undefined : { top: `${valuesTop}px` }}
+              // No heading on a list column — its search placeholder already names
+              // the filter, and a title above it just repeats itself. Range and
+              // date columns have no search box, so they keep the heading.
+              title={valueItems ? undefined : def.label}
+              ariaLabel={def.label}
               placeholder={`Search ${def.label.toLowerCase()}…`}
               items={valueItems}
               multi={def.type === 'multi'}

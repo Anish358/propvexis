@@ -21,12 +21,12 @@ import {
   widgetSpan, GRID_COLUMNS,
 } from './dashLayout.js';
 import { sevClass } from './Notifications.jsx';
-import { StatContext } from './DashWidgets.jsx';
+import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
 import { roomStatus, healthStatus } from './PropOS.jsx';
 import { fetchProp, updateAccount, fetchCalendar } from './api.js';
 import { chartPalette } from './theme.js';
 import {
-  computeMetrics, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome, dayKey,
+  computeMetrics, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome,
 } from './metrics.js';
 
 // Chart theming from design tokens (matches Analytics.jsx's equity curve).
@@ -35,7 +35,6 @@ import {
 // cards, calendar + recent activity, account health cards). Replaces the old
 // widget-toggle dashboard: this page has one layout, not a customizable one.
 
-const signTone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 const PHASE_ORDER = { funded: 0, p2: 1, p1: 2 };
 
@@ -216,73 +215,10 @@ function DashActions({ onCustomize }) {
 }
 
 // ---- Section 2: stat cards ------------------------------------------------
-// Net P&L, Trade Win %, Profit Factor, Day Win %, Avg Win/Loss — each paired
-// with a small gauge/ring/split-bar so the row reads at a glance, not just as
-// numbers (TradeZella-style headline cards).
-
-function NetPnlCard({ m, unit }) {
-  const today = m.days.find((d) => d.key === dayKey(new Date()));
-  const todayPnl = today ? today.pnl : 0;
-  return (
-    <Card className="dash-stat dash-stat--refined">
-      <div className="jo-kpi-label">
-        Net P&L
-        <Explain size={13} nudgeY={-1} openUp>Total realized P&amp;L across all closed trades in the current filter.</Explain>
-        <span className="dash-stat-count">{m.tradeCount} Trade{m.tradeCount === 1 ? '' : 's'}</span>
-      </div>
-      <div className={`jo-kpi-value ${signTone(m.net)}`}>{fmtVal(m.net, unit)}</div>
-      <StatContext label="Today" value={fmtVal(todayPnl, unit)} tone={signTone(todayPnl)} />
-    </Card>
-  );
-}
-
-function TradeWinCard({ m }) {
-  return (
-    <Card className="dash-stat dash-stat--typo-match">
-      <div className="jo-kpi-label">
-        Trade win %
-        <Explain size={13} nudgeY={-1} openUp>Share of decided trades (wins + losses, excluding breakeven) that closed as a win.</Explain>
-      </div>
-      <div className="jo-kpi-value">{m.winRate.toFixed(2)}%</div>
-    </Card>
-  );
-}
-
-function ProfitFactorCard({ m }) {
-  return (
-    <Card className="dash-stat dash-stat--typo-match">
-      <div className="jo-kpi-label">
-        Profit factor
-        <Explain size={13} nudgeY={-1} openUp>Gross profit divided by gross loss. Above 1 means the account is net profitable.</Explain>
-      </div>
-      <div className="jo-kpi-value">{m.profitFactor === 999 ? '∞' : m.profitFactor.toFixed(2)}</div>
-    </Card>
-  );
-}
-
-function DayWinCard({ days }) {
-  return (
-    <Card className="dash-stat dash-stat--typo-match">
-      <div className="jo-kpi-label">
-        Day win %
-        <Explain size={13} nudgeY={-1} openUp>Share of trading days that closed net positive.</Explain>
-      </div>
-      <div className="jo-kpi-value">{days.rate.toFixed(2)}%</div>
-    </Card>
-  );
-}
-
-function AvgWinLossCard({ m }) {
-  return (
-    <Card className="dash-stat dash-stat--typo-match">
-      <div className="jo-kpi-label">
-        Avg win/loss trade
-        <Explain size={13} nudgeY={-1} openUp>Average size of a winning trade divided by the average size of a losing trade.</Explain>
-      </div>
-      <div className="jo-kpi-value">{m.avgWinLoss === Infinity ? '∞' : m.avgWinLoss.toFixed(2)}</div>
-    </Card>
-  );
-}
+// Net P&L, Trade Win %, Profit Factor, Day Win %, Avg Win/Loss now live in
+// KpiCards.jsx — the Trade Log shows four of the same five, and Net P&L is the
+// locked master card whose geometry the others match, so a second copy of them
+// would drift apart the first time either page was tuned.
 
 // ---- Section 3 left: recent trades / open positions ----------------------
 

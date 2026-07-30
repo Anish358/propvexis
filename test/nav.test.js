@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { NAV, LEGACY_REDIRECTS, navRoutes, navTitle, OFF_NAV_TITLES } from '../frontend/src/nav.js';
 
 // The IA config (frontend/src/nav.js) is deliberately JSX-free so we can guard
@@ -116,4 +118,35 @@ test('navTitle: every real route in the app has a name', () => {
   for (const [path, label] of Object.entries(OFF_NAV_TITLES)) {
     assert.deepEqual(navTitle(path), { module: null, page: label });
   }
+});
+
+// ---- rail stays put ---------------------------------------------------------
+
+test('the nav list scrolls inside the rail, not the rail with the page', () => {
+  const css = readFileSync(fileURLToPath(new URL('../frontend/src/styles.css', import.meta.url)), 'utf8');
+  const rail = css.slice(css.indexOf('.sidebar {'), css.indexOf('}', css.indexOf('.sidebar {')));
+  // The rail is a fixed-height sticky column...
+  assert.match(rail, /position: sticky; top: 0/);
+  assert.match(rail, /height: 100vh/);
+  // ...so the nav inside it MUST be bounded. Otherwise an expanded nav overflows
+  // the 100vh box, that overflow becomes page height, and the sticky rail (whose
+  // containing block is only 100vh when the main column is short) has no room to
+  // travel and scrolls off the top with the page.
+  const nav = css.slice(css.indexOf('.sb-nav {'), css.indexOf('}', css.indexOf('.sb-nav {')));
+  assert.match(nav, /overflow-y: auto/);
+  // min-height:0 is what actually lets it shrink — a flex item's default
+  // min-height:auto refuses to go below its content and keeps the overflow.
+  assert.match(nav, /min-height: 0/);
+  assert.match(nav, /flex: 1 1 auto/);
+  assert.match(nav, /overscroll-behavior: contain/);
+});
+
+test('a page with nothing to scroll to does not scroll', () => {
+  const css = readFileSync(fileURLToPath(new URL('../frontend/src/styles.css', import.meta.url)), 'utf8');
+  // The top bar is a SIBLING above .page inside .shell-main, so .page must fill
+  // only what's left below it. A flat 100vh made the document one bar-height
+  // taller than the viewport on every page — a short page still scrolled, and all
+  // it revealed was the layout sliding under the bar.
+  assert.match(css, /\.page \{ min-height: calc\(100vh - var\(--topbar-h, \d+px\)\); \}/);
+  assert.ok(!/\.page \{ min-height: 100vh; \}/.test(css), 'a flat 100vh double-counts the top bar');
 });
