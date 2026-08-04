@@ -1,7 +1,7 @@
 import React from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
-import { EmptyState, Badge } from './ui.jsx';
+import { EmptyState, Badge } from '@/components/primitives';
 
 // Generic stub for IA routes whose screens aren't built yet (nav.js `soon`).
 // Keeps the decided navigation honest — every sub-item is reachable — while the

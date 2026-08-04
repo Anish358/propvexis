@@ -233,11 +233,39 @@
   --radius-full: var(--r-full);
   --radius-input: var(--r-input);   /* our own step — inputs are their own shape */
 
-  /* Type scale. These are ROLES; the sizes live in tokens.css. */
+  /* Type scale, part 1 — OUR ROLES, as named utilities. These are roles; the
+     sizes live in tokens.css. */
   --text-page-title: var(--fs-page-title);
   --text-section-title: var(--fs-section-title);
   --text-card-title: var(--fs-card-title);
   --text-primary-metric: var(--fs-primary-metric);
+
+  /* Type scale, part 2 — TAILWIND'S LADDER, REPOINTED AT OUR SCALE.
+     This is the one mapping that changes every generated component at once, and
+     without it they are all a step too large: `text-sm` is 14px in Tailwind but
+     13px in this app, so a migrated button sat 1px above every unmigrated one and
+     a migrated card title 1px above every `.panel h3`. Since the preset defines
+     no font sizes (Q9), the defaults were what was showing through.
+
+     Only the four steps generated components actually use are repointed, plus
+     2xl because we own that value already. `xl` and anything above 2xl keep
+     Tailwind's defaults: we have no token for them, and inventing one here would
+     be inventing design (AI-2).
+
+         xs   11px  --fs-label          (Tailwind 12px)  badges, pills
+         sm   13px  --fs-body           (Tailwind 14px)  buttons, controls, body
+         base 15px  --fs-card-title     (Tailwind 16px)  CardTitle
+         lg   16px  --fs-section-title  (Tailwind 18px)  section headings
+         2xl  24px  --fs-page-title     (Tailwind 24px)  same value, our token
+
+     The `--text-*--line-height` companions are deliberately NOT overridden:
+     Tailwind expresses them as unitless ratios, so they follow the new sizes on
+     their own. */
+  --text-xs: var(--fs-label);
+  --text-sm: var(--fs-body);
+  --text-base: var(--fs-card-title);
+  --text-lg: var(--fs-section-title);
+  --text-2xl: var(--fs-page-title);
 
   /* Weights — 400 default, 600 ceiling (DESIGN-LANGUAGE N2) */
   --font-weight-normal: var(--fw-regular);

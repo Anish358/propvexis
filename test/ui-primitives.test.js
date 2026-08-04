@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { appCss } from './helpers/app-css.js';
@@ -42,7 +43,54 @@ test('ui.jsx exports the primitive kit', () => {
 });
 
 test('ComingSoon adopts the EmptyState primitive', () => {
-  assert.match(comingSoon, /from '\.\/ui\.jsx'/);
+  assert.match(comingSoon, /from '@\/components\/primitives'/);
   assert.match(comingSoon, /<EmptyState/);
   assert.doesNotMatch(comingSoon, /className="panel coming-soon"/); // old bespoke markup gone
+});
+
+// ── The primitives layer is the only component entry point ───────────────────
+//
+// `ui.jsx` above is kept as the migration's kill switch (UI-MIGRATION-PLAN §22), not
+// as a live import target. The whole value of the seam is that there is exactly ONE
+// place application code imports components from — the moment a page imports from
+// both, "swap an implementation without touching callers" stops being true.
+
+test('no application file imports ui.jsx any more', () => {
+  const src = fileURLToPath(new URL('../frontend/src/', import.meta.url));
+  const offenders = [];
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      if (!/\.jsx?$/.test(e.name) || e.name === 'ui.jsx') continue;
+      // A comment may mention ui.jsx (several explain why they left it); an
+      // `import ... from` is the thing that must not exist.
+      if (/^\s*import[^;]*from\s*'[^']*\bui\.jsx'/m.test(readFileSync(p, 'utf8'))) {
+        offenders.push(relative(src, p));
+      }
+    }
+  };
+  walk(src);
+  assert.deepEqual(offenders, [], 'these files must import from @/components/primitives instead');
+});
+
+test('the primitives barrel exports every primitive a page needs', () => {
+  const barrel = read('../frontend/src/components/primitives/index.js');
+  // Badge, EmptyState, LoadingBlock and Tabs are NOT library-backed — no generated
+  // component can express them yet. They are exported anyway, because the seam is
+  // about where callers import from, not about what is behind it.
+  for (const name of ['Badge', 'Button', 'Card', 'EmptyState', 'LoadingBlock', 'Skeleton', 'Tabs']) {
+    assert.match(barrel, new RegExp(`export \\{[^}]*\\b${name}\\b[^}]*\\} from`), `barrel missing ${name}`);
+  }
+});
+
+test('the Card clips its overflow only when flush', () => {
+  // The generated card sets overflow-hidden unconditionally, to clip a child <img>
+  // to the radius. We have no images in cards; we do have Explain tooltips that
+  // overhang the top edge, and clipping swallowed them outright — feature behaviour,
+  // so a defect rather than a visual diff. Clipping belongs to `flush`, which is
+  // where `.u-card--flush` always had it.
+  const card = read('../frontend/src/components/primitives/card.jsx');
+  assert.match(card, /flush\s*\?\s*'[^']*overflow-hidden[^']*'\s*:\s*'[^']*overflow-visible/,
+    'flush clips; every other card must be free to show an overhanging popover');
 });

@@ -4,7 +4,7 @@ import PageHeader from './PageHeader.jsx';
 import DayCard from './DayCard.jsx';
 import DayJournalModal from './DayJournalModal.jsx';
 import TradePreview from './TradePreview.jsx';
-import { EmptyState } from './ui.jsx';
+import { EmptyState } from '@/components/primitives';
 import { fmtVal } from './metrics.js';
 import { groupByDay, summarizeAll } from './dayStats.js';
 

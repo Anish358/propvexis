@@ -86,6 +86,30 @@ test('typography stays ours', () => {
   assert.match(bridgeCode, /--font-weight-semibold:\s*var\(--fw-semibold\)/);
 });
 
+test("Tailwind's own type ladder is repointed at our scale, not left on its defaults", () => {
+  // Preset b2qKmlY80 defines no font sizes, so every `text-sm` / `text-xs` /
+  // `text-base` in a generated component was resolving to Tailwind's 14/12/16px
+  // instead of this app's 13/11/15px. That put every migrated primitive one step
+  // above every unmigrated one, and it is a single mapping to get wrong — so it is a
+  // single mapping to pin.
+  assert.match(tokensCss, /--fs-body:\s*13px/, 'the body role is the app 13px workhorse');
+  assert.match(tokensCss, /--fs-label:\s*11px/, 'the label role is the app 11px pill/label step');
+  for (const [step, token] of [
+    ['xs', 'fs-label'],
+    ['sm', 'fs-body'],
+    ['base', 'fs-card-title'],
+    ['lg', 'fs-section-title'],
+    ['2xl', 'fs-page-title'],
+  ]) {
+    assert.match(bridgeCode, new RegExp(`--text-${step}:\\s*var\\(--${token}\\)`),
+      `text-${step} must resolve to var(--${token}), not Tailwind's default`);
+  }
+  // The line-height companions are ratios, so they follow the sizes on their own.
+  // Overriding them would be inventing values the DLS has not decided.
+  assert.ok(!/--text-\w+--line-height/.test(bridgeCode),
+    'line-height companions are deliberately left to Tailwind — they are unitless ratios');
+});
+
 test("our breakpoints replace Tailwind's, they don't join them", () => {
   assert.match(bridgeCode, /--breakpoint-\*:\s*initial/, "Tailwind's min-width defaults must be cleared");
   for (const bp of [1100, 900, 760, 720, 560, 520]) {

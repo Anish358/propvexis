@@ -546,11 +546,17 @@ label.full { margin-bottom: 16px; }
 /* Status line, not a control: --text-2 and 12px keep it a step below the
    button beside it without dropping to --muted, which reads as disabled. */
 .dash-actions-status { font-size: 12px; color: var(--text-2); }
-/* Icon-only, so square out .u-btn--sm's 8px/12px padding and let the 20px
-   glyph carry the button. Blue is the strip's single accent. Two classes to
-   outrank .u-btn--secondary's own `color`. */
-.u-btn.dash-actions-customize { padding: 5px 9px; color: var(--accent-on-surface); }
-.u-btn.dash-actions-customize:hover { color: var(--blue-400); border-color: var(--accent-border-strong); }
+/* Icon-only. Blue is the strip's single accent.
+   The squaring-out that used to be here (`padding: 5px 9px`, cancelling
+   `.u-btn--sm`'s 8px/12px) is gone: the migrated Button has a real icon size, so
+   the JSX asks for `size="icon-sm"` and gets a square box from the preset instead
+   of this rule hand-computing one. What is left is the colour, which is this page's
+   and not the preset's.
+   One class, not the two it used to need: `.u-btn--secondary`'s competing `color`
+   is now a Tailwind variant living in a cascade layer, and this file is unlayered,
+   so it wins on layer rather than on specificity. */
+.dash-actions-customize { color: var(--accent-on-surface); }
+.dash-actions-customize:hover { color: var(--blue-400); border-color: var(--accent-border-strong); }
 
 /* Column count comes from --kpi-count (set inline by Dashboard from the number
    of visible cards) so hiding a KPI in Customize re-splits the row evenly
@@ -562,8 +568,11 @@ label.full { margin-bottom: 16px; }
    every gap in the dashboard layout is the same 16px for a consistent
    rhythm. */
 .jo-kpis.dash-stats { gap: 16px; }
-.dash-stat { padding: 10.8px var(--s-4); }
-.dash-stat .jo-kpi-value { margin-top: 4px; font-size: 23px; }
+/* .dash-stat's own box model and value size now live in "THE KPI CARD TREATMENT"
+   below, in one place with the hover and the typography. The 10.8px/16px padding and
+   23px value that used to sit here were the pre-polish values the four sibling cards
+   fell back to, and keeping a superseded copy above the real one is how a later
+   reader ends up editing the wrong rule. */
 .dash-stat-count {
   display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 400;
   color: var(--muted); background: var(--surface-2); border-radius: 999px; padding: 4px 8px;
@@ -588,84 +597,100 @@ label.full { margin-bottom: 16px; }
 .dash-stat-foot .win { color: var(--profit); }
 .dash-stat-foot .loss { color: var(--loss); }
 
-/* Refined KPI card treatment — polish pass, applied to Net P&L first. The rest
-   of .dash-stats will pick up `.dash-stat--refined` once they're polished too,
-   so this stays a reusable modifier rather than a one-off. */
-.u-card.dash-stat.dash-stat--refined {
-  /* Extra top padding (vs. 16px elsewhere) drops the label 8px lower and
-     grows the card by that same 8px — a deliberate pair, not independent. */
+/* ============================================================
+   THE KPI CARD TREATMENT  (KpiCards.jsx — Net P&L + its four siblings)
+   ============================================================
+
+   These five cards render on the migrated Card primitive, so the SURFACE is the
+   preset's: background, radius, and the ring + elevation it draws with box-shadow.
+   What is left here is the row's own business — the box model the locked master-card
+   rule asks for, the typography, and the hover.
+
+   WHY THIS IS ONE RULE SET WHERE IT USED TO BE TWO. It was `--refined` (Net P&L,
+   which carried a box model) plus `--typo-match` (the siblings, which deliberately
+   did not, and compensated with `margin-top: 9px` on the label and `+6px` on the
+   value to land their content on Card 1's rows anyway). Both modifiers now sit on an
+   identical Card, so those two offsets stopped compensating for anything and became
+   the misalignment instead. The locked rule is that every KPI card matches the
+   master's dimensions; the cheapest way to guarantee that is to stop describing them
+   separately. Both class names stay because they are in the JSX and because
+   `--refined` still means one real thing: "has a third, bottom-pinned line".
+
+   TWO REGRESSIONS FROM THE CARD MIGRATION ARE FIXED HERE.
+
+   1. Hover stopped easing. The `transition` sat on `.u-card.dash-stat.dash-stat--*`
+      — three classes, needed back when it had to outrank the borderless-widgets rule
+      that used to follow. The migrated Card does not emit `.u-card`, so that selector
+      quietly stopped matching while the one-class `:hover` rules kept matching: the
+      wash and the lift still fired, but instantly. Selectors here no longer mention
+      `.u-card`, and the duration comes from --dur rather than a repeated literal.
+
+   2. Hover erased the card's edge. `box-shadow` is a shared property now — the Card
+      draws its ring AND its elevation with it, and a hover rule that sets box-shadow
+      outright replaces both. So both states below declare the full stack, and the
+      ring is what brightens (--line -> --line-strong), which is exactly what the old
+      `border-color` hover did before the box became the preset's. Restating the ring
+      in two places is the cost of owning the property; dashboard-reskin.test.js pins
+      the two declarations together so they cannot drift apart silently.
+   ---- */
+
+/* The master card's box, applied to all five — same padding, so the label and value
+   land on the same rows in every card with no per-card correction. `flex-start`
+   (the default) rather than `space-between`: distributing three children only
+   centres the value when there ARE three, which is Net P&L alone. Its third line is
+   pinned to the bottom by itself, below. */
+.dash-stat {
+  /* The extra top padding drops the label 8px lower and grows the card by that same
+     8px — a deliberate pair, not independent. Grid stretch then gives all five the
+     resulting height. */
   padding: 24px 20px 16px;
-  border: 1px solid transparent; /* invisible at rest, brightens on hover */
-  /* Inset shadow (not background-color) so the wash sits behind child chrome
-     (e.g. the trade-count pill) instead of overwriting it to the same color. */
-  box-shadow: inset 0 0 0 999px transparent;
-  transition: box-shadow 200ms var(--ease), border-color 200ms var(--ease), transform 200ms var(--ease);
-  /* Column flex + space-between: label pins to the top, the context line
-     pins to the bottom, and the value — the middle child — lands exactly in
-     the leftover space between them, i.e. vertically centered in the card
-     (the card itself is already full row-height via CSS Grid's default
-     stretch). `gap` is the floor so they never crowd on a short card. */
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   gap: 6px;
+  /* Rest state of the hover pair. The wash is an inset shadow rather than a
+     background-color so it paints behind child chrome instead of the card's own
+     background; `transparent` is what gives it something to animate FROM. The
+     trailing two layers are the Card's ring and elevation, restated because this
+     rule takes the property over — see note 2 above. */
+  box-shadow: inset 0 0 0 999px transparent, 0 0 0 1px var(--line), var(--sh-1);
+  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.dash-stat--refined:hover {
-  box-shadow: inset 0 0 0 999px var(--surface-hover);
+.dash-stat:hover {
+  box-shadow: inset 0 0 0 999px var(--surface-hover), 0 0 0 1px var(--line-strong), var(--sh-1);
   transform: translateY(-2px);
 }
-/* 3-class selector so this beats the borderless-widgets rule below (2 classes,
-   same specificity, later in the file) — otherwise its `border: none` silently
-   wins on every render and the hover border-color above never actually shows. */
-.u-card.dash-stat.dash-stat--refined:hover { border-color: var(--line-strong); }
-.dash-stat--refined .jo-kpi-label {
+.dash-stat .jo-kpi-label {
   display: flex; align-items: center; gap: 8px;
   text-transform: none; letter-spacing: 0;
   /* Same muted slate as the Account card's "Payout" label (--text-2), at full
      opacity — not var(--text) dimmed to .68 anymore. */
   font-size: 13px; font-weight: var(--fw-regular); color: var(--text-2);
 }
-.dash-stat--refined .dash-stat-count {
+/* Bold (700) is a deliberate, explicitly-requested exception to this app's
+   600 hero-number ceiling — scoped to this element only. Spacing comes from the
+   card's `gap`, so the value carries no margin of its own: one mechanism, so a
+   change to the rhythm is a change to one number. */
+.dash-stat .jo-kpi-value { font-size: 24px; margin-top: 0; font-weight: 700; }
+.dash-stat .jo-kpi-value.neg { color: var(--loss-quiet); }
+/* Only Net P&L has the trade-count pill, but the rule is written against .dash-stat
+   because nothing about it is Net-P&L-specific — any card that grows a pill should
+   get this size, not the larger default from .dash-stat-count above. */
+.dash-stat .dash-stat-count {
   font-size: 9px; font-weight: var(--fw-medium); padding: 1.5px 5px; color: var(--text-2);
 }
-/* Bold (700) is a deliberate, explicitly-requested exception to this app's
-   600 hero-number ceiling — scoped to this element only. */
-.dash-stat--refined .jo-kpi-value { font-size: 24px; margin-top: 0; font-weight: 700; }
-.dash-stat--refined .jo-kpi-value.neg { color: var(--loss-quiet); }
-
-/* Typography + hover match to Net P&L (Card 1) for cards that aren't on the
-   full .dash-stat--refined system — deliberately omits padding/display/flex-
-   layout (this card's own box model is untouched). Border is added at 1px
-   transparent (box-sizing:border-box means this doesn't change the outer
-   card size) purely so the hover border-color below has something to color,
-   exactly mirroring Card 1's hover treatment. */
-.u-card.dash-stat.dash-stat--typo-match {
-  border: 1px solid transparent;
-  box-shadow: inset 0 0 0 999px transparent;
-  transition: box-shadow 200ms var(--ease), border-color 200ms var(--ease), transform 200ms var(--ease);
-}
-.dash-stat--typo-match:hover {
-  box-shadow: inset 0 0 0 999px var(--surface-hover);
-  transform: translateY(-2px);
-}
-.u-card.dash-stat.dash-stat--typo-match:hover { border-color: var(--line-strong); }
-/* margin-top on the label compensates for this card's smaller top padding
-   vs Card 1's, so the label text still lines up on the same row. */
-.dash-stat--typo-match .jo-kpi-label {
-  display: flex; align-items: center; gap: 8px;
-  text-transform: none; letter-spacing: 0;
-  font-size: 13px; font-weight: var(--fw-regular); color: var(--text-2);
-  margin-top: 9px;
-}
-/* +6px so the value's vertical position matches Card 1's exactly (measured:
-   Card 1's value sits 50.5px from the card top, these cards' 44.5px). */
-.dash-stat--typo-match .jo-kpi-value { font-size: 24px; font-weight: 700; margin-top: 6px; }
-.dash-stat--typo-match .jo-kpi-value.neg { color: var(--loss-quiet); }
+/* The third line, and the one thing `--refined` still distinguishes: pinned to the
+   bottom of the card rather than sitting under the value. `margin-top: auto` does it
+   without `space-between`, which would also have moved the value. */
+.dash-stat--refined .dash-stat-context { margin-top: auto; }
 
 /* Contextual footer line — replaces a decorative accent bar with a small
    "vs. now" datapoint (e.g. "Today +$24"). Reusable across any .dash-stat card. */
 .dash-stat-context { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
-.dash-stat--refined .dash-stat-context { margin-top: 0; }
+/* The `margin-top: 0` override that used to sit here — cancelling the 6px above
+   because the card's flex `gap` already supplied it — is now `margin-top: auto` in
+   the KPI card block, which both cancels it and pins the line to the card's bottom.
+   Two rules for one property, the later winning, is what made that block's earlier
+   intent unreadable. */
 .dash-stat-context-label { color: var(--text-3); }
 .dash-stat-context-value { font-family: var(--font-mono); color: var(--text-2); }
 .dash-stat-context-value.pos { color: var(--profit); }
@@ -716,19 +741,24 @@ label.full { margin-bottom: 16px; }
 .card-lg { height: var(--dash-card-h-lg); }
 .panel.dash-cal-panel { display: flex; flex-direction: column; min-height: 0; }
 
-/* Borderless widgets: every boxed element in the dashboard layout drops its
-   1px hairline (inherited from .u-card/.panel elsewhere in the app) and relies
-   on the panel/background contrast + shadow alone to read as a distinct box.
-   Compound selectors (.u-card.dash-stat, not just .dash-stat) so this beats
-   .u-card's own border rule regardless of which comes later in the file.
-   Dashboard-only corner radius: 14px, not the app-wide --r-2xl (20px) — this
-   page's cards/widgets are scoped separately rather than retuning the shared
-   token (which every other page's cards still use). */
-.u-card.dash-stat, .u-card.dash-activity, .u-card.dash-equity, .u-card.dash-acct-card,
-.panel.dash-cal-panel {
-  border: none;
-  border-radius: 14px;
-}
+/* RETIRED — the borderless-widgets rule.
+   It gave every boxed element in the dashboard a shared treatment: no 1px hairline,
+   and a page-scoped 14px corner radius rather than the app-wide --r-2xl (20px),
+   deliberately scoped here rather than retuning the shared token.
+
+   Four of its five selectors were `.u-card.dash-*`, and all four of those elements
+   now render the migrated Card, which does not emit `.u-card`. So the rule had
+   already stopped applying to them and the preset owned their boxes — leaving
+   `.panel.dash-cal-panel` as the only element it still matched, and therefore the
+   only box on the dashboard at 14px with no edge while the four cards beside it sat
+   at 20px with a ring. A rule whose entire purpose was that these boxes agree had
+   become the one thing making them disagree.
+
+   Deleting it puts the calendar panel back on plain `.panel` — 20px radius, a 1px
+   --line hairline, --sh-1 — which is what the migrated cards now draw. The shared
+   treatment survives; the values behind it are the preset's rather than this page's.
+   Restoring 14px instead would mean overriding the preset on four migrated cards to
+   chase a value chosen for the old box, which is the opposite of the migration. */
 
 .dash-activity-body { margin-top: 16px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 

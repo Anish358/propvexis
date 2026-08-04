@@ -22,7 +22,9 @@ test('App renders JournalOverview at the /journal index (not ComingSoon)', () =>
 });
 
 test('JournalOverview composes the shared component kit and real metrics', () => {
-  assert.match(overview, /from '\.\/ui\.jsx'/);
+  // The kit moved from ui.jsx to the primitives layer; this still asserts the page
+  // composes it rather than hand-rolling markup, which is what the test is for.
+  assert.match(overview, /from '@\/components\/primitives'/);
   assert.match(overview, /computeMetrics/);
   assert.match(overview, /<EmptyState/); // handles the no-trades case
 });

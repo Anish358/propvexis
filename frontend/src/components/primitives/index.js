@@ -34,15 +34,30 @@
    does — focus management or measurement — the fix is to render the Base UI
    primitive directly in that wrapper and reuse the generated variants, rather
    than to hand-edit generated code. Flagged, not silently worked around.
+
+   NOT EVERY MODULE HERE IS LIBRARY-BACKED, AND THAT IS THE POINT. Four of them —
+   Badge, EmptyState, LoadingBlock, Tabs — still render the app's `.u-*` classes,
+   because no generated component can express what they do yet: Badge's tones are
+   four-sixths domain colours, EmptyState and LoadingBlock have no registry
+   equivalent at all, and Tabs is a documented interaction rule rather than a
+   default. Each file says so in its own header.
+   They live here anyway, because the seam is about WHERE application code imports
+   from, not about what is behind it. With all of them exported from one place, a
+   page has exactly one component import, and swapping any single implementation
+   later touches one file and no callers. A module holding the old implementation is
+   using this layer correctly, not waiting to.
    =========================================================================== */
 
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
-export { Badge, badgeVariants } from './badge.js';
+export { Badge } from './badge.jsx';
 export { Button, buttonVariants } from './button.jsx';
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.jsx';
+export { EmptyState } from './empty-state.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
+export { LoadingBlock } from './loading-block.jsx';
 export { Separator } from './separator.js';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
+export { Tabs } from './tabs.jsx';
 export { Textarea } from './textarea.js';

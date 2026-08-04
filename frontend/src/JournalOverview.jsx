@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import { computeMetrics, valueField, tradeOutcome, fmtVal } from './metrics.js';
-import { Card, Badge, Button, EmptyState } from './ui.jsx';
+import { Card, Badge, Button, EmptyState } from '@/components/primitives';
 import Explain from './Explain.jsx';
 import { titleCase } from './constants.js';
 

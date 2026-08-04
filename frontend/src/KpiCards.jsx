@@ -1,8 +1,12 @@
 import React from 'react';
 // PHASE 4b — on the generated component library. The card SURFACE is now shadcn's
-// Card (Base UI, preset geometry, coloured through the token bridge). spacing="none"
-// because these tiles space their own children with margins; the card's own gap
-// would double it and push the row past its locked height.
+// Card (Base UI, preset geometry, coloured through the token bridge).
+//
+// `spacing="none"` tells the Card not to impose any internal rhythm of its own.
+// These five tiles are one locked geometry — Net P&L is the master and the other
+// four match its dimensions — and that geometry is described in one place, the
+// "KPI CARD TREATMENT" block in legacy/app.css. Two sources for the same padding and
+// gap is how the row drifted last time.
 import { Card } from '@/components/primitives';
 import Explain from './Explain.jsx';
 import { StatContext } from './DashWidgets.jsx';

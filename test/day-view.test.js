@@ -22,7 +22,9 @@ test('App renders DayView at /journal/day (not ComingSoon)', () => {
 });
 
 test('DayView composes the kit + shared day helpers', () => {
-  assert.match(dayView, /from '\.\/ui\.jsx'/);
+  // The kit moved from ui.jsx to the primitives layer; the point of the assertion
+  // is that the page composes it rather than hand-rolling its own empty state.
+  assert.match(dayView, /from '@\/components\/primitives'/);
   assert.match(dayView, /<EmptyState/);
   // Day aggregation is delegated, not reimplemented here — dayStats.js owns it, so
   // the numbers are unit-testable rather than only inspectable on screen. (This

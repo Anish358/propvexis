@@ -5,7 +5,7 @@ import {
   BarChart, Bar, ReferenceLine, Cell,
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
-import { LoadingBlock } from './ui.jsx';
+import { LoadingBlock } from '@/components/primitives';
 import { fetchStats, fetchYearly } from './api.js';
 import { fmtVal, fmtAxis } from './metrics.js';
 import { chartPalette } from './theme.js';

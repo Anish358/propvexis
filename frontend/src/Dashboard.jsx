@@ -13,14 +13,14 @@ import Explain from './Explain.jsx';
 //
 // Adopting the shadcn Card model means the `.u-card.dash-*` compound rules in
 // legacy CSS stop matching — the class is gone — so the preset now owns each card's
-// box (radius, ring, shadow, padding) where hand-tuned values used to. Typography,
-// hover and the grid layout are unaffected: those rules never required `.u-card`.
+// box (radius, ring, shadow, padding) where hand-tuned values used to. The KPI
+// cards' hover treatment had to be rewritten against that box; see the
+// `.dash-stat--refined` block in legacy/app.css.
 //
-// Tabs and EmptyState stay on ui.jsx: no generated equivalent exists.
-import { Button, Card } from '@/components/primitives';
-import {
-  Tabs, EmptyState,
-} from './ui.jsx';
+// Tabs and EmptyState come from the same place now, but are NOT library-backed:
+// they still render `.u-tabs` / `.u-empty` because no generated equivalent exists.
+// The import path is the seam, not a claim about the implementation.
+import { Button, Card, Tabs, EmptyState } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
@@ -209,7 +209,9 @@ function DashActions({ onCustomize }) {
 
       <Button
         variant="secondary"
-        size="sm"
+        // icon-only: the library has a square size for this, which is what the
+        // `padding: 5px 9px` override in .dash-actions-customize used to fake.
+        size="icon-sm"
         type="button"
         className="dash-actions-customize"
         title="Customize layout"

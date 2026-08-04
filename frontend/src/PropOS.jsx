@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend,
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
-import { LoadingBlock } from './ui.jsx';
+import { LoadingBlock } from '@/components/primitives';
 import Explain from './Explain.jsx';
 import { fetchProp, fetchPropFinance, fetchPropInsights, advanceChallenge, updateAccount } from './api.js';
 import { computeProp, fmtMoney, fmtMoneyShort } from './metrics.js';

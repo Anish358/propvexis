@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
 } from 'recharts';
 import PageHeader from './PageHeader.jsx';
-import { LoadingBlock } from './ui.jsx';
+import { LoadingBlock } from '@/components/primitives';
 import { useAuth } from './AuthContext.jsx';
 import { fetchReport, reportCsvUrl } from './api.js';
 import { fmtVal, fmtAxis, fmtMoney } from './metrics.js';
