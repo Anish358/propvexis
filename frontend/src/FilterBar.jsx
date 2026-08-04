@@ -98,24 +98,31 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
           <span className="acct-switch-cur">{current || 'Select account'}</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
         </MenuTrigger>
+        {/* PRESET SKIN. The surface, item metrics and separator are the generated
+            component's now; `.acct-menu` survives holding only the scroll box, which is
+            A1 geometry the preset has no opinion about. `.acct-opt*` is gone — the one
+            row that still needs a class is the selected one, and `.acct-opt-sel` says
+            only that. */}
         <MenuContent className="acct-menu">
-          <MenuItem className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => setAccountId(GOD)}>
+          <MenuItem className={accountId === GOD ? 'acct-opt-sel' : ''} onClick={() => setAccountId(GOD)}>
             ★ All accounts <span className="acct-opt-sub">God view</span>
           </MenuItem>
           {bound.map((a) => (
+            /* The hand-rolled <input type="checkbox"> is gone: the generated item
+               renders its own indicator from `checked`, so the state is expressed once
+               instead of being mirrored into a decorative aria-hidden input. */
             <MenuCheckboxItem
               key={a.id}
-              className={`acct-opt acct-opt-check ${isSel(a.mt5_login) ? 'sel' : ''}`}
+              className={isSel(a.mt5_login) ? 'acct-opt-sel' : ''}
               checked={isSel(a.mt5_login)}
               onCheckedChange={() => toggle(a.mt5_login)}
             >
-              <input type="checkbox" checked={isSel(a.mt5_login)} readOnly tabIndex={-1} aria-hidden="true" />
               <span className="acct-opt-name">{acctLabel(a)}</span>
               <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
             </MenuCheckboxItem>
           ))}
-          <MenuSeparator className="acct-menu-sep" />
-          <MenuItem className="acct-opt manage" onClick={onManage}>
+          <MenuSeparator />
+          <MenuItem onClick={onManage}>
             ⚙ Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
           </MenuItem>
         </MenuContent>
@@ -212,15 +219,20 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
               <span className="muted">Plan</span>
               <span className={`sb-plan-badge ${user.plan || 'free'}`}>{plan}</span>
             </div>
-            <MenuSeparator className="tb-menu-sep" />
-            <MenuItem className="tb-menu-item" onClick={() => setPrefsOpen(true)}>Trade settings</MenuItem>
+            {/* PRESET SKIN. `.tb-menu-item` and `.tb-menu-sep` are deleted — item
+                padding, radius, size and focus background are the generated
+                component's. Sign out uses the component's own `variant="destructive"`
+                rather than a `.danger` class; `--destructive` is bridged to `--loss`, so
+                it is the same colour reached through the library's API. */}
+            <MenuSeparator />
+            <MenuItem onClick={() => setPrefsOpen(true)}>Trade settings</MenuItem>
             {/* `render` is how Base UI keeps an item's menu semantics while letting it
                 be a router Link — the anchor is real, so middle-click and copy-link
                 still work, which a div with an onClick would have broken. */}
-            <MenuItem className="tb-menu-item" render={<Link to="/settings" />}>Settings</MenuItem>
-            <MenuItem className="tb-menu-item" render={<Link to="/billing" />}>Manage plan</MenuItem>
-            <MenuSeparator className="tb-menu-sep" />
-            <MenuItem className="tb-menu-item danger" onClick={logout}>Sign out</MenuItem>
+            <MenuItem render={<Link to="/settings" />}>Settings</MenuItem>
+            <MenuItem render={<Link to="/billing" />}>Manage plan</MenuItem>
+            <MenuSeparator />
+            <MenuItem variant="destructive" onClick={logout}>Sign out</MenuItem>
           </MenuGroup>
         </MenuContent>
       </Menu>

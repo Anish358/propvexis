@@ -1,115 +1,119 @@
-import { Menu as MenuPrimitive } from '@base-ui/react/menu';
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup,
+  DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-/* Menu — PropVexis primitive. A dropdown menu that carries BEHAVIOUR ONLY.
+/* Menu — PropVexis primitive. A dropdown menu on the GENERATED shadcn component,
+ * carrying the preset's appearance as well as Base UI's behaviour.
  *
- * WHY THIS RENDERS BASE UI DIRECTLY INSTEAD OF THE GENERATED `ui/dropdown-menu`,
- * which is the one real decision in this file — and it is NOT a departure from the
- * architecture. UI-MIGRATION-PLAN §13 says the point of choosing Base UI is that
- * every overlay resolves to "one accessibility model, one keyboard-interaction
- * contract, one positioning behaviour, one copy of the primitive code in the bundle."
- * This is that engine. What is declined is the preset's SKIN, not the source.
+ * ── THIS FILE PREVIOUSLY DECLINED THE SKIN. THAT DECISION WAS REVERSED 2026-08-05. ──
  *
- * The skin is the problem: `rounded-2xl bg-popover p-1 shadow-lg ring-1`, item
- * padding, a focus background, and `data-open:animate-in fade-in-0 zoom-in-95`. The
- * menus in the top bar already have an approved appearance in legacy CSS
- * (`.tb-user-menu`, `.acct-menu`), and this migration is behaviour-only by decision.
+ * The earlier version rendered Base UI directly and applied no classes of its own, so
+ * the top bar's menus kept their hand-written legacy appearance. Two things changed:
  *
- * Two ways to get there. Use the generated component and cancel its skin utility by
- * utility — bg, text, padding, radius, shadow, ring, min-width, width, overflow, and
- * four animation utilities — or don't apply the skin at all. The second is not just
- * shorter, it is the only one that stays correct: the first leaks a new utility into
- * these menus every time the library adds one, and it would also introduce an
- * open/close animation, a B10 Motion change with no DLS rule behind it (§16 is open).
+ *   1. **DESIGN-LANGUAGE now locks "the preset outranks legacy CSS"** (owner,
+ *      2026-08-05). Where a generated component's preset appearance collides with a
+ *      legacy rule, the preset wins and the legacy rule is deleted. The old reasoning
+ *      here — "these menus already have an approved appearance" — was precisely the
+ *      default that rule was written to overturn.
+ *   2. **§10 Motion is locked**, so the open/close animation now has a rule behind it.
+ *      The old comment declined the skin partly because the animation would have been
+ *      an untraceable Category B change. It is now traceable, and the duration and
+ *      curve come from `overlay-motion` rather than from shadcn's `duration-100`.
  *
- * So this applies NO classes of its own; what the caller passes as `className` is the
- * whole appearance. `shadcn add dropdown-menu popover` was run, the output read, and
- * the files then REMOVED — they had no importer, and Tailwind was still scanning them
- * and emitting 3.9 kB of CSS for a skin nothing rendered, which is precisely the dead-
- * but-live rules that tailwind.css's own header warns about. Re-pull them the day a
- * NEW overlay wants the preset look rather than an existing appearance; regeneration
- * is meant to be boring (§15).
+ * WHAT THE PRESET NOW OWNS HERE: the popup's surface, radius, padding, ring and
+ * shadow; every item's padding, radius, minimum height, text size and focus
+ * background; the separator; and the entrance/exit animation.
  *
- * WHAT THE APP GAINS, all of it from Base UI rather than from us:
- *   · Escape closes. The hand-rolled version had no key handling at all.
- *   · Focus returns to the trigger on close, instead of being dropped to <body>.
- *   · Arrow keys, Home/End and typeahead move between items. `UserMenu` declared
- *     role="menu" and role="menuitem" and implemented none of it — an ARIA contract
- *     that lies is worse than no roles, because a screen-reader user is told to
- *     expect arrow-key navigation that does not work.
- *   · The popup is positioned against the viewport, so it flips instead of running
- *     off the edge. The legacy rules pinned `right: 0` and hoped.
- *   · aria-haspopup / aria-expanded / aria-controls are wired and stay in sync.
+ * WHAT IT DOES NOT OWN, AND WHY EACH IS AN EXCEPTION RATHER THAN AN OVERSIGHT:
  *
- * ONE CSS CONSEQUENCE, and it has to be handled or the keyboard win is invisible:
- * Base UI marks the focused item with `data-highlighted`, not `:hover`. Legacy CSS
- * styled `:hover` only, so arrow-keying through a menu would move focus with nothing
- * on screen changing. Every `:hover` rule on a menu item now has `[data-highlighted]`
- * beside it. That is not a new visual treatment — it is the existing one, reached by
- * the keyboard.
+ * · **Width.** The generated content is `w-(--anchor-width) min-w-32` — it sizes
+ *   itself to its TRIGGER. That is right for a select and wrong for these: the user
+ *   menu hangs off a 34px avatar button and would collapse to the 128px floor,
+ *   truncating every label. Width is A1 layout, so each menu keeps its own, declared
+ *   in the one legacy rule now reduced to nothing else. `w-auto` cancels the anchor
+ *   width via `cn()`/tailwind-merge, which is the generated component's own designed
+ *   override path rather than a specificity fight.
+ * · **Destructive items** use the generated `variant="destructive"`, not a `.danger`
+ *   class. `--destructive` is bridged to `--loss`, so this is the same colour reached
+ *   through the component's own API.
+ * · **Stacking is now the preset's.** The generated Positioner hardcodes `z-50` and
+ *   accepts no className, so this can no longer pass `z-dropdown`. Rather than leave two
+ *   disagreeing values for one concept, `--z-dropdown` was moved 40 → 50 to match. The
+ *   ladder's ORDER is what matters and is unchanged: nav < dropdown < toast < modal.
  *
- * POSITIONING MOVES OUT OF CSS. `Positioner` portals the popup to <body> and owns
- * placement, so the surfaces drop their `position/top/right/bottom/left/z-index`
- * declarations and keep everything visual. `side`/`align`/`sideOffset` reproduce
- * where each menu already sat.
+ * BEHAVIOUR — unchanged, and still the larger half of the value. Escape closes; focus
+ * returns to the trigger; arrow keys, Home/End and typeahead move between items;
+ * `aria-haspopup`/`aria-expanded` stay in sync; the popup is viewport-aware and flips
+ * instead of running off the edge.
+ *
+ * ONE CSS CONSEQUENCE RETIRED. Legacy CSS needed a `[data-highlighted]` twin beside
+ * every `:hover` rule, or arrow-keying moved focus with nothing changing on screen.
+ * The generated item styles on `focus:` instead, which Base UI sets for both pointer
+ * and keyboard — so the twin rules are deleted along with the surfaces they belonged
+ * to. That hazard is now the library's problem, which is the point of using it.
  */
 
+// Every overlay animates identically, per §10. Defined once in bridge.css.
+const MOTION = 'overlay-motion';
+
 function Menu(props) {
-  return <MenuPrimitive.Root {...props} />;
+  return <DropdownMenu {...props} />;
 }
 
 function MenuTrigger(props) {
-  return <MenuPrimitive.Trigger {...props} />;
+  return <DropdownMenuTrigger {...props} />;
 }
 
 // `align`/`side` default to the top bar's shape — a menu hanging below its trigger,
-// right edges flush — because that is where all three of its menus sit. Anything
-// else passes its own.
+// right edges flush — because that is where all of its menus sit. Anything else
+// passes its own.
+//
+// `w-auto` is not cosmetic: it cancels the generated `w-(--anchor-width)` so the menu
+// sizes to its content instead of to its trigger button. See the header.
 function MenuContent({
   className, align = 'end', side = 'bottom', sideOffset = 8, ...rest
 }) {
   return (
-    <MenuPrimitive.Portal>
-      {/* The positioner is portaled to <body>, so it carries the app's dropdown
-          stacking level. `z-dropdown` is our token, registered as a utility in
-          bridge.css — not Tailwind's z-50, which knows nothing about our ladder. */}
-      <MenuPrimitive.Positioner
-        align={align}
-        side={side}
-        sideOffset={sideOffset}
-        className="z-dropdown"
-      >
-        <MenuPrimitive.Popup className={className} {...rest} />
-      </MenuPrimitive.Positioner>
-    </MenuPrimitive.Portal>
+    <DropdownMenuContent
+      align={align}
+      side={side}
+      sideOffset={sideOffset}
+      className={['w-auto', MOTION, className].filter(Boolean).join(' ')}
+      {...rest}
+    />
   );
 }
 
 function MenuItem(props) {
-  return <MenuPrimitive.Item {...props} />;
+  return <DropdownMenuItem {...props} />;
 }
 
 // A checkbox item does NOT close the menu when activated, which is the behaviour the
-// account switcher's comment already asked for ("checkboxes keep it open") and had
-// to get by not implementing dismissal at all. Base UI gives it properly, and adds
+// account switcher always wanted ("checkboxes keep it open") and originally got by not
+// implementing dismissal at all. Base UI gives it properly, plus
 // role="menuitemcheckbox" + aria-checked, which the <label><input> version never had.
+//
+// The generated item also renders its own check indicator, so a call site passes the
+// `checked` state and nothing else — the hand-rolled <input type="checkbox"> is gone.
 function MenuCheckboxItem(props) {
-  return <MenuPrimitive.CheckboxItem closeOnClick={false} {...props} />;
+  return <DropdownMenuCheckboxItem closeOnClick={false} {...props} />;
 }
 
 function MenuSeparator(props) {
-  return <MenuPrimitive.Separator {...props} />;
+  return <DropdownMenuSeparator {...props} />;
 }
 
 // Static, non-focusable content inside a menu — an identity block, a plan row. As a
 // bare <div> in a role="menu" it is an orphan node that assistive tech may skip or
-// mis-announce; as a GroupLabel it is addressable. Wrap it in `MenuGroup` with the
-// items it introduces.
+// mis-announce; as a Label it is addressable. Wrap it in `MenuGroup` with the items it
+// introduces.
 function MenuGroup(props) {
-  return <MenuPrimitive.Group {...props} />;
+  return <DropdownMenuGroup {...props} />;
 }
 
 function MenuGroupLabel(props) {
-  return <MenuPrimitive.GroupLabel {...props} />;
+  return <DropdownMenuLabel {...props} />;
 }
 
 export {

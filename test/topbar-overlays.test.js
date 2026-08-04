@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { appCss } from './helpers/app-css.js';
+import { appCss, tokensCss, bridgeCss } from './helpers/app-css.js';
 
 // Phase 4b — the top bar's four overlays (user menu, account switcher, notification
 // feed, filter builder) moved from hand-rolled open/close onto Base UI. The point of
@@ -50,18 +50,30 @@ test('the hand-written role="menu" attributes are gone, because the primitive ow
   assert.ok(!/role="menu"/.test(src), 'the menu role must come from Base UI, not by hand');
 });
 
-test('keyboard focus in a menu is VISIBLE — every hover rule has a data-highlighted twin', () => {
-  // The one that silently breaks. Base UI marks the arrow-key-focused item with
-  // [data-highlighted], not :hover. Miss it and focus moves through the menu with
-  // nothing changing on screen — the migration would look done and be unusable by
-  // keyboard, which is the exact thing it was for.
-  for (const cls of ['.tb-menu-item', '.tb-menu-item.danger', '.acct-opt']) {
+test('keyboard focus in a menu is VISIBLE — now the library\'s job, not a twin rule', () => {
+  // THE SHAPE OF THIS TEST INVERTED ON 2026-08-05, and that is the win rather than a
+  // relaxation. It used to require a `[data-highlighted]` twin beside every `:hover` on
+  // `.tb-menu-item`, `.tb-menu-item.danger` and `.acct-opt`, because legacy CSS styled
+  // hover only — so arrow-keying moved focus with nothing changing on screen. It was the
+  // one that silently breaks.
+  //
+  // Those three rules are now DELETED: the generated dropdown-menu owns item styling and
+  // styles `focus:`, which Base UI sets for pointer AND keyboard. So the requirement is
+  // asserted at its new home, and the old hazard is asserted GONE — a re-added legacy
+  // rule would be a menu with two styling systems, which is the drift this guards.
+  for (const cls of ['.tb-menu-item', '.acct-opt']) {
     const esc = cls.replace(/\./g, '\\.');
-    const hover = new RegExp(`${esc}:hover`);
-    const kbd = new RegExp(`${esc}\\[data-highlighted\\]`);
-    assert.match(css, hover, `${cls} should still have its hover treatment`);
-    assert.match(css, kbd, `${cls} has no [data-highlighted] rule — keyboard focus would be invisible`);
+    assert.ok(!new RegExp(`${esc}[\\s:,{[]`).test(css),
+      `${cls} is back in legacy CSS — the generated item owns menu rows now`);
   }
+  const dd = read('../frontend/src/components/ui/dropdown-menu.jsx');
+  assert.match(dd, /focus:bg-accent/, 'the generated item must style focus, covering both input devices');
+  // And the locked neutral-chrome rule, which this now depends on entirely: shadcn's
+  // `accent` means "subtle hover background", ours means "brand blue". If the bridge ever
+  // stopped remapping it, `focus:bg-accent` would turn every menu row bright blue — the
+  // §14 violation the migration plan flagged as R2, now reachable through the skin.
+  assert.match(bridgeCss, /--color-accent:\s*var\(--surface-hover\)/,
+    'focus:bg-accent must resolve to a neutral surface — see DESIGN-LANGUAGE §14');
 });
 
 test('overlay surfaces declare no positioning — the Positioner owns placement', () => {
@@ -100,29 +112,55 @@ test('the account rows stay open when checked, and say so', () => {
   // rows carry real menuitemcheckbox semantics instead of a bare <input> in a <label>.
   assert.match(menu, /closeOnClick=\{false\}/, 'MenuCheckboxItem must not close on activation');
   assert.match(bar, /<MenuCheckboxItem/, 'account rows are checkbox menu items');
-  assert.match(bar, /aria-hidden="true"/, 'the decorative tick input must be hidden from AT');
-  assert.match(bar, /tabIndex=\{-1\}/, 'the decorative tick input must be out of the tab order');
+  // The decorative `aria-hidden` / `tabIndex={-1}` input this used to assert is GONE as
+  // of 2026-08-05. It existed to draw a tick while the real state lived in the prop —
+  // two representations of one fact, kept in sync by hand. The generated checkbox item
+  // renders its own indicator from `checked`, so the state is expressed once.
+  assert.ok(!/type="checkbox"/.test(code(bar)),
+    'the hand-mirrored tick input must not come back — the generated item renders its own');
+  const dd = read('../frontend/src/components/ui/dropdown-menu.jsx');
+  assert.match(dd, /CheckboxItemIndicator/, 'the indicator must come from the primitive');
 });
 
-test('the primitives contribute no appearance of their own', () => {
-  // The whole reason these wrap Base UI rather than the generated components: the
-  // caller's legacy class is the entire surface. A utility creeping in here would
-  // restyle four overlays at once, and none of them has a DLS rule authorising it.
-  for (const [name, src] of [['menu', menu], ['popover', popover]]) {
-    const classNames = [...code(src).matchAll(/className="([^"]*)"/g)].map((m) => m[1]);
-    for (const c of classNames) {
-      assert.equal(c, 'z-dropdown',
-        `${name}.jsx applies "${c}" — the only class it may carry is the stacking token`);
-    }
-  }
+test('the MENU now takes the preset skin; the POPOVERS deliberately do not yet', () => {
+  // THIS TEST'S PREMISE REVERSED ON 2026-08-05. It used to require that the primitives
+  // contribute NO appearance — the caller's legacy class was the whole surface, because
+  // the migration was behaviour-only by decision. The owner reversed that decision:
+  // DESIGN-LANGUAGE now locks "the preset outranks legacy CSS", so a generated
+  // component's appearance is the correct one and the legacy rule is deleted.
+  //
+  // So `menu.jsx` must now point at the generated component, and the assertion that it
+  // stays bare would be asserting the old decision.
+  assert.match(menu, /from '@\/components\/ui\/dropdown-menu'/,
+    'menu.jsx must render the generated component, skin included');
+  assert.match(menu, /overlay-motion/, 'and animate on the §10 recipe, not shadcn\'s duration-100');
+
+  // The two POPOVERS (notification feed, filter builder) are still on bare Base UI, and
+  // that is a scope boundary rather than an omission — this increment was menus only, so
+  // that a half-reskinned set never ships. This assertion is what makes the boundary
+  // visible instead of forgettable, and it fails the day popover.jsx is migrated, which
+  // is when this test should be rewritten to match the menu's above.
+  assert.ok(!/components\/ui\/popover/.test(popover),
+    'popover.jsx is still bare Base UI — when that changes, update this test with it');
 });
 
-test('stacking uses our z-index token, not Tailwind z-50', () => {
-  // The generated components hardcode z-50, which knows nothing about our ladder
-  // (--z-nav 30, --z-dropdown 40, --z-modal, --z-toast). A dropdown at 50 would sit
-  // above the top bar it belongs to but below nothing in particular.
-  for (const src of [menu, popover]) {
-    assert.match(src, /className="z-dropdown"/);
-    assert.ok(!/z-50/.test(code(src)), 'must not fall back to Tailwind z-50');
-  }
+test('stacking: the preset owns the menu\'s z-index, and the token agrees with it', () => {
+  // The generated Positioner hardcodes `z-50` and accepts no className, so menu.jsx can
+  // no longer pass `z-dropdown`. Leaving `--z-dropdown: 40` would mean two disagreeing
+  // values for one concept — exactly the failure the bridge exists to prevent — so the
+  // token was reconciled to 50, toward the preset, per the precedence rule.
+  //
+  // What actually matters is the ORDER, not the number, so that is what this pins.
+  const z = (name) => {
+    const m = tokensCss.match(new RegExp(`--z-${name}:\\s*(\\d+)`));
+    assert.ok(m, `--z-${name} exists`);
+    return Number(m[1]);
+  };
+  assert.ok(z('nav') < z('dropdown'), 'a dropdown must sit above the nav it belongs to');
+  assert.ok(z('dropdown') < z('toast'), 'a toast must sit above an open dropdown');
+  assert.ok(z('toast') < z('modal'), 'a modal must sit above everything');
+  assert.equal(z('dropdown'), 50, 'must match the generated Positioner\'s hardcoded z-50');
+  // The popover still routes through the token, so the utility must keep resolving.
+  assert.match(popover, /className="z-dropdown"/);
+  assert.match(bridgeCss, /@utility z-dropdown \{ z-index: var\(--z-dropdown\); \}/);
 });

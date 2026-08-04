@@ -1191,8 +1191,9 @@ label.full { margin-bottom: 16px; }
 .ea-download:hover { background: var(--accent-hover-bg); }
 .ea-download:disabled { opacity: 0.55; cursor: default; }
 .acct-add button:disabled { opacity: 0.5; cursor: not-allowed; }
-.acct-menu-sep { height: 1px; background: var(--line); margin: 8px 4px; }
-.acct-opt.manage { color: var(--neutral-12); }
+/* `.acct-menu-sep` and `.acct-opt.manage` deleted 2026-08-05 — the generated
+   dropdown-menu owns separators, and the Manage row needs no colour of its own now
+   that every item shares the preset's item styling. */
 
 /* Account switcher (top of account box) */
 .acct-switch { position: relative; margin-bottom: 12px; }
@@ -1204,21 +1205,20 @@ label.full { margin-bottom: 16px; }
 .acct-switch-btn:hover { border-color: var(--line-strong); }
 .acct-switch-cur { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
-.acct-menu {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 8px;
-  box-shadow: var(--sh-2); max-height: 260px; overflow-y: auto;
-}
-.acct-opt {
-  width: 100%; text-align: left; background: transparent; border: none; cursor: pointer;
-  color: var(--neutral-14); font-size: 13px; padding: 8px 12px; border-radius: 7px;
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-}
-.acct-opt:hover, .acct-opt[data-highlighted] { background: var(--neutral-6); }
-.acct-opt.sel { background: var(--accent-bg); color: var(--accent-on-surface); }
-.acct-opt-sub { color: var(--muted); font-size: 11px; }
-/* Multi-select account rows: checkbox + name (grows) + sub pushed right. */
-.acct-opt-check { justify-content: flex-start; }
-.acct-opt-check input { flex: none; width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: var(--accent-on-surface); }
+/* PRESET SKIN (2026-08-05). Surface, border, radius, padding and shadow are the
+   generated dropdown-menu's now — DESIGN-LANGUAGE "the preset outranks legacy CSS".
+   What survives is the scroll box: a cap on how tall the account list may grow, which
+   is A1 geometry the preset expresses no opinion about. */
+.acct-menu { max-height: 260px; overflow-y: auto; }
+/* PRESET SKIN (2026-08-05). `.acct-opt` is deleted: its padding, radius, text size,
+   layout and hover are all the generated menu item's now, and its `[data-highlighted]`
+   twin goes with it — the generated item styles on `focus:`, which Base UI sets for
+   pointer AND keyboard, so the twin-rule hazard is the library's problem now.
+   `.acct-opt-check` and its `input` rule are gone too: the generated checkbox item
+   renders its own indicator, so there is no hand-mirrored input left to style.
+   Three rules survive, and each is content rather than chrome. */
+.acct-opt-sel { background: var(--sel-bg); color: var(--text); }
+.acct-opt-sub { color: var(--muted); font-size: var(--fs-label); }
 .acct-opt-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Signed-in user + logout (bottom of sidebar) */
@@ -3089,27 +3089,29 @@ label.full { margin-bottom: 16px; }
    on MenuContent: the same spot, but measured against the viewport, so the menu flips
    instead of running off the edge. `z-index` went with it — the Positioner is portaled
    to <body> and carries `z-dropdown`, the same token this rule used. */
-.tb-user-menu {
-  min-width: 240px; padding: 8px; display: flex; flex-direction: column; gap: 4px;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-2xl); box-shadow: var(--sh-2);
-}
+/* PRESET SKIN (2026-08-05). Padding, surface, border, radius and shadow are the
+   generated dropdown-menu's now. Only the width survives, and it has to: the generated
+   content is `w-(--anchor-width)`, which sizes a menu to its TRIGGER — and this one
+   hangs off a 34px avatar button, so it would collapse to the 128px floor and truncate
+   every label. Width is A1, so it stays here and `menu.jsx` passes `w-auto` to cancel
+   the anchor width. */
+.tb-user-menu { min-width: 240px; }
 .tb-user-head { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px; }
 .tb-user-id { display: flex; flex-direction: column; min-width: 0; }
 .tb-user-name { font-size: 13px; font-weight: 400; color: var(--text); }
 .tb-user-email { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tb-user-plan { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 8px; font-size: 12px; }
-.tb-menu-sep { height: 1px; background: var(--line); margin: 4px 0; }
-.tb-menu-item {
-  display: block; width: 100%; text-align: left; background: transparent; border: none; cursor: pointer;
-  color: var(--text-2); font-size: 13px; padding: 8px 12px; border-radius: var(--r-md); text-decoration: none;
-}
-/* `[data-highlighted]` beside every `:hover` is what makes the keyboard win visible.
-   Base UI marks the arrow-key-focused item with that attribute, not with :hover, so
-   without these the focus ring would move through the menu and nothing would change on
-   screen. It is the existing treatment reached by a second input device, not a new one. */
-.tb-menu-item:hover, .tb-menu-item[data-highlighted] { background: var(--surface-hover); color: var(--text); }
-.tb-menu-item.danger { color: var(--loss); }
-.tb-menu-item.danger:hover, .tb-menu-item.danger[data-highlighted] { background: var(--loss-bg); }
+/* PRESET SKIN (2026-08-05). `.tb-menu-sep`, `.tb-menu-item` and its `.danger` variant
+   are all deleted — the generated dropdown-menu owns item padding, radius, size, text
+   colour, hover and the separator, and `variant="destructive"` replaces `.danger`
+   (`--destructive` is bridged to `--loss`, so the colour is unchanged).
+ *
+ * AND THE `[data-highlighted]` TWINS GO WITH THEM, which is the satisfying part. Those
+ * rules existed because legacy CSS styled `:hover` only, so arrow-keying through a menu
+ * moved focus with nothing changing on screen — a keyboard migration that looked
+ * complete and was unusable. The generated item styles on `focus:`, which Base UI sets
+ * for pointer and keyboard alike, so the hazard is now the library's to get right. That
+ * is the whole argument for using it rather than hand-rolling. */
 
 /* Inline notification bell (in the top bar, no longer floating) */
 .notif-inline { position: relative; top: auto; right: auto; }
@@ -3156,7 +3158,10 @@ label.full { margin-bottom: 16px; }
 .precision-chip.on .precision-dot { background: var(--text-2); box-shadow: none; }
 .precision-chip.on:hover { background: var(--sel-bg-strong); }
 .tb-badge { background: var(--sel-bg-strong); color: var(--text); }
-.acct-opt.sel { background: var(--sel-bg); color: var(--text); }
+/* `.acct-opt.sel` lived here as a later override of an earlier `--accent-bg` version;
+   this neutral one was the value that actually won, and it is what `.acct-opt-sel`
+   above now carries. Kept neutral deliberately — DESIGN-LANGUAGE §4 locks selection
+   chrome as grayscale, never brand tint. */
 .acct-kind-opt.sel { background: var(--sel-bg); border-color: var(--line-strong); }
 .nav button.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .prop-phase.active { background: var(--sel-bg); color: var(--text); border-color: var(--line); }

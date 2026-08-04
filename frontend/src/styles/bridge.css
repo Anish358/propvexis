@@ -386,6 +386,45 @@
 @utility z-toast { z-index: var(--z-toast); }
 
 /* ---------------------------------------------------------------------------
+   8. MOTION — the ONE overlay animation recipe (DESIGN-LANGUAGE §10)
+
+   §10 is LOCKED and is explicitly NOT a foundation concern: the preset expresses
+   no motion opinion, so generated components arriving with their own animation
+   defaults are subject to our scale rather than the reverse. This is the one place
+   the "preset wins" precedence rule does not apply.
+
+   WHY THIS IS A UTILITY AND NOT A CLASS LIST AT EACH CALL SITE: every overlay must
+   animate identically, and §10's duration/easing split (enter at --dur, leave at
+   --dur-fast) is three declarations plus a reduced-motion block. Repeated per
+   component that is three chances to drift; named once it is a rule with a home.
+
+   WHY IT BEATS THE GENERATED `duration-100` DETERMINISTICALLY, which is the part
+   worth understanding. tw-animate-css resolves its duration as:
+
+       animation: enter var(--tw-animation-duration, var(--tw-duration, .15s)) …
+
+   `duration-100` sets `--tw-duration`. This sets `--tw-animation-duration`, which is
+   read FIRST. So we win by variable precedence, not by cascade order — no source
+   ordering to get lucky with, no `!important`, and nothing breaks if shadcn changes
+   which duration utility it ships. `--tw-ease` has no fallback to Tailwind's default
+   timing function (it falls back to bare `ease`), so the curve must be set here too
+   or every overlay animates on the wrong curve while every transition uses ours.
+--------------------------------------------------------------------------- */
+@utility overlay-motion {
+  --tw-animation-duration: var(--dur);
+  --tw-ease: var(--ease);
+  /* Leaving is faster than arriving — §10. Once a user has dismissed something they
+     have moved on; making them wait for the exit is how "polished" becomes "slow". */
+  &[data-closed] { --tw-animation-duration: var(--dur-fast); }
+  /* §10's fallback: durations collapse to zero, the state change still happens, and
+     no substitute effect is introduced. */
+  @media (prefers-reduced-motion: reduce) {
+    --tw-animation-duration: 0s;
+    &[data-closed] { --tw-animation-duration: 0s; }
+  }
+}
+
+/* ---------------------------------------------------------------------------
    NOT BRIDGED, DELIBERATELY
 
    · --font-sans / --font-mono — these token names are identical to Tailwind's own

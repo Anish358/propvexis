@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
-import { appCss, tokensCss, legacyCss } from './helpers/app-css.js';
+import { appCss, tokensCss, legacyCss, bridgeCss } from './helpers/app-css.js';
 
 // DESIGN-LANGUAGE §6 (radius assignment), §7 (elevation ladder) and §14 (hover model)
 // were locked on 2026-08-05, closing three of the DLS's open TODOs.
@@ -77,7 +78,7 @@ test('§6 — every floating overlay takes the card radius', () => {
   // Decided rather than merely recorded: an overlay is a card that floats, so a menu and
   // the card it opens over never disagree by two or three pixels.
   const overlays = [
-    '.tb-user-menu', '.acct-menu', '.notif-panel', '.fp', '.fp-menu',
+    '.notif-panel', '.fp', '.fp-menu',
     '.bulk-menu', '.bs-pop', '.wcz-menu', '.explain-pop', '.toast',
     '.modal', '.rp-modal', '.onb-card', '.dle-panel',
   ];
@@ -88,6 +89,13 @@ test('§6 — every floating overlay takes the card radius', () => {
     assert.match(body, /border-radius:\s*var\(--r-2xl\)/,
       `${sel} must use var(--r-2xl) — see DESIGN-LANGUAGE §6`);
   }
+  // `.tb-user-menu` and `.acct-menu` left this list on 2026-08-05 — they no longer
+  // declare a radius, because the generated dropdown-menu does. The rule is unchanged
+  // and still enforced, one level up: the preset asks for `rounded-2xl`, and the bridge
+  // is what guarantees that lands on OUR card radius rather than Tailwind's 16px. If
+  // this mapping ever breaks, every preset-skinned overlay silently leaves the scale.
+  assert.match(bridgeCss, /--radius-2xl:\s*var\(--r-2xl\)/,
+    'the preset\'s rounded-2xl must resolve to our card radius — see DESIGN-LANGUAGE §6');
 });
 
 test('§6 — the assignment rule is documented where it is enforced', () => {
@@ -134,11 +142,28 @@ test('§14 — hover never introduces a colour family the element did not have',
 test('§14 — a hover treatment on a menu row has a keyboard twin', () => {
   // Base UI marks the arrow-key-focused item with [data-highlighted]. A menu row styled
   // for :hover alone is interactive for the mouse and inert for the keyboard, which
-  // fails §14 from the other direction. topbar-overlays.test.js checks the three rows
-  // that exist today; this catches a fourth being added without its twin.
+  // fails §14 from the other direction.
+  //
+  // The `rows.size >= 3` floor was removed on 2026-08-05, and its removal is the point
+  // rather than a weakening: the three rows it counted were `.tb-menu-item`,
+  // `.tb-menu-item.danger` and `.acct-opt`, and all three are now DELETED because the
+  // generated dropdown-menu owns item styling. It styles `focus:`, which Base UI sets
+  // for pointer and keyboard alike, so the twin can no longer be forgotten — the class
+  // of bug this floor guarded against is gone from the menus entirely. Asserting a
+  // count would now require re-adding legacy rules to satisfy a test.
+  //
+  // What remains, and still matters: ANY legacy row that keeps a highlight must keep
+  // its hover, and vice versa. The loop below enforces the pairing for however many
+  // exist — today the account-scope rows in the sidebar, tomorrow whatever is added.
   const rows = new Set();
   for (const m of legacyCss.matchAll(/(\.[a-z0-9-]+(?:\.[a-z0-9-]+)*)\[data-highlighted\]/g)) rows.add(m[1]);
-  assert.ok(rows.size >= 3, 'the migrated menu rows should all carry [data-highlighted]');
+  // And the requirement's new home: the generated item must style focus, not hover only.
+  const dd = readFileSync(
+    new URL('../frontend/src/components/ui/dropdown-menu.jsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(dd, /focus:bg-accent/,
+    'the generated menu item must carry a focus background — that is what replaced the twins');
   for (const sel of rows) {
     const esc = sel.replace(/\./g, '\\.');
     assert.match(legacyCss, new RegExp(`${esc}:hover`),

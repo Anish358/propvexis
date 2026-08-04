@@ -112,11 +112,34 @@ test('application code imports primitives, never generated components', () => {
   assert.deepEqual(offenders, [], 'these files bypass the primitives layer');
 });
 
-test('every generated primitive is reachable through the primitives barrel', () => {
+test('every generated primitive is reachable — no dead generated code', () => {
+  // THE INVARIANT is that no file in `components/ui` is orphaned. A generated file that
+  // nothing imports is not merely unused: `@source` still scans it, so Tailwind emits its
+  // whole skin into the bundle for a component no element renders. That cost 3.9 kB of
+  // dead CSS once already, which is why this test exists.
+  //
+  // THE MECHANISM WIDENED ON 2026-08-05. It used to require a same-named file re-exported
+  // from the barrel — `ui/button.jsx` ⇒ `from './button.jsx'`. That assumed a primitive
+  // always shares its generated file's name, and `dropdown-menu` broke the assumption:
+  // our primitive is `menu.jsx`, because the app calls it a Menu. It was reachable and
+  // reported as dead. So reachability is now what it should always have been — does ANY
+  // primitives module import it — which is the thing that actually keeps Tailwind honest.
   const barrel = readFileSync(`${primDir}/index.js`, 'utf8');
+  const prims = readdirSync(primDir).filter((f) => /\.jsx?$/.test(f) && f !== 'index.js');
+  const sources = prims.map((f) => readFileSync(`${primDir}/${f}`, 'utf8'));
   for (const f of readdirSync(uiDir)) {
     const name = f.replace(/\.jsx$/, '');
-    assert.match(barrel, new RegExp(`from './${name}(\\.jsx|\\.js)?'`), `${name} is not exported`);
+    const direct = new RegExp(`from './${name}(\\.jsx|\\.js)?'`).test(barrel);
+    const viaPrimitive = sources.some((s) => s.includes(`@/components/ui/${name}`));
+    assert.ok(direct || viaPrimitive,
+      `ui/${name}.jsx is imported by nothing — Tailwind still emits its skin. Wire it or delete it.`);
+  }
+  // And the barrel must still be the only door out: every primitive module is exported,
+  // or a page has no way to reach it and would import from `ui/` directly.
+  for (const f of prims) {
+    const name = f.replace(/\.jsx?$/, '');
+    assert.match(barrel, new RegExp(`from './${name}(\\.jsx|\\.js)?'`),
+      `primitives/${f} is not exported from the barrel`);
   }
 });
 
