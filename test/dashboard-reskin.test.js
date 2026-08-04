@@ -62,28 +62,25 @@ test('the KPI card treatment does not depend on .u-card', () => {
   assert.deepEqual(zombies, [], 'a .u-card compound selector still targets a migrated dashboard element');
 });
 
-test('KPI card hover eases rather than snapping', () => {
+test('the KPI cards have NO hover state — they are not clickable', () => {
+  // DESIGN-LANGUAGE §14, "Only interactive elements respond to hover" (owner,
+  // 2026-08-05). These five cards used to wash and lift on hover while doing nothing
+  // on click, which is a promise the interface cannot keep and costs hover its meaning
+  // on the controls that DO something.
+  //
+  // This test replaced two earlier ones that asserted the hover EASED correctly and
+  // preserved the card's ring. Those were right for the treatment that existed — the
+  // wash and lift had genuinely broken in the Card migration and were repaired first.
+  // Repairing them is what made the treatment legible enough to judge, and judging it
+  // is what retired it. The assertion inverts because the rule changed, not because
+  // the old one was wrong.
+  assert.ok(!css.includes('.dash-stat:hover'), 'a hover state is back on a non-clickable card');
   const body = ruleBody(css, '.dash-stat');
   assert.ok(body, '.dash-stat rule exists');
-  assert.match(body, /transition:[^;]*box-shadow/, '.dash-stat must transition box-shadow — the wash lives there');
-  assert.match(body, /transition:[^;]*transform/, '.dash-stat must transition transform — the lift lives there');
-  assert.match(body, /transition:[^;]*var\(--ease\)/, 'easing comes from the token, not a literal curve');
-  assert.match(body, /transition:[^;]*var\(--dur\)/, 'duration comes from the token, not a repeated literal');
-});
-
-test('KPI card hover keeps the ring and elevation it inherits from the Card', () => {
-  // box-shadow is a shared property now: the Card draws its ring AND its shadow with
-  // it, so a hover rule that sets box-shadow replaces both. Both states must declare
-  // the full stack, or hovering deletes the card's edge. These two assertions are
-  // what stop the rest and hover declarations drifting apart.
-  const rest = ruleBody(css, '.dash-stat');
-  const hover = ruleBody(css, '.dash-stat:hover');
-  assert.ok(hover, '.dash-stat:hover rule exists');
-  for (const [name, body, ring] of [['rest', rest, '--line'], ['hover', hover, '--line-strong']]) {
-    assert.match(body, /box-shadow:[^;]*inset 0 0 0 999px/, `${name} state declares the wash layer`);
-    assert.match(body, new RegExp(`box-shadow:[^;]*0 0 0 1px var\\(${ring}\\)`), `${name} state re-declares the Card's ring`);
-    assert.match(body, /box-shadow:[^;]*var\(--sh-1\)/, `${name} state re-declares the Card's elevation`);
-  }
+  assert.ok(!body.includes('transition'), 'nothing left to transition once the hover is gone');
+  // Handing box-shadow back to the Card is the point: the preset draws the ring and
+  // elevation, so this rule no longer has to restate them to survive a hover override.
+  assert.ok(!body.includes('box-shadow'), '.dash-stat must not own box-shadow — the Card draws its box');
 });
 
 test('KPI cards share one box, with no per-card compensation offsets', () => {

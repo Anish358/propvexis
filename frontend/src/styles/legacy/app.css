@@ -361,8 +361,8 @@ label.full { margin-bottom: 16px; }
 .wcz-btn:hover { border-color: var(--line-strong); }
 .wcz-menu {
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 40; min-width: 220px;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px;
-  box-shadow: 0 10px 30px var(--shadow-50);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 8px;
+  box-shadow: var(--sh-2);
 }
 .wcz-head { font-size: 11px; color: var(--muted); padding: 4px 8px 8px; }
 .wcz-opt { display: flex; align-items: center; gap: 8px; padding: 8px 8px; font-size: 13px; border-radius: 6px; cursor: pointer; }
@@ -433,7 +433,7 @@ label.full { margin-bottom: 16px; }
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 40;
   width: 300px; max-height: min(70vh, 560px); display: flex; flex-direction: column;
   background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: var(--r-xl); box-shadow: var(--sh-3);
+  border-radius: var(--r-2xl); box-shadow: var(--sh-2);
   /* Left-aligned + normal cursor: the parent .dash-banner-head is a flex row and
      .dash-banner rows are centered, neither of which suits a form. */
   text-align: left; cursor: default;
@@ -616,22 +616,23 @@ label.full { margin-bottom: 16px; }
    separately. Both class names stay because they are in the JSX and because
    `--refined` still means one real thing: "has a third, bottom-pinned line".
 
-   TWO REGRESSIONS FROM THE CARD MIGRATION ARE FIXED HERE.
+   THESE CARDS HAVE NO HOVER STATE, and that is a decision rather than an omission
+   (owner, 2026-08-05; DESIGN-LANGUAGE §14, "Only interactive elements respond to
+   hover"). They are not clickable — nothing happens if you click one — and an element
+   that responds to the pointer and then does nothing is a promise the interface does
+   not keep, which costs hover its meaning on the controls that DO something.
 
-   1. Hover stopped easing. The `transition` sat on `.u-card.dash-stat.dash-stat--*`
-      — three classes, needed back when it had to outrank the borderless-widgets rule
-      that used to follow. The migrated Card does not emit `.u-card`, so that selector
-      quietly stopped matching while the one-class `:hover` rules kept matching: the
-      wash and the lift still fired, but instantly. Selectors here no longer mention
-      `.u-card`, and the duration comes from --dur rather than a repeated literal.
+   What was here until that decision: a `--surface-hover` inset wash plus a -2px lift.
+   Both are gone. Worth recording why the intervening repair still mattered, so this
+   does not read as churn — the wash and lift had broken in the Card migration (their
+   `transition` sat on a `.u-card.dash-stat.dash-stat--*` selector that the migrated
+   Card no longer matches, so they fired instantly, and the hover `box-shadow` replaced
+   the card's ring and elevation wholesale). Fixing that was what made the treatment
+   legible enough to judge, and judging it is what retired it.
 
-   2. Hover erased the card's edge. `box-shadow` is a shared property now — the Card
-      draws its ring AND its elevation with it, and a hover rule that sets box-shadow
-      outright replaces both. So both states below declare the full stack, and the
-      ring is what brightens (--line -> --line-strong), which is exactly what the old
-      `border-color` hover did before the box became the preset's. Restating the ring
-      in two places is the cost of owning the property; dashboard-reskin.test.js pins
-      the two declarations together so they cannot drift apart silently.
+   Removing it also hands `box-shadow` back to the Card. The ring and elevation no
+   longer need restating in two places to survive a hover rule that owned the property,
+   so the preset draws the box and this rule does not mention shadows at all.
    ---- */
 
 /* The master card's box, applied to all five — same padding, so the label and value
@@ -647,17 +648,6 @@ label.full { margin-bottom: 16px; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  /* Rest state of the hover pair. The wash is an inset shadow rather than a
-     background-color so it paints behind child chrome instead of the card's own
-     background; `transparent` is what gives it something to animate FROM. The
-     trailing two layers are the Card's ring and elevation, restated because this
-     rule takes the property over — see note 2 above. */
-  box-shadow: inset 0 0 0 999px transparent, 0 0 0 1px var(--line), var(--sh-1);
-  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
-}
-.dash-stat:hover {
-  box-shadow: inset 0 0 0 999px var(--surface-hover), 0 0 0 1px var(--line-strong), var(--sh-1);
-  transform: translateY(-2px);
 }
 .dash-stat .jo-kpi-label {
   display: flex; align-items: center; gap: 8px;
@@ -743,8 +733,10 @@ label.full { margin-bottom: 16px; }
 
 /* RETIRED — the borderless-widgets rule.
    It gave every boxed element in the dashboard a shared treatment: no 1px hairline,
-   and a page-scoped 14px corner radius rather than the app-wide --r-2xl (20px),
-   deliberately scoped here rather than retuning the shared token.
+   and a page-scoped 14px corner radius rather than the app-wide --r-2xl, deliberately
+   scoped here rather than retuning the shared token. (That "--r-2xl (20px)" was true
+   when the rule was written and is not any more: the preset replaced the px radius
+   scale with a rem one ~40% tighter, so --r-2xl is 0.81rem ≈ 13px today.)
 
    Four of its five selectors were `.u-card.dash-*`, and all four of those elements
    now render the migrated Card, which does not emit `.u-card`. So the rule had
@@ -754,11 +746,12 @@ label.full { margin-bottom: 16px; }
    at 20px with a ring. A rule whose entire purpose was that these boxes agree had
    become the one thing making them disagree.
 
-   Deleting it puts the calendar panel back on plain `.panel` — 20px radius, a 1px
-   --line hairline, --sh-1 — which is what the migrated cards now draw. The shared
-   treatment survives; the values behind it are the preset's rather than this page's.
-   Restoring 14px instead would mean overriding the preset on four migrated cards to
-   chase a value chosen for the old box, which is the opposite of the migration. */
+   Deleting it puts the calendar panel back on plain `.panel` — var(--r-2xl) radius, a
+   1px --line hairline, --sh-1 — which is what the migrated cards now draw. And the
+   radius barely moves: --r-2xl is ~13px post-preset, against the 14px this rule was
+   pinning, so the page keeps the corner it was tuned for by coincidence rather than by
+   override. The shared treatment survives; the values behind it are the preset's
+   rather than this page's. */
 
 .dash-activity-body { margin-top: 16px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
@@ -1123,7 +1116,7 @@ label.full { margin-bottom: 16px; }
   /* hidden x + auto y: a lone `overflow-y: auto` makes overflow-x compute to
      auto too, which spawns a stray horizontal scrollbar. Pin x to hidden. */
   overflow: hidden auto;
-  box-shadow: 0 24px 70px var(--shadow-70); position: relative; z-index: 1;
+  box-shadow: var(--sh-3); position: relative; z-index: 1;
 }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .modal-head h3 { margin: 0; font-size: var(--fs-section-title); }
@@ -1212,8 +1205,8 @@ label.full { margin-bottom: 16px; }
 .acct-switch-cur { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 .acct-menu {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px;
-  box-shadow: 0 12px 32px var(--shadow-60); max-height: 260px; overflow-y: auto;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 8px;
+  box-shadow: var(--sh-2); max-height: 260px; overflow-y: auto;
 }
 .acct-opt {
   width: 100%; text-align: left; background: transparent; border: none; cursor: pointer;
@@ -1477,10 +1470,10 @@ label.full { margin-bottom: 16px; }
 }
 .onb-card {
   width: 100%; max-width: 620px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl);
   /* Tokenized on merge: a literal here can't be themed, and the light theme
      would have kept a near-black drop shadow (see test/theme-tokens.test.js). */
-  padding: 28px 32px; box-shadow: 0 20px 60px var(--shadow-50);
+  padding: 28px 32px; box-shadow: var(--sh-3);
 }
 .onb-top { display: flex; flex-direction: column; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .onb-brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; color: var(--text); }
@@ -1612,7 +1605,7 @@ label.full { margin-bottom: 16px; }
   min-width: 216px; padding: 6px;
   display: flex; flex-direction: column;
   background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg); box-shadow: var(--sh-3);
+  border-radius: var(--r-2xl); box-shadow: var(--sh-2);
   text-align: left;
 }
 .bulk-item {
@@ -1670,10 +1663,10 @@ label.full { margin-bottom: 16px; }
 .explain-pop {
   position: absolute; top: calc(100% + 8px); z-index: 60;
   width: 300px; max-width: 78vw; padding: 12px 12px;
-  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-2xl);
   color: var(--text); font-size: 12px; line-height: 1.55; font-weight: 400;
   text-align: left; text-transform: none; letter-spacing: normal;
-  box-shadow: 0 10px 28px var(--shadow-50);
+  box-shadow: var(--sh-2);
   opacity: 0; visibility: hidden; transform: translateY(-4px);
   transition: opacity .12s ease, transform .12s ease, visibility .12s;
   pointer-events: none;
@@ -1875,7 +1868,7 @@ label.full { margin-bottom: 16px; }
   display: flex; flex-direction: column; gap: 12px;
   padding: 18px 20px 20px;
   background: var(--panel); border: 1px solid var(--line-strong);
-  border-radius: var(--r-xl); box-shadow: var(--sh-3);
+  border-radius: var(--r-2xl); box-shadow: var(--sh-3);
 }
 /* While a drag is live, kill text selection and let the pointer own the gesture
    (touch-action stops a touch-drag scrolling the panel instead of moving a tile). */
@@ -2019,7 +2012,7 @@ label.full { margin-bottom: 16px; }
   width: 960px; max-width: 96vw; height: 640px; max-height: 92vh;
   display: flex; flex-direction: column;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl);
-  box-shadow: 0 24px 70px var(--shadow-60); overflow: hidden;
+  box-shadow: var(--sh-3); overflow: hidden;
 }
 .rp-head {
   display: flex; align-items: center; gap: 16px;
@@ -2334,7 +2327,7 @@ label.full { margin-bottom: 16px; }
 .notif-bell:hover { border-color: var(--line-strong); }
 .notif-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--status-bad); color: var(--on-accent); font-size: 11px; font-weight: 400; display: grid; place-items: center; border: 2px solid var(--bg); }
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
-.notif-panel { width: 340px; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px var(--shadow-45); }
+.notif-panel { width: 340px; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); box-shadow: var(--sh-2); }
 .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 400; }
 .notif-markall { background: transparent; border: none; color: var(--status-info); font-size: 12px; cursor: pointer; }
 .notif-list { overflow-y: auto; }
@@ -2350,7 +2343,7 @@ label.full { margin-bottom: 16px; }
 .notif-time { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
 .toasts { position: fixed; top: 62px; right: 18px; z-index: 70; display: flex; flex-direction: column; gap: 12px; width: 320px; }
-.toast { text-align: left; width: 100%; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 10px; padding: 12px 16px; cursor: pointer; box-shadow: 0 8px 24px var(--shadow-40); animation: toast-in .2s ease; }
+.toast { text-align: left; width: 100%; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: var(--r-2xl); padding: 12px 16px; cursor: pointer; box-shadow: var(--sh-2); animation: toast-in .2s ease; }
 .toast.warn { border-left-color: var(--status-warn); }
 .toast.crit { border-left-color: var(--status-bad); }
 .toast.info { border-left-color: var(--status-info); }
@@ -2873,7 +2866,7 @@ label.full { margin-bottom: 16px; }
   width: var(--fp-w); flex: none;
   display: flex; flex-direction: column;
   background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: var(--r-xl); box-shadow: var(--sh-3);
+  border-radius: var(--r-2xl); box-shadow: var(--sh-2);
 }
 .fp-head {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-2);
@@ -2928,7 +2921,7 @@ label.full { margin-bottom: 16px; }
   width: var(--fp-w); flex: none; max-height: min(56vh, 400px);
   display: flex; flex-direction: column;
   background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: var(--r-xl); box-shadow: var(--sh-3);
+  border-radius: var(--r-2xl); box-shadow: var(--sh-2);
 }
 .fp-menu-head {
   display: flex; align-items: center; gap: 8px;
@@ -3098,7 +3091,7 @@ label.full { margin-bottom: 16px; }
    to <body> and carries `z-dropdown`, the same token this rule used. */
 .tb-user-menu {
   min-width: 240px; padding: 8px; display: flex; flex-direction: column; gap: 4px;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-2);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-2xl); box-shadow: var(--sh-2);
 }
 .tb-user-head { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px; }
 .tb-user-id { display: flex; flex-direction: column; min-width: 0; }

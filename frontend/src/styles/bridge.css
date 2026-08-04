@@ -346,8 +346,11 @@
   --foreground: var(--text);
   --secondary: var(--sel-bg);
 
-  /* Our radius scale stops at 2xl (20px); the library's 4xl step has no
-     equivalent, so it resolves to our largest radius rather than inventing one. */
+  /* Our radius scale stops at 2xl — 0.81rem, i.e. ~13px, NOT the 20px an earlier
+     version of this comment claimed. The preset replaced a px scale with a rem one
+     ~40% tighter (see tokens.css), and the old numbers outlived it in several
+     comments. The library's 4xl step has no equivalent, so it resolves to our
+     largest radius rather than inventing one. */
   --radius-4xl: var(--r-2xl);
 }
 
