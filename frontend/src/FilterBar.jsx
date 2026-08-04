@@ -4,6 +4,14 @@ import { activeFilterCount } from './filters.js';
 import { navTitle } from './nav.js';
 import { titleCase } from './constants.js';
 import FilterPanel from './FilterPanel.jsx';
+// PHASE 4b — the top bar's overlays run on Base UI now. These primitives carry
+// behaviour and positioning only; every surface below keeps its own legacy classes,
+// so the bar looks identical and only its keyboard, focus and ARIA change. See
+// components/primitives/menu.jsx for why they are not the skinned generated ones.
+import {
+  Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
+  MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger,
+} from '@/components/primitives';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
 import AccountsModal from './AccountsModal.jsx';
@@ -53,16 +61,18 @@ const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 // (god) or a comma-joined list of mt5 logins; picking two or more accounts gives
 // an aggregate (R-based) view restricted to them. Pending accounts live in the
 // modal. Menu opens downward from the top bar; checkboxes keep it open.
+//
+// PHASE 4b — on Base UI. The account rows were `<label><input type="checkbox">`, which
+// looked right and announced wrong: form controls inside a role-less div, with nothing
+// saying this was a menu or that the rows were multi-select. They are
+// `MenuCheckboxItem` now — role="menuitemcheckbox" with aria-checked — and "checkboxes
+// keep it open", which the old version achieved by having no dismissal logic at all,
+// is `closeOnClick={false}` said out loud in the primitive.
+//
+// The native <input> stays as the tick mark only: Base UI owns the state, the toggle
+// and the semantics, so the input is aria-hidden and taken out of the tab order rather
+// than sitting there as a second, competing control on the same row.
 function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
   // Bound + active only; archived accounts stay out of the switcher (still in the modal).
   const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
   const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
@@ -82,29 +92,34 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   else current = `${selected.length} accounts`;
 
   return (
-    <div className="acct-switch tb-acct" ref={ref}>
-      <button className="acct-switch-btn" onClick={() => setOpen((o) => !o)}>
-        <span className="acct-switch-cur">{current || 'Select account'}</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {open && (
-        <div className="acct-menu">
-          <button className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => { setAccountId(GOD); setOpen(false); }}>
+    <div className="acct-switch tb-acct">
+      <Menu>
+        <MenuTrigger className="acct-switch-btn">
+          <span className="acct-switch-cur">{current || 'Select account'}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+        </MenuTrigger>
+        <MenuContent className="acct-menu">
+          <MenuItem className={`acct-opt ${accountId === GOD ? 'sel' : ''}`} onClick={() => setAccountId(GOD)}>
             ★ All accounts <span className="acct-opt-sub">God view</span>
-          </button>
+          </MenuItem>
           {bound.map((a) => (
-            <label key={a.id} className={`acct-opt acct-opt-check ${isSel(a.mt5_login) ? 'sel' : ''}`}>
-              <input type="checkbox" checked={isSel(a.mt5_login)} onChange={() => toggle(a.mt5_login)} />
+            <MenuCheckboxItem
+              key={a.id}
+              className={`acct-opt acct-opt-check ${isSel(a.mt5_login) ? 'sel' : ''}`}
+              checked={isSel(a.mt5_login)}
+              onCheckedChange={() => toggle(a.mt5_login)}
+            >
+              <input type="checkbox" checked={isSel(a.mt5_login)} readOnly tabIndex={-1} aria-hidden="true" />
               <span className="acct-opt-name">{acctLabel(a)}</span>
               <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
-            </label>
+            </MenuCheckboxItem>
           ))}
-          <div className="acct-menu-sep" />
-          <button className="acct-opt manage" onClick={() => { setOpen(false); onManage(); }}>
+          <MenuSeparator className="acct-menu-sep" />
+          <MenuItem className="acct-opt manage" onClick={onManage}>
             ⚙ Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
-          </button>
-        </div>
-      )}
+          </MenuItem>
+        </MenuContent>
+      </Menu>
     </div>
   );
 }
@@ -113,50 +128,60 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
 // now FilterPanel: a filter BUILDER (chips + a cascading Add-filter menu) instead
 // of the fixed stack of dropdowns this used to hold, which grew a row taller with
 // every new filter. The button owns only open/closed and the outside-click close.
+//
+// PHASE 4b — a Popover, not a Menu, and the distinction matters here more than
+// anywhere else in this bar. FilterPanel holds inputs, chips and nested cascading
+// columns with 505 lines of its own keyboard handling, including an Escape that
+// unwinds ONE cascade level at a time instead of closing the lot. Inside a
+// role="menu" that would be fighting arrow-key item navigation the whole way.
+//
+// So the primitive takes over exactly what the six-line `mousedown` listener did —
+// open state, outside click, viewport-aware placement, focus return — and the panel
+// keeps every inner behaviour it already had. `onClose` still works because it maps
+// onto the same setter the trigger uses, so the panel can close the outermost level
+// itself once it has unwound the inner ones.
 function FiltersButton({ options, filters, patchFilters, clearFilters, active }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
 
   return (
-    <div className="tb-filters" ref={ref}>
-      <button type="button" className={`tb-btn ${active ? 'active' : ''}`} onClick={() => setOpen((o) => !o)} aria-label="Filters" aria-expanded={open}>
-        <Icon d={<path d="M3 4h18l-7 8v6l-4 2v-8z" />} />
-        <span>Filters</span>
-        {active > 0 && <span className="tb-badge">{active}</span>}
-      </button>
-      {open && (
-        <FilterPanel
-          options={options}
-          filters={filters}
-          patchFilters={patchFilters}
-          clearFilters={clearFilters}
-          active={active}
-          onClose={() => setOpen(false)}
-        />
-      )}
+    <div className="tb-filters">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger className={`tb-btn ${active ? 'active' : ''}`} aria-label="Filters">
+          <Icon d={<path d="M3 4h18l-7 8v6l-4 2v-8z" />} />
+          <span>Filters</span>
+          {active > 0 && <span className="tb-badge">{active}</span>}
+        </PopoverTrigger>
+        <PopoverContent>
+          <FilterPanel
+            options={options}
+            filters={filters}
+            patchFilters={patchFilters}
+            clearFilters={clearFilters}
+            active={active}
+            onClose={() => setOpen(false)}
+          />
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
 
 // The avatar opens a DROPDOWN (not a modal) with the user's identity + settings
 // shortcuts. "Trade settings" still opens its own modal (column visibility etc.).
+//
+// PHASE 4b — on Base UI. Same markup, same classes, same order; the open/close state,
+// the outside-click listener and the hand-written role="menu"/role="menuitem"
+// attributes are gone because the primitive owns all four. Note what those roles were
+// promising and not delivering: arrow-key navigation between items, Escape, and focus
+// returning to the avatar. A screen reader was told this was a menu and then found
+// none of a menu's behaviour. It is now actually one.
+//
+// `onClick` handlers no longer close the menu by hand — activating a MenuItem closes
+// it. The two that open something else (Trade settings, Sign out) keep their handler
+// and drop the setOpen call.
 function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns }) {
   const { user, logout } = useAuth();
-  const [open, setOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
 
   if (!user) return null;
   const initial = (user.name || user.email || '?').trim().charAt(0).toUpperCase();
@@ -166,31 +191,39 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
     : <span className="tb-avatar tb-avatar-fallback">{initial}</span>;
 
   return (
-    <div className="tb-user" ref={ref}>
-      <button className="tb-avatar-link" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="Account" aria-label="Account">
-        {avatar}
-      </button>
-      {open && (
-        <div className="tb-user-menu" role="menu">
-          <div className="tb-user-head">
-            {avatar}
-            <div className="tb-user-id">
-              <span className="tb-user-name">{user.name || 'Account'}</span>
-              <span className="tb-user-email">{user.email}</span>
+    <div className="tb-user">
+      <Menu>
+        <MenuTrigger className="tb-avatar-link" title="Account" aria-label="Account">
+          {avatar}
+        </MenuTrigger>
+        <MenuContent className="tb-user-menu">
+          {/* Identity and plan are information, not commands. As bare divs in a
+              role="menu" they were orphan nodes; as a group label they are
+              addressable, and the items below read as belonging to this account. */}
+          <MenuGroup>
+            <MenuGroupLabel className="tb-user-head">
+              {avatar}
+              <div className="tb-user-id">
+                <span className="tb-user-name">{user.name || 'Account'}</span>
+                <span className="tb-user-email">{user.email}</span>
+              </div>
+            </MenuGroupLabel>
+            <div className="tb-user-plan">
+              <span className="muted">Plan</span>
+              <span className={`sb-plan-badge ${user.plan || 'free'}`}>{plan}</span>
             </div>
-          </div>
-          <div className="tb-user-plan">
-            <span className="muted">Plan</span>
-            <span className={`sb-plan-badge ${user.plan || 'free'}`}>{plan}</span>
-          </div>
-          <div className="tb-menu-sep" />
-          <button className="tb-menu-item" role="menuitem" onClick={() => { setOpen(false); setPrefsOpen(true); }}>Trade settings</button>
-          <Link className="tb-menu-item" role="menuitem" to="/settings" onClick={() => setOpen(false)}>Settings</Link>
-          <Link className="tb-menu-item" role="menuitem" to="/billing" onClick={() => setOpen(false)}>Manage plan</Link>
-          <div className="tb-menu-sep" />
-          <button className="tb-menu-item danger" role="menuitem" onClick={logout}>Sign out</button>
-        </div>
-      )}
+            <MenuSeparator className="tb-menu-sep" />
+            <MenuItem className="tb-menu-item" onClick={() => setPrefsOpen(true)}>Trade settings</MenuItem>
+            {/* `render` is how Base UI keeps an item's menu semantics while letting it
+                be a router Link — the anchor is real, so middle-click and copy-link
+                still work, which a div with an onClick would have broken. */}
+            <MenuItem className="tb-menu-item" render={<Link to="/settings" />}>Settings</MenuItem>
+            <MenuItem className="tb-menu-item" render={<Link to="/billing" />}>Manage plan</MenuItem>
+            <MenuSeparator className="tb-menu-sep" />
+            <MenuItem className="tb-menu-item danger" onClick={logout}>Sign out</MenuItem>
+          </MenuGroup>
+        </MenuContent>
+      </Menu>
       <TradeSettingsModal
         open={prefsOpen}
         onClose={() => setPrefsOpen(false)}

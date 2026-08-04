@@ -1210,8 +1210,8 @@ label.full { margin-bottom: 16px; }
 }
 .acct-switch-btn:hover { border-color: var(--line-strong); }
 .acct-switch-cur { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Appearance only — the Positioner places it (see .tb-user-menu above). */
 .acct-menu {
-  position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; z-index: 20;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px;
   box-shadow: 0 12px 32px var(--shadow-60); max-height: 260px; overflow-y: auto;
 }
@@ -1220,7 +1220,7 @@ label.full { margin-bottom: 16px; }
   color: var(--neutral-14); font-size: 13px; padding: 8px 12px; border-radius: 7px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
-.acct-opt:hover { background: var(--neutral-6); }
+.acct-opt:hover, .acct-opt[data-highlighted] { background: var(--neutral-6); }
 .acct-opt.sel { background: var(--accent-bg); color: var(--accent-on-surface); }
 .acct-opt-sub { color: var(--muted); font-size: 11px; }
 /* Multi-select account rows: checkbox + name (grows) + sub pushed right. */
@@ -2333,7 +2333,8 @@ label.full { margin-bottom: 16px; }
 .notif-bell { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 9px; background: var(--panel); border: 1px solid var(--line); color: var(--text); cursor: pointer; }
 .notif-bell:hover { border-color: var(--line-strong); }
 .notif-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--status-bad); color: var(--on-accent); font-size: 11px; font-weight: 400; display: grid; place-items: center; border: 2px solid var(--bg); }
-.notif-panel { position: absolute; top: 46px; right: 0; width: 340px; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px var(--shadow-45); }
+/* Appearance only — the Positioner places it (see .tb-user-menu above). */
+.notif-panel { width: 340px; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px var(--shadow-45); }
 .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 400; }
 .notif-markall { background: transparent; border: none; color: var(--status-info); font-size: 12px; cursor: pointer; }
 .notif-list { overflow-y: auto; }
@@ -2849,7 +2850,9 @@ label.full { margin-bottom: 16px; }
    filter list from running up alongside the top bar. Under 720px there isn't room
    for two columns side by side, so the cascade stacks (media query below). */
 .fp-stack {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--z-dropdown);
+  /* Placement is the Popover Positioner's (see .tb-user-menu above); the cascade's
+     own internal positioning below is unaffected, because .fp-cascade establishes its
+     own containing block and never depended on this rule being absolute. */
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--s-2);
   /* ONE width for every column, declared once. The panel and the cascade columns
      stack vertically and share an edge, so a difference of a few px between them
@@ -3087,8 +3090,13 @@ label.full { margin-bottom: 16px; }
 
 /* Account avatar dropdown (not a modal) */
 .tb-user { position: relative; display: inline-flex; }
+/* Positioning is NOT here any more — Base UI's Positioner owns placement for every
+   overlay in this bar, and this rule keeps only appearance. What was
+   `top: calc(100% + 8px); right: 0` is now `side="bottom" align="end" sideOffset={8}`
+   on MenuContent: the same spot, but measured against the viewport, so the menu flips
+   instead of running off the edge. `z-index` went with it — the Positioner is portaled
+   to <body> and carries `z-dropdown`, the same token this rule used. */
 .tb-user-menu {
-  position: absolute; top: calc(100% + 8px); right: 0; z-index: var(--z-dropdown);
   min-width: 240px; padding: 8px; display: flex; flex-direction: column; gap: 4px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-2);
 }
@@ -3102,15 +3110,21 @@ label.full { margin-bottom: 16px; }
   display: block; width: 100%; text-align: left; background: transparent; border: none; cursor: pointer;
   color: var(--text-2); font-size: 13px; padding: 8px 12px; border-radius: var(--r-md); text-decoration: none;
 }
-.tb-menu-item:hover { background: var(--surface-hover); color: var(--text); }
+/* `[data-highlighted]` beside every `:hover` is what makes the keyboard win visible.
+   Base UI marks the arrow-key-focused item with that attribute, not with :hover, so
+   without these the focus ring would move through the menu and nothing would change on
+   screen. It is the existing treatment reached by a second input device, not a new one. */
+.tb-menu-item:hover, .tb-menu-item[data-highlighted] { background: var(--surface-hover); color: var(--text); }
 .tb-menu-item.danger { color: var(--loss); }
-.tb-menu-item.danger:hover { background: var(--loss-bg); }
+.tb-menu-item.danger:hover, .tb-menu-item.danger[data-highlighted] { background: var(--loss-bg); }
 
 /* Inline notification bell (in the top bar, no longer floating) */
 .notif-inline { position: relative; top: auto; right: auto; }
 .notif-inline .notif-bell { width: 34px; height: 34px; background: transparent; border: none; color: var(--text-2); }
 .notif-inline .notif-bell:hover { background: var(--surface-hover); color: var(--text); }
-.notif-inline .notif-panel { top: calc(100% + 6px); right: 0; }
+/* `.notif-inline .notif-panel`'s placement override is gone for the same reason: the
+   bell's panel is portaled and positioned, so "inline" no longer changes where it
+   lands. The class still scopes the BELL's own inline appearance just below. */
 
 /* Sidebar — tighter nav + bottom-left sign-out footer */
 /* Nav item text/spacing scaled by 1.06 (13->13.78, 8/12->8.48/12.72) to match
@@ -3121,7 +3135,9 @@ label.full { margin-bottom: 16px; }
 /* Account switcher in the top bar — compact button, menu opens downward + right-aligned */
 .tb-acct { margin-bottom: 0; }
 .tb-acct .acct-switch-btn { background: var(--surface-2); padding: 8px 12px; font-size: 13px; width: auto; max-width: 200px; }
-.tb-acct .acct-menu { top: calc(100% + 6px); bottom: auto; left: auto; right: 0; min-width: 220px; }
+/* The four placement declarations that used to be here are the Positioner's job now;
+   the width floor is not, so it is all that remains. */
+.tb-acct .acct-menu { min-width: 220px; }
 
 /* Settings modal (opened from the top-bar avatar) */
 .settings-modal { max-width: 460px; }

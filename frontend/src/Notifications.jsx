@@ -1,4 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
+// PHASE 4b — the bell's feed is a Popover on Base UI. Behaviour and positioning only;
+// `.notif-panel` keeps its own appearance, so the panel looks identical.
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/primitives';
 
 // In-app alert UI: a header bell with an unread badge + a dropdown feed, and a
 // transient toast stack for alerts that arrive live over the socket. Severity
@@ -20,24 +23,20 @@ const BellIcon = () => (
   </svg>
 );
 
+// A feed, not a list of commands, so it is a Popover: the panel already declared
+// role="dialog" itself, and Tab through its "Mark all read" button is the right
+// interaction rather than arrow-keying between alerts. The primitive supplies the
+// Escape, the focus return and the aria-expanded the hand-rolled version never had —
+// the bell's own aria-label, which carries the unread count, is unchanged.
 export function NotificationBell({ notifications = [], unread = 0, onMarkAllRead, inline = false }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
   return (
-    <div className={`notif ${inline ? 'notif-inline' : ''}`} ref={ref}>
-      <button className="notif-bell" onClick={() => setOpen((o) => !o)} aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
-        <BellIcon />
-        {unread > 0 && <span className="notif-badge">{unread > 99 ? '99+' : unread}</span>}
-      </button>
-      {open && (
-        <div className="notif-panel" role="dialog" aria-label="Notifications">
+    <div className={`notif ${inline ? 'notif-inline' : ''}`}>
+      <Popover>
+        <PopoverTrigger className="notif-bell" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
+          <BellIcon />
+          {unread > 0 && <span className="notif-badge">{unread > 99 ? '99+' : unread}</span>}
+        </PopoverTrigger>
+        <PopoverContent className="notif-panel" aria-label="Notifications">
           <div className="notif-head">
             <span>Notifications</span>
             {unread > 0 && <button className="notif-markall" onClick={onMarkAllRead}>Mark all read</button>}
@@ -56,8 +55,8 @@ export function NotificationBell({ notifications = [], unread = 0, onMarkAllRead
               </div>
             ))}
           </div>
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

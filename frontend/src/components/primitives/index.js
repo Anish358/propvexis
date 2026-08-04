@@ -56,6 +56,11 @@ export { EmptyState } from './empty-state.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { LoadingBlock } from './loading-block.jsx';
+export {
+  Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
+  MenuSeparator, MenuTrigger,
+} from './menu.jsx';
+export { Popover, PopoverContent, PopoverTrigger } from './popover.jsx';
 export { Separator } from './separator.js';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
