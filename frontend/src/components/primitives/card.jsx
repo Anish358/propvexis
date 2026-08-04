@@ -23,9 +23,27 @@ export {
  *                    VERTICAL padding only, and a ring + shadow instead of a border
  *
  * The gap is the part that surprises: children are spaced by the card, so a card
- * whose children already carry their own margins gets both. `spacing` exists to
- * control that in one place — `spacing="none"` turns the card back into a plain
- * padded surface, which is what a dense KPI tile wants.
+ * whose children already carry their own margins gets both.
+ *
+ * SO THE GAP IS OFF BY DEFAULT, and that is the single most important line in this
+ * file. Every card in this app is written the legacy way — the card pads itself and
+ * its children space themselves with margins (`.dash-activity-body` has
+ * `margin-top: 16px`, `.jo-kpi-value` has `8px`, `.jo-section-title` has `12px`).
+ * Inheriting the library's gap on top of those does not adjust the rhythm, it ADDS to
+ * it: 16px became 32px on the Dashboard's activity and chart cards, and 8px became
+ * 24px inside every Journal Overview KPI. Nobody wrote a number down wrong; two
+ * spacing models were simply both active.
+ *
+ * `gap` opts back in, for a card whose children carry no margins of their own. New
+ * cards should prefer it — one mechanism beats per-child margins — but it cannot be
+ * the default while the pages are still on their own CSS (Phase 5), because the
+ * default has to be "do not fight the stylesheet".
+ *
+ * WHY NOT JUST `spacing="none"` EVERYWHERE, which is what the KPI tiles do: because
+ * `--card-spacing` drives padding AND the gap, so switching it off removes the card's
+ * padding too. The KPI tiles get away with it only because their padding is restated
+ * in legacy CSS. Splitting the two is what lets every other card keep the padding it
+ * wants and the rhythm it already had.
  *
  * Horizontal padding is restored here (`px-(--card-spacing)`) because every card in
  * this app has always had it, and a surface with vertical-only padding is not a
@@ -56,11 +74,14 @@ const SPACING = {
   lg: '[--card-spacing:--spacing(5)]',   // 20px — the library default
 };
 
-function Card({ hover = false, flush = false, spacing = 'md', className, ...rest }) {
+function Card({ hover = false, flush = false, spacing = 'md', gap = false, className, ...rest }) {
   return (
     <UICard
       className={[
         SPACING[spacing] ?? SPACING.md,
+        // See the header: the card imposes no vertical rhythm unless asked, because
+        // the pages' own CSS already supplies it via child margins.
+        !gap && 'gap-0',
         // A card is padded on all four sides here; the library pads only vertically.
         // Clipping rides with `flush`, per the header — everything else must be free
         // to show a popover that overhangs its edge.

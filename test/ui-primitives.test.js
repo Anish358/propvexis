@@ -84,6 +84,31 @@ test('the primitives barrel exports every primitive a page needs', () => {
   }
 });
 
+test('the Card imposes no vertical rhythm unless asked', () => {
+  // The library card spaces its children with gap-(--card-spacing). Every card in
+  // this app has children that already carry their own margins, so inheriting that
+  // gap ADDS to them rather than replacing them: 16px became 32px on the Dashboard's
+  // activity and chart cards, 8px became 24px inside each Journal Overview KPI. The
+  // default must stay "do not fight the stylesheet" until pages are converted.
+  const card = read('../frontend/src/components/primitives/card.jsx');
+  assert.match(card, /gap\s*=\s*false/, 'the gap must default to off');
+  assert.match(card, /!gap\s*&&\s*'gap-0'/, "gap-0 is what cancels the library's gap");
+});
+
+test('cards whose children carry their own margins do not also ask for a gap', () => {
+  // The inverse guard: these child margins are the app's spacing model. If one of
+  // them is ever removed in favour of the card's gap, that is a real change and this
+  // test should be updated deliberately — not discovered as doubled spacing on screen.
+  for (const rule of [
+    /\.dash-activity-body \{[^}]*margin-top:\s*16px/,
+    /\.dash-equity-head \{[^}]*margin-bottom:\s*16px/,
+    /\.jo-kpi-value \{[^}]*margin-top:\s*8px/,
+    /\.jo-section-title \{[^}]*margin:\s*0 0 12px/,
+  ]) {
+    assert.match(css, rule, 'a card child lost the margin the card is relying on it to have');
+  }
+});
+
 test('the Card clips its overflow only when flush', () => {
   // The generated card sets overflow-hidden unconditionally, to clip a child <img>
   // to the radius. We have no images in cards; we do have Explain tooltips that
