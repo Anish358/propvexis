@@ -108,6 +108,9 @@
   --color-brand-border-strong: var(--accent-border-strong);
   --color-brand-ring: var(--accent-ring);
   --color-on-brand: var(--on-accent);
+  /* Brand blue that is READ rather than filled — links, focus edges, chart lines.
+     The preset's brand value is a fill; as a foreground it fails AA. See tokens.css. */
+  --color-brand-on-surface: var(--accent-on-surface);
 
   /* Outcomes — green and red are reserved for trade P&L */
   --color-profit: var(--profit);
@@ -198,6 +201,16 @@
   --color-tint-accent: var(--tint-accent);
   --color-tint-ai-1: var(--tint-ai-1);
   --color-tint-ai-2: var(--tint-ai-2);
+
+  /* Chart categorical palette — from preset b2qKmlY80 (chartColor: green).
+     Adopted provisionally: green is this product's profit colour, so a
+     categorical chart in these hues can read as an outcome. Revisit per
+     DESIGN-LANGUAGE §12. --profit / --loss are untouched. */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   /* Scrims and sheens */
   --color-scrim-1: var(--scrim-1);

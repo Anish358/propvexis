@@ -7,8 +7,9 @@
   color-scheme: dark;
 
   /* ===== PRIMITIVES (raw scales — never used directly in components) ===== */
-  --blue-400:#60a5fa; --blue-500:#3b82f6; --blue-600:#2563eb; --blue-700:#1d4ed8;
-  --slate-400:#94a3b8; --slate-500:#64748b;   /* secondary/tertiary text */
+  --blue-400:#51a2ff; --blue-500:#2b7fff; --blue-600:#155dfc; --blue-700:#1447e6;
+  --blue-800:#193cb8;   /* preset b2qKmlY80 uses this as the dark-theme brand fill */
+  --slate-400:#a1a1a1; --slate-500:#737373;   /* secondary/tertiary text */
   --green-400:#4ade80; --green-500:#22c55e; --green-600:#16a34a;
   --red-400:#f87171;  --red-500:#ef4444;  --red-600:#dc2626;  --red-muted:#d95a5a;
   --amber-400:#fbbf24; --amber-500:#f59e0b;
@@ -18,32 +19,41 @@
   /* ===== SURFACES — the PropVexis brand palette (Background/Surface), flat and
      solid. No gradients — the brand's design language calls for flat surfaces,
      lots of whitespace, subtle shadows over gradient chrome. ===== */
-  --bg: #0b0d12;                 /* brand "Background" */
-  --panel: #151922; --surface: #151922;   /* brand "Surface" — cards, modals, panels */
-  --surface-2: #1f2532;          /* elevated: popovers, menus, cards-on-cards */
-  --sidebar-bg: #0b0d12;         /* flat — same tone as the page background */
-  --surface-hover: rgba(255,255,255,0.045);
-  --line: rgba(255,255,255,0.08);
-  --line-strong: rgba(255,255,255,0.14);
+  --bg: #0a0a0a;                 /* brand "Background" */
+  --panel: #171717; --surface: #171717;   /* brand "Surface" — cards, modals, panels */
+  --surface-2: #262626;          /* elevated: popovers, menus, cards-on-cards */
+  --sidebar-bg: #171717;         /* preset: a raised surface, one step above the page.
+                                    Replaced our flat-sidebar rule by owner decision. */
+  --surface-hover: #262626;
+  --line: rgba(255,255,255,0.10);
+  --line-strong: rgba(255,255,255,0.15);
 
-  /* Neutral selection — active/selected CHROME is grayscale (white-alpha), never
-     tinted. Blue is reserved for primary actions + data, not chrome. */
-  --sel-bg: rgba(255,255,255,0.06);
-  --sel-bg-strong: rgba(255,255,255,0.10);
+  /* Neutral selection — active/selected CHROME is grayscale, never tinted. Blue is
+     reserved for primary actions + data, not chrome. Preset values are OPAQUE
+     greys, not white-alpha: they no longer adapt to the surface underneath, which
+     was the point of the alpha version. Owner-approved. */
+  --sel-bg: #27272a;
+  --sel-bg-strong: #404040;
 
   /* ===== TEXT (brand "Text" / "Secondary Text", 3rd tier derived) ===== */
-  --text: #ffffff;
+  --text: #fafafa;
   --text-2: var(--slate-400); --muted: var(--slate-400);
   --text-3: var(--slate-500);
 
   /* ===== BRAND (blue = the product; NOT profit) ===== */
-  --accent: var(--blue-500);            /* primary buttons, links, focus, data lines only */
-  --accent-strong: var(--blue-600);     /* filled-button bg — white text passes AA */
-  --accent-bg: rgba(59,130,246,0.14);
-  --accent-hover-bg: rgba(59,130,246,0.22);
-  --accent-border: rgba(59,130,246,0.32);
-  --accent-border-strong: rgba(59,130,246,0.5);
-  --on-accent: #ffffff;
+  --accent: var(--blue-800);            /* primary buttons, links, data lines. NOT focus
+                                           any more — the ring is neutral, see --accent-ring. */
+  --accent-strong: var(--blue-700);     /* filled-button bg — pair with --on-accent */
+  --accent-bg: rgba(43,127,255,0.14);
+  --accent-hover-bg: rgba(43,127,255,0.22);
+  --accent-border: rgba(43,127,255,0.32);
+  --accent-border-strong: rgba(43,127,255,0.5);
+  --on-accent: #eff6ff;
+  /* Brand blue ON a surface — links, focus edges, chart data lines. The preset's
+     --primary is a FILL value, always paired with a light foreground on top of it
+     (8.11:1). Used as a foreground itself it measures 2.24:1 on --bg, which fails
+     WCAG AA. So the brand splits in two: --accent fills, this one is read. */
+  --accent-on-surface: var(--blue-500);   /* 5.26:1 on --bg */
   --brand: var(--accent); --brand-bg: var(--accent-bg);
 
   /* ===== OUTCOMES (green/red reserved for trade P&L only) ===== */
@@ -79,10 +89,11 @@
 
   /* ===== RADIUS ===== */
   /* Radius audit: a handful of fixed steps, not arbitrary values per component.
-     Cards -> --r-2xl (20px). Buttons -> --r-lg (12px). Inputs -> --r-input
-     (10px). Badges/pills/chips -> --r-full (999px). --r-sm/--r-md remain for
-     smaller chrome (icon buttons, menu rows) that isn't one of those four. */
-  --r-sm:6px; --r-md:8px; --r-input:10px; --r-lg:12px; --r-xl:16px; --r-2xl:20px; --r-full:999px;
+     Cards -> --r-2xl. Buttons -> --r-lg. Inputs -> --r-input. Badges/pills/chips
+     -> --r-full. --r-sm/--r-md remain for smaller chrome (icon buttons, menu rows)
+     that isn't one of those four. Values are the preset's (base 0.45rem, steps
+     derived from it) and are ~40% tighter than the px scale they replaced. */
+  --r-sm:0.27rem; --r-md:0.36rem; --r-input:0.63rem; --r-lg:0.45rem; --r-xl:0.63rem; --r-2xl:0.81rem; --r-full:999px;
 
   /* ===== SPACING — 8px grid; allowed steps are 4/8/12/16/24/32/40/48 only
      (4 is the sole sub-8 exception, for hairline gaps). ===== */
@@ -167,14 +178,20 @@
      differently: a scrim still needs to darken a light page, whereas a drop
      shadow on white needs far less alpha or the card looks dirty. Named by
      opacity so the intent survives the next edit. */
-  --topbar-bg:rgba(11,13,18,0.97);
+  --topbar-bg:rgba(10,10,10,0.97);
   --scrim-1:rgba(0,0,0,0.35); --scrim-2:rgba(0,0,0,0.45);
   --scrim-3:rgba(0,0,0,0.6); --scrim-4:rgba(0,0,0,0.78);
   --shadow-40:rgba(0,0,0,.4); --shadow-45:rgba(0,0,0,.45); --shadow-50:rgba(0,0,0,.5);
   --shadow-60:rgba(0,0,0,0.6); --shadow-70:rgba(0,0,0,0.7);
-  --accent-ring:rgba(59,130,246,.18);
+  --accent-ring:#737373;
   --skeleton-sheen:rgba(255,255,255,.05);
 
+  /* ===== CHART CATEGORICAL PALETTE =====
+     From preset b2qKmlY80 (chartColor: green). ADOPTED PROVISIONALLY —
+     green is this product's profit colour, so a categorical chart in these
+     hues can read as profit. Revisit per DESIGN-LANGUAGE §12; --profit and
+     --loss are untouched and remain the outcome colours. ===== */
+  --chart-1:#7bf1a8; --chart-2:#00c950; --chart-3:#00a63e; --chart-4:#008236; --chart-5:#016630;
 }
 
 
@@ -202,14 +219,14 @@
   /* ---- core surfaces + text ---- */
   /* Page sits slightly grey so white cards read as raised, mirroring how the
      dark theme lifts --panel above --bg. */
-  --bg:#f5f6f8; --sidebar-bg:#ffffff;
-  --panel:#ffffff; --surface:#ffffff; --surface-2:#eef0f4;
-  --text:#0f172a; --slate-400:#475569; --slate-500:#64748b;
+  --bg:#ffffff; --sidebar-bg:#fafafa;
+  --panel:#ffffff; --surface:#ffffff; --surface-2:#f5f5f5;
+  --text:#0a0a0a; --slate-400:#737373; --slate-500:#a1a1a1;
   --muted:#5b6879;
   /* Hairlines and washes flip from white-alpha to ink-alpha. */
-  --line:rgba(15,23,42,0.10); --line-strong:rgba(15,23,42,0.18);
-  --surface-hover:rgba(15,23,42,0.04);
-  --sel-bg:rgba(15,23,42,0.06); --sel-bg-strong:rgba(15,23,42,0.10);
+  --line:#e5e5e5; --line-strong:#d4d4d4;
+  --surface-hover:#f5f5f5;
+  --sel-bg:#f4f4f5; --sel-bg-strong:#e5e5e5;
   --be-bg:rgba(15,23,42,0.06);
   /* Shadows need far less alpha on a light page or the cards look dirty. */
   --sh-1:0 1px 2px rgba(15,23,42,.08);
@@ -221,7 +238,7 @@
      so accent/profit/loss step down to their 600s. --on-accent is deliberately
      NOT overridden: it is text ON a filled button, which is coloured in both
      themes, so it stays white. */
-  --accent:var(--blue-600); --accent-strong:var(--blue-700);
+  --accent:var(--blue-700); --accent-strong:var(--blue-800); --accent-on-surface:var(--blue-700);
   --accent-bg:rgba(37,99,235,0.10); --accent-hover-bg:rgba(37,99,235,0.16);
   --accent-border:rgba(37,99,235,0.28); --accent-border-strong:rgba(37,99,235,0.45);
   --profit:var(--green-600); --loss:var(--red-600); --red:var(--red-600);
@@ -263,12 +280,12 @@
   --tint-accent:#496de1;
   /* Scrims stay dark (they exist to dim), just less so; shadows drop a lot of
      alpha or white cards read as grimy. */
-  --topbar-bg:rgba(245,246,248,0.97);
+  --topbar-bg:rgba(255,255,255,0.97);
   --scrim-1:rgba(15,23,42,0.25); --scrim-2:rgba(15,23,42,0.32);
   --scrim-3:rgba(15,23,42,0.42); --scrim-4:rgba(15,23,42,0.55);
   --shadow-40:rgba(15,23,42,.10); --shadow-45:rgba(15,23,42,.11); --shadow-50:rgba(15,23,42,.12);
   --shadow-60:rgba(15,23,42,.14); --shadow-70:rgba(15,23,42,.16);
-  --accent-ring:rgba(37,99,235,.20);
+  --accent-ring:#a1a1a1;
   --skeleton-sheen:rgba(15,23,42,.05);
 
 }

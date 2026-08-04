@@ -22,6 +22,28 @@ https://journal.anishdevlops.xyz still served during migration).
 - DB: `npm run db:migrate` · `npm run db:backup`
 - Frontend build: `cd frontend && npm run build`
 
+## Visual design system (governs ALL UI work)
+- **Source of truth:** `docs/design-system/DESIGN-LANGUAGE.md` (untracked). Every
+  UI decision — human or AI — must trace to a rule in it. *"It looks better"* is
+  not a justification.
+- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qKmlY80`** —
+  🔒 LOCKED 2026-08-04. Applied with
+  `pnpm dlx shadcn@latest apply --preset b2qKmlY80` (Existing Project → Full
+  preset: components + theme + fonts).
+- The preset owns the **global** layer: typography, font sizing, spacing, radius,
+  density, shadows, borders, colours, default component styling. **Never fall
+  back to stock shadcn styling; never invent a new visual style.** On any
+  conflict with shadcn defaults, the preset + DESIGN-LANGUAGE.md win.
+- DESIGN-LANGUAGE.md **extends** the foundation with PropVexis-specific rules
+  (trading semantics, KPI/chart conventions, prohibitions). It does not restate
+  foundation values — a missing value there is deliberate.
+- **Structure is a locked invariant:** layouts, information hierarchy, user
+  flows, interactions, responsive behaviour and business logic do NOT change for
+  visual work. Only the visual implementation follows the design language.
+- Changing a foundation value requires owner approval + a new preset ID +
+  a matching DESIGN-LANGUAGE.md amendment, committed together.
+- Migration sequencing: `docs/architecture/UI-MIGRATION-PLAN.md` (untracked).
+
 ## Workflow rules (important)
 - Work on **`dev`**; ship via **PR `dev` → `main`**. Merge to `main` auto-deploys (GitHub Actions → EC2).
 - **Never self-merge PRs to `main`** — the user merges (the auto-approval classifier blocks agent self-merge). Open the PR and hand off with the URL.
