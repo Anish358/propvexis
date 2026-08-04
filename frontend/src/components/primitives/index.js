@@ -21,7 +21,10 @@
    real component and **not one caller changes**. That is the whole point of the
    seam: it is load-bearing before it is used.
 
-   `skeleton.jsx` is the worked example — it wraps, because it had a reason to.
+   `button.jsx` and `skeleton.jsx` are the worked examples — they wrap, because
+   they had reasons to. Button translates the app's existing prop vocabulary
+   (variant="primary", size="md", block, as) onto shadcn's, so a page migrates by
+   changing one import line rather than by rewriting its JSX.
 
    KNOWN LIMITATION — REFS. The generated components are plain function components
    written against React 19, where `ref` arrives as an ordinary prop. This project
@@ -35,7 +38,7 @@
 
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
 export { Badge, badgeVariants } from './badge.js';
-export { Button, buttonVariants } from './button.js';
+export { Button, buttonVariants } from './button.jsx';
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.js';
 export { Input } from './input.js';
 export { Label } from './label.js';

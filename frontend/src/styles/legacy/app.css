@@ -59,7 +59,13 @@ body {
    eleven columns fit any normal desktop while a full twenty-one still stay
    legible (and scroll) instead of being crushed. --grid-cols is set inline by
    TradesTable from the number of visible columns. */
-.grid { border-collapse: collapse; width: 100%; min-width: calc(var(--grid-cols, 11) * 92px); table-layout: fixed; }
+/* `display: table` is the UA default for <table>, so it changes nothing visually.
+   It is declared explicitly to win a real collision: Tailwind's `grid` utility --
+   used by the generated Card -- emits `.grid{display:grid}`, and utility rules live
+   in a cascade layer while this rule does not. Unlayered wins, but ONLY for the
+   properties it declares. Without `display` here, `display:grid` would apply and
+   the Trade Log would stop being a table. Guarded by utility-collisions.test.js. */
+.grid { display: table; border-collapse: collapse; width: 100%; min-width: calc(var(--grid-cols, 11) * 92px); table-layout: fixed; }
 .grid th {
   /* Sticks to the bottom edge of the top bar as the PAGE scrolls — the table has
      no scroll box of its own (see .log-panel). --topbar-h is measured and

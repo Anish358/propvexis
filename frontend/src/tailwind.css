@@ -48,9 +48,17 @@
    keyframes name). Introduced with the token bridge, as agreed. */
 @import "shadcn/tailwind.css";
 
-/* PHASE 4 SWITCH — still OFF. Scanning gets enabled together with the component
-   library, scoped to the directories that actually contain Tailwind classes
-   (`@source "./components/ui";`). Do NOT widen it to the whole of src/ without
-   first checking for bare-utility-name collisions: legacy class names and Tailwind
-   utility names share one global namespace, and `<table class="grid">` in the
-   Trade Log collides with Tailwind's `grid` utility. See note 2 above. */
+/* SCANNING — ON, and scoped to the component library ONLY.
+   These two directories are the only place Tailwind classes are written, so they
+   are the only place scanned. Deliberately NOT `./` or `./**`: scanning all of src/
+   harvests candidates out of hyphenated legacy class names (`dash-grid` yields
+   `grid`, `dle-hidden` yields `hidden`) and emits live .grid/.hidden/.table rules
+   that legacy markup collides with. That is not theoretical — `.grid` is the Trade
+   Log's <table>, and the mitigation is asserted by utility-collisions.test.js.
+
+   CONSEQUENCE, and it is intentional: a Tailwind class written in a page under src/
+   will NOT compile until that path is added here. Pages migrate by composing
+   primitives, not by writing utilities in place; when a page genuinely needs its
+   own utilities, widening this scope is a deliberate, reviewable change. */
+@source "./components/ui";
+@source "./components/primitives";

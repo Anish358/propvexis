@@ -7,8 +7,17 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import MonthCalendar from './MonthCalendar.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
 import Explain from './Explain.jsx';
+// PHASE 4b — first page migrated to the generated component library. Button now
+// comes from the primitives layer (shadcn on Base UI, styled by our token bridge);
+// the prop API is unchanged, so no JSX below moved.
+//
+// Card, Tabs and EmptyState deliberately stay on ui.jsx: shadcn's Card is not a
+// drop-in for `.u-card` (it is flex-col with a gap and vertical-only padding, and
+// draws a ring instead of a border), and the KPI cards it would land on are locked
+// geometry. Tabs and EmptyState have no generated equivalent at all.
+import { Button } from '@/components/primitives';
 import {
-  Card, Tabs, EmptyState, Button,
+  Card, Tabs, EmptyState,
 } from './ui.jsx';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
