@@ -37,5 +37,8 @@
   },
   "devDependencies": {
     "socket.io-client": "^4.8.1"
+  },
+  "registries": {
+    "@coss": "https://coss.com/ui/r/{name}.json"
   }
 }
