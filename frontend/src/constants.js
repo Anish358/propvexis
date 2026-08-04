@@ -5,6 +5,16 @@ export const MTF_OPTIONS = ['A', 'A2', 'B', 'C', 'D', 'RANGE'];
 // kebab-safe class suffixes for color coding
 export const slug = (v) => (v ? String(v).toLowerCase().replace(/[^a-z0-9]/g, '') : '');
 
+// Title Case for display text. The app writes labels, headings and badges in title
+// case — never SHOUTED, in markup or via text-transform (see
+// test/typography.test.js). Use this where the underlying VALUE is stored lowercase
+// or uppercase but is being shown to a person: a plan ('pro' -> 'Pro'), a direction
+// ('sell' -> 'Sell'). Leave real data alone — a symbol is EURUSD, not Eurusd.
+export const titleCase = (v) => {
+  const s = String(v ?? '').trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+};
+
 // Dates/times are stored UTC (timestamptz) but shown in the USER's local zone —
 // `new Date(iso)` + local getters do the conversion. Times are 24-hour HH:MM.
 export function fmtDate(iso) {

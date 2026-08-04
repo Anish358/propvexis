@@ -4,6 +4,7 @@ import PageHeader from './PageHeader.jsx';
 import { computeMetrics, valueField, tradeOutcome, fmtVal } from './metrics.js';
 import { Card, Badge, Button, EmptyState } from './ui.jsx';
 import Explain from './Explain.jsx';
+import { titleCase } from './constants.js';
 
 // Trade Journal module front door: headline performance + recent activity +
 // quick links across the module. Read-only — composed entirely from the trades
@@ -107,7 +108,7 @@ export default function JournalOverview() {
                 return (
                   <div className="jo-trade" key={t.id}>
                     <span className="jo-trade-sym">{t.symbol_base || t.symbol}</span>
-                    <Badge tone="neutral">{(t.direction || '').toUpperCase() || '—'}</Badge>
+                    <Badge tone="neutral">{titleCase(t.direction) || '—'}</Badge>
                     <span className={`jo-trade-val ${out === 'win' ? 'pos' : out === 'loss' ? 'neg' : ''}`}>
                       {fmtVal(val, unit)}
                     </span>

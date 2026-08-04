@@ -152,7 +152,7 @@ export default function Analytics() {
                   </tr>
                 ))}
                 <tr className="total-row">
-                  <td>TOTAL</td>
+                  <td>Total</td>
                   <td className="num">{cell(yearly.total.overall, unit)}</td>
                   {yearly.setups.map((s) => <td key={s} className="num">{cell(yearly.total[s], unit)}</td>)}
                 </tr>

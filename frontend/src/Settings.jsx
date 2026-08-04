@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import { useAuth } from './AuthContext.jsx';
+import { titleCase } from './constants.js';
 import TradeSettingsModal from './TradeSettingsModal.jsx';
 
 // Settings — the USER's own info (login identity, plan) + app preferences.
@@ -12,7 +13,7 @@ export default function Settings() {
   const { connected, toggleSidebar, unit, tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns } = useOutletContext();
   const { user, logout } = useAuth();
   const [prefsOpen, setPrefsOpen] = useState(false);
-  const plan = (user?.plan || 'free').toUpperCase();
+  const plan = titleCase(user?.plan || 'free');
 
   return (
     <div className="page">

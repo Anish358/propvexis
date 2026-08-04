@@ -199,7 +199,7 @@ export function HealthGauge({ score, breached }) {
       <div className="prop-gauge-ring" style={{ background: `conic-gradient(var(--g-fill) ${deg}deg, var(--g-track) 0deg)` }}>
         <div className="prop-gauge-center">
           <div className="prop-gauge-score">{shown}</div>
-          <div className="prop-gauge-cap">HEALTH</div>
+          <div className="prop-gauge-cap">Health</div>
         </div>
       </div>
     </div>

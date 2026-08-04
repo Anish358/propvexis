@@ -1,154 +1,160 @@
 import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
-import { dayKey, valueField, tradeOutcome, fmtVal } from './metrics.js';
-import { slug, fmtTime } from './constants.js';
-import { Card, Button, EmptyState } from './ui.jsx';
+import DayCard from './DayCard.jsx';
+import DayJournalModal from './DayJournalModal.jsx';
+import TradePreview from './TradePreview.jsx';
+import { EmptyState } from './ui.jsx';
+import { fmtVal } from './metrics.js';
+import { groupByDay, summarizeAll } from './dayStats.js';
 
-// A single trading day in depth: pick a day, see its stats, every trade, and the
-// notes logged against them. Read-only, from the context trades (respects the
-// global FilterBar). Day navigation steps between days that actually have trades;
-// the date field can jump to any date (showing an empty-day message if none).
+// The Daily Journal — a workspace for reviewing trading days, not another table.
+//
+// The page is a FEED of days, newest first, one card each: the day's result, its
+// shape as a curve, the eight figures that describe the session, and its trades
+// behind a disclosure. That's the shift from the old version, which showed one day
+// at a time behind prev/next arrows — you had to already know which day you wanted,
+// and comparing two days meant clicking between them. A feed makes "how has the
+// week gone" answerable by scrolling, and keeps the review action (Journal) next to
+// the day it belongs to.
+//
+// Everything respects the global filters, like every other page: `trades` from
+// context is already the filtered set, so narrowing to one symbol re-describes
+// every day in terms of that symbol.
 
-const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const cellClass = { win: 'cell-win', loss: 'cell-loss', be: 'cell-be' };
+// How many days to render at once. A year of trading is ~250 cards, each with a
+// chart and eight tiles — enough DOM to make the page janky for a view where
+// nobody scrolls past the last week or two. "Show earlier days" extends it.
+const PAGE = 14;
 
-const Arrow = ({ dir }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d={dir === 'prev' ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'} />
-  </svg>
-);
-
-const Stat = ({ label, value, cls }) => (
-  <Card>
-    <div className="dv-stat-label">{label}</div>
-    <div className={`dv-stat-value ${cls || ''}`}>{value}</div>
-  </Card>
-);
+const sign = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 
 export default function DayView() {
-  const { trades = [], unit = 'R', connected, toggleSidebar, tradeSettings = {} } = useOutletContext();
+  const {
+    trades = [], unit = 'R', connected, toggleSidebar, tradeSettings = {},
+    saveTrade, removeTrade,
+  } = useOutletContext();
   const beRounding = !!tradeSettings.beRounding;
-  const field = valueField(unit);
 
-  // Ascending list of day-keys (YYYY-MM-DD) that have at least one realized trade.
-  const dayKeys = useMemo(() => {
-    const set = new Set();
-    for (const t of trades) if (t[field] != null && t.close_time) set.add(dayKey(new Date(t.close_time)));
-    return [...set].sort();
-  }, [trades, field]);
+  const days = useMemo(() => groupByDay(trades, unit, beRounding), [trades, unit, beRounding]);
+  const overall = useMemo(() => summarizeAll(days), [days]);
 
-  const [selected, setSelected] = useState(null);
-  const activeKey = selected ?? dayKeys[dayKeys.length - 1] ?? null;
+  // Which day cards have their trades showing. A Set of day keys, so expanding one
+  // doesn't collapse another — reviewing two days side by side is the point.
+  const [openDays, setOpenDays] = useState(() => new Set());
+  const [shown, setShown] = useState(PAGE);
+  const [journalDay, setJournalDay] = useState(null);
+  const [previewId, setPreviewId] = useState(null);
 
-  const prevKey = useMemo(() => [...dayKeys].reverse().find((k) => k < activeKey), [dayKeys, activeKey]);
-  const nextKey = useMemo(() => dayKeys.find((k) => k > activeKey), [dayKeys, activeKey]);
+  const toggleDay = (key) => setOpenDays((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
-  const list = useMemo(
-    () => trades
-      .filter((t) => t[field] != null && t.close_time && dayKey(new Date(t.close_time)) === activeKey)
-      .sort((a, b) => new Date(a.close_time) - new Date(b.close_time)),
-    [trades, field, activeKey],
+  const visible = days.slice(0, shown);
+  const allOpen = visible.length > 0 && visible.every((d) => openDays.has(d.key));
+  const toggleAll = () => setOpenDays(allOpen ? new Set() : new Set(visible.map((d) => d.key)));
+
+  // Read live from `trades` rather than snapshotted, so an edit made in the preview
+  // reflects immediately and a deleted trade closes the panel instead of showing a
+  // stale row.
+  const previewTrade = useMemo(() => trades.find((t) => t.id === previewId) || null, [trades, previewId]);
+  // Same for the open journal: re-resolve it from the regrouped days so saved notes
+  // show up without reopening.
+  const liveJournalDay = useMemo(
+    () => (journalDay ? days.find((d) => d.key === journalDay.key) || null : null),
+    [days, journalDay],
   );
 
-  const head = <PageHeader title="Day View" connected={connected} onMenu={toggleSidebar} />;
+  const head = <PageHeader title="Daily Journal" connected={connected} onMenu={toggleSidebar} />;
 
-  if (!dayKeys.length) {
+  if (!days.length) {
     return (
       <div className="page">
         {head}
         <EmptyState
           icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>}
           title="No trading days yet"
-          description="When trades sync in, pick any day here to review every trade, stat and note from that session."
+          description="Once trades sync in, every session shows up here as a day you can review, journal and learn from."
         />
       </div>
     );
   }
 
-  const d = new Date(`${activeKey}T00:00:00`);
-  const title = `${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]} ${d.getFullYear()}`;
-  const net = list.reduce((a, t) => a + Number(t[field]), 0);
-  const wins = list.filter((t) => tradeOutcome(t, unit, beRounding) === 'win').length;
-  const losses = list.filter((t) => tradeOutcome(t, unit, beRounding) === 'loss').length;
-  const decided = wins + losses;
-  const winRate = decided ? Math.round((100 * wins) / decided) : 0;
-  const vals = list.map((t) => Number(t[field]));
-  const best = vals.length ? Math.max(...vals) : 0;
-  const notes = list.filter((t) => (t.comments || '').trim());
-  const sign = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
-
   return (
     <div className="page">
       {head}
-      <div className="page-body">
-        <div className="dv-nav">
-          <Button variant="secondary" size="sm" onClick={() => setSelected(prevKey)} disabled={!prevKey} aria-label="Previous trading day"><Arrow dir="prev" /></Button>
-          <div className="dv-day">
-            <span className="dv-day-title">{title}</span>
-            <input
-              className="dv-date u-input"
-              type="date"
-              value={activeKey}
-              max={dayKeys[dayKeys.length - 1]}
-              onChange={(e) => setSelected(e.target.value || null)}
-            />
+      <div className="page-body dv-page">
+        {/* Summary strip: the whole filtered period in one line, then the days. */}
+        <div className="dv-bar">
+          <span className="dv-bar-label">Summary</span>
+          <div className="dv-bar-stats">
+            <span className="dv-bar-stat"><b className={sign(overall.net)}>{fmtVal(overall.net, unit)}</b> net</span>
+            <span className="dv-bar-sep" />
+            <span className="dv-bar-stat"><b>{overall.days}</b> day{overall.days === 1 ? '' : 's'}</span>
+            <span className="dv-bar-sep" />
+            <span className="dv-bar-stat"><b>{overall.trades}</b> trade{overall.trades === 1 ? '' : 's'}</span>
+            <span className="dv-bar-sep" />
+            <span className="dv-bar-stat"><b>{overall.dayWinRate == null ? '—' : `${overall.dayWinRate}%`}</b> green days</span>
+            <span className="dv-bar-sep" />
+            <span className="dv-bar-stat"><b>{overall.journaled}</b> journaled</span>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setSelected(nextKey)} disabled={!nextKey} aria-label="Next trading day"><Arrow dir="next" /></Button>
+          {/* One control, matching the layout sketch: open or close every day at
+              once, so a week can be read in full or skimmed. */}
+          <button
+            type="button"
+            className={`dv-expand ${allOpen ? 'is-on' : ''}`}
+            onClick={toggleAll}
+            aria-pressed={allOpen}
+            title={allOpen ? 'Collapse all days' : 'Expand all days'}
+            aria-label={allOpen ? 'Collapse all days' : 'Expand all days'}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {allOpen ? <path d="m18 15-6-6-6 6" /> : <path d="m6 9 6 6 6-6" />}
+            </svg>
+          </button>
         </div>
 
-        {list.length === 0 ? (
-          <EmptyState
-            title="No trades on this day"
-            description="Use the arrows to jump to the nearest day with activity, or pick another date."
-            actions={<Button variant="secondary" size="sm" onClick={() => setSelected(dayKeys[dayKeys.length - 1])}>Latest day</Button>}
-          />
-        ) : (
-          <>
-            <div className="dv-stats">
-              <Stat label="Net" value={fmtVal(net, unit)} cls={sign(net)} />
-              <Stat label="Trades" value={list.length} />
-              <Stat label="Win rate" value={`${winRate}%`} />
-              <Stat label="Best trade" value={fmtVal(best, unit)} cls={sign(best)} />
-            </div>
+        <div className="dv-days">
+          {visible.map((day) => (
+            <DayCard
+              key={day.key}
+              day={day}
+              unit={unit}
+              beRounding={beRounding}
+              open={openDays.has(day.key)}
+              onToggle={toggleDay}
+              onJournal={setJournalDay}
+              onTradeClick={(t) => setPreviewId(t.id)}
+            />
+          ))}
+        </div>
 
-            <Card flush>
-              <table className="day-table dv-table">
-                <thead><tr><th>Time</th><th>Pair</th><th>Setup</th><th>Session</th><th className="num">{unit === 'USD' ? 'P&L' : 'R'}</th></tr></thead>
-                <tbody>
-                  {list.map((t) => (
-                    <tr key={t.id}>
-                      <td>{fmtTime(t.close_time)}</td>
-                      <td><span className={`pill pair-${slug(t.symbol_base || t.symbol)}`}>{t.symbol_base || t.symbol}</span></td>
-                      <td>{t.setup ? <span className={`pill setup-${slug(t.setup)}`}>{t.setup}</span> : <span className="muted">—</span>}</td>
-                      <td>{t.session ? <span className={`pill session-${slug(t.session)}`}>{t.session}</span> : <span className="muted">—</span>}</td>
-                      <td className={`num ${cellClass[tradeOutcome(t, unit, beRounding)] || ''}`}>{fmtVal(t[field], unit)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-
-            {notes.length > 0 && (
-              <Card>
-                <h3 className="dv-notes-title">Notes</h3>
-                <div className="dv-notes">
-                  {notes.map((t) => (
-                    <div className="dv-note" key={t.id}>
-                      <div className="dv-note-head">
-                        <span className="dv-note-sym">{t.symbol_base || t.symbol}</span>
-                        <span className="dv-note-time">{fmtTime(t.close_time)}</span>
-                      </div>
-                      <p className="dv-note-body">{t.comments}</p>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-          </>
+        {days.length > shown && (
+          <button type="button" className="dv-more" onClick={() => setShown((n) => n + PAGE)}>
+            Show earlier days ({days.length - shown} more)
+          </button>
         )}
       </div>
+
+      {liveJournalDay && (
+        <DayJournalModal
+          day={liveJournalDay}
+          unit={unit}
+          beRounding={beRounding}
+          onClose={() => setJournalDay(null)}
+          onSave={saveTrade}
+        />
+      )}
+
+      <TradePreview
+        trade={previewTrade}
+        unit={unit}
+        beRounding={beRounding}
+        onClose={() => setPreviewId(null)}
+        onDelete={async (id) => { await removeTrade(id); setPreviewId(null); }}
+      />
     </div>
   );
 }

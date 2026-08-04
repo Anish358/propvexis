@@ -23,6 +23,10 @@ test('App renders DayView at /journal/day (not ComingSoon)', () => {
 
 test('DayView composes the kit + shared day helpers', () => {
   assert.match(dayView, /from '\.\/ui\.jsx'/);
-  assert.match(dayView, /dayKey|tradeOutcome/);
   assert.match(dayView, /<EmptyState/);
+  // Day aggregation is delegated, not reimplemented here — dayStats.js owns it, so
+  // the numbers are unit-testable rather than only inspectable on screen. (This
+  // used to look for dayKey/tradeOutcome inline; they moved behind that module.)
+  assert.match(dayView, /from '\.\/dayStats\.js'/);
+  assert.match(dayView, /groupByDay|summarizeAll/);
 });

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { activeFilterCount } from './filters.js';
 import { navTitle } from './nav.js';
+import { titleCase } from './constants.js';
 import FilterPanel from './FilterPanel.jsx';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
@@ -159,7 +160,7 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
 
   if (!user) return null;
   const initial = (user.name || user.email || '?').trim().charAt(0).toUpperCase();
-  const plan = (user.plan || 'free').toUpperCase();
+  const plan = titleCase(user.plan || 'free');
   const avatar = user.picture
     ? <img className="tb-avatar" src={user.picture} alt="" referrerPolicy="no-referrer" />
     : <span className="tb-avatar tb-avatar-fallback">{initial}</span>;

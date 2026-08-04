@@ -118,7 +118,7 @@ export default function Billing() {
     <div className="billing">
       <h2 className="billing-title">Plans</h2>
       <p className="billing-sub">
-        You're on the <b>{current[0].toUpperCase() + current.slice(1)}</b> plan.
+        You're on the <b>{titleCase(current)}</b> plan.
         {current === 'pro' && renewal && <> Renews {renewal}.</>}
       </p>
       {error && <div className="login-error">{error}</div>}
