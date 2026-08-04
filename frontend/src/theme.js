@@ -5,15 +5,18 @@
 export const BRAND = 'PropVexis';
 
 const FALLBACKS = {
-  '--accent': '#3b82f6',   // brand blue
-  '--accent-bg': 'rgba(59,130,246,0.14)',
+  // Foundation values from preset b2qKmlY80. Last resort for non-DOM contexts
+  // (tests) only -- live values always come from tokens.css.
+  '--accent': '#193cb8',              // brand FILL
+  '--accent-on-surface': '#2b7fff',   // brand as a stroke/link (5.26:1 on --bg)
+  '--accent-bg': 'rgba(43,127,255,0.14)',
   '--profit': '#22c55e',   // trade profit (green)
   '--loss': '#ef4444',     // trade loss (red)
   '--ai': '#8b5cf6',       // AI / insight accent (purple)
   '--payout': '#38bdf8',   // funded-account payout highlight (cyan)
   '--status-bad': '#ef4444',
   '--red': '#ef4444',
-  '--muted': '#94a3b8',
+  '--muted': '#a1a1a1',
   '--neutral-7': '#23232a',  // gauge/ring track (DashWidgets)
 };
 
@@ -46,7 +49,9 @@ export function chartPalette() {
   paletteCache = {
     profit: token('--profit'),
     loss: token('--loss'),
-    accent: token('--accent'),
+    // The brand step meant to be READ, not filled: --accent is the preset's fill
+    // value and measures 2.24:1 on --bg, which is invisible as a 2px stroke.
+    accent: token('--accent-on-surface'),
     grid: token('--line'),
     gridStrong: token('--line-strong'),
     axis: token('--text-3'),

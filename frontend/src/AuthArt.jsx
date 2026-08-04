@@ -33,8 +33,8 @@ export default function AuthArt() {
     <svg className="auth-art-svg" viewBox="0 0 640 900" preserveAspectRatio="xMidYMid slice" role="presentation">
       <defs>
         <linearGradient id="pvAuthFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--accent-on-surface)" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="var(--accent-on-surface)" stopOpacity="0" />
         </linearGradient>
         <filter id="pvAuthGlow" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="14" />
@@ -53,13 +53,13 @@ export default function AuthArt() {
 
       {/* equity curve: brand blue (product), never an outcome colour */}
       <path d={`${CURVE} L 596 500 L -20 500 Z`} fill="url(#pvAuthFill)" />
-      <path d={CURVE} fill="none" stroke="var(--accent)" strokeWidth="10" opacity="0.35" filter="url(#pvAuthGlow)" />
-      <path d={CURVE} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
+      <path d={CURVE} fill="none" stroke="var(--accent-on-surface)" strokeWidth="10" opacity="0.35" filter="url(#pvAuthGlow)" />
+      <path d={CURVE} fill="none" stroke="var(--accent-on-surface)" strokeWidth="2.5" strokeLinecap="round" />
       {/* "now" cursor — anchors the curve's end instead of letting the fill taper
           off into a stray diagonal at the panel edge */}
       <line x1="596" y1="208" x2="596" y2="812" stroke="var(--line-strong)" strokeWidth="1" strokeDasharray="4 6" />
-      <circle cx="596" cy="208" r="4.5" fill="var(--accent)" />
-      <circle cx="596" cy="208" r="11" fill="none" stroke="var(--accent)" strokeWidth="1.5" opacity="0.4" />
+      <circle cx="596" cy="208" r="4.5" fill="var(--accent-on-surface)" />
+      <circle cx="596" cy="208" r="11" fill="none" stroke="var(--accent-on-surface)" strokeWidth="1.5" opacity="0.4" />
 
       {/* candles: green/red are trade outcomes, the one place they belong */}
       <g strokeWidth="1.5">

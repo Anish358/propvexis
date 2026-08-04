@@ -50,7 +50,24 @@ test('no .win/profit rule is colored with the blue brand accent', () => {
   assert.deepEqual(offenders, [], `profit rules must use --profit, not --accent:\n${offenders.join('\n')}`);
 });
 
-test('theme.js JS fallback for --accent matches the brand blue (chart/canvas parity)', () => {
-  assert.match(themeJs, /'--accent':\s*'#3b82f6'/);
-  assert.match(themeJs, /'--profit':\s*'#22c55e'/);
+test('theme.js JS fallbacks match the CSS tokens (chart/canvas parity)', () => {
+  // Canvas and chart code cannot read var(), so theme.js keeps literal fallbacks
+  // for non-DOM contexts. Their whole job is to AGREE with tokens.css, so this
+  // resolves both sides and compares them rather than pinning a hex that a preset
+  // amendment is allowed to change.
+  const resolve = (name) => {
+    const raw = root.match(new RegExp(`(?<![\\w-])--${name}\\s*:\\s*([^;]+);`));
+    if (!raw) return null;
+    const v = raw[1].trim();
+    const ref = v.match(/^var\(--([\w-]+)\)$/);
+    return ref ? resolve(ref[1]) : v;
+  };
+  for (const name of ['accent', 'accent-on-surface', 'profit', 'loss']) {
+    const css = resolve(name);
+    const js = themeJs.match(new RegExp(`'--${name}':\\s*'([^']+)'`));
+    assert.ok(css, `--${name} must exist in the token layer`);
+    assert.ok(js, `theme.js must carry a fallback for --${name}`);
+    assert.equal(js[1].toLowerCase(), css.toLowerCase(),
+      `theme.js fallback for --${name} has drifted from tokens.css`);
+  }
 });

@@ -79,7 +79,10 @@ test('the artwork is decoration: hidden from AT and dropped on small screens', (
 });
 
 test('artwork keeps the colour roles: blue curve, green/red candles', () => {
-  assert.match(art, /stroke="var\(--accent\)"/);            // equity curve = brand
+  // The curve must be BRAND, never an outcome. Which brand token carries it is a
+  // foundation detail: --accent is the preset's fill value and measures ~2:1 on
+  // --panel, so a 2.5px stroke uses --accent-on-surface instead. Either is brand.
+  assert.match(art, /stroke="var\(--accent(-on-surface)?\)"/);
   assert.match(art, /up \? 'var\(--profit\)' : 'var\(--loss\)'/);  // candles = outcomes
   assert.ok(!/var\(--profit\)/.test(art.slice(art.indexOf('CURVE ='), art.indexOf('const BODY_W'))),
     'the equity curve must not be coloured with an outcome token');
