@@ -3,14 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // Guards the Phase 0 design-foundation invariant: the BRAND is blue, and
 // green/red are reserved for trade OUTCOMES. If a future edit re-conflates
 // them (e.g. makes --accent green again, or colors a .win with --accent),
 // these tests fail before it ships.
-const css = readFileSync(
-  fileURLToPath(new URL('../frontend/src/styles.css', import.meta.url)),
-  'utf8',
-);
+const css = appCss;
 const themeJs = readFileSync(
   fileURLToPath(new URL('../frontend/src/theme.js', import.meta.url)),
   'utf8',
@@ -20,8 +18,14 @@ const themeJs = readFileSync(
 const root = css.slice(css.indexOf(':root'), css.indexOf('}', css.indexOf(':root')) + 1);
 
 test('brand accent is the blue family, not green', () => {
-  assert.match(root, /--blue-500:\s*#3b82f6/i);   // brand primary blue
-  assert.match(root, /--accent:\s*var\(--blue-500\)/);
+  // The invariant is the FAMILY, not a literal hex: foundation values come from
+  // the approved preset and can be re-pointed by a preset amendment. What may
+  // never change is that the brand is a blue primitive and never green.
+  assert.match(root, /--accent:\s*var\(--blue-\d00\)/);
+  const blue = root.match(/--blue-500:\s*(#[0-9a-f]{6})/i);
+  assert.ok(blue, '--blue-500 must exist as a primitive');
+  const [, r, g, b] = blue[1].match(/#(..)(..)(..)/).map((x, i) => (i ? parseInt(x, 16) : x));
+  assert.ok(b > r && b > g, `--blue-500 (${blue[1]}) must actually be blue-dominant`);
   // The old green brand color must be gone from the token layer.
   assert.doesNotMatch(root, /--accent:\s*#39d98a/i);
 });

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appCss } from './helpers/app-css.js';
 import {
   summarizeDay, groupByDay, summarizeAll, holdMinutes, fmtMins, dayTitle, dayRelative,
 } from '../frontend/src/dayStats.js';
@@ -13,7 +14,7 @@ const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'ut
 const page = read('../frontend/src/DayView.jsx');
 const card = read('../frontend/src/DayCard.jsx');
 const modal = read('../frontend/src/DayJournalModal.jsx');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 
 // Two days. Day 1 nets +1R over three trades (one breakeven); day 2 nets -1R.
 const T = (over) => ({

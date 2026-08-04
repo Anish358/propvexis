@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // The auth screen (login + signup) is a split layout: copy + Google CTA on the
 // left, an abstract chart panel on the right. These pin the parts that are easy
 // to break later — the shared-component contract, the decorative panel staying
@@ -11,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const login = read('../frontend/src/Login.jsx');
 const art = read('../frontend/src/AuthArt.jsx');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 
 test('one component serves both routes, differing only in copy', () => {
   assert.match(login, /mode = 'login'/);

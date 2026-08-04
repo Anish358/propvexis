@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // Design A — Dashboard reskin: cards are token-driven, not hardcoded. Dashboard
 // V1 replaced the old widget-toggle dashboard (which lived in dashboardWidgets.jsx
 // with its own chart theming) with a fixed layout that has no charts, so this now
 // checks the new Dashboard component + its CSS instead.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const dash = read('../frontend/src/Dashboard.jsx');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 
 test('Dashboard has no hardcoded gray colors (uses tokens/design-system classes)', () => {
   for (const gray of ['#1d1d23', '#5a5a63', '#33333b', '#2a2a32', '#151518']) {

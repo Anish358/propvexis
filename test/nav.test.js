@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { NAV, LEGACY_REDIRECTS, navRoutes, navTitle, OFF_NAV_TITLES } from '../frontend/src/nav.js';
 
+import { appCss } from './helpers/app-css.js';
 // The IA config (frontend/src/nav.js) is deliberately JSX-free so we can guard
 // its invariants here: the Sidebar and the route table both render from it, so
 // a malformed entry breaks navigation app-wide.
@@ -123,7 +124,7 @@ test('navTitle: every real route in the app has a name', () => {
 // ---- rail stays put ---------------------------------------------------------
 
 test('the nav list scrolls inside the rail, not the rail with the page', () => {
-  const css = readFileSync(fileURLToPath(new URL('../frontend/src/styles.css', import.meta.url)), 'utf8');
+  const css = appCss;
   const rail = css.slice(css.indexOf('.sidebar {'), css.indexOf('}', css.indexOf('.sidebar {')));
   // The rail is a fixed-height sticky column...
   assert.match(rail, /position: sticky; top: 0/);
@@ -142,7 +143,7 @@ test('the nav list scrolls inside the rail, not the rail with the page', () => {
 });
 
 test('a page with nothing to scroll to does not scroll', () => {
-  const css = readFileSync(fileURLToPath(new URL('../frontend/src/styles.css', import.meta.url)), 'utf8');
+  const css = appCss;
   // The top bar is a SIBLING above .page inside .shell-main, so .page must fill
   // only what's left below it. A flat 100vh made the document one bar-height
   // taller than the viewport on every page — a short page still scrolled, and all

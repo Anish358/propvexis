@@ -12,7 +12,9 @@ import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
-import './styles.css';
+// Single CSS entry. Import order and the four-layer architecture live in
+// styles/index.css - see that file.
+import './styles/index.css';
 
 // Frontend error tracking. No-op unless VITE_SENTRY_DSN is set at build time,
 // so dev builds (and any build without the var) ship with Sentry inert.

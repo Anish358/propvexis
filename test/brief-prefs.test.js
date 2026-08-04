@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appCss } from './helpers/app-css.js';
 import {
   BRIEF_SECTIONS, BRIEF_IMPORTANCE, BRIEF_CURRENCIES, BRIEF_WINDOWS, BRIEF_TIMEZONES,
   defaultBriefPrefs, sanitizeBriefPrefs, isDefaultBriefPrefs, briefSectionOn,
@@ -283,7 +284,7 @@ const pop = read('../frontend/src/BriefSettingsPopover.jsx');
 const dash = read('../frontend/src/Dashboard.jsx');
 const app = read('../frontend/src/App.jsx');
 const layoutJsx = read('../frontend/src/Layout.jsx');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 
 test('the gear toggles an anchored popover, not a modal', () => {
   assert.match(dash, /onClick=\{\(\) => setSettingsOpen\(\(o\) => !o\)\}/);

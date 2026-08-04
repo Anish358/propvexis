@@ -10,11 +10,12 @@ import {
 import { filterTrades, availableOptions, emptyFilters, sanitizeFilters } from '../frontend/src/filters.js';
 import { buildTradeWhere } from '../src/aggregations.js';
 
+import { appCss } from './helpers/app-css.js';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const panel = read('../frontend/src/FilterPanel.jsx');
 const bar = read('../frontend/src/FilterBar.jsx');
 const app = read('../frontend/src/App.jsx');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 const server = read('../src/app.js');
 
 const f = (patch) => ({ ...emptyFilters(), ...patch });

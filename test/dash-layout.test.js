@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appCss } from './helpers/app-css.js';
 import {
   DASH_ZONES, DASH_SECTIONS, KPI_WIDGETS, MAIN_WIDGETS, DASH_LABEL,
   GRID_COLUMNS, WIDGET_SIZES, widgetSpan, widgetSizeName,
@@ -19,7 +20,7 @@ const editor = read('../frontend/src/DashLayoutEditor.jsx');
 const editorCode = editor.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
 const app = read('../frontend/src/App.jsx');
 const layoutJsx = read('../frontend/src/Layout.jsx');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 
 // ---- model ------------------------------------------------------------------
 

@@ -6,11 +6,12 @@ import { TRADE_COLUMNS, colVisible, visibleColumns, settingsColumns } from '../f
 import { fmtDayShort } from '../frontend/src/constants.js';
 import { exportValue, csvText, tradesToCsv } from '../frontend/src/tradeExport.js';
 
+import { appCss } from './helpers/app-css.js';
 // The Trade Log's default view, table behaviour and headline KPI row. The column
 // SPEC is plain data (tradeColumns.js) so it can be asserted directly; the cells
 // are JSX and node can't import those, so their behaviour is read from source.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 const table = read('../frontend/src/TradesTable.jsx');
 const spec = read('../frontend/src/tradeColumns.js');
 const log = read('../frontend/src/TradeLog.jsx');

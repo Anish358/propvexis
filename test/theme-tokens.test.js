@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // Guards the token layer, which is the prerequisite for a light theme: if every
 // colour lives in :root, a light theme is one `:root[data-theme="light"]` block.
 // A raw literal in a component rule is a colour that CAN'T be themed, so it would
 // stay dark on a light page — these tests exist to stop that creeping back.
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 const lines = css.split('\n');
 
 // The three regions where a literal is legitimate, and why:

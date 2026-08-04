@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // Guards the Phase 1 component layer: the canonical `u-*` primitives exist in
 // both the CSS and the React kit, and the adoption retrofits stay wired.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 const ui = read('../frontend/src/ui.jsx');
 const comingSoon = read('../frontend/src/ComingSoon.jsx');
 

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // Design A (final) — modal/form controls converge on the primitive look:
 // token surfaces, token radius, an accessible danger fill, and a focus ring.
-const css = readFileSync(fileURLToPath(new URL('../frontend/src/styles.css', import.meta.url)), 'utf8');
+const css = appCss;
 
 test('modal input/danger surfaces are tokenized (no near-black inputs, no muted-red buttons)', () => {
   for (const hex of ['#0e0e10', '#0c0c0f', '#b3403a', '#c94b44']) {

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // Design A — Trade Log reskin: grid/table + toolbar are token-driven.
-const css = readFileSync(fileURLToPath(new URL('../frontend/src/styles.css', import.meta.url)), 'utf8');
+const css = appCss;
 
 test('trade-log grid no longer uses hardcoded grays/greens/roses', () => {
   for (const hex of ['#1b1b1f', '#1a1a1e', '#8fe0a6', '#e0918d', '#6bd58a', '#b9b9c0', '#6ea8fe']) {

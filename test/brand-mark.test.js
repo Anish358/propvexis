@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // One brand mark everywhere. The geometry below is shared with the marketing
 // site (propvexis-web: public/favicon.svg + src/components/Logo.astro) — if the
 // mark is ever redrawn, all three places have to move together, and these tests
@@ -11,7 +12,7 @@ const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'ut
 const logo = read('../frontend/src/Logo.jsx');
 const favicon = read('../frontend/public/favicon.svg');
 const sidebar = read('../frontend/src/Sidebar.jsx');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 
 const CHEVRON = 'M9 21.5 15 10l6 11.5';
 

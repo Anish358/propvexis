@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { titleCase } from '../frontend/src/constants.js';
 
+import { appCss } from './helpers/app-css.js';
 // TYPOGRAPHY RULE: this app writes in Title Case. Never SHOUTED — not via
 // `text-transform: uppercase` in CSS, not by `.toUpperCase()` on display text, and
 // not by typing a label in caps in the markup.
@@ -11,7 +12,7 @@ import { titleCase } from '../frontend/src/constants.js';
 // Why it's a test and not a note: all-caps creeps back one label at a time, and it
 // only looks wrong once several have accumulated. Caught here instead.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 const srcDir = fileURLToPath(new URL('../frontend/src', import.meta.url));
 const jsxFiles = readdirSync(srcDir).filter((f) => f.endsWith('.jsx'));
 
