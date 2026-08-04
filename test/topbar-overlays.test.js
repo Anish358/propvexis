@@ -129,6 +129,30 @@ test('the account rows stay open when checked, and say so', () => {
   assert.match(dd, /CheckboxItemIndicator/, 'the indicator must come from the primitive');
 });
 
+test('a menu item that is a LINK is not browser-default blue', () => {
+  // A REAL REGRESSION, caught in the running app rather than by this suite, which is why
+  // it now has a test. `<MenuItem render={<Link/>} />` renders a real <a>. The deleted
+  // `.tb-menu-item` rule had been declaring `color` and `text-decoration: none` — quietly
+  // doing Preflight's job. The generated item sets NO resting colour, because shadcn is
+  // written against Preflight, and Preflight is deliberately not imported here (R1). So
+  // deleting the legacy rule exposed the UA default and two menu items turned blue and
+  // underlined.
+  //
+  // The fix is the scoped reset §12 always allowed for, not a re-added legacy class. This
+  // asserts three things: the reset exists, it is scoped to generated components only, and
+  // it has ZERO specificity — the difference between a reset and an opinion, and what lets
+  // deliberate rules like `.auth-alt a` still win.
+  assert.match(bridgeCss, /:where\(a\[data-slot\], \[data-slot\] a\)/,
+    'the anchor reset must be scoped to generated components and specificity-free');
+  assert.match(bridgeCss, /:where\(a\[data-slot\][\s\S]{0,120}text-decoration: none/,
+    'it must neutralise the UA underline as well as the colour');
+  // And the reason it is needed at all, so this test explains itself if Preflight is ever
+  // enabled and someone wonders whether the reset is still doing anything.
+  const tw = read('../frontend/src/tailwind.css');
+  assert.ok(!/@import "tailwindcss"/.test(tw) || /PREFLIGHT IS NOT IMPORTED/.test(tw),
+    'if Preflight is ever imported globally, revisit this reset — it may be redundant');
+});
+
 test('all four top-bar overlays take the preset skin', () => {
   // THIS TEST'S PREMISE REVERSED ON 2026-08-05. It used to require that the primitives
   // contribute NO appearance — the caller's legacy class was the whole surface, because

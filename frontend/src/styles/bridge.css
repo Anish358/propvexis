@@ -392,7 +392,43 @@
 @utility z-toast { z-index: var(--z-toast); }
 
 /* ---------------------------------------------------------------------------
-   8. MOTION — the ONE overlay animation recipe (DESIGN-LANGUAGE §10)
+   8. THE SCOPED RESET GENERATED COMPONENTS ASSUME AND THIS APP DOES NOT HAVE
+
+   Preflight is deliberately not imported (see tailwind.css) because a global reset
+   would visibly change every page at once — migration-plan risk R1. The cost, which
+   only became visible when the first generated component shipped its own skin:
+   **shadcn's components are written against Preflight.** Their item styles set no
+   resting `color` and no `text-decoration`, because Preflight has already
+   neutralised the browser's defaults for them. Here it has not.
+
+   The bug that found this: `<MenuItem render={<Link/>} />` renders a real `<a>`. The
+   legacy `.tb-menu-item` rule used to declare `color` and `text-decoration: none`,
+   which was silently doing Preflight's job. Deleting that rule when the preset took
+   over item styling exposed the UA default, and "Settings" and "Manage plan" in the
+   user menu turned **browser-default blue and underlined**. Nothing in the generated
+   component was wrong; the reset it relies on simply was not there.
+
+   THE PLAN ALREADY ALLOWS FOR THIS — §12: "Resets that library components genuinely
+   need are scoped to `components/ui/`." This is the first one, and it will not be the
+   last: every generated component that can render an anchor has the same exposure
+   (dialog footers, buttons-as-links, breadcrumbs, nav items).
+
+   SCOPING. `data-slot` is the hook: only generated components emit it, and with the
+   `render` prop the anchor carries the attribute itself rather than merely sitting
+   inside it — so both forms are matched. `:where()` keeps specificity at ZERO, which
+   is the difference between a reset and an opinion: any author rule beats it,
+   including the deliberate legacy ones (`.auth-alt a`, `.acct-kind-upsell a`), while
+   it still beats the UA sheet. It can only ever remove a browser default.
+--------------------------------------------------------------------------- */
+@layer base {
+  :where(a[data-slot], [data-slot] a) {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   9. MOTION — the ONE overlay animation recipe (DESIGN-LANGUAGE §10)
 
    §10 is LOCKED and is explicitly NOT a foundation concern: the preset expresses
    no motion opinion, so generated components arriving with their own animation
