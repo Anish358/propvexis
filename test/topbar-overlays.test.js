@@ -3,14 +3,21 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { appCss, tokensCss, bridgeCss } from './helpers/app-css.js';
+import { appCss, tokensCss, bridgeCss, legacyCss } from './helpers/app-css.js';
 
-// Phase 4b — the top bar's four overlays (user menu, account switcher, notification
-// feed, filter builder) moved from hand-rolled open/close onto Base UI. The point of
-// that migration is entirely behavioural, which makes it the kind of change a test
-// suite normally cannot see: the markup is identical, the CSS classes are identical,
-// and the existing assertions in filter-panel.test.js kept passing throughout. What
-// changed is keyboard, focus and ARIA — so those are what this file pins.
+// Phase 4b — the top bar's four overlays: user menu, account switcher, notification feed,
+// filter builder. They were migrated in TWO passes, and this file now pins both.
+//
+//   2026-08-04  BEHAVIOUR. Hand-rolled open/close moved onto Base UI. Deliberately
+//               invisible: identical markup, identical CSS classes. Only keyboard, focus
+//               and ARIA changed.
+//   2026-08-05  APPEARANCE. The owner locked "the preset outranks legacy CSS", so the
+//               generated skin was adopted and the legacy surface and item rules deleted.
+//
+// Several tests below therefore assert the OPPOSITE of what they once did, and each says
+// so where it does. That is not churn: the first pass was scoped behaviour-only by an
+// explicit decision, and the second reversed that decision. A test that pinned the first
+// scope would now be pinning a choice the owner overruled.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const bar = read('../frontend/src/FilterBar.jsx');
 const notif = read('../frontend/src/Notifications.jsx');
@@ -122,26 +129,43 @@ test('the account rows stay open when checked, and say so', () => {
   assert.match(dd, /CheckboxItemIndicator/, 'the indicator must come from the primitive');
 });
 
-test('the MENU now takes the preset skin; the POPOVERS deliberately do not yet', () => {
+test('all four top-bar overlays take the preset skin', () => {
   // THIS TEST'S PREMISE REVERSED ON 2026-08-05. It used to require that the primitives
   // contribute NO appearance — the caller's legacy class was the whole surface, because
   // the migration was behaviour-only by decision. The owner reversed that decision:
   // DESIGN-LANGUAGE now locks "the preset outranks legacy CSS", so a generated
   // component's appearance is the correct one and the legacy rule is deleted.
-  //
-  // So `menu.jsx` must now point at the generated component, and the assertion that it
-  // stays bare would be asserting the old decision.
   assert.match(menu, /from '@\/components\/ui\/dropdown-menu'/,
     'menu.jsx must render the generated component, skin included');
-  assert.match(menu, /overlay-motion/, 'and animate on the §10 recipe, not shadcn\'s duration-100');
+  assert.match(popover, /from '@\/components\/ui\/popover'/,
+    'popover.jsx must render the generated component, skin included');
+  for (const [name, src] of [['menu', menu], ['popover', popover]]) {
+    assert.match(src, /overlay-motion/,
+      `${name}.jsx must animate on the §10 recipe, not shadcn's duration-100`);
+  }
+});
 
-  // The two POPOVERS (notification feed, filter builder) are still on bare Base UI, and
-  // that is a scope boundary rather than an omission — this increment was menus only, so
-  // that a half-reskinned set never ships. This assertion is what makes the boundary
-  // visible instead of forgettable, and it fails the day popover.jsx is migrated, which
-  // is when this test should be rewritten to match the menu's above.
-  assert.ok(!/components\/ui\/popover/.test(popover),
-    'popover.jsx is still bare Base UI — when that changes, update this test with it');
+test('the popover cancels the three utilities that would double its content\'s spacing', () => {
+  // `w-72 gap-4 p-4` describe a self-contained panel, and both of this app's popovers
+  // hold content that already spaces itself. `gap-4` in particular is the THIRD time this
+  // exact doubling has appeared — Card, then Modal, now Popover — which is why it is
+  // cancelled at the primitive rather than at each call site.
+  //
+  // `p-0` is the one with a visible failure mode rather than a merely loose one: the
+  // notification rows carry their own padding and their dividers span the full width, so
+  // 16px of popup padding insets every row and leaves the dividers short of both edges.
+  for (const u of ['w-auto', 'gap-0', 'p-0']) {
+    assert.match(popover, new RegExp(u.replace('-', '\\-')), `popover must cancel with ${u}`);
+  }
+  // And the surface variant, which exists because one popover is not a panel at all.
+  assert.match(popover, /surface = 'panel'/, 'a popover is a panel by default');
+  assert.match(bar, /<PopoverContent surface="none">/,
+    'the filter builder must drop the box — its content is already made of panels');
+  // The layer rule this enforces: a page may not originate appearance. An earlier version
+  // passed `bg-transparent shadow-none ring-0` from FilterBar, which put visual values in
+  // the Pages layer and made utility-collisions' class harvest meaningless.
+  assert.ok(!/className="(bg|shadow|ring|p|w|gap)-/.test(code(bar)),
+    'FilterBar must not carry raw utilities — express the intent as a primitive prop');
 });
 
 test('stacking: the preset owns the menu\'s z-index, and the token agrees with it', () => {
@@ -160,7 +184,11 @@ test('stacking: the preset owns the menu\'s z-index, and the token agrees with i
   assert.ok(z('dropdown') < z('toast'), 'a toast must sit above an open dropdown');
   assert.ok(z('toast') < z('modal'), 'a modal must sit above everything');
   assert.equal(z('dropdown'), 50, 'must match the generated Positioner\'s hardcoded z-50');
-  // The popover still routes through the token, so the utility must keep resolving.
-  assert.match(popover, /className="z-dropdown"/);
+  // Neither primitive passes `z-dropdown` any more — both generated Positioners hardcode
+  // z-50 and accept no className. The utility stays registered because legacy CSS still
+  // uses the token (the bulk-action menu), and because the token is what the ladder above
+  // is asserted against. Reconciling the VALUE is what keeps those two facts compatible.
   assert.match(bridgeCss, /@utility z-dropdown \{ z-index: var\(--z-dropdown\); \}/);
+  assert.match(legacyCss, /z-index: var\(--z-dropdown\)/,
+    'the token still has a legacy consumer — do not retire it with the primitives');
 });

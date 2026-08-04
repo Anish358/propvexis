@@ -230,6 +230,12 @@
   --radius-lg: var(--r-lg);
   --radius-xl: var(--r-xl);
   --radius-2xl: var(--r-2xl);
+  /* Our scale stops at 2xl, so every larger library step resolves to our largest rather
+     than inventing one — same reasoning as `--radius-4xl` further down. `3xl` is not
+     hypothetical: the generated popover asks for `rounded-3xl`, and without this line it
+     would silently fall back to Tailwind's 24px, putting two floating overlays on
+     different radii and breaking DESIGN-LANGUAGE §6 (an overlay is a card that floats). */
+  --radius-3xl: var(--r-2xl);
   --radius-full: var(--r-full);
   --radius-input: var(--r-input);   /* our own step — inputs are their own shape */
 

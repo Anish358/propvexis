@@ -158,7 +158,12 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
           <span>Filters</span>
           {active > 0 && <span className="tb-badge">{active}</span>}
         </PopoverTrigger>
-        <PopoverContent>
+        {/* `surface="none"` because this popover's CONTENT is already made of panels:
+            `FilterPanel` renders `.fp-stack`, a container for the panel and its cascade
+            columns, each drawing its own background, border and shadow. A box here would
+            paint a second panel behind the real ones. Positioning, dismissal and the
+            §10 animation are still the primitive's. */}
+        <PopoverContent surface="none">
           <FilterPanel
             options={options}
             filters={filters}

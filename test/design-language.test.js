@@ -78,7 +78,7 @@ test('§6 — every floating overlay takes the card radius', () => {
   // Decided rather than merely recorded: an overlay is a card that floats, so a menu and
   // the card it opens over never disagree by two or three pixels.
   const overlays = [
-    '.notif-panel', '.fp', '.fp-menu',
+    '.fp', '.fp-menu',
     '.bulk-menu', '.bs-pop', '.wcz-menu', '.explain-pop', '.toast',
     '.modal', '.rp-modal', '.onb-card', '.dle-panel',
   ];
@@ -89,13 +89,19 @@ test('§6 — every floating overlay takes the card radius', () => {
     assert.match(body, /border-radius:\s*var\(--r-2xl\)/,
       `${sel} must use var(--r-2xl) — see DESIGN-LANGUAGE §6`);
   }
-  // `.tb-user-menu` and `.acct-menu` left this list on 2026-08-05 — they no longer
-  // declare a radius, because the generated dropdown-menu does. The rule is unchanged
-  // and still enforced, one level up: the preset asks for `rounded-2xl`, and the bridge
-  // is what guarantees that lands on OUR card radius rather than Tailwind's 16px. If
-  // this mapping ever breaks, every preset-skinned overlay silently leaves the scale.
-  assert.match(bridgeCss, /--radius-2xl:\s*var\(--r-2xl\)/,
-    'the preset\'s rounded-2xl must resolve to our card radius — see DESIGN-LANGUAGE §6');
+  // `.tb-user-menu`, `.acct-menu` and `.notif-panel` left this list on 2026-08-05 — none
+  // declares a radius any more, because the generated dropdown-menu and popover do. The
+  // rule is unchanged and still enforced, one level up: the bridge is what guarantees the
+  // preset's radius names land on OUR scale rather than Tailwind's. If a mapping breaks,
+  // a preset-skinned overlay silently leaves the scale, which is invisible in review.
+  //
+  // `3xl` is the one that proves the test is worth having: the generated popover asks for
+  // `rounded-3xl`, our scale stops at 2xl, and the mapping was MISSING — so the
+  // notification feed would have rendered at Tailwind's 24px beside menus at 13px.
+  for (const step of ['2xl', '3xl', '4xl']) {
+    assert.match(bridgeCss, new RegExp(`--radius-${step}:\\s*var\\(--r-2xl\\)`),
+      `the preset's rounded-${step} must resolve to our card radius — see DESIGN-LANGUAGE §6`);
+  }
 });
 
 test('§6 — the assignment rule is documented where it is enforced', () => {
