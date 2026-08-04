@@ -1,4 +1,15 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+// PHASE 4b — on the shared Modal shell. The THIRTEENTH dialog, and the second the audit
+// missed: it is `.dle-backdrop` > `.dle-panel`, so a grep for `.modal-backdrop` walked
+// straight past it. Structurally it is the same centred modal as the other twelve, so it
+// takes the shell with its own surface classes, the way Replay does. It already handled
+// Escape; it gains aria-modal, a focus trap, focus return, a scroll lock and a portal.
+//
+// Its light scrim (`--scrim-1`, so you can watch the dashboard rearrange behind it) is a
+// deliberate visual choice and is preserved — that lives in `.dle-backdrop`, which the
+// shell still applies. `.dle-panel.is-dragging`'s `user-select: none` also still wins
+// over the shell's `select-text`, being unlayered legacy CSS.
+import { Modal } from '@/components/primitives';
 import {
   DASH_SECTIONS, KPI_WIDGETS, MAIN_WIDGETS, DASH_LABEL, GRID_COLUMNS,
   widgetSpan, widgetSizeName, isDashVisible, visibleDashIds, visibleSections,
@@ -220,13 +231,6 @@ export default function DashLayoutEditor({
   const { ref: flipRef, rects } = useFlip([layout]);
   const { drag, start } = useDragReorder(moveDashWidget || (() => {}), rects);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   const dragging = (zone, id) => drag?.zone === zone && drag?.id === id;
@@ -309,13 +313,13 @@ export default function DashLayoutEditor({
   return (
     // Deliberately a LIGHT backdrop, not the app's usual dim: the point of a live
     // editor is watching the real dashboard rearrange behind it.
-    <div className="dle-backdrop" onClick={onClose}>
-      <div
-        className={`dle-panel ${drag ? 'is-dragging' : ''}`}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Customize Dashboard"
-      >
+    <Modal
+      onClose={onClose}
+      surface="dle-panel"
+      backdrop="dle-backdrop"
+      className={drag ? 'is-dragging' : ''}
+      label="Customize Dashboard"
+    >
         <header className="dle-head">
           <h2>Customize Dashboard</h2>
           <div className="dle-head-actions">
@@ -382,8 +386,7 @@ export default function DashLayoutEditor({
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

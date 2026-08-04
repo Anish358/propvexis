@@ -6,6 +6,13 @@ import {
   LineStyle,
   CrosshairMode,
 } from 'lightweight-charts';
+// PHASE 4b — on the shared Modal shell. Replay was one of the two modals that already
+// handled Escape and declared role="dialog"; what it gains is aria-modal, a focus trap,
+// focus return to the opener, a scroll lock, and a portal. It is also the one modal that
+// does NOT use the shared `.modal` surface — it keeps `.rp-backdrop` > `.rp-modal` via
+// the shell's `surface`/`backdrop` props, because `.rp-modal` declares no padding and
+// would inherit `.modal`'s 24px, shrinking the chart. Content is untouched.
+import { Modal } from '@/components/primitives';
 import { fetchReplay } from './api.js';
 
 // Trade replay: candlestick playback of one trade. M1 bars come from the backend
@@ -175,18 +182,20 @@ export default function ReplayModal({ trade, onClose }) {
     return () => { alive = false; clearTimeout(pollRef.current); };
   }, [trade?.id, reloadKey]);
 
-  // ---- Close on Escape; space toggles play/pause.
+  // ---- Space toggles play/pause; arrows step. Escape is the shell's job now.
+  //      `preventDefault` on Space is load-bearing beyond suppressing page scroll: focus
+  //      is trapped inside the dialog now, so Space would otherwise also activate
+  //      whichever control holds focus (a button fires its click on keyup).
   useEffect(() => {
     if (!trade) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
       if (e.key === ' ' && ready) { e.preventDefault(); setPlaying((p) => !p); }
       if (e.key === 'ArrowRight') setCursor((c) => Math.min(c + 1, bars.length - 1));
       if (e.key === 'ArrowLeft') setCursor((c) => Math.max(c - 1, startIdx));
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [trade, onClose, ready, bars.length, startIdx]);
+  }, [trade, ready, bars.length, startIdx]);
 
   // ---- Create the chart once candles are ready. Price lines (entry/SL/TP) are
   //      set here since they don't change within a modal instance.
@@ -278,8 +287,7 @@ export default function ReplayModal({ trade, onClose }) {
   const sym = data?.trade.symbol || trade.symbol_base || trade.symbol;
 
   return (
-    <div className="rp-backdrop" onClick={onClose}>
-      <div className="rp-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Trade replay">
+    <Modal onClose={onClose} surface="rp-modal" backdrop="rp-backdrop" label="Trade replay">
         <header className="rp-head">
           <div className="rp-title">
             <h3>{sym} <span className="rp-sub">Replay</span></h3>
@@ -375,7 +383,6 @@ export default function ReplayModal({ trade, onClose }) {
             </>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

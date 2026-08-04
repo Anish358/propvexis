@@ -366,7 +366,17 @@ test('the editor is keyboard-operable, not pointer-exclusive', () => {
   assert.match(editor, /ArrowUp/);
   assert.match(editor, /ArrowLeft/);
   assert.match(editor, /tabIndex=\{0\}/);
-  assert.match(editor, /e\.key === 'Escape'/);
+  // Escape used to be a hand-rolled `document` keydown listener here. Phase 4b moved
+  // it — and the focus trap, focus return, aria-modal and scroll lock it never had —
+  // onto the shared Modal shell. The REQUIREMENT is unchanged and still pinned; only
+  // its source moved, so this asserts the editor is on the shell rather than
+  // re-asserting a listener it is now correct for it not to have.
+  assert.match(editor, /<Modal\b/, 'the editor must be on the shared Modal shell');
+  assert.doesNotMatch(
+    editor,
+    /addEventListener\('keydown'/,
+    'Escape is the shell\'s job now — a second listener would fight it',
+  );
 });
 
 test('row components stay at module scope so drags survive re-render', () => {

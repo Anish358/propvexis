@@ -2,7 +2,6 @@ import React, {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { createPortal } from 'react-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import MonthCalendar from './MonthCalendar.jsx';
 import DayTradesModal from './DayTradesModal.jsx';
@@ -20,7 +19,11 @@ import Explain from './Explain.jsx';
 // Tabs and EmptyState come from the same place now, but are NOT library-backed:
 // they still render `.u-tabs` / `.u-empty` because no generated equivalent exists.
 // The import path is the seam, not a claim about the implementation.
-import { Button, Card, Tabs, EmptyState } from '@/components/primitives';
+//
+// Modal is here for SetTargetModal below — the TWELFTH modal, which the Phase 4b audit
+// counted as eleven because it is declared inline in a page rather than in its own
+// `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
+import { Button, Card, Tabs, EmptyState, Modal } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
@@ -516,9 +519,8 @@ function SetTargetModal({
     }
   }
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal target-modal" onClick={(e) => e.stopPropagation()}>
+  return (
+    <Modal onClose={onClose} className="target-modal" label={isEdit ? 'Edit payout target' : 'Set payout target'}>
         <div className="modal-head">
           <h3>{isEdit ? 'Edit payout target' : 'Set payout target'}</h3>
           <button className="modal-x" onClick={onClose}>✕</button>
@@ -546,9 +548,7 @@ function SetTargetModal({
           )}
           {err && <div className="login-error">{err}</div>}
         </form>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
 

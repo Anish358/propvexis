@@ -1,4 +1,8 @@
 import React from 'react';
+// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
+// trap, no focus return and no scroll lock, and it did not portal; all six come from
+// the shell now. Its content below is untouched.
+import { Modal } from '@/components/primitives';
 import { BE_THRESHOLD } from './metrics.js';
 // The column SPEC, not the table: this list only needs each column's id, label and
 // default, so it doesn't pull the cell renderers (or React table markup) in.
@@ -20,8 +24,7 @@ export default function TradeSettingsModal({
   const cols = settingsColumns();
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal ts-modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} className="ts-modal" label="Trade Settings">
         <header>
           <h2>Trade Settings</h2>
           <button className="x" onClick={onClose}>×</button>
@@ -76,7 +79,6 @@ export default function TradeSettingsModal({
           <span className="footer-spacer" />
           <button className="primary" onClick={onClose}>Done</button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }

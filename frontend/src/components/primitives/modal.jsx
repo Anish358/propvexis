@@ -31,20 +31,63 @@ import {
  * layout, not refinement). Migrating a modal is deleting its backdrop div, its popup
  * div, its `createPortal` and its stopPropagation, and wrapping what is left.
  *
+ * TWO SURFACES, NOT ONE, WHICH IS WHY `surface`/`backdrop` ARE PROPS. Ten of the eleven
+ * modals are `.modal-backdrop` > `.modal`. Replay is not: it is `.rp-backdrop` >
+ * `.rp-modal`, a 960×640 chart frame that predates the shared look. Adding `.modal`
+ * alongside `.rp-modal` would not be harmless — `.rp-modal` overrides most of what
+ * `.modal` declares, but it declares no padding, so Replay would silently gain
+ * `.modal`'s 24px and its chart would shrink. That is an A1 regression, so the base
+ * class is a parameter rather than a constant. The default is the shared surface;
+ * Replay is the one caller that overrides it.
+ *
  * `onClose` is kept as the prop name rather than Base UI's `onOpenChange` because all
  * 11 already pass one, several conditionally (`() => !saving && onClose()`), and that
  * logic is theirs to keep.
+ *
+ * ── WHY THE POPUP IS A CHILD OF THE BACKDROP, WHICH IS NOT HOW shadcn DOES IT ──
+ *
+ * The legacy modal is centred by the *parent*: `.modal-backdrop` is a fixed, full-screen
+ * flex container with `place-items: center` and `padding: 24px`, and `.modal` is its
+ * child. Nothing in `.modal` positions itself — it is a `position: relative` block that
+ * relies entirely on being laid out by that parent.
+ *
+ * Base UI (and shadcn's generated `DialogContent`) make Backdrop and Popup *siblings*,
+ * and shadcn's skin compensates with `fixed top-1/2 left-1/2 -translate-1/2 z-50` on the
+ * popup. We cannot take that route, for a reason specific to this codebase: **`.modal` is
+ * unlayered legacy CSS, so it beats every Tailwind utility.** A `fixed` utility on the
+ * popup loses to `.modal { position: relative }`; a `z-50` loses to nothing but sits far
+ * below the backdrop's own `z-index: 2147483000`. The popup would render unpositioned in
+ * normal document flow at the end of `<body>`, underneath the scrim.
+ *
+ * So the shell restores the containment the CSS assumes. `.modal-backdrop` goes on the
+ * Backdrop and the Popup renders *inside* it, reproducing `div.modal-backdrop > div.modal`
+ * exactly. Every geometric value — the fixed inset, the centring, the 24px viewport gap
+ * that `.modal`'s `width: 100%` resolves against, the z-index — keeps coming from the one
+ * legacy rule that already declared it. Nothing is restated as a utility, which is §3
+ * Principle 1 (the bridge points; it never copies) applied to layout.
+ *
+ * Three consequences of nesting, each handled here rather than discovered later:
+ *
+ *   1. `forceRender`. Base UI skips the Backdrop for a *nested* dialog, and a skipped
+ *      backdrop would now mean a skipped popup. No modal opens another today, so this
+ *      changes nothing now; it means a future nested dialog gets its own scrim instead of
+ *      vanishing.
+ *   2. `select-text` on the popup. Base UI sets `user-select: none` inline on the
+ *      Backdrop, which as a sibling never reached the popup and as a parent would —
+ *      silently making every modal's text unselectable. Inline styles beat classes, so
+ *      this is overridden on the child, where the cascade lets it win.
+ *   3. Outside-click dismissal still works, and only because of the nesting. Base UI
+ *      closes a modal on outside press only when the press target *is* the registered
+ *      backdrop element (`useDialogRoot`'s `outsidePress`). A neutral wrapper div would
+ *      have swallowed the click and broken the dismissal all 11 modals had.
  */
-
-// Cancels the three skin utilities that would fight the legacy box. See dialog.jsx for
-// why each one: .modal is a scrolling block with its own border and its own child
-// margins, and the skin assumes a gapped grid with a ring.
-const UNSKIN = 'block gap-0 ring-0';
 
 function Modal({
   open = true,
   onClose,
   className,
+  surface = 'modal',
+  backdrop = 'modal-backdrop',
   label,
   children,
   ...rest
@@ -55,17 +98,18 @@ function Modal({
       onOpenChange={(next) => { if (!next) onClose?.(); }}
     >
       <DialogPortal>
-        {/* Our scrim, not the library's bg-black/30 — see dialog.jsx. Dismissing on
+        {/* Our scrim, our centring — see the note above and dialog.jsx. Dismissing on
             an outside click is Base UI's default, so the old `onClick={onClose}` on
             the backdrop is gone rather than reimplemented. */}
-        <DialogOverlay className="modal-backdrop" />
-        <DialogPopup
-          className={['modal', UNSKIN, className].filter(Boolean).join(' ')}
-          aria-label={label}
-          {...rest}
-        >
-          {children}
-        </DialogPopup>
+        <DialogOverlay className={backdrop} forceRender>
+          <DialogPopup
+            className={[surface, 'select-text', className].filter(Boolean).join(' ')}
+            aria-label={label}
+            {...rest}
+          >
+            {children}
+          </DialogPopup>
+        </DialogOverlay>
       </DialogPortal>
     </Dialog>
   );

@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
+// trap, no focus return and no scroll lock; all five come from the shell now, and the
+// hand-rolled portal is gone with it. Its content below is untouched.
+import { Modal } from '@/components/primitives';
 import { updateStrategy } from './api.js';
 
 const SESSIONS = ['ASIA', 'LDN', 'NY'];
@@ -80,9 +83,8 @@ export default function StrategyRulesModal({ strategy, onClose, onSaved }) {
     </div>
   );
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal rules-modal" onClick={(e) => e.stopPropagation()}>
+  return (
+    <Modal onClose={onClose} className="rules-modal" label={`Rules — ${strategy.name}`}>
         <div className="modal-head">
           <h3>Rules — {strategy.name}</h3>
           <button className="modal-x" onClick={onClose}>✕</button>
@@ -127,8 +129,6 @@ export default function StrategyRulesModal({ strategy, onClose, onSaved }) {
           <button type="button" className="at-cancel" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="button" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save rules'}</button>
         </div>
-      </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }

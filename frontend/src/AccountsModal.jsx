@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
+// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
+// trap, no focus return and no scroll lock; all five come from the shell now, and the
+// hand-rolled portal is gone with it. Its content below is untouched.
+import { Modal } from '@/components/primitives';
 import { Link } from 'react-router-dom';
 import { createAccount, updateAccount, deleteAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from './api.js';
 import { useAuth } from './AuthContext.jsx';
@@ -295,9 +298,8 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
   // Newest account first (most recently added at the top).
   const sorted = [...accounts].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal acct-modal" onClick={(e) => e.stopPropagation()}>
+  return (
+    <Modal onClose={onClose} className="acct-modal" label="MT5 Accounts">
         <div className="modal-head">
           <h3>MT5 Accounts</h3>
           <button className="modal-x" onClick={onClose}>✕</button>
@@ -401,8 +403,6 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
             </div>
           ))}
         </div>
-      </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
+// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
+// trap, no focus return and no scroll lock; all five come from the shell now, and the
+// hand-rolled portal is gone with it. Its content below is untouched.
+import { Modal } from '@/components/primitives';
 import { importTrades } from './api.js';
 
 // CSV / statement import. Pick a file → we preview (dry run) which columns were
@@ -60,9 +63,8 @@ export default function ImportTradesModal({ onClose, onImported, manualAccounts 
     }
   }
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal import-modal" onClick={(e) => e.stopPropagation()}>
+  return (
+    <Modal onClose={onClose} className="import-modal" label="Import trades from CSV">
         <div className="modal-head">
           <h3>Import trades from CSV</h3>
           <button className="modal-x" onClick={onClose}>✕</button>
@@ -142,8 +144,6 @@ export default function ImportTradesModal({ onClose, onImported, manualAccounts 
             </div>
           )}
         </div>
-      </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }

@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
+// trap, no focus return and no scroll lock; all five come from the shell now, and the
+// hand-rolled portal is gone with it. Its content below is untouched.
+import { Modal } from '@/components/primitives';
 import { createFee, deleteFee } from './api.js';
 import { fmtMoney } from './metrics.js';
 
@@ -73,9 +76,8 @@ export default function FeesModal({ fees = [], accounts = [], defaultLogin, onCl
   };
   const multi = accounts.length > 1;
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal payouts-modal" onClick={(e) => e.stopPropagation()}>
+  return (
+    <Modal onClose={onClose} className="payouts-modal" label="Fees & Expenses">
         <div className="modal-head">
           <h3>Fees &amp; Expenses</h3>
           <button className="modal-x" onClick={onClose}>✕</button>
@@ -135,8 +137,6 @@ export default function FeesModal({ fees = [], accounts = [], defaultLogin, onCl
             </div>
           ))}
         </div>
-      </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }

@@ -1,4 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+// PHASE 4b — on the shared Modal shell. This was one of the two modals that DID handle
+// Escape and DID declare role="dialog", so what it gains is the other four: aria-modal,
+// a focus trap, focus return to the opener, and a scroll lock. It also stops being one
+// of the four that rendered in place instead of through a portal. Content is untouched;
+// its `saving` guard moved from the keydown handler onto the shell's onClose, which
+// covers Escape and outside-click together — the two paths it used to guard separately.
+import { Modal } from '@/components/primitives';
 import { fmtVal, tradeOutcome, valueField } from './metrics.js';
 import { slug, fmtTime } from './constants.js';
 import { dayTitle } from './dayStats.js';
@@ -30,12 +37,6 @@ export default function DayJournalModal({ day, unit = 'R', beRounding = false, o
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !saving) onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, saving]);
-
   if (!day) return null;
 
   const changed = trades.filter((t) => (draft[t.id] ?? '') !== (t.comments || ''));
@@ -56,8 +57,11 @@ export default function DayJournalModal({ day, unit = 'R', beRounding = false, o
   }
 
   return (
-    <div className="modal-backdrop" onClick={() => !saving && onClose()}>
-      <div className="modal dj-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Journal for ${dayTitle(day.key)}`}>
+    <Modal
+      onClose={() => !saving && onClose()}
+      className="dj-modal"
+      label={`Journal for ${dayTitle(day.key)}`}
+    >
         <header className="dj-head">
           <div>
             <h2 className="dj-title">Journal</h2>
@@ -104,7 +108,6 @@ export default function DayJournalModal({ day, unit = 'R', beRounding = false, o
             {saving ? 'Saving…' : 'Save notes'}
           </button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }

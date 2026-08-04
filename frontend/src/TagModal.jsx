@@ -1,4 +1,8 @@
 import React, { useEffect, useState } from 'react';
+// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
+// trap, no focus return and no scroll lock, and it did not portal; all six come from
+// the shell now. Its content below is untouched.
+import { Modal } from '@/components/primitives';
 import { PROBABILITY_OPTIONS, MTF_OPTIONS, fmtDateTime, fmtNum } from './constants.js';
 
 const TAG_KEYS = ['setup', 'probability', 'mtf_phase', 'm15_url', 'h1_url', 'h4_url', 'comments'];
@@ -96,8 +100,7 @@ export default function TagModal({ trade, onClose, onSave, onDelete, strategies 
     : trade.fixed_r;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} label="Edit trade">
         <header>
           <h2>Edit trade</h2>
           <button className="x" onClick={onClose}>×</button>
@@ -181,7 +184,6 @@ export default function TagModal({ trade, onClose, onSave, onDelete, strategies 
           <button className="secondary" onClick={onClose} disabled={saving || deleting}>Cancel</button>
           <button className="primary" onClick={save} disabled={saving || deleting}>{saving ? 'Saving…' : 'Save'}</button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }
