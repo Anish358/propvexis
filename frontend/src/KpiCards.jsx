@@ -1,5 +1,9 @@
 import React from 'react';
-import { Card } from './ui.jsx';
+// PHASE 4b — on the generated component library. The card SURFACE is now shadcn's
+// Card (Base UI, preset geometry, coloured through the token bridge). spacing="none"
+// because these tiles space their own children with margins; the card's own gap
+// would double it and push the row past its locked height.
+import { Card } from '@/components/primitives';
 import Explain from './Explain.jsx';
 import { StatContext } from './DashWidgets.jsx';
 import { dayKey, fmtVal } from './metrics.js';
@@ -23,7 +27,7 @@ export function NetPnlCard({ m, unit }) {
   const today = m.days.find((d) => d.key === dayKey(new Date()));
   const todayPnl = today ? today.pnl : 0;
   return (
-    <Card className="dash-stat dash-stat--refined">
+    <Card spacing="none" className="dash-stat dash-stat--refined">
       <div className="jo-kpi-label">
         Net P&L
         <Explain size={13} nudgeY={-1} openUp>Total realized P&amp;L across all closed trades in the current filter.</Explain>
@@ -37,7 +41,7 @@ export function NetPnlCard({ m, unit }) {
 
 export function TradeWinCard({ m }) {
   return (
-    <Card className="dash-stat dash-stat--typo-match">
+    <Card spacing="none" className="dash-stat dash-stat--typo-match">
       <div className="jo-kpi-label">
         Trade win %
         <Explain size={13} nudgeY={-1} openUp>Share of decided trades (wins + losses, excluding breakeven) that closed as a win.</Explain>
@@ -49,7 +53,7 @@ export function TradeWinCard({ m }) {
 
 export function ProfitFactorCard({ m }) {
   return (
-    <Card className="dash-stat dash-stat--typo-match">
+    <Card spacing="none" className="dash-stat dash-stat--typo-match">
       <div className="jo-kpi-label">
         Profit factor
         <Explain size={13} nudgeY={-1} openUp>Gross profit divided by gross loss. Above 1 means the account is net profitable.</Explain>
@@ -61,7 +65,7 @@ export function ProfitFactorCard({ m }) {
 
 export function DayWinCard({ days }) {
   return (
-    <Card className="dash-stat dash-stat--typo-match">
+    <Card spacing="none" className="dash-stat dash-stat--typo-match">
       <div className="jo-kpi-label">
         Day win %
         <Explain size={13} nudgeY={-1} openUp>Share of trading days that closed net positive.</Explain>
@@ -73,7 +77,7 @@ export function DayWinCard({ days }) {
 
 export function AvgWinLossCard({ m }) {
   return (
-    <Card className="dash-stat dash-stat--typo-match">
+    <Card spacing="none" className="dash-stat dash-stat--typo-match">
       <div className="jo-kpi-label">
         Avg win/loss trade
         <Explain size={13} nudgeY={-1} openUp>Average size of a winning trade divided by the average size of a losing trade.</Explain>

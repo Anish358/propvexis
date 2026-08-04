@@ -39,7 +39,7 @@
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
 export { Badge, badgeVariants } from './badge.js';
 export { Button, buttonVariants } from './button.jsx';
-export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.js';
+export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { Separator } from './separator.js';
