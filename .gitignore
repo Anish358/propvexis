@@ -11,6 +11,12 @@ frontend/dist/
 # Claude Code personal settings
 .claude/settings.local.json
 
+# Agent skills are vendored in .agents/skills (portable, committed). What lives in
+# .claude/skills is absolute-path SYMLINKS into that directory, created by the
+# `skills` CLI for this machine — committing them would break every other clone.
+# Re-create them with: npx skills add cosscom/coss
+.claude/skills/
+
 # Planning docs — kept local, deliberately untracked
 Plan.md
 Foundational_files/
