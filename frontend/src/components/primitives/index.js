@@ -52,10 +52,16 @@ export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, Ava
 export { Badge } from './badge.jsx';
 export { Button, buttonVariants } from './button.jsx';
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.jsx';
+export {
+  Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogOverlay,
+  DialogPopup, DialogPortal, DialogTitle, DialogTrigger,
+} from './dialog.jsx';
 export { EmptyState } from './empty-state.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { LoadingBlock } from './loading-block.jsx';
+// The shared shell all 11 modals adopt — Phase 4b's payoff. Built on Dialog above.
+export { Modal } from './modal.jsx';
 export {
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger,

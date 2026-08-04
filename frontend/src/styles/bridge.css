@@ -277,14 +277,35 @@
      p-1/p-2/p-4/p-6/p-8/p-12 resolve to exactly our steps. One value, one place. */
   --spacing: var(--s-1);
 
-  /* Elevation. `--shadow-sm` is Tailwind's own name and generated components use
-     it (card); pointing it at our subtle shadow is what keeps "never hardcode a
-     shadow" true for them. Our full elevation ladder is still an open decision
-     (DESIGN-LANGUAGE §7), so only the level actually in use is mapped. */
+  /* ELEVATION — Tailwind's FIVE shadow names collapsed onto our THREE levels.
+     DESIGN-LANGUAGE §7 is settled now (levels by detachment: rests on / raised above /
+     blocks the page), so this maps the library's whole scale rather than just the step
+     that happened to be in use.
+
+     Mapping all of it is the point. Any unmapped name falls through to Tailwind's own
+     default, which is a hardcoded `#0000001a` — a raw colour literal, and not on our
+     ladder. That is not hypothetical: the generated Dialog asks for `shadow-xl`, and
+     before this mapping existed it compiled to exactly that literal, quietly breaking
+     both §7 and the locked "no raw colour anywhere" rule. A generated component now
+     lands on our ladder whichever step it reaches for.
+
+         2xs · xs · sm  ->  --sh-1   rests ON the page
+         md  · lg       ->  --sh-2   raised ABOVE it, page still live
+         xl  · 2xl      ->  --sh-3   BLOCKS the page
+
+     Collapsing five onto three is deliberate: the ladder has three levels because
+     three is how many distinct meanings exist, and inventing two more values to fill
+     the library's names would be inventing design (AI-2). */
   --shadow-1: var(--sh-1);
   --shadow-2: var(--sh-2);
   --shadow-3: var(--sh-3);
+  --shadow-2xs: var(--sh-1);
+  --shadow-xs: var(--sh-1);
   --shadow-sm: var(--sh-1);
+  --shadow-md: var(--sh-2);
+  --shadow-lg: var(--sh-2);
+  --shadow-xl: var(--sh-3);
+  --shadow-2xl: var(--sh-3);
 
   /* Motion — every `transition` utility inherits our curve and duration */
   --default-transition-duration: var(--dur);

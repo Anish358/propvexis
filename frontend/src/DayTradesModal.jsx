@@ -1,4 +1,8 @@
 import React, { useMemo } from 'react';
+// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
+// trap, no focus return and no scroll lock, and it did not portal; all six come from
+// the shell now. Its content below is untouched.
+import { Modal } from '@/components/primitives';
 import { dayKey, fmtVal, valueField, tradeOutcome } from './metrics.js';
 import { slug, fmtTime } from './constants.js';
 
@@ -21,8 +25,7 @@ export default function DayTradesModal({ dayKeyStr, trades, onClose, unit = 'R',
   const title = `${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]} ${d.getFullYear()}`;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal day-modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} className="day-modal" label={title}>
         <header>
           <h2>{title}</h2>
           <button className="x" onClick={onClose}>×</button>
@@ -51,7 +54,6 @@ export default function DayTradesModal({ dayKeyStr, trades, onClose, unit = 'R',
             </tbody>
           </table>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
