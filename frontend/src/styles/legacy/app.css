@@ -3532,3 +3532,56 @@ label.full { margin-bottom: 16px; }
   .page { padding: 0 !important; }
   .panel, .kpi, .bd { break-inside: avoid; border-color: #ddd !important; box-shadow: none !important; }
 }
+
+/* ---- Prop OS › Overview (business view) ---- */
+
+/* The Prop Brief reuses .dash-banner's box wholesale — same panel, radius, shadow
+   and padding as Today's Brief, because it IS the same kind of surface on a
+   different page. Only the body differs: two equal halves instead of a
+   news/alerts pair, so both columns get the same weight rather than the right
+   one reading as an afterthought. */
+.prop-brief .dash-banner-head { margin-bottom: 4px; }
+.prop-brief-cols {
+  flex: 0 0 100%;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px;
+  align-items: start;
+}
+/* A hairline between the halves rather than a gap alone: at equal widths with no
+   divider the two lists read as one wrapped column. */
+.prop-brief-col + .prop-brief-col {
+  border-left: 1px solid var(--line); padding-left: 24px;
+}
+.prop-brief-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.prop-brief-item {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; color: var(--text);
+  /* Severity reads as a left rule, not a coloured word: the title has to stay
+     legible, and colour alone is never the signal (cf. roomStatus in PropOS). */
+  border-left: 2px solid var(--line); padding-left: 8px;
+}
+.prop-brief-item.warn { border-left-color: var(--status-warn); }
+.prop-brief-item.crit { border-left-color: var(--status-bad); }
+.prop-brief-item.info { border-left-color: var(--status-info); }
+.prop-brief-item-title { flex: 0 1 auto; min-width: 0; }
+.prop-brief-item-detail { flex: none; color: var(--text-2); font-size: 12px; }
+
+/* Section head for the KPI band — the title plus its filter affordance. Chrome
+   free (no panel or divider) so it reads as a label over the row, matching the
+   dashboard's action strip. */
+.prop-section-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 12px;
+}
+.prop-section-head h3 {
+  margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold);
+}
+.prop-kpis-section { display: block; }
+
+/* Narrower than the Brief popover: this list is six short labels, not nine
+   currencies plus four enum groups. */
+.prop-kpi-filter { width: 240px; }
+
+@media (max-width: 900px) {
+  .prop-brief-cols { grid-template-columns: 1fr; }
+  .prop-brief-col + .prop-brief-col { border-left: none; padding-left: 0; }
+}

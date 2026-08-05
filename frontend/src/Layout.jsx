@@ -15,6 +15,7 @@ export default function Layout({
   unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
   pinnedAccounts, setPinnedAccounts,
   dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
+  propLayout, setPropVisible, resetPropLayout,
   theme = 'dark', setTheme = () => {},
   briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
   tradeSettings, setBeRounding, setColumnVisible, resetColumns,
@@ -54,7 +55,7 @@ export default function Layout({
           theme={theme}
           setTheme={setTheme}
         />
-        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, pinnedAccounts, setPinnedAccounts, theme, setTheme, dashLayout, setDashVisible, moveDashWidget, resetDashLayout, briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
+        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, pinnedAccounts, setPinnedAccounts, theme, setTheme, dashLayout, setDashVisible, moveDashWidget, resetDashLayout, propLayout, setPropVisible, resetPropLayout, briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>
     </div>
   );

@@ -264,6 +264,13 @@ export async function fetchProp(accountId) {
   return getJson(`/api/prop?_=1${acctq(accountId)}`);
 }
 
+// Prop OS → Overview: the whole business view in one call. Takes NO account id —
+// the route is portfolio-wide by design (see the note on /api/prop/overview), so
+// passing the selected account would be a parameter it ignores.
+export async function fetchPropOverview() {
+  return getJson('/api/prop/overview');
+}
+
 export async function fetchPropHistory(accountId) {
   return getJson(`/api/prop/history?account_id=${accountId}`);
 }

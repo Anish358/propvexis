@@ -4,6 +4,7 @@ import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetc
 import { useAuth } from './AuthContext.jsx';
 import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './filters.js';
 import { sanitizeDashLayout, defaultDashLayout, moveDashIdBefore } from './dashLayout.js';
+import { sanitizePropLayout, defaultPropLayout } from './propLayout.js';
 import { sanitizeBriefPrefs, defaultBriefPrefs } from './briefPrefs.js';
 import { applyBeRounding } from './metrics.js';
 import Layout from './Layout.jsx';
@@ -171,6 +172,21 @@ export default function App() {
     [zone]: moveDashIdBefore(l[zone], id, targetId),
   }));
   const resetDashLayout = () => mutateDashLayout(() => defaultDashLayout());
+
+  // Prop OS → Overview layout. Stored beside dashLayout and global for the same
+  // reason — and more strongly here, since the Overview spans every account by
+  // design and so has no account scope to vary by at all.
+  const propLayout = useMemo(() => sanitizePropLayout(viewConfigs.propLayout), [viewConfigs.propLayout]);
+  const mutatePropLayout = (fn) => setViewConfigs((prev) => ({
+    ...prev,
+    propLayout: fn(sanitizePropLayout(prev.propLayout)),
+  }));
+  const setPropVisible = (id, visible) => mutatePropLayout((l) => {
+    const hidden = { ...l.hidden };
+    if (visible) delete hidden[id]; else hidden[id] = true;
+    return { ...l, hidden };
+  });
+  const resetPropLayout = () => mutatePropLayout(() => defaultPropLayout());
 
   // Today's Brief widget preferences — global like the dashboard layout, for the
   // same reason: news filters shouldn't change on an account switch.
@@ -427,6 +443,9 @@ export default function App() {
                 setDashVisible={setDashVisible}
                 moveDashWidget={moveDashWidget}
                 resetDashLayout={resetDashLayout}
+                propLayout={propLayout}
+                setPropVisible={setPropVisible}
+                resetPropLayout={resetPropLayout}
                 theme={theme}
                 setTheme={setTheme}
                 briefPrefs={briefPrefs}
