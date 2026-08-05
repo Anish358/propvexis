@@ -3585,3 +3585,72 @@ label.full { margin-bottom: 16px; }
   .prop-brief-cols { grid-template-columns: 1fr; }
   .prop-brief-col + .prop-brief-col { border-left: none; padding-left: 0; }
 }
+
+/* Overview content cards. They sit on the same .dash-grid the Dashboard uses, so
+   they inherit its card-height units (card-md / card-lg) — that is what keeps the
+   1x1 row and the 2-row calendar/accounts pair aligned. */
+.prop-card-box { display: flex; flex-direction: column; min-height: 0; }
+.prop-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 12px; flex: none;
+}
+.prop-card-head h3 {
+  margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold);
+}
+/* The table scrolls inside the card, not the card inside the page — a card's
+   height is set by its grid row, so overflow has to be handled internally. */
+.prop-table-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.prop-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.prop-table th {
+  text-align: left; font-weight: 400; color: var(--text-2); font-size: 11px;
+  padding: 0 8px 6px 0; position: sticky; top: 0; background: var(--panel);
+}
+.prop-table th.num, .prop-table td.num { text-align: right; }
+.prop-table td {
+  padding: 6px 8px 6px 0; border-top: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0;
+}
+.prop-table td:first-child { width: 40%; }
+.prop-table tr:first-child td { border-top: none; }
+
+/* Status is a word first; colour only reinforces it. */
+.prop-status { font-size: 12px; }
+.prop-status.good { color: var(--status-good); }
+.prop-status.warn { color: var(--status-warn); }
+.prop-status.muted { color: var(--text-3); }
+
+.prop-row-action { text-align: right; width: 1%; }
+.prop-mini-btn {
+  background: transparent; border: 1px solid var(--line); color: var(--text-2);
+  border-radius: var(--r-sm); padding: 2px 7px; font-size: 11px;
+  font-family: inherit; cursor: pointer;
+}
+.prop-mini-btn:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); background: var(--surface-hover); }
+.prop-mini-btn:disabled { opacity: .6; cursor: default; }
+
+/* Accounts card: ring above, toggle + table below. */
+.prop-accounts-card .prop-table-wrap { margin-top: 8px; }
+.prop-ring { position: relative; flex: none; }
+.prop-ring-center {
+  position: absolute; top: 75px; left: 0; right: 0;
+  transform: translateY(-50%); text-align: center; pointer-events: none;
+}
+.prop-ring-num { font-size: 22px; font-weight: var(--fw-semibold); line-height: 1; }
+.prop-ring-cap { font-size: 11px; color: var(--text-2); }
+.prop-ring-legend {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px;
+  font-size: 11px; color: var(--text-2); margin-bottom: 8px;
+}
+.prop-ring-key { display: inline-flex; align-items: center; gap: 5px; }
+.prop-ring-dot { width: 7px; height: 7px; border-radius: var(--r-full); flex: none; }
+
+/* Calendar business markers — glyphs, not colour alone, so a payout, a pass and
+   a breach stay distinguishable to a colour-blind reader. */
+.cal-marks { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: middle; }
+.cal-mark { font-size: 9px; line-height: 1; }
+.cal-mark--payout { color: var(--status-good); }
+.cal-mark--milestone { color: var(--status-info); }
+.cal-mark--breach { color: var(--status-bad); }
+
+.pc-account { font-size: 13px; margin-bottom: 4px; }
+.pc-hint { margin: -4px 0 4px; font-size: 11px; line-height: 1.45; }

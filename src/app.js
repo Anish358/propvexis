@@ -37,6 +37,7 @@ import {
   challengeHistory,
   challengesForScope,
   lastTradeByLogin,
+  dailyTotalsForLogins,
   advanceChallenge,
   createChallengeForAccount,
   syncActiveChallengeRules,
@@ -1245,13 +1246,14 @@ app.get('/api/prop/overview', { preHandler: app.requireAuth }, async (req) => {
   const scope = { god: true, userId: req.user.uid, logins, filterCol: 'user_id' };
   const asOf = new Date();
 
-  const [propStates, accounts, payouts, fees, challenges, lastTrade] = await Promise.all([
+  const [propStates, accounts, payouts, fees, challenges, lastTrade, days] = await Promise.all([
     propStatesForScope(scope, asOf),
     listAccounts(req.user.uid),
     listPayouts(logins),
     listFees(logins),
     challengesForScope(logins),
     lastTradeByLogin(logins),
+    dailyTotalsForLogins(logins),
   ]);
   // propStatesForScope returns { god: true, accounts: [...] } for a god scope, and
   // null when the user owns nothing at all.
@@ -1265,6 +1267,7 @@ app.get('/api/prop/overview', { preHandler: app.requireAuth }, async (req) => {
     transactions: recentTransactions({ payouts, fees, accounts }),
     accounts: accountsBreakdown({ accounts, states, challenges, payouts }),
     calendarEvents: propCalendarEvents({ challenges, payouts, accounts }),
+    days,
   };
 });
 

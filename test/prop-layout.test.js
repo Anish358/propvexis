@@ -6,6 +6,7 @@ import { appCss } from './helpers/app-css.js';
 import { createLayoutModel, moveId, moveIdBefore } from '../frontend/src/layoutModel.js';
 import {
   PROP_SECTIONS, PROP_KPIS, PROP_MAIN_WIDGETS, PROP_LABEL, PROP_DEFAULT_HIDDEN,
+  PROP_GRID_COLUMNS, propWidgetSpan,
   defaultPropLayout, sanitizePropLayout, isDefaultPropLayout,
   isPropVisible, visiblePropIds, visiblePropSections, hiddenPropWidgets,
 } from '../frontend/src/propLayout.js';
@@ -85,9 +86,34 @@ test('the Overview ships the six business KPIs, five of them on', () => {
 test('the content grid ships with its renderers, not before them', () => {
   // A widget in the catalogue with no renderer drags around the editor fine and
   // renders as an invisible hole, so the two always land in the same change.
-  assert.deepEqual(PROP_MAIN_WIDGETS, []);
-  assert.ok(!PROP_SECTIONS.some((s) => s.id === 'main'), 'no main section without widgets');
-  assert.deepEqual(visiblePropSections(defaultPropLayout()), ['brief', 'kpis']);
+  assert.deepEqual(PROP_MAIN_WIDGETS.map((w) => w.id), [
+    'firms', 'payouts', 'transactions', 'calendar', 'accounts',
+  ]);
+  for (const id of PROP_MAIN_WIDGETS.map((w) => w.id)) {
+    assert.match(prop, new RegExp(`\\b${id}: \\(\\) =>`), `gridWidget is missing ${id}`);
+  }
+  assert.deepEqual(visiblePropSections(defaultPropLayout()), ['brief', 'kpis', 'main']);
+});
+
+test('the grid packs into three columns with no leftover holes', () => {
+  // Three 1x1 cards fill row 1; the calendar (2x2) and accounts (1x2) fill rows
+  // 2-3 exactly. That is a consequence of ordinal position + size — there are no
+  // coordinates — so it has to be asserted rather than assumed.
+  assert.equal(PROP_GRID_COLUMNS, 3);
+  const span = (id) => propWidgetSpan(id);
+  for (const id of ['firms', 'payouts', 'transactions']) {
+    assert.deepEqual(span(id), { cols: 1, rows: 1 }, `${id} should be a 1x1`);
+  }
+  assert.deepEqual(span('calendar'), { cols: 2, rows: 2 });
+  assert.deepEqual(span('accounts'), { cols: 1, rows: 2 });
+  // Total area is a whole number of full rows: 3 + 4 + 2 = 9 = 3 rows x 3 cols.
+  const area = PROP_MAIN_WIDGETS.reduce((s, w) => s + span(w.id).cols * span(w.id).rows, 0);
+  assert.equal(area % PROP_GRID_COLUMNS, 0, 'the default arrangement should leave no hole');
+  assert.equal(area / PROP_GRID_COLUMNS, 3, 'three rows');
+  // No widget may be wider than the grid, or it can never place.
+  for (const w of PROP_MAIN_WIDGETS) {
+    assert.ok(span(w.id).cols <= PROP_GRID_COLUMNS, `${w.id} is wider than the grid`);
+  }
 });
 
 test('an opt-in card the user turns ON stays on across loads', () => {
@@ -127,7 +153,13 @@ test('the KPI section disappears rather than leaving a bare gap', () => {
   const allOff = sanitizePropLayout({
     hidden: Object.fromEntries(PROP_KPIS.map((k) => [k.id, true])),
   });
-  assert.deepEqual(visiblePropSections(allOff), ['brief']);
+  assert.deepEqual(visiblePropSections(allOff), ['brief', 'main']);
+
+  // Same rule for the content grid.
+  const noWidgets = sanitizePropLayout({
+    hidden: Object.fromEntries(PROP_MAIN_WIDGETS.map((w) => [w.id, true])),
+  });
+  assert.deepEqual(visiblePropSections(noWidgets), ['brief', 'kpis']);
 });
 
 // ---- the page --------------------------------------------------------------
@@ -240,4 +272,97 @@ test('prop layout state is global and persisted, like the dashboard layout', () 
     assert.ok(app.includes(prop2), `App.jsx must define ${prop2}`);
     assert.ok(layoutJsx.includes(prop2), `Layout.jsx must pass ${prop2}`);
   }
+});
+
+// ---- the content cards -----------------------------------------------------
+
+test('the Overview reuses the Dashboard calendar rather than forking one', () => {
+  const cal = read('../frontend/src/MonthCalendar.jsx');
+  assert.match(prop, /import MonthCalendar from '\.\/MonthCalendar\.jsx'/);
+  // Markers are ADDITIVE: the Dashboard passes none and must render as before.
+  assert.match(cal, /markers,/, 'MonthCalendar should accept an optional markers map');
+  assert.match(cal, /const marks = markers\?\.get\(c\.key\);/);
+  const dash = read('../frontend/src/Dashboard.jsx');
+  assert.ok(!dash.includes('markers='), 'the Dashboard must not pass markers');
+  // The Overview supplies the same per-day shape the Dashboard does.
+  assert.match(prop, /dayMap=\{dayMap\}/);
+  assert.match(prop, /markers=\{markerMap\}/);
+});
+
+test('calendar markers are glyphs, not colour alone', () => {
+  const cal = read('../frontend/src/MonthCalendar.jsx');
+  assert.match(cal, /MARKER_GLYPH = \{ payout: '\$', milestone: '✓', breach: '✕' \}/);
+  for (const kind of ['payout', 'milestone', 'breach']) {
+    assert.match(appCss, new RegExp(`\.cal-mark--${kind} \{ color:`), `${kind} needs its own colour too`);
+  }
+  // A day can hold several events, so the full text lives in the title.
+  assert.match(cal, /title=\{marks\.map\(\(m\) => m\.label\)\.join\(/);
+});
+
+test('phase advance is re-homed onto the account row it acts on', () => {
+  // It was the one thing the deleted per-account Overview genuinely owned;
+  // without it there is no way to progress a challenge, and the Evaluation
+  // Success Rate KPI has no data source (pass rates come from the history that
+  // only this route writes).
+  const cards2 = read('../frontend/src/PropCards.jsx');
+  assert.match(cards2, /import \{ advanceChallenge \} from '\.\/api\.js'/);
+  assert.match(cards2, /advanceChallenge\(\{ account_id: row\.accountId, to_phase: next, mark: 'passed' \}\)/);
+  // Offered only once the target is actually met.
+  assert.match(cards2, /\{r\.targetReached && <AdvanceButton/);
+  assert.match(cards2, /const next = row\.phase === 'p1' \? 'p2' : 'funded';/);
+});
+
+test('each accounts slice carries the columns that slice needs', () => {
+  // Funded is judged on what it PAID, evaluation on what it must still EARN, and
+  // a passed evaluation is a record with two dates. One shared column set would
+  // serve none of them.
+  const cards2 = read('../frontend/src/PropCards.jsx');
+  assert.match(cards2, /<th>Account<\/th><th className="num">P&amp;L<\/th><th className="num">Paid out<\/th>/);
+  assert.match(cards2, /<th>Account<\/th><th className="num">P&amp;L<\/th><th className="num">To pass<\/th>/);
+  assert.match(cards2, /<th>Account<\/th><th>Started<\/th><th>Passed<\/th>/);
+  assert.match(cards2, /SLICES = \[[\s\S]*?'funded'[\s\S]*?'evaluation'[\s\S]*?'passed'/);
+});
+
+test('payout status is a word, and an overdue one is not hidden', () => {
+  const cards2 = read('../frontend/src/PropCards.jsx');
+  for (const s of ['Upcoming', 'Due today', 'Overdue', 'Not eligible']) {
+    assert.ok(cards2.includes(s), `payout status "${s}" should be spelled out`);
+  }
+  assert.match(appCss, /\.prop-status\.warn \{ color: var\(--status-warn\)/);
+});
+
+test('the payout cycle editor writes through the existing account route', () => {
+  const modal = read('../frontend/src/PayoutCycleModal.jsx');
+  assert.match(modal, /import \{ updateAccount \} from '\.\/api\.js'/);
+  assert.match(modal, /payout_cycle_days: n/);
+  // Blank clears the override rather than storing an empty string.
+  assert.match(modal, /payout_anchor_date: anchor === '' \? null : anchor/);
+  assert.match(modal, /<Modal\b/, 'on the shared modal shell');
+});
+
+test('card tables scroll inside the card, not the page', () => {
+  // A card's height comes from its grid row, so overflow has to be internal or
+  // the grid alignment breaks.
+  assert.match(appCss, /\.prop-table-wrap \{[\s\S]*?overflow-y: auto/);
+  assert.match(appCss, /\.prop-card-box \{[\s\S]*?min-height: 0/);
+  // Height classes match the declared row spans (card-md = 1 row, card-lg = 2).
+  const cards2 = read('../frontend/src/PropCards.jsx');
+  for (const c of ['FirmsCard', 'UpcomingPayoutsCard', 'TransactionsCard']) {
+    const at = cards2.indexOf(`export function ${c}`);
+    assert.match(cards2.slice(at, at + 400), /card-md/, `${c} spans 1 row so it needs card-md`);
+  }
+  const accAt = cards2.indexOf('export function AccountsCard');
+  assert.match(cards2.slice(accAt, accAt + 400), /card-lg/, 'AccountsCard spans 2 rows so it needs card-lg');
+});
+
+test('the Overview fetches once and the calendar rides the same payload', () => {
+  // Per-day totals are aggregated in SQL: the calendar needs one row per DAY and
+  // the page is portfolio-wide, so a trade-level payload would grow unbounded.
+  const challenges = read('../src/challenges.js');
+  assert.match(challenges, /export async function dailyTotalsForLogins/);
+  assert.match(challenges, /GROUP BY 1/);
+  assert.match(challenges, /COUNT\(\*\) FILTER \(WHERE pnl_money > 0\)/);
+  const appJs = read('../src/app.js');
+  assert.match(appJs, /dailyTotalsForLogins\(logins\)/);
+  assert.match(appJs, /^\s+days,$/m, 'the route should return the per-day totals');
 });

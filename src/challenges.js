@@ -101,6 +101,38 @@ export async function lastTradeByLogin(logins) {
   return new Map(rows.map((r) => [Number(r.account_id), r.last_close]));
 }
 
+// Per-day trading totals across a set of logins — the Overview calendar's
+// trading / profit / loss days. Aggregated in SQL rather than by shipping every
+// trade to the client: the calendar needs one row per DAY, and the Overview is
+// portfolio-wide, so the trade-level payload would grow without bound.
+//
+// Keyed by account_id (not user_id) like every other figure on that page, so
+// account-less imported/manual trades are excluded — they aren't part of any
+// prop account's business.
+export async function dailyTotalsForLogins(logins) {
+  if (!logins?.length) return [];
+  const { rows } = await query(
+    `SELECT to_char(close_time AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+            SUM(pnl_money)                             AS pnl,
+            COUNT(*)                                   AS trades,
+            COUNT(*) FILTER (WHERE pnl_money > 0)      AS wins,
+            COUNT(*) FILTER (WHERE pnl_money < 0)      AS losses
+       FROM trades
+      WHERE account_id = ANY($1::bigint[])
+        AND close_time IS NOT NULL AND pnl_money IS NOT NULL
+      GROUP BY 1
+      ORDER BY 1`,
+    [logins]
+  );
+  return rows.map((r) => ({
+    day: r.day,
+    pnl: Math.round(Number(r.pnl) * 100) / 100,
+    trades: Number(r.trades),
+    wins: Number(r.wins),
+    losses: Number(r.losses),
+  }));
+}
+
 // EA-fed floating equity samples for a set of logins.
 export async function equitySnapshotsForEngine(logins) {
   if (!logins?.length) return [];

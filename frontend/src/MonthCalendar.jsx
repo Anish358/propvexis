@@ -6,11 +6,22 @@ const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const round2 = (n) => Math.round(n * 100) / 100;
 const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : '');
 
+// Marker glyphs for the optional business-event layer. Deliberately shapes, not
+// just colours: a payout, a milestone and a breach must be distinguishable
+// without relying on hue (the same rule roomStatus follows in PropOS).
+const MARKER_GLYPH = { payout: '$', milestone: '✓', breach: '✕' };
+
 // Monthly P&L calendar with a "Week N" summary card aligned to each row. `days`
 // is a Map keyed by YYYY-MM-DD -> { pnl, trades, wins, losses }. The day grid and
 // week column are ONE 8-column CSS grid (not two side-by-side panels), so each
 // week card lines up exactly with its row of days.
-export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onToday, onSelectDay, unit = 'R' }) {
+//
+// `markers` is OPTIONAL: a Map keyed the same way -> [{ kind, label }], used by
+// the Prop OS Overview to lay payouts, phase passes and breaches over the same
+// grid. It is additive on purpose — the Overview reuses this component verbatim
+// rather than forking a second calendar, and the Dashboard passes no markers and
+// renders exactly as before.
+export default function MonthCalendar({ year, month, dayMap, markers, onPrev, onNext, onToday, onSelectDay, unit = 'R' }) {
   const { rows, monthTotal, tradingDays } = useMemo(() => {
     const first = new Date(year, month, 1);
     const startPad = first.getDay(); // leading blanks (Sun-start grid)
@@ -78,13 +89,27 @@ export default function MonthCalendar({ year, month, dayMap, onPrev, onNext, onT
                   if (!c) return <div key={`pad-${ri}-${i}`} className="cal-cell cal-empty" />;
                   const t = !c.data ? '' : tone(c.data.pnl);
                   const winPct = c.data && (c.data.wins + c.data.losses) > 0 ? Math.round((100 * c.data.wins) / (c.data.wins + c.data.losses)) : null;
+                  const marks = markers?.get(c.key);
                   return (
                     <div
                       key={c.key}
                       className={`cal-cell ${t} ${onSelectDay && c.data ? 'clickable' : ''}`}
                       onClick={() => onSelectDay && c.data && onSelectDay(c)}
                     >
-                      <div className="cal-daynum">{c.day}</div>
+                      <div className="cal-daynum">
+                        {c.day}
+                        {marks?.length > 0 && (
+                          // Title carries the full text: a day can hold several
+                          // events and the cell has room for glyphs only.
+                          <span className="cal-marks" title={marks.map((m) => m.label).join('\n')}>
+                            {marks.map((m, mi) => (
+                              <span key={mi} className={`cal-mark cal-mark--${m.kind}`} aria-label={m.label}>
+                                {MARKER_GLYPH[m.kind] || '•'}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
                       {c.data && (
                         <div className="cal-cell-body">
                           <div className="cal-pnl">{fmtValShort(c.data.pnl, unit)}</div>

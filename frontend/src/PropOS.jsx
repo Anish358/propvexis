@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend,
@@ -15,7 +15,12 @@ import {
   TotalEarnedCard, ActiveAccountsCard, TotalFundingCard,
   EvalSuccessCard, MonthlyPayoutCard, MonthlyFeesCard,
 } from './PropKpiCards.jsx';
-import { defaultPropLayout, visiblePropIds, visiblePropSections } from './propLayout.js';
+import MonthCalendar from './MonthCalendar.jsx';
+import { FirmsCard, UpcomingPayoutsCard, TransactionsCard, AccountsCard } from './PropCards.jsx';
+import {
+  defaultPropLayout, visiblePropIds, visiblePropSections,
+  propWidgetSpan, PROP_GRID_COLUMNS,
+} from './propLayout.js';
 
 // Chart theming from design tokens (matches the rest of the app).
 
@@ -254,7 +259,7 @@ export function PropFinance() {
 
 export default function PropOS() {
   const {
-    connected, toggleSidebar,
+    connected, toggleSidebar, accounts = [],
     propLayout, setPropVisible, resetPropLayout, briefPrefs,
   } = useOutletContext();
   const layout = propLayout || defaultPropLayout();
@@ -262,6 +267,10 @@ export default function PropOS() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  const now = new Date();
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth());
 
   function load() {
     setErr(null);
@@ -283,6 +292,46 @@ export default function PropOS() {
     monthlyFees: () => <MonthlyFeesCard k={k} />,
   };
   const visibleKpis = visiblePropIds(layout, 'kpis');
+
+  // The calendar reads the SAME per-day shape the Dashboard's does, so the
+  // component is reused verbatim rather than forked — the only addition is the
+  // business-event layer laid over it.
+  const dayMap = useMemo(() => {
+    const map = new Map();
+    for (const d of data?.days ?? []) map.set(d.day, { pnl: d.pnl, trades: d.trades, wins: d.wins, losses: d.losses });
+    return map;
+  }, [data]);
+
+  const markerMap = useMemo(() => {
+    const map = new Map();
+    for (const e of data?.calendarEvents ?? []) {
+      if (!map.has(e.day)) map.set(e.day, []);
+      map.get(e.day).push(e);
+    }
+    return map;
+  }, [data]);
+
+  const gridWidget = {
+    firms: () => <FirmsCard firms={data?.firms} />,
+    payouts: () => <UpcomingPayoutsCard payouts={data?.payouts} accounts={accounts} onChanged={load} />,
+    transactions: () => <TransactionsCard transactions={data?.transactions} />,
+    calendar: () => (
+      <div className="panel dash-cal-panel card-lg">
+        <MonthCalendar
+          year={calYear}
+          month={calMonth}
+          dayMap={dayMap}
+          markers={markerMap}
+          unit="USD"
+          onPrev={() => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+          onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+          onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
+        />
+      </div>
+    ),
+    accounts: () => <AccountsCard accounts={data?.accounts} onChanged={load} />,
+  };
+  const visibleWidgets = visiblePropIds(layout, 'main');
 
   const sectionNode = {
     brief: () => <PropBrief brief={data?.brief} briefPrefs={briefPrefs} loading={!data} />,
@@ -322,6 +371,25 @@ export default function PropOS() {
         </div>
       </div>
     ),
+
+    // Placed by CSS Grid's dense auto-flow from each widget's ordinal position +
+    // its catalogue size — no coordinates anywhere, same model as the Dashboard.
+    main: () => (
+      <div className="dash-grid" style={{ '--dash-grid-cols': PROP_GRID_COLUMNS }}>
+        {visibleWidgets.map((id) => {
+          const { cols, rows } = propWidgetSpan(id);
+          return (
+            <div
+              key={id}
+              className="dash-grid-cell"
+              style={{ gridColumn: `span ${cols}`, gridRow: `span ${rows}` }}
+            >
+              {gridWidget[id]()}
+            </div>
+          );
+        })}
+      </div>
+    ),
   };
 
   const sections = visiblePropSections(layout);
@@ -332,15 +400,16 @@ export default function PropOS() {
       <div className="page-body dash-page-body">
         {err ? (
           <div className="banner error">Could not load Prop OS: {err}</div>
+        ) : !data ? (
+          // The Brief renders its own loading copy, so the page keeps its shape
+          // instead of blanking wholesale. Everything below it waits for data:
+          // a KPI tile showing $0 would be a claim, not a placeholder.
+          <>
+            {sections.includes('brief') && sectionNode.brief()}
+            <LoadingBlock label="Loading your prop business" />
+          </>
         ) : (
-          // The Brief renders its own loading copy, so the page doesn't blank out
-          // wholesale while one fetch is in flight. The KPI row waits for data
-          // because a tile showing $0 would be a claim, not a placeholder.
-          sections.map((id) => (
-            <React.Fragment key={id}>
-              {id === 'kpis' && !data ? <LoadingBlock label="Loading business KPIs" /> : sectionNode[id]()}
-            </React.Fragment>
-          ))
+          sections.map((id) => <React.Fragment key={id}>{sectionNode[id]()}</React.Fragment>)
         )}
       </div>
     </div>

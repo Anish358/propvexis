@@ -16,11 +16,10 @@ export const PROP_GRID_COLUMNS = 3;
 
 export const PROP_WIDGET_SIZES = makeSizes(PROP_GRID_COLUMNS);
 
-// `main` (the content grid) joins this list in the same change that adds the
-// widgets and their renderers — a section with nothing to render is a gap.
 export const PROP_SECTIONS = [
   { id: 'brief', label: 'Prop Brief' },
   { id: 'kpis', label: 'Business KPIs' },
+  { id: 'main', label: 'Main Content' },
 ];
 
 // The six business KPIs. Five ship ON; Current Monthly Fees ships OFF — it is
@@ -39,10 +38,20 @@ export const PROP_KPIS = [
 
 export const PROP_DEFAULT_HIDDEN = ['monthlyFees'];
 
-// The content grid is filled in the next step, together with the renderers for
-// each id — a widget listed here with no renderer drags around fine and renders
-// as an invisible hole, so the two always ship in the same change.
-export const PROP_MAIN_WIDGETS = [];
+// The content grid, on a 3-column dense flow. The three 1×1 cards fill the first
+// row; the calendar (2×2) and the accounts card (1×2) fill the two rows beneath
+// it exactly. That packing is a consequence of the ordinal list plus each
+// widget's size — there are no coordinates here, and reordering re-packs.
+//
+// A widget listed here MUST have a renderer in PropOS.jsx, or it drags around
+// fine and renders as an invisible hole. A test enforces the pairing.
+export const PROP_MAIN_WIDGETS = [
+  { id: 'firms', label: 'Prop Firms', size: 'small' },
+  { id: 'payouts', label: 'Upcoming Payouts', size: 'small' },
+  { id: 'transactions', label: 'Recent Transactions', size: 'small' },
+  { id: 'calendar', label: 'Calendar', size: 'large' },
+  { id: 'accounts', label: 'Accounts', size: 'tall' },
+];
 
 const model = createLayoutModel({
   sections: PROP_SECTIONS,
