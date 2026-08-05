@@ -1,7 +1,12 @@
 import React from 'react';
-// PHASE 4b — the bell's feed is a Popover on Base UI. Behaviour and positioning only;
-// `.notif-panel` keeps its own appearance, so the panel looks identical.
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/primitives';
+import { Bell } from 'lucide-react';
+// PHASE 4b — the bell's feed is a Popover on Base UI.
+// PHASE 4c — the BELL is a generated Button and `.notif-bell` / `.notif-badge` are
+// deleted. 4b moved behaviour only, and legacy CSS is unlayered, so the trigger kept
+// painting itself the old way no matter what the preset emitted.
+// `.notif-panel` is untouched: the feed's own appearance is a separate module and the
+// migration plan's rule is wholesale-or-not-at-all per module.
+import { Button, CountBadge, Popover, PopoverContent, PopoverTrigger } from '@/components/primitives';
 
 // In-app alert UI: a header bell with an unread badge + a dropdown feed, and a
 // transient toast stack for alerts that arrive live over the socket. Severity
@@ -17,12 +22,6 @@ export function timeAgo(iso) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-const BellIcon = () => (
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
-  </svg>
-);
-
 // A feed, not a list of commands, so it is a Popover: the panel already declared
 // role="dialog" itself, and Tab through its "Mark all read" button is the right
 // interaction rather than arrow-keying between alerts. The primitive supplies the
@@ -32,9 +31,21 @@ export function NotificationBell({ notifications = [], unread = 0, onMarkAllRead
   return (
     <div className={`notif ${inline ? 'notif-inline' : ''}`}>
       <Popover>
-        <PopoverTrigger className="notif-bell" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
-          <BellIcon />
-          {unread > 0 && <span className="notif-badge">{unread > 99 ? '99+' : unread}</span>}
+        {/* `variant="chrome"` at `size="icon-sm"` is the whole of what `.notif-bell`
+            and its `.notif-inline` override used to draw between them. `tone="alert"`
+            is why the pill is red: an unread count reports a condition rather than a
+            selection, so §4's neutral-selection lock does not reach it.
+            The containing block the corner count positions against comes from
+            `.notif-inline` in legacy CSS — a utility here would not be compiled, since
+            `@source` covers `components/` only. */}
+        <PopoverTrigger
+          render={<Button variant="chrome" size="icon-sm" />}
+          aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
+        >
+          <Bell aria-hidden="true" />
+          {unread > 0 && (
+            <CountBadge tone="alert" corner>{unread > 99 ? '99+' : unread}</CountBadge>
+          )}
         </PopoverTrigger>
         <PopoverContent className="notif-panel" aria-label="Notifications">
           <div className="notif-head">

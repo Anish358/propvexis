@@ -1,16 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { ChevronDown, Filter, Moon, Settings, Star, Sun } from 'lucide-react';
 import { activeFilterCount } from './filters.js';
 import { navTitle } from './nav.js';
 import { titleCase } from './constants.js';
 import FilterPanel from './FilterPanel.jsx';
-// PHASE 4b — the top bar's overlays run on Base UI now. These primitives carry
-// behaviour and positioning only; every surface below keeps its own legacy classes,
-// so the bar looks identical and only its keyboard, focus and ARIA change. See
-// components/primitives/menu.jsx for why they are not the skinned generated ones.
+// PHASE 4b (overlays) + PHASE 4c (the controls themselves).
+//
+// 4b put this bar's four overlays on Base UI but left every TRIGGER on its legacy
+// class — `.tb-btn`, `.fb-unit-btn`, `.acct-switch-btn`, `.tb-icon-btn`,
+// `.tb-avatar-link`. Behaviour migrated; the visible bar did not, which is the
+// failure mode DESIGN-LANGUAGE "Legacy CSS is not a layer" was written to name:
+// legacy CSS is unlayered and therefore beats every Tailwind utility the preset
+// emits, so a reskin that leaves the legacy rule standing has changed nothing.
+//
+// 4c is the other half. Each control below is now a generated component — Button,
+// ToggleGroup, Avatar — and the legacy rules that used to paint them are DELETED
+// from styles/legacy/app.css rather than overridden. Structure, order, state and
+// handlers are untouched; only the painting moves.
+// `variant="chrome"` is the shared identity of this bar's quiet controls — the four
+// legacy rules that used to paint them individually collapsed into one word; see
+// components/primitives/button.jsx. No appearance is spelled out in this file: a page
+// may not originate visual values (pinned by topbar-overlays.test.js), so what stays
+// here is geometry the preset has no opinion about — a width cap, a truncation.
 import {
+  Avatar, AvatarFallback, AvatarImage,
+  Button, CountBadge,
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger,
+  ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
 import { useAuth } from './AuthContext.jsx';
 import { NotificationBell } from './Notifications.jsx';
@@ -25,33 +43,28 @@ import TradeSettingsModal from './TradeSettingsModal.jsx';
 // near-white page, cards barely separated from it). Mounted deliberately anyway so
 // it can be improved in place. Dark is unaffected either way — dark is :root, and
 // the toggle only adds data-theme="light" to <html>.
+//
+// PHASE 4c — a chrome icon Button, replacing `.tb-icon-btn`. The two hand-written SVG
+// paths are lucide's `Sun` and `Moon`: `components.json` sets `iconLibrary: "lucide"`,
+// and the generated Button already sizes any `svg` child it is given, so the explicit
+// width/height this used to carry is now the component's business rather than each
+// icon's. `size="icon-sm"` is the same square the bell uses, so "matches the
+// notification bell's footprint" is true by construction now instead of by two legacy
+// rules agreeing on 30px.
 function ThemeToggle({ theme, setTheme }) {
   const toLight = theme !== 'light';
   return (
-    <button
-      type="button"
-      className="tb-icon-btn"
+    <Button
+      variant="chrome"
+      size="icon-sm"
       onClick={() => setTheme(toLight ? 'light' : 'dark')}
       title={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
       aria-label={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
     >
-      {toLight ? (
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-        </svg>
-      ) : (
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
-        </svg>
-      )}
-    </button>
+      {toLight ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+    </Button>
   );
 }
-
-const Icon = ({ d, size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
-);
 
 const GOD = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
@@ -92,11 +105,25 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
   else current = `${selected.length} accounts`;
 
   return (
-    <div className="acct-switch tb-acct">
+    <div className="tb-acct">
       <Menu>
-        <MenuTrigger className="acct-switch-btn">
+        {/* PHASE 4c. `.acct-switch-btn` is deleted; this is the generated Button in
+            its `secondary` tone — a filled surface, which is what the legacy rule
+            drew (`--surface-2`) and what distinguishes the current scope from the
+            ghost controls either side of it.
+            `render` rather than a nested button: MenuTrigger must BE the button so
+            it keeps aria-haspopup/aria-expanded on the focusable element. The
+            generated Button reads `aria-expanded` itself (`aria-expanded:bg-…`), so
+            the open state paints without a class of ours. */}
+        <MenuTrigger render={<Button variant="tinted" size="sm" />}>
+          {/* Long account labels truncate rather than widening the bar. The width cap
+              and the ellipsis are A1 geometry, not styling the preset owns — and they
+              live in legacy CSS on `.tb-acct` / `.acct-switch-cur` rather than as
+              utilities here, because Tailwind's `@source` is scoped to
+              `components/` (deliberately — see tailwind.css). A utility written in a
+              page is never compiled, so it is not a shortcut, it is a no-op. */}
           <span className="acct-switch-cur">{current || 'Select account'}</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+          <ChevronDown aria-hidden="true" data-icon="inline-end" />
         </MenuTrigger>
         {/* PRESET SKIN. The surface, item metrics and separator are the generated
             component's now; `.acct-menu` survives holding only the scroll box, which is
@@ -104,8 +131,12 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
             row that still needs a class is the selected one, and `.acct-opt-sel` says
             only that. */}
         <MenuContent className="acct-menu">
+          {/* The `★` and `⚙` literals become lucide icons: a text glyph inherits the
+              row's font metrics and lands at a different size in every typeface,
+              where an icon is sized by the menu item itself. Same two meanings. */}
           <MenuItem className={accountId === GOD ? 'acct-opt-sel' : ''} onClick={() => setAccountId(GOD)}>
-            ★ All accounts <span className="acct-opt-sub">God view</span>
+            <Star aria-hidden="true" />
+            All accounts <span className="acct-opt-sub">God view</span>
           </MenuItem>
           {bound.map((a) => (
             /* The hand-rolled <input type="checkbox"> is gone: the generated item
@@ -123,7 +154,8 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage }) {
           ))}
           <MenuSeparator />
           <MenuItem onClick={onManage}>
-            ⚙ Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
+            <Settings aria-hidden="true" />
+            Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
           </MenuItem>
         </MenuContent>
       </Menu>
@@ -153,10 +185,15 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
   return (
     <div className="tb-filters">
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger className={`tb-btn ${active ? 'active' : ''}`} aria-label="Filters">
-          <Icon d={<path d="M3 4h18l-7 8v6l-4 2v-8z" />} />
+        {/* PHASE 4c. `.tb-btn` and `.tb-badge` are deleted; `variant="chrome"` IS that
+            first rule, and `active` is `.tb-btn.active` — the label sits at full
+            strength once any filter is set, because a bar with filters applied has to
+            look different from one without. Both now say what they mean instead of
+            naming a colour. */}
+        <PopoverTrigger render={<Button variant="chrome" size="sm" active={active > 0} />}>
+          <Filter aria-hidden="true" />
           <span>Filters</span>
-          {active > 0 && <span className="tb-badge">{active}</span>}
+          {active > 0 && <CountBadge>{active}</CountBadge>}
         </PopoverTrigger>
         {/* `surface="none"` because this popover's CONTENT is already made of panels:
             `FilterPanel` renders `.fp-stack`, a container for the panel and its cascade
@@ -198,14 +235,35 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
   if (!user) return null;
   const initial = (user.name || user.email || '?').trim().charAt(0).toUpperCase();
   const plan = titleCase(user.plan || 'free');
-  const avatar = user.picture
-    ? <img className="tb-avatar" src={user.picture} alt="" referrerPolicy="no-referrer" />
-    : <span className="tb-avatar tb-avatar-fallback">{initial}</span>;
+  // PHASE 4c — the generated Avatar. This replaces a hand-built pair (`<img>` OR a
+  // fallback `<span>`, chosen by whether `user.picture` is truthy) with one component
+  // that renders both and swaps on the image's actual load result. The old test could
+  // only ask whether a URL was present: a Google avatar URL that 404s or is blocked
+  // by the referrer policy left a broken image where the initial should have been.
+  // `size="sm"` is 24px, the footprint the legacy 28px rule sat closest to on the
+  // component's own scale.
+  const avatar = (
+    <Avatar size="sm">
+      <AvatarImage src={user.picture || undefined} alt="" referrerPolicy="no-referrer" />
+      <AvatarFallback>{initial}</AvatarFallback>
+    </Avatar>
+  );
 
   return (
     <div className="tb-user">
       <Menu>
-        <MenuTrigger className="tb-avatar-link" title="Account" aria-label="Account">
+        {/* A chrome icon Button holding the avatar, replacing `.tb-avatar-link`. The
+            legacy hover brightened a border that was otherwise transparent; §13 gives
+            a borderless control a surface hover instead, which is what `chrome`
+            already does — so the state is inherited rather than restated.
+            The hover target has to be circular to match the avatar inside it; that is
+            one declaration on `.tb-user` in legacy CSS, for the same @source reason as
+            the account switcher above. */}
+        <MenuTrigger
+          render={<Button variant="chrome" size="icon-sm" />}
+          title="Account"
+          aria-label="Account"
+        >
           {avatar}
         </MenuTrigger>
         <MenuContent className="tb-user-menu">
@@ -312,10 +370,18 @@ export default function FilterBar({
       <div className="tb-page" ref={slotRef} />
 
       <div className="tb-right">
-        <div className="fb-unit" role="group" aria-label="Display unit">
-          <button className={`fb-unit-btn ${unit === 'R' ? 'on' : ''}`} onClick={() => setUnit('R')}>R</button>
-          <button className={`fb-unit-btn ${unit === 'USD' ? 'on' : ''}`} onClick={() => setUnit('USD')}>$</button>
-        </div>
+        {/* PHASE 4c. `.fb-unit` / `.fb-unit-btn` are deleted; this is a real
+            ToggleGroup. The old version was two independent <button>s in a
+            role="group" whose selected state existed only as a CSS class — visually
+            a segmented control, and to a screen reader two unrelated buttons with no
+            indication that either was chosen. `data-pressed` and arrow-key
+            navigation between the segments come from the primitive.
+            `ToggleGroupExclusive` is the wrapper that refuses to end up with
+            neither unit pressed; see components/primitives/toggle-group.jsx. */}
+        <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit">
+          <ToggleGroupItem value="R" size="sm">R</ToggleGroupItem>
+          <ToggleGroupItem value="USD" size="sm">$</ToggleGroupItem>
+        </ToggleGroupExclusive>
         <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
         <AccountSwitcher
           accounts={accounts}

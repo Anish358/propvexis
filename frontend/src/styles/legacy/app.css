@@ -333,12 +333,12 @@ label.full { margin-bottom: 16px; }
   padding: 12px 24px; background: var(--neutral-2); border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 30;
 }
-.fb-unit { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.fb-unit-btn {
-  background: transparent; border: none; color: var(--muted);
-  padding: 8px 12px; font-size: 13px; font-weight: 400; cursor: pointer; min-width: 34px;
-}
-.fb-unit-btn.on { background: var(--accent-border); color: var(--accent-on-surface); }
+/* PHASE 4c (2026-08-05) — `.fb-unit` / `.fb-unit-btn` are DELETED. The unit switch is
+   a generated ToggleGroup now (FilterBar.jsx), and DESIGN-LANGUAGE "the preset
+   outranks legacy CSS" is only implementable by removing the rule: this stylesheet is
+   unlayered, so leaving it here would have silently beaten every utility the
+   component emits. There were TWO copies of these three declarations — one here and a
+   later override further down — which is its own argument for the deletion. */
 .fb-sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
 
 .fb-dates { display: inline-flex; align-items: center; gap: 8px; }
@@ -1195,15 +1195,14 @@ label.full { margin-bottom: 16px; }
    dropdown-menu owns separators, and the Manage row needs no colour of its own now
    that every item shares the preset's item styling. */
 
-/* Account switcher (top of account box) */
-.acct-switch { position: relative; margin-bottom: 12px; }
-.acct-switch-btn {
-  width: 100%; display: flex; align-items: center; justify-content: space-between;
-  background: var(--sidebar-bg); border: 1px solid var(--line); color: var(--text);
-  border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 400; cursor: pointer;
-}
-.acct-switch-btn:hover { border-color: var(--line-strong); }
-.acct-switch-cur { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Account switcher.
+   PHASE 4c (2026-08-05) — `.acct-switch`, `.acct-switch-btn` and `.acct-switch-cur` are
+   DELETED. The trigger is a generated Button (variant `tinted`) and the truncation is
+   a `truncate` utility on the label, so nothing here is left to own: the surface,
+   border, radius, padding, type size and hover all come from the component.
+   `.acct-switch`'s own two declarations went with them — its `position: relative`
+   dated from the hand-rolled dropdown, and Base UI's Positioner has not needed a
+   positioned ancestor since Phase 4b. */
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 /* PRESET SKIN (2026-08-05). Surface, border, radius, padding and shadow are the
    generated dropdown-menu's now — DESIGN-LANGUAGE "the preset outranks legacy CSS".
@@ -2323,9 +2322,10 @@ label.full { margin-bottom: 16px; }
    Bell fixed top-right of the main area; severity reuses the Prop OS status
    palette (info = neutral/blue, warning = amber, critical = red). */
 .notif { position: fixed; top: 14px; right: 18px; z-index: 60; }
-.notif-bell { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 9px; background: var(--panel); border: 1px solid var(--line); color: var(--text); cursor: pointer; }
-.notif-bell:hover { border-color: var(--line-strong); }
-.notif-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--status-bad); color: var(--on-accent); font-size: 11px; font-weight: 400; display: grid; place-items: center; border: 2px solid var(--bg); }
+/* PHASE 4c (2026-08-05) — `.notif-bell` and `.notif-badge` are DELETED. The bell is a
+   generated ghost Button and the unread count is a utility-built pill on it
+   (Notifications.jsx). `.notif-panel` below is untouched: the feed is its own module
+   and the migration rule is wholesale-per-module, not per-file. */
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 /* PRESET SKIN (2026-08-05). Background, border, radius and shadow are the generated
    popover's now. What survives is geometry the preset has no opinion about: the panel's
@@ -2807,17 +2807,11 @@ label.full { margin-bottom: 16px; }
      one size. */
   font-size: 18px; font-weight: 400; white-space: nowrap;
 }
-/* Quiet icon-only control for the top bar's right-hand group (theme switch).
-   Matches the notification bell's footprint so the group stays evenly spaced. */
-.tb-icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; flex: none;
-  background: transparent; border: 1px solid transparent; border-radius: var(--r-md);
-  color: var(--text-2); cursor: pointer;
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
-}
-.tb-icon-btn:hover { color: var(--text); background: var(--surface-hover); border-color: var(--line); }
-.tb-icon-btn:focus-visible { outline: none; border-color: var(--accent-on-surface); box-shadow: 0 0 0 3px var(--accent-bg); }
+/* PHASE 4c (2026-08-05) — `.tb-icon-btn` is DELETED. The theme switch is a generated
+   ghost Button at `size="icon-sm"`, which is where its square, hover and focus ring
+   come from now. The bell it was written to match is the same component at the same
+   size, so "the group stays evenly spaced" is now true by construction rather than by
+   two rules agreeing on 30px. */
 
 .tb-title-module { color: var(--text-3); }
 /* The separator is generated rather than markup — it only exists when there's a
@@ -2825,17 +2819,14 @@ label.full { margin-bottom: 16px; }
 .tb-title-module::after { content: '›'; margin-left: 6px; }
 .tb-title-page { color: var(--text); font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; }
 
-/* Unit toggle — subtle segmented control (no outer border) */
-.fb-unit { display: inline-flex; background: var(--surface-2); border: 0; border-radius: var(--r-md); padding: 4px; overflow: hidden; }
-.fb-unit-btn { background: transparent; border: none; color: var(--text-2); padding: 4px 12px; min-width: 30px; font-size: 13px; font-weight: 400; cursor: pointer; border-radius: var(--r-sm); }
-.fb-unit-btn.on { background: var(--accent-bg); color: var(--accent-on-surface); }
+/* PHASE 4c (2026-08-05) — the unit toggle's second copy of `.fb-unit` / `.fb-unit-btn`
+   is DELETED with the first (see the filter-bar section above). */
 
-/* Filters funnel button + popover (collapses the whole filter row) */
+/* Filters funnel button + popover (collapses the whole filter row).
+   PHASE 4c — `.tb-btn` and `.tb-badge` are DELETED: a generated ghost Button and a
+   pill built from utilities. `.tb-filters` survives because it is the only thing here
+   that was never appearance — it is the anchor box for the popover. */
 .tb-filters { position: relative; }
-.tb-btn { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid transparent; color: var(--text-2); padding: 8px 12px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; }
-.tb-btn:hover { background: var(--surface-hover); color: var(--text); }
-.tb-btn.active { color: var(--text); }
-.tb-badge { display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 400; }
 
 /* ---- Filter panel (the builder) ----
    Two levels. The PANEL hangs under the Filters button; the CASCADE (the
@@ -3069,13 +3060,18 @@ label.full { margin-bottom: 16px; }
   .fp, .fp-menu { width: 100%; max-height: none; }
 }
 
-/* Right action cluster: notifications + sign-out + account avatar (one line) */
-.tb-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-md); background: transparent; border: none; color: var(--text-2); cursor: pointer; }
-.tb-icon:hover { background: var(--surface-hover); color: var(--text); }
-.tb-avatar-link { display: inline-flex; border-radius: 50%; background: none; border: 1px solid transparent; padding: 0; cursor: pointer; }
-.tb-avatar-link:hover { border-color: var(--line-strong); }
-.tb-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
-.tb-avatar-fallback { display: grid; place-items: center; background: var(--accent-bg); color: var(--accent-on-surface); font-size: 12px; font-weight: 400; }
+/* Right action cluster: notifications + account avatar (one line).
+   PHASE 4c (2026-08-05) — all five rules here are DELETED. `.tb-avatar-link` is a
+   generated chrome Button; `.tb-avatar` and `.tb-avatar-fallback` are the generated
+   Avatar, whose circle, object-fit and fallback surface are its own. `.tb-icon` went
+   with them as plain dead code — the sign-out button it styled was folded into the
+   avatar menu some time ago and no JSX has referenced it since.
+
+   The one declaration that replaces them is a shape, not a look: the hover target has
+   to be round because what sits inside it is a circular avatar, and a rounded-square
+   fill behind a circle reads as a mistake. In CSS rather than as a utility for the
+   `@source` reason documented on `.tb-acct` above. */
+.tb-user [data-slot="button"] { border-radius: var(--r-full); }
 
 /* Per-page action slot — actions portaled from PageHeader sit here, filling the
    middle space and right-aligning against the always-on right cluster. */
@@ -3119,8 +3115,15 @@ label.full { margin-bottom: 16px; }
 
 /* Inline notification bell (in the top bar, no longer floating) */
 .notif-inline { position: relative; top: auto; right: auto; }
-.notif-inline .notif-bell { width: 34px; height: 34px; background: transparent; border: none; color: var(--text-2); }
-.notif-inline .notif-bell:hover { background: var(--surface-hover); color: var(--text); }
+/* PHASE 4c (2026-08-05) — the two `.notif-inline .notif-bell` overrides are DELETED.
+   They existed to undo `.notif-bell`'s boxed appearance for the in-bar instance; with
+   the bell a chrome Button there is no box to undo, and the inline/floating difference
+   is down to the one positioning rule above.
+   What replaces them is the containing block the unread count hangs off — the badge is
+   absolutely positioned by the CountBadge primitive, so the button under it has to be
+   the positioned ancestor or the count would fly to the nearest one, which is the whole
+   top bar. Geometry, in CSS for the `@source` reason documented on `.tb-acct`. */
+.notif [data-slot="button"] { position: relative; }
 /* `.notif-inline .notif-panel`'s placement override is gone for the same reason: the
    bell's panel is portaled and positioned, so "inline" no longer changes where it
    lands. The class still scopes the BELL's own inline appearance just below. */
@@ -3131,9 +3134,23 @@ label.full { margin-bottom: 16px; }
 .sb-item { padding: 8.48px 12.72px; border-radius: var(--r-md); font-size: 13.78px; gap: 12.72px; }
 .sb-item:hover { background: var(--surface-hover); color: var(--text); }
 
-/* Account switcher in the top bar — compact button, menu opens downward + right-aligned */
-.tb-acct { margin-bottom: 0; }
-.tb-acct .acct-switch-btn { background: var(--surface-2); padding: 8px 12px; font-size: 13px; width: auto; max-width: 200px; }
+/* Account switcher in the top bar — menu opens downward + right-aligned.
+   PHASE 4c (2026-08-05) — the `.tb-acct .acct-switch-btn` override is DELETED along
+   with the base rule: its fill, padding and type size are the generated Button's now,
+   and `.tb-acct`'s own `margin-bottom: 0` went too — it cancelled a margin on
+   `.acct-switch` that no longer exists.
+
+   WHAT SURVIVES IS GEOMETRY, AND IT STAYS IN CSS FOR A MECHANICAL REASON. A long
+   account label must truncate rather than push the whole right-hand cluster wider, and
+   the preset has no opinion about how wide this particular control may grow. That could
+   have been `max-w-[200px] truncate` at the call site — except Tailwind's `@source` is
+   scoped to `components/ui` and `components/primitives` on purpose (widening it harvests
+   utility candidates out of hyphenated legacy class names). A utility written in a page
+   is therefore never compiled: it looks correct in the JSX and does nothing in the
+   browser. So page-level geometry belongs here, on a surviving hook, the same way
+   `.acct-menu`'s scroll cap does. */
+.tb-acct [data-slot="button"] { max-width: 200px; }
+.acct-switch-cur { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The four placement declarations that used to be here are the Positioner's job now;
    the width floor is not, so it is all that remains. */
 .tb-acct .acct-menu { min-width: 220px; }
@@ -3156,12 +3173,17 @@ label.full { margin-bottom: 16px; }
    ============================================================ */
 .sb-item.active, .sb-sub-item.active { background: var(--sel-bg); color: var(--text); }
 .sb-item.active::before { display: none; }        /* no colored active bar (Linear has none) */
-.fb-unit-btn.on { background: var(--sel-bg-strong); color: var(--text); }
+/* PHASE 4c — `.fb-unit-btn.on` is DELETED here too. The rule it enforced is not: the
+   coss Toggle's pressed state is `bg-input/64` + `text-accent-foreground`, i.e. already
+   grayscale, so the unit switch still obeys "selection is neutral, never brand tint"
+   through the component instead of through an override. */
 .view-tab.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .precision-chip.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .precision-chip.on .precision-dot { background: var(--text-2); box-shadow: none; }
 .precision-chip.on:hover { background: var(--sel-bg-strong); }
-.tb-badge { background: var(--sel-bg-strong); color: var(--text); }
+/* PHASE 4c — `.tb-badge`'s neutral override is DELETED with the base rule. The filter
+   count is `bg-muted text-foreground` at its call site, which is this same rule said in
+   the vocabulary the component understands. */
 /* `.acct-opt.sel` lived here as a later override of an earlier `--accent-bg` version;
    this neutral one was the value that actually won, and it is what `.acct-opt-sel`
    above now carries. Kept neutral deliberately — DESIGN-LANGUAGE §4 locks selection
@@ -3203,19 +3225,27 @@ label.full { margin-bottom: 16px; }
 }
 
 /* ---- Bespoke badges/pills/chips (pre-dating .u-badge) → Semibold, matching
-   .u-badge's own weight so every status pill in the app reads consistently ---- */
+   .u-badge's own weight so every status pill in the app reads consistently ----
+   PHASE 4c (2026-08-05) — `.notif-badge`, `.tb-badge` and `.tb-avatar-fallback` came
+   off this list; those three classes no longer exist. The two top-bar count pills set
+   their own weight (`font-normal`) at the call site, per DESIGN-LANGUAGE §3 weight
+   discipline: a two-character number in a 16px pill does not need emphasis to be
+   read. */
 .pill, .chip, .cal-stats-pill, .cal-week-days, .dash-banner-alert, .dash-stat-count,
 .import-stat, .log-untagged, .tp-badge, .rp-dir, .prop-phase, .prop-mode,
-.notif-badge, .tb-badge, .conn, .auto-hint, .po-src, .sb-soon,
-.cs-badge, .precision-chip, .rule-chip, .acct-badge, .prop-reason-chip,
-.tb-avatar-fallback {
+.conn, .auto-hint, .po-src, .sb-soon,
+.cs-badge, .precision-chip, .rule-chip, .acct-badge, .prop-reason-chip {
   font-weight: var(--fw-semibold);
 }
 
-/* ---- Bespoke buttons (pre-dating .u-btn) → Semibold, matching .u-btn ---- */
-.modal button.primary, .modal button.danger, .fb-unit-btn, .fb-clear,
+/* ---- Bespoke buttons (pre-dating .u-btn) → Semibold, matching .u-btn ----
+   PHASE 4c (2026-08-05) — `.fb-unit-btn` and `.acct-switch-btn` came off this list with
+   the classes themselves. Both controls are generated components now and take their
+   weight from the preset (`font-medium`), which is the 500 step this 600 rule was
+   approximating before the foundation existed. */
+.modal button.primary, .modal button.danger, .fb-clear,
 .acct-template-apply, .acct-edit-actions .primary, .cal-today-btn, .add-trade-btn,
-.at-actions button, .acct-add-btn, .acct-add button, .ea-download, .acct-switch-btn,
+.at-actions button, .acct-add-btn, .acct-add button, .ea-download,
 .import-actions .primary, .view-tab, .ts-open-btn, .tp-replay-btn, .rp-tf-btn,
 .rp-retry, .rp-speed, .strat-add button, .strat-btn, .prop-controls .btn-primary,
 .prop-finance-head .btn, .report-actions .btn, .report-locked .btn, .settings-btn,
@@ -3225,7 +3255,10 @@ label.full { margin-bottom: 16px; }
 
 /* Print: strip the app chrome and lay the report out clean on white for Save-as-PDF. */
 @media print {
-  .sidebar, .filterbar, .pagehead, .pagehead-actions, .notif-bell, .toasts, .no-print { display: none !important; }
+  /* PHASE 4c — `.notif-bell` became `.notif`, the bell's container. The class it used
+     to name is gone, and the container is the more honest target anyway: hiding the
+     wrapper hides the trigger AND anything it opens. */
+  .sidebar, .filterbar, .pagehead, .pagehead-actions, .notif, .toasts, .no-print { display: none !important; }
   :root { --bg: #fff; --panel: #fff; --text: #111; --muted: #555; --line: #ccc; }
   body, .shell, .shell-main, .page { background: #fff !important; color: #111 !important; display: block !important; }
   .shell-main { margin: 0 !important; padding: 0 !important; }

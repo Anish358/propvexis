@@ -62,32 +62,73 @@ function utilitiesUsed(source) {
   return out;
 }
 
-/** Class names the application puts on elements, plus every class legacy CSS styles. */
-function appClassNames() {
+/** Every class name legacy CSS styles.
+ *
+ * NARROWED 2026-08-05 (Phase 4c). This used to be the UNION of legacy selectors and
+ * every token in an app `className=`, on the assumption that app markup only ever
+ * carries legacy `.foo-bar` names. Phase 4c retired that assumption: the top bar's
+ * controls are generated components now, and the geometry around them — a `truncate`
+ * on the account label, `relative` + `-top-1` on the unread pill — is written as
+ * utilities in app JSX, because that is the whole point of migrating off the legacy
+ * stylesheet.
+ *
+ * With the union, every such utility was read as an "app class name" and reported as
+ * colliding with itself the moment the library used the same one. Ten false positives,
+ * and a test that fails for doing the right thing teaches people to widen
+ * ACCOUNTED_FOR — the exact move its own comment forbids.
+ *
+ * The half that carries the invariant is this one. A collision only misbehaves when a
+ * rule EXISTS to compete with the utility: `.grid` broke the Trade Log because legacy
+ * CSS declared border-collapse and width but not `display`, so Tailwind supplied it. A
+ * name that no legacy rule styles has nothing to partially override, and a utility in
+ * app JSX that no legacy rule styles is not a collision at all — it is the mechanism
+ * working. So the check is utilities ∩ legacy-styled classes, which still fails on the
+ * day someone reuses a Tailwind name in `app.css`.
+ */
+function legacyStyledClassNames() {
   const out = new Set();
-  for (const f of readdirSync(appDir).filter((n) => n.endsWith('.jsx') || n.endsWith('.js'))) {
-    const s = readFileSync(`${appDir}/${f}`, 'utf8');
-    for (const m of s.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/g)) {
-      for (const tok of (m[1] ?? m[2] ?? '').split(/[^\w-]+/)) {
-        if (/^[a-z][a-z0-9-]*$/.test(tok)) out.add(tok);
-      }
-    }
-  }
   for (const m of legacyCss.matchAll(/\.([a-z][a-z0-9-]*)\b/g)) out.add(m[1]);
   return out;
 }
 
-test('no unaccounted collision between utility names and app class names', () => {
+test('no unaccounted collision between utility names and legacy-styled class names', () => {
   const utils = new Set([...utilitiesUsed(readDir(uiDir)), ...utilitiesUsed(readDir(primDir))]);
-  const app = appClassNames();
-  const collisions = [...utils].filter((u) => app.has(u) && !ACCOUNTED_FOR.has(u)).sort();
+  const legacy = legacyStyledClassNames();
+  const collisions = [...utils].filter((u) => legacy.has(u) && !ACCOUNTED_FOR.has(u)).sort();
   assert.deepEqual(
     collisions,
     [],
-    `Utility name(s) collide with existing app class names: ${collisions.join(', ')}. ` +
-      `Either the legacy class must declare every property the utility sets, or one ` +
-      `of the two names has to change. Do not just add it to ACCOUNTED_FOR.`,
+    `Utility name(s) collide with class names legacy CSS styles: ${collisions.join(', ')}. ` +
+      `Legacy CSS is unlayered, so its rule wins for the properties it declares and ` +
+      `Tailwind supplies the rest. Either the legacy class must declare every property ` +
+      `the utility sets, or one of the two names has to change. Do not just add it to ` +
+      `ACCOUNTED_FOR.`,
   );
+});
+
+test('utilities written in app JSX are not also styled by legacy CSS', () => {
+  // The other direction of the same invariant, and the reason narrowing the test above
+  // loses no coverage. App code is now allowed to write utilities; what it must never
+  // do is write one that `app.css` also has a rule for, because the unlayered rule
+  // would silently outrank it and the element would render neither thing cleanly.
+  const legacy = legacyStyledClassNames();
+  const offenders = [];
+  for (const f of readdirSync(appDir).filter((n) => n.endsWith('.jsx') || n.endsWith('.js'))) {
+    const s = readFileSync(`${appDir}/${f}`, 'utf8');
+    for (const m of s.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/g)) {
+      for (const tok of (m[1] ?? m[2] ?? '').split(/[^\w-]+/)) {
+        // A Tailwind-shaped token — has a `-` or is a known bare utility — that legacy
+        // CSS also styles. Bare legacy names (`topbar`, `tb-acct`) are expected here and
+        // are not what this looks for, so the token must be one the LIBRARY also ships.
+        if (!/^[a-z][a-z0-9-]*$/.test(tok)) continue;
+        if (legacy.has(tok) && !ACCOUNTED_FOR.has(tok)) {
+          const utils = new Set([...utilitiesUsed(readDir(uiDir)), ...utilitiesUsed(readDir(primDir))]);
+          if (utils.has(tok)) offenders.push(`${f}: ${tok}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], 'app JSX writes a utility that legacy CSS also styles');
 });
 
 test('the known `grid` collision keeps its mitigation', () => {

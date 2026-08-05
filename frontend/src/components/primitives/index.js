@@ -52,6 +52,8 @@ export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, Ava
 export { Badge } from './badge.jsx';
 export { Button, buttonVariants } from './button.jsx';
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.jsx';
+// A count, not a status — see count-badge.jsx for why this is separate from Badge.
+export { CountBadge } from './count-badge.jsx';
 export {
   Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogOverlay,
   DialogPopup, DialogPortal, DialogTitle, DialogTrigger,
@@ -72,3 +74,6 @@ export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
 export { Tabs } from './tabs.jsx';
 export { Textarea } from './textarea.js';
+export {
+  ToggleGroup, ToggleGroupExclusive, ToggleGroupItem, ToggleGroupSeparator,
+} from './toggle-group.jsx';

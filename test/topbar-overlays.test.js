@@ -23,6 +23,7 @@ const bar = read('../frontend/src/FilterBar.jsx');
 const notif = read('../frontend/src/Notifications.jsx');
 const menu = read('../frontend/src/components/primitives/menu.jsx');
 const popover = read('../frontend/src/components/primitives/popover.jsx');
+const tw = read('../frontend/src/tailwind.css');
 const css = appCss;
 
 // Strip comments before asserting on code. These files explain at length WHY the
@@ -44,7 +45,137 @@ test('the overlays are on the primitives, not on hand-rolled state', () => {
   assert.match(bar, /<MenuContent className="tb-user-menu">/, 'the user menu is a Menu');
   assert.match(bar, /<MenuContent className="acct-menu">/, 'the account switcher is a Menu');
   assert.match(notif, /<PopoverContent className="notif-panel"/, 'the notification feed is a Popover');
-  assert.match(bar, /<PopoverTrigger className={`tb-btn/, 'the filter builder is a Popover');
+  // UPDATED 2026-08-05 (Phase 4c). This used to read ``<PopoverTrigger className={`tb-btn``
+  // — it pinned the trigger's LEGACY CLASS as proof the popover existed, which is why it
+  // broke the moment the trigger became a component. What it means to assert is that the
+  // trigger renders a real Button, so that is what it asserts now.
+  assert.match(bar, /<PopoverTrigger render=\{<Button variant="chrome"/,
+    'the filter builder is a Popover whose trigger is a generated Button');
+});
+
+test('the top bar\'s CONTROLS are generated components, not just its overlays', () => {
+  // PHASE 4c, and the reason it needed its own increment. Phase 4b moved this bar's four
+  // overlays onto Base UI and deliberately left every TRIGGER on its legacy class, so
+  // behaviour migrated and nothing visible did — the owner reported being unable to see
+  // any change, which is exactly what "legacy CSS is unlayered, so a reskin that leaves
+  // the legacy rule in place has not changed anything" predicts.
+  //
+  // These five names are what carried the old appearance. The rule they broke is that the
+  // preset can only win by DELETION, so the test is that they are gone from the stylesheet
+  // — not merely unused in the JSX, which is the weaker thing that would still leave the
+  // rules able to outrank a utility.
+  for (const cls of ['.tb-btn', '.tb-badge', '.tb-icon-btn', '.tb-avatar', '.acct-switch-btn',
+    '.fb-unit', '.notif-bell', '.notif-badge']) {
+    const esc = cls.replace(/\./g, '\\.');
+    assert.ok(!new RegExp(`${esc}[\\s:,{[]`).test(css),
+      `${cls} is back in legacy CSS — the preset outranks it, so it must stay deleted`);
+  }
+  // And each control is the component that replaced it.
+  assert.match(bar, /<ToggleGroupExclusive value=\{unit\}/, 'the unit switch is a ToggleGroup');
+  assert.match(bar, /render=\{<Button variant="tinted"/, 'the account switcher trigger is a Button');
+  assert.match(bar, /<Avatar size="sm">/, 'the user menu trigger holds a generated Avatar');
+  assert.match(notif, /render=\{<Button variant="chrome"/, 'the bell is a Button');
+  for (const [name, src] of [['FilterBar', bar], ['Notifications', notif]]) {
+    assert.match(src, /<CountBadge/, `${name} counts use the CountBadge primitive`);
+  }
+});
+
+test('the unit switch cannot end up with neither unit selected', () => {
+  // Base UI's `multiple={false}` still allows un-pressing the pressed item, which for a
+  // mode switch means a state where no unit is chosen and every figure on the page has no
+  // unit to render in. The old two-<button> version could not reach it because neither
+  // button ever deselected; the ToggleGroup can, so the guard is explicit.
+  const tg = read('../frontend/src/components/primitives/toggle-group.jsx');
+  assert.match(tg, /if \(next\.length\)/, 'an empty selection must be refused, not forwarded');
+  // And the semantics the hand-rolled pair never had: two independent buttons in a
+  // role="group" whose selected state lived only in a CSS class told a screen reader
+  // nothing about which was active.
+  const toggle = read('../frontend/src/components/ui/toggle.jsx');
+  assert.match(toggle, /data-pressed:/, 'the pressed state must be a real attribute, not a class');
+});
+
+test('an overlay trigger that is a Button must forward its ref', () => {
+  // The limitation primitives/index.js documented, coming due. The generated components
+  // are plain function components written against React 19, where `ref` is an ordinary
+  // prop; this app is on React 18.3, where a ref handed to a function component is dropped
+  // with a warning. Harmless while every Button was a leaf.
+  //
+  // Phase 4c made four of them overlay TRIGGERS. Base UI measures the trigger element to
+  // place the popup and refocuses it on close, so a dropped ref is a menu anchored to
+  // nothing and focus landing on <body> — a failure that shows up as "the dropdown appears
+  // in the corner", which is hard to trace back to a missing ref.
+  const btn = read('../frontend/src/components/primitives/button.jsx');
+  assert.match(btn, /React\.forwardRef/, 'the Button primitive must forward refs');
+  assert.match(btn, /from '@base-ui\/react\/button'/,
+    'it must render the Base UI Button, which is a real forwardRef — not the generated wrapper');
+  // The skin must still be entirely the preset's: rendering the primitive directly is a
+  // ref fix, and it would be a licence to invent styling if the cva were not reused.
+  assert.match(btn, /buttonVariants\(\{/, 'the generated cva is still the only source of the skin');
+  assert.match(btn, /data-slot="button"/,
+    'data-slot is the component\'s public hook — legacy geometry rules select on it');
+  // And every trigger that renders a Button relies on it.
+  for (const [name, src] of [['FilterBar', bar], ['Notifications', notif]]) {
+    for (const m of code(src).matchAll(/<(Menu|Popover)Trigger\s+render=\{<(\w+)/g)) {
+      assert.equal(m[2], 'Button', `${name} renders a trigger as <${m[2]}> — it must be ref-forwarding`);
+    }
+  }
+});
+
+test('a utility written in a page is a no-op, so pages carry none', () => {
+  // CAUGHT DURING PHASE 4c, in the built CSS rather than by review. The first pass at this
+  // increment put `truncate`, `opacity-60` and `max-w-[200px]` on elements in FilterBar.
+  // All three are valid Tailwind and all three compiled to NOTHING: `@source` is scoped to
+  // `components/ui` and `components/primitives` (deliberately — widening it harvests
+  // utility candidates out of hyphenated legacy class names like `dash-grid`), so Tailwind
+  // never saw them. `relative` and `rounded-full` DID work, which is worse — they were
+  // emitted only because some component happened to use the same name, so the page was
+  // silently depending on an unrelated file.
+  //
+  // The rule that falls out: a page gets legacy classes or nothing. Appearance goes in a
+  // primitive; page-level geometry goes in legacy CSS on a surviving hook.
+  const sources = [...tw.matchAll(/@source\s+"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(sources.every((s) => s.startsWith('./components/')),
+    'if @source ever widens past components/, this whole test can be deleted — until then it holds');
+
+  // A Tailwind-shaped token is one whose FIRST segment is a known utility root. Legacy
+  // names (`tb-acct`, `notif-panel`, `acct-switch-cur`) never are, which is what makes the
+  // two distinguishable without a full utility list.
+  const ROOTS = /^(bg|text|border|ring|shadow|rounded|p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|w|h|min|max|flex|grid|gap|items|justify|self|absolute|relative|fixed|sticky|inline|block|hidden|opacity|truncate|font|tracking|leading|size|space|overflow|z|cursor|select|transition|tabular)$/;
+  for (const [name, src] of [['FilterBar', bar], ['Notifications', notif]]) {
+    for (const m of code(src).matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+      for (const tok of (m[1] ?? m[2] ?? '').split(/\s+/).filter(Boolean)) {
+        if (tok.includes('${')) continue;              // interpolated legacy class
+        const root = tok.split('-')[0].replace(/\[.*/, '');
+        assert.ok(!ROOTS.test(root),
+          `${name}: "${tok}" looks like a Tailwind utility, and a utility in a page is never compiled`);
+      }
+    }
+  }
+});
+
+test('a page originates no appearance — the top bar included', () => {
+  // The rule Phase 4c had to be redone to respect. An early pass at this increment spelled
+  // the count pills and the icon-button treatment out as utility strings in FilterBar and
+  // Notifications: `bg-muted`, `text-muted-foreground`, `rounded-full`, `bg-destructive`.
+  // That puts visual values in the pages layer AND defeats utility-collisions' class
+  // harvest, which can only reason about appearance it finds in components/.
+  //
+  // So both files were reworked to name intent — `variant="chrome"`, `<CountBadge
+  // tone="alert">` — and this pins it. Geometry is still allowed at a call site (a width
+  // cap, `truncate`, the `relative` a corner badge positions against); colour, fill,
+  // shadow and ring are not.
+  const APPEARANCE = /\b(bg|text|border|ring|shadow|from|to|via)-(?!\[)[a-z]/;
+  for (const [name, src] of [['FilterBar', bar], ['Notifications', notif]]) {
+    for (const m of code(src).matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+      const list = m[1] ?? m[2] ?? '';
+      for (const tok of list.split(/\s+/).filter(Boolean)) {
+        // Legacy hooks (`tb-acct`, `notif-panel`) and geometry (`truncate`, `relative`,
+        // `max-w-[200px]`) fall through; only a colour/fill/edge utility trips this.
+        assert.ok(!APPEARANCE.test(tok),
+          `${name} originates appearance in className: "${tok}" — express it as a primitive prop`);
+      }
+    }
+  }
 });
 
 test('the hand-written role="menu" attributes are gone, because the primitive owns them', () => {

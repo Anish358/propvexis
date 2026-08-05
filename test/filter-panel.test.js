@@ -386,10 +386,20 @@ test('the button, its position and the top bar are untouched', () => {
   // Explicitly out of scope for this redesign: only what opens BELOW the button
   // changed. The button keeps its funnel icon, label, badge and place in the
   // right-hand control cluster.
-  assert.match(bar, /className=\{`tb-btn \$\{active \? 'active' : ''\}`\}/);
+  //
+  // REWRITTEN 2026-08-05 (Phase 4c) and the test's POINT is unchanged, which is worth
+  // being precise about. Three of these assertions named the button's legacy classes
+  // (`tb-btn`, `tb-badge`, `fb-unit`) as a way of saying "the button still looks and sits
+  // where it did". Phase 4c replaced those classes with components — a change of
+  // implementation, not of icon, label, badge or order — so the assertions are restated
+  // against what is durable. Anything pinned to a class name was pinning the migration's
+  // starting point rather than the requirement.
+  assert.match(bar, /variant="chrome" size="sm" active=\{active > 0\}/, 'still a quiet control that brightens when engaged');
+  assert.match(bar, /<Filter aria-hidden="true" \/>/, 'still a funnel icon');
   assert.match(bar, /<span>Filters<\/span>/);
-  assert.match(bar, /\{active > 0 && <span className="tb-badge">\{active\}<\/span>\}/);
-  assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<div className="fb-unit"'));
+  assert.match(bar, /\{active > 0 && <CountBadge>\{active\}<\/CountBadge>\}/, 'still a count badge');
+  // Order in the right-hand cluster: after the unit switch, before the account switcher.
+  assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<ToggleGroupExclusive'));
   assert.ok(bar.indexOf('<FiltersButton') < bar.indexOf('<AccountSwitcher'));
   assert.match(css, /\.tb-filters \{ position: relative; \}/);
 });

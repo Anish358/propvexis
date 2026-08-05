@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { appCss } from './helpers/app-css.js';
+import { appCss, bridgeCss } from './helpers/app-css.js';
 // Guards the token layer, which is the prerequisite for a light theme: if every
 // colour lives in :root, a light theme is one `:root[data-theme="light"]` block.
 // A raw literal in a component rule is a colour that CAN'T be themed, so it would
@@ -123,12 +123,22 @@ test('every themed scale is declared, ordered darkest to lightest', () => {
 test('white-on-fill uses --on-accent, not a literal or --text', () => {
   // --text inverts under a light theme; --on-accent doesn't. Text sitting on a
   // filled accent/danger button has to stay white either way.
-  for (const sel of ['.prop-controls .btn-primary', '.notif-badge', '.switch-knob']) {
+  for (const sel of ['.prop-controls .btn-primary', '.switch-knob']) {
     const at = css.indexOf(sel);
     assert.ok(at > -1, `${sel} not found`);
     const rule = css.slice(at, css.indexOf('}', at));
     assert.ok(rule.includes('var(--on-accent)'), `${sel} should use --on-accent`);
   }
+  // `.notif-badge` was the third selector here until Phase 4c (2026-08-05) deleted it —
+  // the unread count is the CountBadge primitive now. The requirement did not go away with
+  // the rule, so it is asserted where the colour actually lives: `text-destructive-foreground`,
+  // which the bridge maps to `--on-accent`. Getting this wrong is invisible in dark and
+  // wrong in light, which is why it keeps its own assertion rather than being dropped.
+  const count = read('../frontend/src/components/primitives/count-badge.jsx');
+  assert.match(count, /text-destructive-foreground/,
+    'the unread count must resolve to --on-accent, not --text and not a literal');
+  assert.match(bridgeCss, /--color-destructive-foreground:\s*var\(--on-accent\)/,
+    'the bridge is what makes that true — if it changes, white-on-red flips under light');
 });
 
 test('the JS-side chart colours carry no literals of their own', () => {
@@ -271,6 +281,11 @@ test('the theme toggle is wired to a server-synced preference', () => {
   assert.match(bar, /function ThemeToggle/);
   assert.ok(bar.indexOf('<ThemeToggle') < bar.indexOf('<NotificationBell'));
   assert.match(bar, /aria-label=\{toLight \? 'Switch to light theme' : 'Switch to dark theme'\}/);
+  // Phase 4c turned it into a chrome icon Button (`.tb-icon-btn` deleted). The label above
+  // is the part that matters and is unchanged — an icon-only control whose icon shows the
+  // theme you would GET has to say so in text, and swapping the <button> for a component
+  // is exactly where that kind of attribute goes missing.
+  assert.match(bar, /variant="chrome"\s+size="icon-sm"/, 'the toggle is a chrome icon Button');
 });
 
 test('nothing calls token() without importing it', () => {
