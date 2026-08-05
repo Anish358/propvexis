@@ -121,6 +121,47 @@ test('Preflight stays out', () => {
   assert.ok(!/@import\s+"tailwindcss"\s*;/.test(strip(tailwind)), 'the bare import would enable Preflight');
 });
 
+test('the resets Preflight would have provided are present, and only remove UA defaults', () => {
+  // Preflight is deliberately not imported (above), and the cost is that generated
+  // components — which are written against it — inherit the browser's defaults where
+  // they set nothing themselves. Each entry here is a UA default that ACTUALLY shipped
+  // as a visible bug:
+  //
+  //   color / text-decoration  a MenuItem rendered as a <Link> went browser-blue and
+  //                            underlined in the user menu
+  //   background-color         `buttonface` resolves to an opaque rgb(107,107,107)
+  //                            under color-scheme: dark, so every ghost/chrome button
+  //                            in the top bar and every unpressed ToggleGroup item
+  //                            painted itself a solid grey slab
+  //
+  // A third will come — bridge.css §8 says so — and it belongs in this list, not in a
+  // component rule.
+  // The one @layer base block, bounded by its own closing brace at column 0 (nested
+  // rules close indented), so the motion utilities below it are not swept in.
+  const at = bridgeCode.indexOf('@layer base');
+  assert.notEqual(at, -1, 'bridge.css must carry the scoped reset layer');
+  const base = bridgeCode.slice(at, bridgeCode.indexOf('\n}', at) + 2);
+  for (const [selector, decl] of [
+    ['a\\[data-slot\\], \\[data-slot\\] a', 'color:\\s*inherit'],
+    ['a\\[data-slot\\], \\[data-slot\\] a', 'text-decoration:\\s*none'],
+    ['button\\[data-slot\\], \\[data-slot\\] button', 'background-color:\\s*transparent'],
+  ]) {
+    assert.match(base, new RegExp(`:where\\(${selector}\\)\\s*\\{[^}]*${decl}`),
+      `the ${selector} reset must declare ${decl}`);
+  }
+  // `:where()` is what makes these resets rather than opinions: specificity ZERO, so
+  // every author rule still wins and none of this can ever impose an appearance.
+  // Without it the anchor reset alone would flatten `.auth-alt a` and
+  // `.acct-kind-upsell a`, which are deliberate.
+  // Counted rather than parsed: every block inside the layer, minus the layer's own,
+  // must be introduced by a `:where(`. A rule added without one shows up as a
+  // mismatch here whatever its selector looks like.
+  const blocks = (base.match(/\{/g) || []).length - 1;
+  const wheres = (base.match(/:where\(/g) || []).length;
+  assert.equal(wheres, blocks,
+    `every rule in the scoped reset must be wrapped in :where() — ${blocks} rule(s), ${wheres} :where()`);
+});
+
 test('the entry imports the four layers in order', () => {
   const order = [...strip(entry).matchAll(/@import\s+"([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(order, ['../tailwind.css', './tokens.css', './bridge.css', './legacy/app.css']);

@@ -32,6 +32,7 @@ import { passBreachSummary } from './insights.js';
 import { phasePassedAlert } from './alerts.js';
 import { evaluateAccountAlerts, insertNotifications, listNotifications, markRead } from './notifications.js';
 import { getViewState, saveViewState } from './viewState.js';
+import { isDayKey, listDayNotes, saveDayNote } from './dayNotes.js';
 import {
   challengeHistory,
   challengesForScope,
@@ -1299,6 +1300,24 @@ app.get('/api/view-state', { preHandler: app.requireAuth }, async (req) =>
 app.put('/api/view-state', { preHandler: app.requireAuth }, async (req) => {
   const state = await saveViewState(req.user.uid, req.body?.state);
   return { state };
+});
+
+// ---------------------------------------------------------------------------
+// Day notes — the session-level half of the Daily Journal, alongside the
+// per-trade notes on `trades.comments`. Per user, not per account: see
+// src/dayNotes.js. GET returns the whole map in one trip; the journal renders a
+// fortnight of days at once.
+// ---------------------------------------------------------------------------
+app.get('/api/day-notes', { preHandler: app.requireAuth }, async (req) =>
+  ({ notes: await listDayNotes(req.user.uid) })
+);
+
+app.put('/api/day-notes/:day', { preHandler: app.requireAuth }, async (req, reply) => {
+  const { day } = req.params;
+  // A bad day key is a 400, not a coercion — a note silently written onto the
+  // wrong date is worse than a rejected request.
+  if (!isDayKey(day)) return reply.code(400).send({ error: 'day must be a real YYYY-MM-DD date' });
+  return { day, note: await saveDayNote(req.user.uid, day, req.body?.note) };
 });
 
 // ---------------------------------------------------------------------------

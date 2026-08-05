@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from './PageHeader.jsx';
 import DayCard from './DayCard.jsx';
-import DayJournalModal from './DayJournalModal.jsx';
+import DayJournalWorkspace from './DayJournalWorkspace.jsx';
 import TradePreview from './TradePreview.jsx';
 import { EmptyState } from '@/components/primitives';
+import { fetchDayNotes, saveDayNote } from './api.js';
 import { fmtVal } from './metrics.js';
 import { groupByDay, summarizeAll } from './dayStats.js';
 
@@ -32,7 +33,7 @@ const sign = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 export default function DayView() {
   const {
     trades = [], unit = 'R', connected, toggleSidebar, tradeSettings = {},
-    saveTrade, removeTrade,
+    saveTrade, removeTrade, strategies = [], accounts = [],
   } = useOutletContext();
   const beRounding = !!tradeSettings.beRounding;
 
@@ -45,6 +46,30 @@ export default function DayView() {
   const [shown, setShown] = useState(PAGE);
   const [journalDay, setJournalDay] = useState(null);
   const [previewId, setPreviewId] = useState(null);
+
+  // Day notes, keyed 'YYYY-MM-DD'. Loaded here rather than in App's context because
+  // this is the only page that reads them, and one map covers the whole feed — the
+  // server returns every day the user has written in a single trip.
+  //
+  // A failure is swallowed on purpose: a note that won't load must not take the
+  // day feed down with it. The workspace then opens with an empty Day Review, and
+  // saving one still works.
+  const [dayNotes, setDayNotes] = useState({});
+  useEffect(() => {
+    let live = true;
+    fetchDayNotes()
+      .then((notes) => { if (live) setDayNotes(notes); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  // Write through to the local map so the workspace and any later open of the same
+  // day agree with what was just saved, without a refetch.
+  async function persistDayNote(key, note) {
+    const saved = await saveDayNote(key, note);
+    setDayNotes((prev) => ({ ...prev, [key]: saved }));
+    return saved;
+  }
 
   const toggleDay = (key) => setOpenDays((prev) => {
     const next = new Set(prev);
@@ -66,6 +91,21 @@ export default function DayView() {
     () => (journalDay ? days.find((d) => d.key === journalDay.key) || null : null),
     [days, journalDay],
   );
+
+  // Where the open day sits in the feed, so the workspace can step to the day either
+  // side of it. `days` is newest-first, so the OLDER day — "previous" — is the next
+  // index up. The page stays the way you pick a day; this is for carrying a review
+  // into the day beside it (see DayJournalWorkspace's header).
+  const journalIdx = liveJournalDay ? days.findIndex((d) => d.key === liveJournalDay.key) : -1;
+
+  function goToDay(next) {
+    if (!next) return;
+    setJournalDay(next);
+    // Extend the feed if the day stepped to sits past the paging window, so closing
+    // the workspace lands on that day's card instead of above where it would be.
+    const i = days.findIndex((d) => d.key === next.key);
+    setShown((n) => Math.max(n, i + 1));
+  }
 
   const head = <PageHeader title="Daily Journal" connected={connected} onMenu={toggleSidebar} />;
 
@@ -139,12 +179,19 @@ export default function DayView() {
       </div>
 
       {liveJournalDay && (
-        <DayJournalModal
+        <DayJournalWorkspace
           day={liveJournalDay}
           unit={unit}
           beRounding={beRounding}
+          strategies={strategies}
+          accounts={accounts}
+          dayNote={dayNotes[liveJournalDay.key] || ''}
+          prevDay={days[journalIdx + 1] || null}
+          nextDay={journalIdx > 0 ? days[journalIdx - 1] : null}
+          onPickDay={goToDay}
           onClose={() => setJournalDay(null)}
-          onSave={saveTrade}
+          onSaveTrade={saveTrade}
+          onSaveDayNote={persistDayNote}
         />
       )}
 

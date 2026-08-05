@@ -90,8 +90,8 @@ export default function DayCard({
         <div className="dc-head-actions">
           <span className={`dc-net ${netTone}`}>{fmtVal(stats.net, unit)}</span>
           <span className="dc-count">{stats.trades} trade{stats.trades === 1 ? '' : 's'}</span>
-          {/* Writes the day's notes — the journalling half of the page, on the
-              trades themselves (see DayJournalModal). */}
+          {/* Opens the day's Journal workspace — the journalling half of the page
+              (see DayJournalWorkspace). */}
           <button type="button" className="dc-journal" onClick={() => onJournal(day)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             Journal

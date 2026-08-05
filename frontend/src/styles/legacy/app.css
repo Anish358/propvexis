@@ -2758,25 +2758,292 @@ label.full { margin-bottom: 16px; }
   .dc-head-actions { width: 100%; margin-left: 0; }
 }
 
-/* ---- day journal modal ---- */
-.dj-modal { max-width: 620px; width: 100%; display: flex; flex-direction: column; max-height: 85vh; }
-.dj-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.dj-title { margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold); }
-.dj-sub { font-size: 12px; color: var(--text-2); }
-.dj-x { background: transparent; border: none; color: var(--text-3); font-size: 15px; cursor: pointer; padding: 0 2px; }
-.dj-x:hover { color: var(--text); }
-.dj-body { overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 16px 0; }
-.dj-empty { margin: 0; font-size: 13px; color: var(--text-3); }
-.dj-trade { display: flex; flex-direction: column; gap: 8px; }
-.dj-trade-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.dj-time { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); }
-.dj-result { margin-left: auto; font-family: var(--font-mono); font-size: 13px; }
-.dj-result.pos { color: var(--profit); }
-.dj-result.neg { color: var(--loss); }
-.dj-note { width: 100%; resize: vertical; }
-.dj-foot { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.dj-status { font-size: 12px; color: var(--text-3); margin-right: auto; }
-.dj-error { font-size: 12px; color: var(--loss); margin-right: auto; }
+/* ============================================================
+   Journal workspace — one trading day, reviewed in one screen.
+   Replaces the old 620px `.dj-*` column of textareas; see
+   DayJournalWorkspace.jsx for what changed and why.
+   ============================================================
+
+   SEVERAL RULES BELOW ARE PREFIXED `.djw-modal `, AND THAT IS NOT DECORATION.
+   `.modal` styles its own children by ELEMENT — `.modal header`, `.modal h2`,
+   `.modal footer`, `.modal select|input|textarea` — and those selectors carry
+   one class plus one type (0,1,1), which beats a bare `.djw-head` (0,1,0)
+   whatever the order in this file. This workspace keeps its <header>/<footer>
+   semantics, so the specificity has to be met rather than dodged. The rules that
+   do NOT collide with an element selector stay unprefixed. */
+.djw-modal {
+  /* The workspace is the widest surface in the app, and the one modal that wants
+     the viewport rather than a column. `.modal-backdrop`'s 24px padding is the gap
+     on every side, which is why the height subtracts 48. */
+  width: 100%; max-width: 1280px;
+  height: calc(100vh - 48px); max-height: 920px;
+  /* `.modal` gives every dialog 24px of padding and a scrolling body. Neither is
+     right here: the panels own their own padding, and the panes scroll
+     individually so the day's header and the Save button never leave the screen. */
+  padding: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+.djw-modal .djw-head {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
+  padding: 12px 16px; margin-bottom: 0;
+  border-bottom: 1px solid var(--line); flex: none;
+}
+/* The date and its two steps are one unit in the header's left slot. 4px between
+   them is the chrome-cluster gap (DESIGN-LANGUAGE §5), tighter than the 8px between
+   the independent controls on the right — these three read as one control. */
+.djw-nav { display: flex; align-items: center; gap: 4px; justify-self: start; min-width: 0; }
+.djw-date { font-size: var(--fs-body); color: var(--text-2); white-space: nowrap; }
+.djw-modal .djw-title {
+  margin: 0; justify-self: center; white-space: nowrap;
+  font-size: var(--fs-section-title); font-weight: var(--fw-semibold); color: var(--text);
+}
+.djw-head-actions { display: flex; align-items: center; gap: 8px; justify-self: end; }
+.djw-filter-count { font-family: var(--font-mono); font-size: var(--fs-label); }
+.djw-filter-menu { width: 180px; }
+
+/* The layout the sketch asks for: a full-height rail of the day's trades, the
+   selected trade beside it, its charts and account to the right, and the two notes
+   spanning the bottom of both. 16px between sections is the locked section rhythm
+   (DESIGN-LANGUAGE §5), so it is the same number as the body's own padding. */
+.djw-body {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr) 328px;
+  /* The top row carries three panels stacked two-deep on the right, so it needs the
+     larger share; the notes are two textareas and read fine in the smaller one. */
+  grid-template-rows: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-areas:
+    "rail detail side"
+    "rail notes  notes";
+  gap: 16px; padding: 16px;
+}
+.djw-rail { grid-area: rail; }
+.djw-detail { grid-area: detail; }
+.djw-side { grid-area: side; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+.djw-notes { grid-area: notes; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-height: 0; }
+
+/* Every region is the same panel, which is the day card's own nesting idiom
+   (`.dc-tile` inside `.dc`): a hairline on the shared surface, radius stepping
+   down one from the card/overlay step the modal itself carries (§6). */
+.djw-panel {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.djw-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid var(--line); flex: none;
+}
+.djw-panel-title { margin: 0; font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--text); }
+.djw-panel-meta { font-size: var(--fs-label); color: var(--text-2); }
+.djw-empty { margin: 0; padding: 12px; font-size: var(--fs-body); color: var(--text-2); }
+
+/* ---- left rail: the day's trades ---- */
+.djw-rail-list {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 8px; display: flex; flex-direction: column; gap: 4px;
+}
+.djw-rail-row {
+  display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-md);
+  padding: 8px 10px; font-family: inherit; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+/* No border at rest, so the surface is what fills — §14, hover intensifies what
+   the element already wears. Selection is grayscale, never tinted (N4). */
+.djw-rail-row:hover { background: var(--surface-hover); }
+.djw-rail-row.is-sel { background: var(--sel-bg); border-color: var(--line-strong); }
+.djw-rail-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.djw-rail-val { font-family: var(--font-mono); font-size: var(--fs-body); color: var(--text); }
+.djw-rail-val.pos { color: var(--profit); }
+.djw-rail-val.neg { color: var(--loss-quiet); }
+.djw-rail-sub { display: flex; align-items: center; gap: 8px; }
+.djw-rail-time { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2); }
+.djw-rail-dir { font-size: var(--fs-label); color: var(--text-2); }
+/* Written-or-not, as a dot. Neutral rather than brand: the rail is chrome, and
+   blue there would compete with the results in the same row. */
+.djw-rail-dot {
+  width: 6px; height: 6px; border-radius: var(--r-full);
+  background: var(--line-strong); margin-left: auto; flex: none;
+}
+.djw-rail-dot.is-on { background: var(--text-2); }
+.djw-rail-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; border-top: 1px solid var(--line); flex: none;
+}
+.djw-rail-net { font-family: var(--font-mono); font-size: var(--fs-card-title); font-weight: var(--fw-medium); color: var(--text); }
+.djw-rail-net.pos { color: var(--profit); }
+.djw-rail-net.neg { color: var(--loss-quiet); }
+
+/* ---- centre: the selected trade ---- */
+.djw-detail-id { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.djw-detail-time { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2); }
+.djw-detail-net { font-family: var(--font-mono); font-size: var(--fs-card-title); font-weight: var(--fw-medium); color: var(--text); flex: none; }
+.djw-detail-net.pos { color: var(--profit); }
+.djw-detail-net.neg { color: var(--loss-quiet); }
+.djw-detail-scroll {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 12px; display: flex; flex-direction: column; gap: 12px;
+}
+.djw-group-title { margin: 0; font-size: var(--fs-label); font-weight: var(--fw-regular); color: var(--text-2); }
+
+/* Same outcome tints as the trade preview's badge, so "followed" reads identically
+   wherever adherence is stated. */
+.djw-adh {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: var(--r-md); font-size: var(--fs-body);
+}
+.djw-adh.followed { background: var(--tint-profit-4); border: 1px solid var(--tint-profit-8); color: var(--tint-profit-11); }
+.djw-adh.broken { background: var(--tint-loss-2); border: 1px solid var(--tint-loss-11); color: var(--tint-loss-14); }
+
+.djw-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 12px; }
+.djw-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.djw-field-label { font-size: var(--fs-label); color: var(--text-2); }
+/* `.modal select|input` sets 14px, which is not a step on our scale — the workhorse
+   is 13px (§3, `--fs-body`). Prefixed to clear that rule's specificity. */
+.djw-modal .djw-field select,
+.djw-modal .djw-field input {
+  width: 100%; font-size: var(--fs-body); padding: 6px 10px; border-radius: var(--r-input);
+}
+/* Max R and Fixed R are derived from the pair above, so they are shown, not typed.
+   Field-shaped so the row reads as one group, but plainly not editable. */
+.djw-derived {
+  font-family: var(--font-mono); font-size: var(--fs-body); color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-input);
+  padding: 6px 10px;
+}
+.djw-derived.pos { color: var(--profit); }
+.djw-derived.neg { color: var(--loss-quiet); }
+
+.djw-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); gap: 12px; }
+.djw-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.djw-fact-label { font-size: var(--fs-label); color: var(--text-2); }
+.djw-fact-value { font-family: var(--font-mono); font-size: var(--fs-body); color: var(--text); overflow-wrap: anywhere; }
+.djw-fact-value.pos { color: var(--profit); }
+.djw-fact-value.neg { color: var(--loss-quiet); }
+
+/* ---- right: screenshots over the account ---- */
+.djw-shots { flex: 1; min-height: 0; }
+.djw-shot-tabs { flex: none; }
+.djw-shot-dot { width: 4px; height: 4px; border-radius: var(--r-full); background: var(--text-2); flex: none; }
+/* The frame sits on the page colour so a chart with its own background reads as an
+   image rather than as part of the panel. `contain`, because a cropped chart is a
+   misleading chart. */
+/* `min-height` rather than a bare `flex: 1`, and it is the fix for a measured bug:
+   the account panel below is content-sized (`flex: none`), so with nothing holding a
+   floor here the frame collapsed to 36px — a chart screenshot in a letterbox. The
+   floor makes the account panel yield instead. */
+.djw-shot-frame {
+  flex: 1; min-height: 120px; display: grid; place-items: center;
+  background: var(--bg); border-bottom: 1px solid var(--line); overflow: hidden;
+}
+.djw-shot-img-link { display: block; width: 100%; height: 100%; }
+.djw-shot-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.djw-shot-link { font-size: var(--fs-body); color: var(--accent-on-surface); padding: 12px; text-align: center; }
+.djw-shot-input { padding: 10px 12px; flex: none; }
+
+/* Deliberately the compact panel of the two in this column. It answers "which
+   account was this on", which is one name and two facts — every other figure a
+   reader wants is about the trade and lives in the centre panel. */
+.djw-acct { flex: none; }
+.djw-acct-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.djw-acct-name { font-size: var(--fs-body); color: var(--text); }
+
+/* ---- bottom: the two notes ---- */
+.djw-note-wrap { flex: 1; min-height: 0; padding: 12px; display: flex; }
+/* §3 names the journal note field as prose: 1.6 leading, and a 68ch measure so a
+   wide monitor does not produce a 160-character line the eye loses its place on.
+   `resize: none` overrides `.modal textarea`'s vertical resize — the pane is a grid
+   cell, so a dragged textarea would just overflow it. */
+.djw-modal .djw-note {
+  flex: 1; min-width: 0; max-width: 68ch; resize: none;
+  padding: 10px 12px; border-radius: var(--r-input);
+  font-size: var(--fs-body); line-height: 1.6;
+}
+
+.djw-modal .djw-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+  padding: 12px 16px; margin-top: 0;
+  border-top: 1px solid var(--line); flex: none;
+}
+.djw-status { font-size: var(--fs-body); color: var(--text-2); margin-right: auto; }
+/* An armed step is about to discard work — amber, not red: nothing has failed, and
+   red is spoken for by losses and errors (DESIGN-LANGUAGE §3). */
+.djw-status.is-warn { color: var(--warning); }
+.djw-error { font-size: var(--fs-body); color: var(--loss); margin-right: auto; }
+
+/* ---- narrower than three columns can hold ----
+   ONE SCROLLER, NOT FIVE, and that is the whole shape of these two queries.
+   The wide layout works because the body's height is FIXED: each pane is handed a
+   share of it and scrolls its own overflow. Stack the panes and that premise is
+   gone — the grid rows become `auto`, so the panes are asked to size to content
+   while their inner `flex: 1; min-height: 0` scrollers are still trying to divide a
+   height nobody is setting. Measured result before this rewrite: the rail's list
+   collapsed to 16px and the Account panel clipped its own heading.
+   So in the stacked modes every inner scroller is switched off, every panel sizes to
+   its content, `.djw-panel`'s clipping is released, and the BODY is the single thing
+   that scrolls. The frames and note boxes keep explicit minimums, because content
+   sizing is what would otherwise let a chart or an empty note collapse to nothing. */
+@media (max-width: 1180px) {
+  .djw-body {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas:
+      "rail detail"
+      "rail side"
+      "rail notes";
+    overflow-y: auto;
+  }
+  /* `min-height: auto` is the load-bearing half. The base rule sets `min-height: 0`
+     so the panes can shrink inside the fixed-height wide layout — but on a grid item
+     that also cancels the AUTOMATIC MINIMUM SIZE, which is the only thing telling an
+     `auto` row "be at least as tall as your content". With it at 0 the row sized to
+     the panel header and the rest of the panel painted over the row beneath it. */
+  .djw-panel { overflow: visible; min-height: auto; }
+  /* `overflow: visible` alone is not the fix either, for the same class of reason:
+     `flex: 1; min-height: 0` makes this pane contribute ZERO to its panel's
+     intrinsic height, so an `auto` grid row sized to the header alone and the
+     released content spilled out of the cell and painted *underneath* the panels in
+     the row below. Switching the flex sizing off is what makes the row measure the
+     content it is now supposed to size to. */
+  .djw-detail-scroll { overflow: visible; flex: none; min-height: auto; }
+  /* `.djw-side` and `.djw-notes` are grid items too, and carry the same
+     `min-height: 0` — so they need the same release, for the same reason. */
+  .djw-side, .djw-notes { min-height: auto; }
+  .djw-side { flex-direction: row; align-items: stretch; }
+  .djw-shots, .djw-acct { flex: 1 1 0; }
+  /* Explicit heights for the same reason: content sizing would let an empty chart
+     frame or an unwritten note collapse to nothing. */
+  .djw-shot-frame { flex: none; height: 220px; }
+  .djw-note-wrap { flex: none; }
+  .djw-modal .djw-note { height: 200px; }
+  /* The rail spans all three rows, so it is the one pane that still has a height to
+     divide — and it keeps its own scroller, because it is the index. */
+  .djw-rail-list { max-height: none; }
+}
+/* Phone and small tablet: one column, the rail first because it is the index. The
+   rail's list caps itself here rather than the panel capping it — a max-height on
+   the panel leaves the list free to collapse instead, which is exactly what it did. */
+@media (max-width: 860px) {
+  .djw-modal { max-width: none; }
+  .djw-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "rail" "detail" "side" "notes";
+  }
+  /* `flex: none` alongside the cap: with a `flex: 1` basis of 0 and `min-height: 0`
+     the list collapses to nothing in a content-sized panel — measured at 16px before
+     this. Content-sized up to the cap, then it scrolls. */
+  .djw-rail-list { flex: none; max-height: 260px; overflow-y: auto; }
+  .djw-side { flex-direction: column; }
+  .djw-notes { grid-template-columns: minmax(0, 1fr); }
+  .djw-modal .djw-head { grid-template-columns: 1fr auto; row-gap: 8px; }
+  .djw-modal .djw-title { grid-row: 1; grid-column: 1; justify-self: start; }
+  /* The date drops to its own row under the title, and takes its steps with it —
+     the arrows belong to the date, not to the header's left column. */
+  .djw-nav { grid-row: 2; grid-column: 1 / -1; }
+  .djw-head-actions { grid-row: 1; grid-column: 2; }
+}
 
 /* ============================================================
    Shell v2 — Linear-style top bar + tightened sidebar

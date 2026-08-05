@@ -218,6 +218,26 @@ export async function saveViewState(state) {
   return (await res.json()).state;
 }
 
+// ---- Day notes (the Daily Journal's per-SESSION note, keyed YYYY-MM-DD) ----
+// One map for every day the user has written, because the journal is a feed and
+// asks for a fortnight at a time. Per-trade notes are a different field entirely
+// (`comments`, via tagTrade below).
+export async function fetchDayNotes() {
+  return (await getJson('/api/day-notes?_=1')).notes || {};
+}
+
+// An empty note clears the day — the server deletes the row rather than storing
+// '', so a cleared day stops counting as journalled.
+export async function saveDayNote(day, note) {
+  const res = await apiFetch(`/api/day-notes/${day}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) throw new Error(`saveDayNote ${res.status}`);
+  return (await res.json()).note;
+}
+
 // ---- Notifications (in-app alert feed for the logged-in user) ----
 export async function fetchNotifications() {
   return getJson('/api/notifications?_=1');

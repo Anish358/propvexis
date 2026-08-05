@@ -3,6 +3,8 @@ import {
   DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+import { useOverlayContainer } from './overlay-container.js';
+
 /* Menu — PropVexis primitive. A dropdown menu on the GENERATED shadcn component,
  * carrying the preset's appearance as well as Base UI's behaviour.
  *
@@ -42,6 +44,11 @@ import {
  *   disagreeing values for one concept, `--z-dropdown` was moved 40 → 50 to match. The
  *   ladder's ORDER is what matters and is unchanged: nav < dropdown < toast < modal.
  *
+ *   That last relation is why a menu opened inside a MODAL needs the container below.
+ *   It is on the dropdown tier, the modal's scrim is above it, and the tier is right —
+ *   a page's menu must not float over a modal. So the menu is portaled into the modal
+ *   instead of argued above it. `overlay-container.js` has the whole chain.
+ *
  * BEHAVIOUR — unchanged, and still the larger half of the value. Escape closes; focus
  * returns to the trigger; arrow keys, Home/End and typeahead move between items;
  * `aria-haspopup`/`aria-expanded` stay in sync; the popup is viewport-aware and flips
@@ -71,14 +78,22 @@ function MenuTrigger(props) {
 //
 // `w-auto` is not cosmetic: it cancels the generated `w-(--anchor-width)` so the menu
 // sizes to its content instead of to its trigger button. See the header.
+//
+// `container` is not a caller's decision, which is why it is read from context rather
+// than accepted as a prop: inside a modal an overlay MUST portal into the modal or it
+// paints under the scrim (see the header), and outside one the context yields
+// `undefined`, so nothing about the ~dozen existing menus changes. A caller may still
+// override it — Base UI's own prop wins through `rest`.
 function MenuContent({
   className, align = 'end', side = 'bottom', sideOffset = 8, ...rest
 }) {
+  const container = useOverlayContainer();
   return (
     <DropdownMenuContent
       align={align}
       side={side}
       sideOffset={sideOffset}
+      container={container}
       className={['w-auto', MOTION, className].filter(Boolean).join(' ')}
       {...rest}
     />

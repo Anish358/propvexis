@@ -68,6 +68,11 @@ export {
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger,
 } from './menu.jsx';
+// Not a component — the seam that tells an overlay to render INSIDE the modal it was
+// opened from, instead of under its scrim. `Modal` provides it and `Menu` consumes it,
+// so nothing needs this until something builds an overlay by hand inside a modal (the
+// TradePreview drawer is the candidate). Exported because the barrel is the only door.
+export { OverlayContainerContext, useOverlayContainer } from './overlay-container.js';
 export { Popover, PopoverContent, PopoverTrigger } from './popover.jsx';
 export { Separator } from './separator.js';
 export { Skeleton } from './skeleton.jsx';

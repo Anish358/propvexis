@@ -50,7 +50,7 @@ const code = (s) => s
 const DIALOGS = [
   ['AccountsModal.jsx', 'modal'],
   ['AddTradeModal.jsx', 'modal'],
-  ['DayJournalModal.jsx', 'modal'],
+  ['DayJournalWorkspace.jsx', 'modal'],
   ['DayTradesModal.jsx', 'modal'],
   ['FeesModal.jsx', 'modal'],
   ['ImportTradesModal.jsx', 'modal'],
@@ -95,19 +95,22 @@ test('the hand-written role="dialog" attributes are gone, because the primitive 
 });
 
 test('no dialog keeps a keydown listener for Escape — the shell owns it', () => {
-  // Three did: DayJournalModal, ReplayModal and DashLayoutEditor. Two listeners racing
+  // Three did: the day journal, ReplayModal and DashLayoutEditor. Two listeners racing
   // to close the same dialog is not additive, it is a bug waiting for one of them to
-  // grow a guard the other does not have. DayJournalModal is the live example — its
+  // grow a guard the other does not have. The day journal is the live example — its
   // `!saving` guard now sits on the shell's onClose, covering Escape and outside-click
-  // together, where it used to guard the two paths separately.
+  // together, where it used to guard the two paths separately. The guard outlived the
+  // modal it was written for: the file is now DayJournalWorkspace, and its save is a
+  // larger batch than the one-field-per-trade PATCH it replaced, so losing the dialog
+  // mid-flight costs more than it used to.
   for (const [file] of DIALOGS) {
     const s = code(src(file));
     assert.ok(!/'Escape'/.test(s), `${file} must not handle Escape itself`);
   }
   assert.match(
-    code(src('DayJournalModal.jsx')),
+    code(src('DayJournalWorkspace.jsx')),
     /onClose=\{\(\) => !saving && onClose\(\)\}/,
-    "DayJournalModal's save-in-progress guard must survive on the shell's onClose",
+    "the journal workspace's save-in-progress guard must survive on the shell's onClose",
   );
   // ReplayModal keeps its OTHER keys — space and arrows are playback controls, not
   // dismissal — so this is a narrowing, not a removal.
@@ -191,6 +194,54 @@ test('the shell composes its own overlay so the scrim stays a token', () => {
   assert.match(code(shell), /DialogOverlay/);
   assert.match(code(shell), /DialogPopup/);
   assert.match(code(barrel), /export \{ Modal \} from '\.\/modal\.jsx'/);
+});
+
+test('an overlay opened inside a modal portals INTO the modal, not beside its scrim', () => {
+  // THE BUG THIS PINS. The Journal workspace's Filter menu opened, took focus, and was
+  // invisible. Given no container, Base UI's portal does not go to <body> — it goes to
+  // `parentPortalNode ?? document.body`, so a menu inside a modal landed in the dialog's
+  // portal node as a SIBLING of the backdrop. That node sets no z-index, so the two were
+  // compared in the root stacking context: the generated positioner's hardcoded `z-50`
+  // against `.modal-backdrop`'s `z-index: 2147483000`. The menu lost and painted under
+  // the scrim. It is not fixable with a bigger number — the generated Positioner takes
+  // no className, and the dropdown tier sitting BELOW modal is correct for every menu
+  // that belongs to the page. Containment is the fix: a menu that belongs to a modal is
+  // rendered inside it and inherits its place in the ladder.
+  const container = code(src('components/primitives/overlay-container.js'));
+  const menu = code(src('components/primitives/menu.jsx'));
+  const generated = code(src('components/ui/dropdown-menu.jsx'));
+  const s = code(shell);
+
+  // The shell publishes its popup — only it knows what that element is.
+  assert.match(s, /<DialogPopup\s+ref=\{popupRef\}/, 'the shell must capture its popup element');
+  assert.match(s, /<OverlayContainerContext\.Provider value=\{popupRef\}>/,
+    'the popup must be published to the overlays rendered inside it');
+  // A ref, not state: the value is stable from the first render, so publishing it costs
+  // no re-render in the twelve modals that open no overlay at all.
+  assert.match(s, /const popupRef = useRef\(null\)/);
+
+  // The default is `undefined`, and that is load-bearing rather than stylistic: Base UI
+  // treats an explicit `null` container as "not resolved yet" and renders NOTHING, so a
+  // null default would break every menu in the app that is not inside a modal.
+  assert.match(container, /createContext\(undefined\)/,
+    'the default container must be undefined — an explicit null makes the portal render nothing');
+
+  // The primitive reads it from context rather than taking it as a prop: where an
+  // overlay has to render is not a call site's decision.
+  assert.match(menu, /const container = useOverlayContainer\(\)/);
+  assert.match(menu, /container=\{container\}/);
+
+  // ⚠️ And the one hand-edit in the generated layer, which a `shadcn add` would silently
+  // revert. The generated content builds its own Portal and exposes nothing of it, so
+  // without this pass-through the primitive above has nowhere to send the container.
+  assert.match(generated, /<MenuPrimitive\.Portal container=\{container\}>/,
+    'PROPVEXIS EDIT lost: dropdown-menu.jsx must forward `container` to its Portal');
+
+  // The number that makes all of the above necessary. If this ever stops being the
+  // largest value in the ladder, read the comment in overlay-container.js before
+  // deleting anything here.
+  assert.match(css, /\.modal-backdrop \{[^}]*z-index: 2147483000/,
+    'the scrim outranks the dropdown tier — which is why overlays are contained, not raised');
 });
 
 test('TradePreview is still hand-rolled, and is deliberately NOT in the list above', () => {

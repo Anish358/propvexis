@@ -13,7 +13,7 @@ import {
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const page = read('../frontend/src/DayView.jsx');
 const card = read('../frontend/src/DayCard.jsx');
-const modal = read('../frontend/src/DayJournalModal.jsx');
+const work = read('../frontend/src/DayJournalWorkspace.jsx');
 const css = appCss;
 
 // Two days. Day 1 nets +1R over three trades (one breakeven); day 2 nets -1R.
@@ -144,7 +144,9 @@ test('a day is titled by its date, with Today/Yesterday named', () => {
 test('the page is a feed of days, not one day behind arrows', () => {
   assert.match(page, /<DayCard/);
   assert.match(page, /days\.slice\(0, shown\)/);
-  // The old prev/next stepper is gone — the feed IS the stepping.
+  // The old prev/next stepper is gone — the feed IS the stepping. (The workspace has
+  // arrows of its own, which is a different job: moving the subject of an open review
+  // rather than choosing which day to open. See the test further down.)
   assert.ok(!page.includes('Previous trading day'), 'the day stepper should be gone');
   assert.ok(!page.includes('dv-nav'), 'the old nav row should be gone');
   // Several days can be open at once; reviewing two side by side is the point.
@@ -170,25 +172,127 @@ test('the card header carries the date, result and actions — and no stepper', 
   assert.match(card, /\{stats\.trades\} trade/);
 });
 
-test('the action reads Journal, and opens the day for writing', () => {
+test('the action reads Journal, and opens the day in the workspace', () => {
   assert.match(card, /className="dc-journal"[\s\S]*?Journal/);
   assert.ok(!card.includes('Add Trades'), 'renamed from Add Trades');
   assert.match(card, /onJournal\(day\)/);
-  assert.match(page, /<DayJournalModal/);
-  // It writes the same field the trade log's Notes column reads, through the
-  // existing partial PATCH — not a parallel store that would need a migration.
-  assert.match(modal, /comments: draft\[t\.id\]\.trim\(\) \|\| null/);
-  assert.match(page, /onSave=\{saveTrade\}/);
+  assert.match(page, /<DayJournalWorkspace/);
+  // The per-trade note still writes `trades.comments` — the same field the trade
+  // log's Notes column and the preview panel read, through the existing partial
+  // PATCH. The workspace widened WHAT can be edited, not where any of it is stored.
+  assert.match(work, /'comments'/);
+  assert.match(page, /onSaveTrade=\{saveTrade\}/);
+  // The day note is the one thing that needed a store of its own, because it
+  // belongs to the session rather than to any trade.
+  assert.match(page, /onSaveDayNote=\{persistDayNote\}/);
+  assert.match(page, /dayNote=\{dayNotes\[liveJournalDay\.key\] \|\| ''\}/);
 });
 
-test('only changed notes are sent', () => {
-  // Saving every note would mark untouched trades tagged and bump updated_at.
-  assert.match(modal, /const changed = trades\.filter\(\(t\) => \(draft\[t\.id\] \?\? ''\) !== \(t\.comments \|\| ''\)\)/);
-  assert.match(modal, /changed\.map\(\(t\) => onSave/);
+test('the workspace is master-detail: the rail selects, the centre follows', () => {
+  // The sketch's "the centre panel instantly updates" — selection is local state,
+  // so there is no fetch and nothing to wait for.
+  assert.match(work, /const \[selId, setSelId\] = useState/);
+  assert.match(work, /<RailRow/);
+  assert.match(work, /onSelect=\{setSelId\}/);
+  // Selection is by CLICK, not by pointer hover: the centre panel holds editable
+  // fields, and hover-selection would swap the form out from under half-typed input.
+  assert.ok(!/onMouseEnter|onMouseOver/.test(work), 'hover must not change the subject');
+  // Every region the layout calls for.
+  for (const area of ['djw-rail', 'djw-detail', 'djw-shots', 'djw-acct', 'djw-notes']) {
+    assert.ok(work.includes(area), `${area} must exist in the workspace`);
+  }
+  assert.match(css, /grid-template-areas:\s*\n?\s*"rail detail side"\s*\n?\s*"rail notes {2}notes"/);
+});
+
+test('the two notes are two different thoughts, and both are wired', () => {
+  // Trade note on the left, session note on the right — see the component header.
+  assert.match(work, /aria-label="Trade note"/);
+  assert.match(work, /aria-label="Day review"/);
+  assert.match(work, /onChange=\{set\('comments'\)\}/);
+  assert.match(work, /setNoteTouched\(true\); setNoteDraft\(e\.target\.value\)/);
+  // The day note keeps seeding from the prop until the user types, because DayView
+  // fetches it asynchronously — seeded once, a late arrival would leave an empty box
+  // that reads as a pending change and overwrites the stored note on Save.
+  assert.match(work, /if \(!noteTouched\) setNoteDraft\(dayNote\)/);
+  // §3 names the journal note field as prose: 1.6 leading and a 68ch measure.
+  const rule = css.slice(css.indexOf('.djw-modal .djw-note {'), css.indexOf('}', css.indexOf('.djw-modal .djw-note {')));
+  assert.match(rule, /line-height: 1\.6/);
+  assert.match(rule, /max-width: 68ch/);
+});
+
+test('only what changed is sent, and a partial failure keeps what landed', () => {
+  // Saving every field of every trade would mark untouched trades tagged and bump
+  // their updated_at. Sending an unchanged SL would also re-derive Max R and Fixed R
+  // for what was only a note edit.
+  assert.match(work, /const changedOn = \(t\) => EDITABLE\.filter\(\(k\) => \(draft\[t\.id\]\?\.\[k\] \?\? ''\) !== str\(t\[k\]\)\)/);
+  assert.match(work, /for \(const k of changedOn\(t\)\)/);
   // Same partial-failure discipline as the trade log's bulk actions.
-  assert.match(modal, /Promise\.allSettled/);
-  assert.match(modal, /didn't save/);
-  assert.match(modal, /disabled=\{saving \|\| changed\.length === 0\}/);
+  assert.match(work, /Promise\.allSettled/);
+  assert.match(work, /didn't save/);
+  assert.match(work, /disabled=\{saving \|\| pending === 0\}/);
+  // The day note counts as one pending change alongside the dirty trades.
+  assert.match(work, /const pending = dirtyTrades\.length \+ \(noteDirty \? 1 : 0\)/);
+});
+
+test('the workspace steps to the day either side of the one open', () => {
+  assert.match(work, /function DayStep/);
+  assert.match(work, /dir === 'prev' \? 'Previous day' : 'Next day'/);
+  assert.match(work, /<ChevronLeft/);
+  assert.match(work, /<ChevronRight/);
+  // The feed is newest-first, so the OLDER day — "previous" — is the next index up,
+  // and the arrows can only reach days the page itself would show (filters included).
+  assert.match(page, /prevDay=\{days\[journalIdx \+ 1\] \|\| null\}/);
+  assert.match(page, /nextDay=\{journalIdx > 0 \? days\[journalIdx - 1\] : null\}/);
+  // Stepping past the paging window extends it, so closing lands on that day's card.
+  assert.match(page, /setShown\(\(n\) => Math\.max\(n, i \+ 1\)\)/);
+  assert.match(css, /\.djw-nav \{/);
+  // The date moved inside the nav, so the narrow layout has to place the nav — a rule
+  // still targeting `.djw-date` there would leave the arrows in the header's top row.
+  assert.match(css, /\.djw-nav \{ grid-row: 2; grid-column: 1 \/ -1; \}/);
+});
+
+test('a step with unsaved changes arms rather than discarding them', () => {
+  // Drafts are keyed on the day, so walking to Tuesday would silently drop what is
+  // typed on Wednesday. Two presses, no second dialog over the dialog.
+  assert.match(work, /if \(pending > 0 && armed !== target\.key\) \{ setArmed\(target\.key\); return; \}/);
+  assert.match(work, /press again to leave this day/);
+  // Per-target, so arming one direction and pressing the other asks again.
+  assert.match(work, /armed !== target\.key/);
+  // Typing disarms: an arm from before a paragraph was written must not authorise
+  // discarding the paragraph.
+  assert.match(work, /useEffect\(\(\) => \{ setArmed\(null\); \}, \[draft, noteDraft\]\)/);
+  // Disabled is only about a day existing (or a save in flight) — Chrome fires no
+  // pointer events on a disabled control, so a disabled arrow could take neither the
+  // second press nor show its tooltip.
+  assert.match(work, /disabled=\{disabled \|\| !target\}/);
+  assert.match(css, /\.djw-status\.is-warn \{ color: var\(--warning\); \}/);
+});
+
+test('the day filter narrows the rail without moving the trade being journalled', () => {
+  // Additive facets, so none checked means all — which is why these are checkboxes and
+  // not radios.
+  assert.match(work, /const OUTCOMES = \[\['win', 'Winners'\], \['loss', 'Losers'\], \['be', 'Breakeven'\]\]/);
+  assert.match(work, /<MenuCheckboxItem/);
+  assert.match(work, /if \(wanted\.size && !wanted\.has\(tradeOutcome\(t, unit, beRounding\)\)\) return false;/);
+  assert.match(work, /if \(facets\.has\('unwritten'\) && \(draft\[t\.id\]\?\.comments \|\| ''\)\.trim\(\)\) return false;/);
+  // The rail says what is hidden, or a filtered view reads as lost trades.
+  assert.match(work, /\{rows\.length\} of \{trades\.length\}/);
+  assert.match(work, /No trades match the filter\./);
+  // `selId` is deliberately NOT reconciled against `rows`: a filter narrows what you can
+  // REACH, and yanking the centre panel away would discard edits in progress.
+  assert.ok(!/setSelId\(rows/.test(work), 'a filter must not re-select — see the comment on `rows`');
+  // Where the menu itself renders is the shell's business now, and it has to be: on the
+  // dropdown tier it opened UNDER the modal's own scrim and could not be seen at all.
+  // modal-shell.test.js owns that chain.
+  assert.match(work, /<MenuContent className="djw-filter-menu">/);
+  assert.match(css, /\.djw-filter-menu \{ width: 180px; \}/);
+});
+
+test('the workspace originates no colour of its own', () => {
+  // A page may not invent visual values, and green/red are reserved for outcomes.
+  // Both are why the tone classes below are the only colour decision in the JSX.
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(work), 'no raw colour literal in the workspace');
+  assert.ok(!/rgba?\(/.test(work), 'no raw colour function in the workspace');
 });
 
 test('trades sit behind a disclosure, collapsed by default', () => {

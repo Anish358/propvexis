@@ -1,6 +1,9 @@
+import { useRef } from 'react';
+
 import {
   Dialog, DialogOverlay, DialogPopup, DialogPortal,
 } from './dialog.jsx';
+import { OverlayContainerContext } from './overlay-container.js';
 
 /* Modal — THE shared shell. All 11 of this app's modals adopt it, content unchanged.
  *
@@ -80,6 +83,15 @@ import {
  *      closes a modal on outside press only when the press target *is* the registered
  *      backdrop element (`useDialogRoot`'s `outsidePress`). A neutral wrapper div would
  *      have swallowed the click and broken the dismissal all 11 modals had.
+ *
+ * ── AND ONE CONSEQUENCE OF THAT z-index, WHICH IS WHAT `popupRef` IS FOR ──
+ *
+ * `.modal-backdrop`'s `z-index: 2147483000` also outranks anything that opens INSIDE a
+ * modal, because an overlay's portal does not land in the popup — it lands beside the
+ * backdrop, on the dropdown tier. So the shell publishes its popup as the container
+ * every overlay below it should portal into. `overlay-container.js` carries the full
+ * chain; the short version is that a menu in a modal has to be a DESCENDANT of the
+ * modal to be painted above it, and only the shell knows what that element is.
  */
 
 function Modal({
@@ -92,6 +104,10 @@ function Modal({
   children,
   ...rest
 }) {
+  // Handed to every overlay below this modal as its portal container — see the note
+  // above. A ref, not state, so it costs no render: `overlay-container.js` says why.
+  const popupRef = useRef(null);
+
   return (
     <Dialog
       open={open}
@@ -103,11 +119,14 @@ function Modal({
             the backdrop is gone rather than reimplemented. */}
         <DialogOverlay className={backdrop} forceRender>
           <DialogPopup
+            ref={popupRef}
             className={[surface, 'select-text', className].filter(Boolean).join(' ')}
             aria-label={label}
             {...rest}
           >
-            {children}
+            <OverlayContainerContext.Provider value={popupRef}>
+              {children}
+            </OverlayContainerContext.Provider>
           </DialogPopup>
         </DialogOverlay>
       </DialogPortal>

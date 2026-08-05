@@ -28,10 +28,17 @@ function DropdownMenuContent({
   side = "bottom",
   sideOffset = 4,
   className,
+  // ⚠️ PROPVEXIS EDIT — RE-APPLY AFTER ANY `shadcn add dropdown-menu`.
+  // The generated component builds its own Portal and exposes nothing of it, so a
+  // menu cannot be told where to render. Inside a modal it must render inside the
+  // modal or it paints under a scrim with `z-index: 2147483000`. One prop, passed
+  // straight through to Base UI's own `container`; `primitives/overlay-container.js`
+  // holds the reasoning and `test/modal-shell.test.js` fails if this line is lost.
+  container,
   ...props
 }) {
   return (
-    <MenuPrimitive.Portal>
+    <MenuPrimitive.Portal container={container}>
       <MenuPrimitive.Positioner
         className="isolate z-50 outline-none"
         align={align}

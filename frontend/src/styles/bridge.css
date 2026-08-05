@@ -425,6 +425,25 @@
     color: inherit;
     text-decoration: none;
   }
+
+  /* THE SECOND ONE, and it arrived exactly as predicted above — 2026-08-05.
+     Found by the Journal workspace's timeframe switcher, but NOT caused by it: the
+     bug is in every generated control whose resting state declares no background,
+     which is `variant="ghost"` (and therefore our `chrome`) plus ToggleGroup's
+     default variant. Preflight sets `button { background-color: transparent }`; the
+     UA sheet sets `background-color: buttonface`, which under `color-scheme: dark`
+     resolves to an opaque `rgb(107,107,107)`. So an unpressed toggle and every quiet
+     icon button in the TOP BAR have been painting themselves a solid mid-grey slab
+     since Phase 4c — a colour that is in no token, cannot theme, and reads as
+     "pressed" on the one control where pressed means something.
+     Verified by CDP: the only background rule matching an unpressed toggle was the
+     user-agent's.
+     Same scoping and the same reasoning as the anchor reset above: `:where()` keeps
+     specificity at ZERO, so every author rule still wins and this can only ever
+     remove a browser default. */
+  :where(button[data-slot], [data-slot] button) {
+    background-color: transparent;
+  }
 }
 
 /* ---------------------------------------------------------------------------
