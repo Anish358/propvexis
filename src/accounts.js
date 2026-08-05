@@ -57,6 +57,7 @@ export async function listAccounts(userId) {
   const { rows } = await query(
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
             a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
+            a.payout_cycle_days, a.payout_anchor_date,
             a.firm_id, a.firm_name,
             a.ingest_token, a.kind, a.is_active, a.created_at,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
@@ -73,7 +74,7 @@ export async function listAccounts(userId) {
 
 // Columns selected/returned for an account (kept in sync across queries).
 const ACCT_COLS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind, is_active, created_at';
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind, is_active, created_at';
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a
 // fresh ingest token — the EA binds its real MT5 login on the first trade. A
@@ -125,7 +126,10 @@ const shapeAcct = (r) => ({ ...r, mt5_login: loginNum(r.mt5_login), pending: r.m
 // so it falls back to an ownership-checked read instead of skipping the query
 // and returning null (which the caller would otherwise 404 on).
 export async function updateAccount(userId, id, fields) {
-  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'is_active'];
+  // payout_cycle_days / payout_anchor_date are edited from the Overview's
+  // "Upcoming payouts" card (the small edit-cycle popup), not the accounts modal —
+  // same PATCH route, so no second write path.
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'payout_cycle_days', 'payout_anchor_date', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'is_active'];
   const sets = [];
   const params = [];
   for (const f of allowed) {

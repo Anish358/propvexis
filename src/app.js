@@ -36,11 +36,21 @@ import { isDayKey, listDayNotes, saveDayNote } from './dayNotes.js';
 import {
   challengeHistory,
   challengesForScope,
+  lastTradeByLogin,
   advanceChallenge,
   createChallengeForAccount,
   syncActiveChallengeRules,
   insertEquitySnapshots,
 } from './challenges.js';
+import {
+  businessKpis,
+  firmRollup,
+  upcomingPayouts,
+  recentTransactions,
+  accountsBreakdown,
+  propCalendarEvents,
+  propBrief,
+} from './propOverview.js';
 import { planForUser, syncedAccountCount, manualAccountCount } from './entitlements.js';
 import { canUseEA, canUseReports, accountLimit, manualAccountLimit } from './plans.js';
 import { parseCsv, buildImportTrades } from './csv.js';
@@ -1217,6 +1227,45 @@ app.get('/api/prop/finance', { preHandler: app.requireAuth }, async (req, reply)
   // Restrict firm-attribution accounts to the scope's logins.
   const inScope = accounts.filter((a) => scope.logins.includes(a.mt5_login));
   return { ...financeSummary({ payouts, fees, accounts: inScope }), progression: roiProgression({ payouts, fees }) };
+});
+
+// Prop OS → Overview. The BUSINESS state of the whole prop operation: attention
+// banner, business KPIs, firm rollup, payout schedule, transactions, the accounts
+// breakdown and the calendar's business markers — assembled from one bulk fetch.
+//
+// DELIBERATELY IGNORES ?account_id. Every other route scopes to the selected
+// account; this one always spans every account the user owns, because the
+// questions it answers are portfolio questions. "Active accounts", "total
+// funding" and the accounts ring are meaningless narrowed to one row, and a
+// trader checking their business state should not have to remember to switch the
+// selector to "All" first. Ownership is still enforced — `ownedLogins` bounds
+// everything to this user.
+app.get('/api/prop/overview', { preHandler: app.requireAuth }, async (req) => {
+  const logins = await ownedLogins(req.user.uid);
+  const scope = { god: true, userId: req.user.uid, logins, filterCol: 'user_id' };
+  const asOf = new Date();
+
+  const [propStates, accounts, payouts, fees, challenges, lastTrade] = await Promise.all([
+    propStatesForScope(scope, asOf),
+    listAccounts(req.user.uid),
+    listPayouts(logins),
+    listFees(logins),
+    challengesForScope(logins),
+    lastTradeByLogin(logins),
+  ]);
+  // propStatesForScope returns { god: true, accounts: [...] } for a god scope, and
+  // null when the user owns nothing at all.
+  const states = propStates?.accounts ?? [];
+
+  return {
+    kpis: businessKpis({ accounts, states, challenges, payouts, fees, asOf }),
+    brief: propBrief({ accounts, states, challenges, payouts, lastTradeAt: lastTrade, asOf }),
+    firms: firmRollup({ accounts, states }),
+    payouts: upcomingPayouts({ accounts, states, payouts, asOf }),
+    transactions: recentTransactions({ payouts, fees, accounts }),
+    accounts: accountsBreakdown({ accounts, states, challenges, payouts }),
+    calendarEvents: propCalendarEvents({ challenges, payouts, accounts }),
+  };
 });
 
 // Passing & breach insights for the scope: pass rates + breach patterns across

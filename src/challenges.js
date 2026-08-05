@@ -84,6 +84,23 @@ export async function tradesForEngine(logins) {
   return rows.map((r) => ({ ...r, account_id: Number(r.account_id) }));
 }
 
+// Most recent close per login — one row per account, for the Overview Brief's
+// "inactive accounts" check. A GROUP BY rather than reusing tradesForEngine's
+// full history: the Brief needs one timestamp per account, and pulling every
+// trade to take a max would scale with trade count instead of account count.
+// Returns a Map(login -> ISO timestamp); accounts with no trades are absent.
+export async function lastTradeByLogin(logins) {
+  if (!logins?.length) return new Map();
+  const { rows } = await query(
+    `SELECT account_id, MAX(close_time) AS last_close
+       FROM trades
+      WHERE account_id = ANY($1::bigint[]) AND close_time IS NOT NULL
+      GROUP BY account_id`,
+    [logins]
+  );
+  return new Map(rows.map((r) => [Number(r.account_id), r.last_close]));
+}
+
 // EA-fed floating equity samples for a set of logins.
 export async function equitySnapshotsForEngine(logins) {
   if (!logins?.length) return [];
