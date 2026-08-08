@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { titleCase } from '../frontend/src/constants.js';
+import { titleCase } from '../frontend/src/lib/constants.js';
 
 import { appCss } from './helpers/app-css.js';
+import { appJsx, readSrc } from './helpers/src-files.js';
 // TYPOGRAPHY RULE: this app writes in Title Case. Never SHOUTED — not via
 // `text-transform: uppercase` in CSS, not by `.toUpperCase()` on display text, and
 // not by typing a label in caps in the markup.
@@ -13,8 +14,9 @@ import { appCss } from './helpers/app-css.js';
 // only looks wrong once several have accumulated. Caught here instead.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const css = appCss;
-const srcDir = fileURLToPath(new URL('../frontend/src', import.meta.url));
-const jsxFiles = readdirSync(srcDir).filter((f) => f.endsWith('.jsx'));
+// Every application .jsx, wherever the tree puts it — the component library is
+// excluded, as it was when this scan read a flat src/ directory.
+const jsxFiles = appJsx();
 
 // The ONE documented exception. A wordmark is a logo, not UI text: its letterforms
 // and tracking are the brand's, and title-casing it would be redrawing the mark.
@@ -46,7 +48,7 @@ test('display text is not uppercased in JS', () => {
   // taking a single initial for an avatar.
   const offenders = [];
   for (const f of jsxFiles) {
-    read(`../frontend/src/${f}`).split('\n').forEach((line, i) => {
+    readSrc(f).split('\n').forEach((line, i) => {
       if (!line.includes('.toUpperCase()')) return;
       if (/charAt\(0\)|\.trim\(\)\.charAt|symbols|slug/.test(line)) return;   // initials / data
       if (/titleCase/.test(line)) return;
@@ -62,7 +64,7 @@ test('labels are not typed in caps in the markup', () => {
   const ALLOWED = /^(P&L|P\/L|R|BE|MFE|SL|MTF|M15|H1|H4|CSV|EA|API|ROI|USD|GBP|EUR|JPY|MT4|MT5|ID|UTC|RR|AI|OK|NY|LDN|ASIA|HIGH|MED|LOW|TOTAL)$/;
   const offenders = [];
   for (const f of jsxFiles) {
-    for (const m of read(`../frontend/src/${f}`).matchAll(/>([A-Z][A-Z0-9 /&'-]{2,})</g)) {
+    for (const m of readSrc(f).matchAll(/>([A-Z][A-Z0-9 /&'-]{2,})</g)) {
       const text = m[1].trim();
       // Split on whitespace only — a slashed pair like P/L is one written token.
       if (text.split(/\s+/).every((w) => ALLOWED.test(w))) continue;

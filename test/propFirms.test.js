@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PROP_FIRMS, findFirm, templateToFields } from '../frontend/src/propFirms.js';
+import { PROP_FIRMS, findFirm, templateToFields } from '../frontend/src/features/prop/propFirms.js';
 
-// The prop-firm catalog (frontend/src/propFirms.js) is JSX-free so we can guard
+// The prop-firm catalog (frontend/src/features/prop/propFirms.js) is JSX-free so we can guard
 // its shape + the resolver here. templateToFields output must match the account
 // form-field shape AccountsModal.toPayload consumes.
 

@@ -10,7 +10,7 @@ import { appCss } from './helpers/app-css.js';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const css = appCss;
 const ui = read('../frontend/src/ui.jsx');
-const comingSoon = read('../frontend/src/ComingSoon.jsx');
+const comingSoon = read('../frontend/src/components/ComingSoon.jsx');
 
 test('CSS defines the canonical component classes', () => {
   for (const c of [

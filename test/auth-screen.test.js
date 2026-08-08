@@ -10,8 +10,8 @@ import { appCss } from './helpers/app-css.js';
 // out of the a11y tree and off small screens, and the colour-role invariant
 // inside the artwork (blue = product, green/red = trade outcomes only).
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const login = read('../frontend/src/Login.jsx');
-const art = read('../frontend/src/AuthArt.jsx');
+const login = read('../frontend/src/features/auth/Login.jsx');
+const art = read('../frontend/src/features/auth/AuthArt.jsx');
 const css = appCss;
 
 test('one component serves both routes, differing only in copy', () => {
@@ -28,7 +28,7 @@ test('one component serves both routes, differing only in copy', () => {
 });
 
 test('brand mark is the shared Logo, and the wordmark link stays on-origin locally', () => {
-  assert.match(login, /import Logo from '\.\/Logo\.jsx'/);
+  assert.match(login, /import Logo from '[^']*Logo\.jsx'/);
   assert.match(login, /<Logo size=\{22\} \/>/);
   assert.match(login, /const SITE = isLocal \? '\/' : 'https:\/\/propvexis\.com'/);
   for (const host of ['localhost', '127.0.0.1']) {

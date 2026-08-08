@@ -9,7 +9,7 @@ import { appCss } from './helpers/app-css.js';
 // with its own chart theming) with a fixed layout that has no charts, so this now
 // checks the new Dashboard component + its CSS instead.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const dash = read('../frontend/src/Dashboard.jsx');
+const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
 const css = appCss;
 
 test('Dashboard has no hardcoded gray colors (uses tokens/design-system classes)', () => {

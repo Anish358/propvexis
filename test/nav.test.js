@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { NAV, LEGACY_REDIRECTS, navRoutes, navTitle, OFF_NAV_TITLES } from '../frontend/src/nav.js';
+import { NAV, LEGACY_REDIRECTS, navRoutes, navTitle, OFF_NAV_TITLES } from '../frontend/src/app/nav.js';
 
 import { appCss } from './helpers/app-css.js';
-// The IA config (frontend/src/nav.js) is deliberately JSX-free so we can guard
+// The IA config (frontend/src/app/nav.js) is deliberately JSX-free so we can guard
 // its invariants here: the Sidebar and the route table both render from it, so
 // a malformed entry breaks navigation app-wide.
 

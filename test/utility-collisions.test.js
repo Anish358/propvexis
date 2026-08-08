@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { legacyCss } from './helpers/app-css.js';
+import { appFiles, readSrc } from './helpers/src-files.js';
 
 /* Tailwind utility names and this app's 862 legacy class names share one global
  * namespace. When a generated component uses `grid` and a legacy <table> also has
@@ -113,8 +114,8 @@ test('utilities written in app JSX are not also styled by legacy CSS', () => {
   // would silently outrank it and the element would render neither thing cleanly.
   const legacy = legacyStyledClassNames();
   const offenders = [];
-  for (const f of readdirSync(appDir).filter((n) => n.endsWith('.jsx') || n.endsWith('.js'))) {
-    const s = readFileSync(`${appDir}/${f}`, 'utf8');
+  for (const f of appFiles()) {
+    const s = readSrc(f);
     for (const m of s.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/g)) {
       for (const tok of (m[1] ?? m[2] ?? '').split(/[^\w-]+/)) {
         // A Tailwind-shaped token — has a `-` or is a known bare utility — that legacy
@@ -146,9 +147,10 @@ test('generated components hardcode no colours', () => {
 
 test('application code imports primitives, never generated components', () => {
   const offenders = [];
-  for (const f of readdirSync(appDir).filter((n) => n.endsWith('.jsx') || n.endsWith('.js'))) {
-    const s = readFileSync(`${appDir}/${f}`, 'utf8');
-    if (/from\s+['"](@\/components\/ui|\.\/components\/ui)/.test(s)) offenders.push(f);
+  for (const f of appFiles()) {
+    // Relative form is matched path-agnostically — a page nested under features/
+    // reaches the generated layer as `../../components/ui/...`, not `./`.
+    if (/from\s+['"](@\/components\/ui|[.\/]*(?:\.\.\/)*components\/ui)/.test(readSrc(f))) offenders.push(f);
   }
   assert.deepEqual(offenders, [], 'these files bypass the primitives layer');
 });

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { appCss } from './helpers/app-css.js';
+import { readSrc } from './helpers/src-files.js';
 
 // Phase 4b — the shared Modal shell, and every dialog in the app adopting it.
 //
@@ -28,7 +29,9 @@ import { appCss } from './helpers/app-css.js';
 //      land on the wrapper instead, silently removing the click-outside-to-close that
 //      all thirteen dialogs had before this migration.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const src = (f) => read(`../frontend/src/${f}`);
+// Resolved by name, not by location: which feature folder a dialog lives in is not
+// what this file is asserting, and the DIALOGS list below names thirteen of them.
+const src = (f) => readSrc(f);
 
 const shell = src('components/primitives/modal.jsx');
 const dialog = src('components/primitives/dialog.jsx');

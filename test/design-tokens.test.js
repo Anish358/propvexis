@@ -10,7 +10,7 @@ import { appCss } from './helpers/app-css.js';
 // these tests fail before it ships.
 const css = appCss;
 const themeJs = readFileSync(
-  fileURLToPath(new URL('../frontend/src/theme.js', import.meta.url)),
+  fileURLToPath(new URL('../frontend/src/lib/theme.js', import.meta.url)),
   'utf8',
 );
 

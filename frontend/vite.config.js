@@ -20,6 +20,24 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  // The app was shipping as a single ~1.3 MB chunk, which meant every deploy
+  // invalidated the whole bundle and Vite warned on every build. The charting
+  // libraries are the bulk of it and they change far less often than app code,
+  // so they get their own long-lived chunks. recharts and lightweight-charts
+  // stay SEPARATE deliberately — together they exceed the 500 kB warning again.
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          recharts: ['recharts'],
+          'lightweight-charts': ['lightweight-charts'],
+          sentry: ['@sentry/react'],
+          socketio: ['socket.io-client'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

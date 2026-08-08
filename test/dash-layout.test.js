@@ -9,17 +9,17 @@ import {
   defaultDashLayout, sanitizeDashLayout, isDefaultDashLayout,
   moveDashId, moveDashIdBefore,
   isDashVisible, visibleDashIds, visibleSections, sectionVisible, hiddenDashWidgets,
-} from '../frontend/src/dashLayout.js';
+} from '../frontend/src/features/dashboard/dashLayout.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const dash = read('../frontend/src/Dashboard.jsx');
-const editor = read('../frontend/src/DashLayoutEditor.jsx');
+const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
+const editor = read('../frontend/src/features/dashboard/DashLayoutEditor.jsx');
 // Comments stripped. Use this for "the source must NOT contain X" checks — the
 // editor's own comments legitimately name the approaches it rejects
 // (elementFromPoint, HTML5 draggable), and matching prose gives a false positive.
 const editorCode = editor.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
 const app = read('../frontend/src/App.jsx');
-const layoutJsx = read('../frontend/src/Layout.jsx');
+const layoutJsx = read('../frontend/src/app/Layout.jsx');
 const css = appCss;
 
 // ---- model ------------------------------------------------------------------

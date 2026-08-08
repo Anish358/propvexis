@@ -19,8 +19,8 @@ import { appCss, tokensCss, bridgeCss, legacyCss } from './helpers/app-css.js';
 // explicit decision, and the second reversed that decision. A test that pinned the first
 // scope would now be pinning a choice the owner overruled.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const bar = read('../frontend/src/FilterBar.jsx');
-const notif = read('../frontend/src/Notifications.jsx');
+const bar = read('../frontend/src/features/filters/FilterBar.jsx');
+const notif = read('../frontend/src/features/alerts/Notifications.jsx');
 const menu = read('../frontend/src/components/primitives/menu.jsx');
 const popover = read('../frontend/src/components/primitives/popover.jsx');
 const tw = read('../frontend/src/tailwind.css');

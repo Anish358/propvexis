@@ -8,7 +8,7 @@ import {
   defaultBriefPrefs, sanitizeBriefPrefs, isDefaultBriefPrefs, briefSectionOn,
   impactAllowed, briefWindowRange, filterBriefEvents, briefEmptyReason,
   formatBriefTime, briefEventsLabel, formatBriefDate, formatBriefClock,
-} from '../frontend/src/briefPrefs.js';
+} from '../frontend/src/features/dashboard/briefPrefs.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 
@@ -280,10 +280,10 @@ test('the events label tracks the importance setting', () => {
 
 // ---- wiring -----------------------------------------------------------------
 
-const pop = read('../frontend/src/BriefSettingsPopover.jsx');
-const dash = read('../frontend/src/Dashboard.jsx');
+const pop = read('../frontend/src/features/dashboard/BriefSettingsPopover.jsx');
+const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
 const app = read('../frontend/src/App.jsx');
-const layoutJsx = read('../frontend/src/Layout.jsx');
+const layoutJsx = read('../frontend/src/app/Layout.jsx');
 const css = appCss;
 
 test('the gear toggles an anchored popover, not a modal', () => {
