@@ -1,0 +1,11 @@
+{
+  "//": "Path aliases for a JavaScript Vite project. This file exists so the shadcn CLI and the editor can both resolve '@/...' imports; Vite itself resolves them via resolve.alias in vite.config.js. The two must agree. No compilation happens from this file — Vite/esbuild does the transform.",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -3,15 +3,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // The auth screen (login + signup) is a split layout: copy + Google CTA on the
 // left, an abstract chart panel on the right. These pin the parts that are easy
 // to break later — the shared-component contract, the decorative panel staying
 // out of the a11y tree and off small screens, and the colour-role invariant
 // inside the artwork (blue = product, green/red = trade outcomes only).
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const login = read('../frontend/src/Login.jsx');
-const art = read('../frontend/src/AuthArt.jsx');
-const css = read('../frontend/src/styles.css');
+const login = read('../frontend/src/features/auth/Login.jsx');
+const art = read('../frontend/src/features/auth/AuthArt.jsx');
+const css = appCss;
 
 test('one component serves both routes, differing only in copy', () => {
   assert.match(login, /mode = 'login'/);
@@ -27,7 +28,7 @@ test('one component serves both routes, differing only in copy', () => {
 });
 
 test('brand mark is the shared Logo, and the wordmark link stays on-origin locally', () => {
-  assert.match(login, /import Logo from '\.\/Logo\.jsx'/);
+  assert.match(login, /import Logo from '[^']*Logo\.jsx'/);
   assert.match(login, /<Logo size=\{22\} \/>/);
   assert.match(login, /const SITE = isLocal \? '\/' : 'https:\/\/propvexis\.com'/);
   for (const host of ['localhost', '127.0.0.1']) {
@@ -78,7 +79,10 @@ test('the artwork is decoration: hidden from AT and dropped on small screens', (
 });
 
 test('artwork keeps the colour roles: blue curve, green/red candles', () => {
-  assert.match(art, /stroke="var\(--accent\)"/);            // equity curve = brand
+  // The curve must be BRAND, never an outcome. Which brand token carries it is a
+  // foundation detail: --accent is the preset's fill value and measures ~2:1 on
+  // --panel, so a 2.5px stroke uses --accent-on-surface instead. Either is brand.
+  assert.match(art, /stroke="var\(--accent(-on-surface)?\)"/);
   assert.match(art, /up \? 'var\(--profit\)' : 'var\(--loss\)'/);  // candles = outcomes
   assert.ok(!/var\(--profit\)/.test(art.slice(art.indexOf('CURVE ='), art.indexOf('const BODY_W'))),
     'the equity curve must not be coloured with an outcome token');

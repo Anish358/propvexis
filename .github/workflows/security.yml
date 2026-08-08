@@ -1,0 +1,127 @@
+name: Security
+
+# Supply-chain scanning, kept SEPARATE from ci.yml on purpose: a newly-disclosed
+# CVE must not turn an unrelated feature PR red, and audit results change without
+# the code changing. Weekly schedule included so something disclosed after merge
+# still surfaces.
+#
+# THE RULE HERE: a job only fails on findings that are BOTH real and actionable by
+# this repo. Everything else reports and stays green. A permanently-red security
+# check teaches everyone to ignore red, which is worse than having no check —
+# so the split below is deliberate, not laziness. Each report-only job says why.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [dev]
+  schedule:
+    # Mondays 03:00 UTC — ahead of the Dependabot PRs that land the same morning.
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pull the vulnerability DB from ECR, not Docker Hub, which rate-limits
+  # anonymous pulls and makes these jobs flaky.
+  TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
+
+jobs:
+  # BLOCKING. Our own dependency tree, both lockfiles. Verified clean at the time
+  # of writing, so a failure here means something genuinely new arrived.
+  audit:
+    name: npm audit (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20' # match the production box
+          cache: 'npm'
+      # high/critical only. Moderate advisories in transitive dev deps are
+      # near-permanent npm noise; failing on them would defeat the point.
+      - name: Backend
+        run: npm audit --audit-level=high
+      - name: Frontend
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  # BLOCKING. Dependency CVEs + committed secrets. `secret` matters most here:
+  # this repo has real credentials nearby (SSM, ingest tokens, the EA), and a
+  # leaked key is always actionable.
+  deps-and-secrets:
+    name: Trivy deps + secrets (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true # an advisory with no released fix is not actionable
+          format: table
+          exit-code: '1'
+
+  # REPORT-ONLY. Trivy's IaC opinions on terraform/ — currently an open egress
+  # CIDR (intentional for an app security group) and an unencrypted SNS topic on
+  # the $0.75/mo uptime alarm. Both are defensible, and this Terraform does not
+  # manage prod yet, so failing the build on them would be permanent red for no
+  # gain. Findings still print, and go to the Security tab where available.
+  iac-config:
+    name: Trivy IaC config (report-only)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scanners: misconfig
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: '0'
+      - name: SARIF for the Security tab
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scanners: misconfig
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-iac.sarif
+          exit-code: '0'
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-iac.sarif
+          category: trivy-iac
+        # Needs GitHub Advanced Security, which a private repo may not have.
+        continue-on-error: true
+
+  # REPORT-ONLY. The Dockerfile is NOT what prod runs (prod is pm2 on EC2); it
+  # serves local dev and the monitoring compose path. Its HIGH findings live in
+  # node:20-alpine's bundled npm (node-tar), which this repo cannot fix without
+  # waiting for an upstream base-image release — so this informs a base-image
+  # bump rather than blocking a merge.
+  image:
+    name: Trivy image (report-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build
+        run: docker build -t propvexis-backend:ci .
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: propvexis-backend:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: '0'

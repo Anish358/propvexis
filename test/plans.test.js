@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { entitlements, canUseEA, canUseMetaApi, accountLimit, manualAccountLimit, isValidPlan, DEFAULT_PLAN } from '../src/plans.js';
+import { entitlements, canUseEA, canUseMetaApi, accountLimit, manualAccountLimit, isValidPlan, DEFAULT_PLAN } from '../src/domain/billing/plans.js';
 
 test('free plan: manual + csv only, no EA/MetaApi, zero synced accounts', () => {
   assert.equal(canUseEA('free'), false);

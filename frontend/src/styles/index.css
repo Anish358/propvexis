@@ -1,0 +1,35 @@
+/* ===========================================================================
+   PropVexis stylesheet entry — the only CSS file the app imports.
+   ===========================================================================
+
+   FOUR LAYERS, IN THIS ORDER. The order is the architecture, not a preference.
+
+   1. ../tailwind.css   Tailwind v4 itself: the cascade-layer order, the theme and
+                        utilities imports (utilities still `source(none)`), and
+                        shadcn's component variant definitions. Everything it
+                        emits lives inside a cascade layer.
+
+   2. ./tokens.css      THE SOURCE OF TRUTH for values. Every colour, type, space,
+                        radius, shadow, motion, z-index and domain token, once.
+                        Dark values on :root; `:root[data-theme="light"]` overrides
+                        the same names and nothing else. Unlayered on purpose —
+                        see the cascade note below.
+
+   3. ./bridge.css      Maps layer 2 into layer 1's vocabulary. One-way: tokens
+                        flow outward to Tailwind and shadcn, never inward.
+
+   4. ./legacy/app.css  The existing component CSS, verbatim. Being in `legacy/`
+                        states a direction, not a judgement: it is the stylesheet
+                        the app renders from today, and it gets replaced component
+                        by component, never in a sweep.
+
+   WHY TOKENS AND LEGACY STAY UNLAYERED: unlayered declarations beat layered ones
+   in the cascade regardless of source order. Keeping layers 2 and 4 unlayered is
+   what guarantees that nothing Tailwind or shadcn emits can override the existing
+   design system. The library can only ever add; it cannot outrank.
+   =========================================================================== */
+
+@import "../tailwind.css";
+@import "./tokens.css";
+@import "./bridge.css";
+@import "./legacy/app.css";

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createStatsBus, encodeInvalidation, decodeInvalidation, newOrigin, INVALIDATE_CHANNEL,
-} from '../src/statsBus.js';
+} from '../src/platform/statsBus.js';
 
 // The bus fans cache invalidations across pm2 workers over Redis pub/sub. All of
 // it is transport-injected, so these run with no Redis in CI.

@@ -1,9 +1,21 @@
 import React from 'react';
 
-// ── PropVexis component primitives (Phase 1) ─────────────────────────────────
-// Thin, token-backed wrappers over the `.u-*` classes in styles.css. New screens
-// should compose these instead of hand-rolling buttons/cards/badges/etc, so the
-// design system stays the single source of truth. See design-system/propvexis.
+// ── PropVexis component primitives (Phase 1) — SUPERSEDED ────────────────────
+//
+// DO NOT IMPORT FROM THIS FILE. It has no importers left: every page now goes
+// through `@/components/primitives`, which is the single component entry point
+// (see that directory's index.js for why).
+//
+// It is still here on purpose. UI-MIGRATION-PLAN §22 makes this facade the
+// migration's kill switch: its public API is identical to the primitives layer's,
+// so reverting a primitive that turns out wrong is a one-line import change per
+// page rather than a rewrite. It is deleted when the primitives layer has been in
+// production long enough that nobody would want it back — not on the day the last
+// caller moved off it.
+//
+// Thin, token-backed wrappers over the `.u-*` classes in the legacy stylesheet.
+// Those classes stay defined either way: `Field`, `Input`, `Select` and `Textarea`
+// below never had a caller to migrate, and two files use `.u-*` directly.
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 

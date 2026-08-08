@@ -3,8 +3,8 @@
 // grant/downgrade a user manually.
 //
 //   node scripts/set-plan.js <email> <free|pro|premium>
-import { pool, query } from '../src/db.js';
-import { isValidPlan } from '../src/plans.js';
+import { pool, query } from '../src/platform/db.js';
+import { isValidPlan } from '../src/domain/billing/plans.js';
 
 const [email, plan] = process.argv.slice(2);
 

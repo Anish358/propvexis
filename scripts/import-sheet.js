@@ -7,9 +7,9 @@
 // Imported rows: source='import', tagged=true, account_id=0 (sentinel).
 // Re-running clears previous imports and reloads — it never touches live EA trades.
 import { readFile } from 'node:fs/promises';
-import { pool } from '../src/db.js';
-import { normalizeSymbol } from '../src/derive.js';
-import { parseCsv } from '../src/csv.js';
+import { pool } from '../src/platform/db.js';
+import { normalizeSymbol } from '../src/domain/trades/derive.js';
+import { parseCsv } from '../src/domain/trades/csv.js';
 
 const SHEET_ID = '1N_hUdF8LtcEEQoa4qsDCurOEa_6SXWk2MO8MPGBgBPU';
 const TRADES_GID = '26444216';

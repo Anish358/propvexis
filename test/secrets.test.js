@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyParams } from '../src/secrets.js';
+import { applyParams } from '../src/platform/secrets.js';
 
 test('maps each param to its last path segment', () => {
   const env = {};

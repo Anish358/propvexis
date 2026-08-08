@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clusterSafety, isClustered, advisePoolMax } from '../src/cluster.js';
+import { clusterSafety, isClustered, advisePoolMax } from '../src/platform/cluster.js';
 
 // pm2 cluster mode is wired up but shipped with instances=1, because two pieces
 // of per-process state would break silently with more workers: Socket.IO's

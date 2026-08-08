@@ -1,0 +1,52 @@
+# Automated dependency updates.
+#
+# Two ecosystems live here: the backend at the repo root and the Vite SPA in
+# frontend/. They have separate lockfiles, so Dependabot needs an entry each or
+# the frontend never gets updated.
+#
+# Grouping is deliberate. Ungrouped, this repo would open ~10 PRs a week for a
+# one-person project and every one of them costs a review + a CI run. Patch and
+# minor updates are batched into a single weekly PR per ecosystem; majors come
+# through individually because those are the ones that actually need reading.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    # dev is the working branch; main is deploy-on-merge and must never be a PR target.
+    target-branch: dev
+    labels: [dependencies, backend]
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      backend-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    target-branch: dev
+    labels: [dependencies, frontend]
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      frontend-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # Pin-drift on the actions themselves is a real supply-chain surface too.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    target-branch: dev
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: 'chore(ci)'

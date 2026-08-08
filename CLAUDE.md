@@ -10,17 +10,43 @@ https://journal.anishdevlops.xyz still served during migration).
 - **Frontend:** React 18 + Vite 6 + React Router 6, Recharts, lightweight-charts. Entry `frontend/src/main.jsx`.
 - **DB:** PostgreSQL 16. Migrations in `db/migrations/` (runner `scripts/migrate.js`); base schema `db/schema.sql`.
 - **Auth:** Google OAuth → JWT httpOnly cookie. Open signup gated on `OPEN_SIGNUP`. Data isolated per `user_id`.
-- **Observability:** Sentry (backend `src/instrument.js` + frontend, gated on DSN); Route53 uptime → SNS email.
+- **Observability:** Sentry (backend `src/platform/instrument.js` + frontend, gated on DSN); Route53 uptime → SNS email.
 
-## Key backend modules (`src/`)
-- `server.js` routes + Socket.IO · `config.js` env · `db.js` pool · `auth.js`+`access.js` login/allowlist · `accounts.js` scoping (`resolveScope`, god view) · `payouts.js` · `candles.js` replay · `aggregations.js` dashboard stats (computed in JS over trades) · `derive.js` money-math (pips, `fixed_r`, `max_r`).
+## Backend layout (`src/`)
+- `server.js` entry (hydrates SSM secrets, then imports the app) · `app.js` **wiring only** — Fastify, raw-body JSON parser, CORS, rate limit, auth, Socket.IO, Redis, the RED-metrics hook, boot/shutdown. It registers **no routes**.
+- `routes/` the HTTP layer, one module per domain (`trades accounts strategies candles payouts prop journal analytics notifications billing system`). Each exports `function xRoutes(app, ctx)` and is **called on the root app instance, never `app.register()`-ed** — a registered plugin is encapsulated and its routes would not see `app.requireAuth` or the global rate-limit hook. Pinned by `test/routes-split.test.js`.
+- `platform/` infrastructure, no domain model: `config db redis secrets cluster instrument paths metrics statsBus statsCache calendar` + `platform/auth/` (`auth access onboarding credentials`).
+- `domain/<area>/` business logic, mirroring `routes/`: `trades/` (`derive` money-math, `csv`, `adherence`, `strategies`, `candles` replay) · `accounts/` (`accounts` scoping — `resolveScope`, god view) · `prop/` (`prop` engine, `challenges`, `propOverview`, `insights`) · `finance/` (`payouts fees finance`) · `journal/` (`dayNotes viewState`) · `analytics/` (`aggregations statsSql reports`) · `billing/` (`plans entitlements payments`) · `alerts/`.
 - Analytics are **R-based** (`fixed_r`) in god view, **$** (`pnl_money`) per single account.
+- Never build a path by counting `..` from `import.meta.url` — use `platform/paths.js`, which finds the repo root. Doing the arithmetic broke the EA download silently once.
 
 ## Commands
 - Test: `npm test` (node:test, `test/*.test.js`)
 - Dev: `npm run dev` (backend) · `cd frontend && npm run dev`
 - DB: `npm run db:migrate` · `npm run db:backup`
 - Frontend build: `cd frontend && npm run build`
+
+## Visual design system (governs ALL UI work)
+- **Source of truth:** `docs/design-system/DESIGN-LANGUAGE.md` (untracked). Every
+  UI decision — human or AI — must trace to a rule in it. *"It looks better"* is
+  not a justification.
+- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qKmlY80`** —
+  🔒 LOCKED 2026-08-04. Applied with
+  `pnpm dlx shadcn@latest apply --preset b2qKmlY80` (Existing Project → Full
+  preset: components + theme + fonts).
+- The preset owns the **global** layer: typography, font sizing, spacing, radius,
+  density, shadows, borders, colours, default component styling. **Never fall
+  back to stock shadcn styling; never invent a new visual style.** On any
+  conflict with shadcn defaults, the preset + DESIGN-LANGUAGE.md win.
+- DESIGN-LANGUAGE.md **extends** the foundation with PropVexis-specific rules
+  (trading semantics, KPI/chart conventions, prohibitions). It does not restate
+  foundation values — a missing value there is deliberate.
+- **Structure is a locked invariant:** layouts, information hierarchy, user
+  flows, interactions, responsive behaviour and business logic do NOT change for
+  visual work. Only the visual implementation follows the design language.
+- Changing a foundation value requires owner approval + a new preset ID +
+  a matching DESIGN-LANGUAGE.md amendment, committed together.
+- Migration sequencing: `docs/architecture/UI-MIGRATION-PLAN.md` (untracked).
 
 ## Workflow rules (important)
 - Work on **`dev`**; ship via **PR `dev` → `main`**. Merge to `main` auto-deploys (GitHub Actions → EC2).

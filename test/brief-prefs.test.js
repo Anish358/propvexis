@@ -2,12 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appCss } from './helpers/app-css.js';
 import {
   BRIEF_SECTIONS, BRIEF_IMPORTANCE, BRIEF_CURRENCIES, BRIEF_WINDOWS, BRIEF_TIMEZONES,
   defaultBriefPrefs, sanitizeBriefPrefs, isDefaultBriefPrefs, briefSectionOn,
   impactAllowed, briefWindowRange, filterBriefEvents, briefEmptyReason,
   formatBriefTime, briefEventsLabel, formatBriefDate, formatBriefClock,
-} from '../frontend/src/briefPrefs.js';
+} from '../frontend/src/features/dashboard/briefPrefs.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 
@@ -279,11 +280,11 @@ test('the events label tracks the importance setting', () => {
 
 // ---- wiring -----------------------------------------------------------------
 
-const pop = read('../frontend/src/BriefSettingsPopover.jsx');
-const dash = read('../frontend/src/Dashboard.jsx');
+const pop = read('../frontend/src/features/dashboard/BriefSettingsPopover.jsx');
+const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
 const app = read('../frontend/src/App.jsx');
-const layoutJsx = read('../frontend/src/Layout.jsx');
-const css = read('../frontend/src/styles.css');
+const layoutJsx = read('../frontend/src/app/Layout.jsx');
+const css = appCss;
 
 test('the gear toggles an anchored popover, not a modal', () => {
   assert.match(dash, /onClick=\{\(\) => setSettingsOpen\(\(o\) => !o\)\}/);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateRule, evaluateAdherence, normalizeRules, adherenceOf } from '../src/adherence.js';
+import { evaluateRule, evaluateAdherence, normalizeRules, adherenceOf } from '../src/domain/trades/adherence.js';
 
 // A LDN buy on EURUSD with a 12-pip SL, opened Tue 2024-01-02 09:00 UTC.
 const trade = {

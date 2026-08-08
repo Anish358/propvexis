@@ -1,0 +1,29 @@
+-- Payout cycles for funded accounts (Prop OS Overview → "Upcoming payouts").
+--
+-- A funded account doesn't pay out whenever you ask — the firm runs a CYCLE, and
+-- the trader plans around the next date on it. We already store payouts that HAVE
+-- happened (0009); what had no home is the schedule that says when the next one is
+-- DUE. Without it the Overview can only show history, which answers "what did I
+-- earn" and not "what's coming".
+--
+-- Two columns, because a cycle has a length and a starting point:
+--
+--   payout_cycle_days — how long one cycle runs. Default 14 (biweekly), the
+--     common prop-firm term. Per ACCOUNT, not per user: a trader typically runs
+--     several accounts across firms on different terms.
+--
+--   payout_anchor_date — an explicit override for where the CURRENT cycle began.
+--     Normally NULL, and the next date is derived: last payout (or, before the
+--     first payout, the account's challenge start) + payout_cycle_days. The
+--     override exists because that derivation is a guess about the firm's real
+--     schedule, and a trader who knows their actual next date must be able to say
+--     so — otherwise the card is confidently wrong and there's no way to fix it.
+--     Setting it re-anchors the cycle; clearing it returns to the derived date.
+--
+-- Deliberately NOT a table of scheduled payouts. A schedule is a rule, not a set
+-- of rows: materializing future dates would need a job to keep them current and
+-- would drift the moment a payout landed early. The next date is computed on read
+-- from these two fields plus the payouts that already exist — one source of truth,
+-- always consistent with history. See nextPayoutDate() in src/domain/prop/propOverview.js.
+ALTER TABLE mt5_accounts ADD COLUMN IF NOT EXISTS payout_cycle_days INT NOT NULL DEFAULT 14;
+ALTER TABLE mt5_accounts ADD COLUMN IF NOT EXISTS payout_anchor_date DATE;

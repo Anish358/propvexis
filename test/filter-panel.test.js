@@ -6,16 +6,20 @@ import {
   FILTERS, LIVE_FILTERS, FILTER_GROUPS, FILTER_BY_ID, DATE_PRESETS,
   activeDefs, chipValue, clearPatch, countActive, isActive, matchedPreset,
   presetRange, valueOptions, emptyFilterState, sanitizeFilterState, filterStateToQuery,
-} from '../frontend/src/filterDefs.js';
-import { filterTrades, availableOptions, emptyFilters, sanitizeFilters } from '../frontend/src/filters.js';
-import { buildTradeWhere } from '../src/aggregations.js';
+} from '../frontend/src/features/filters/filterDefs.js';
+import { filterTrades, availableOptions, emptyFilters, sanitizeFilters } from '../frontend/src/features/filters/filters.js';
+import { buildTradeWhere } from '../src/domain/analytics/aggregations.js';
+import { sourceOf } from './helpers/backend-src.js';
 
+import { appCss } from './helpers/app-css.js';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const panel = read('../frontend/src/FilterPanel.jsx');
-const bar = read('../frontend/src/FilterBar.jsx');
+const panel = read('../frontend/src/features/filters/FilterPanel.jsx');
+const bar = read('../frontend/src/features/filters/FilterBar.jsx');
 const app = read('../frontend/src/App.jsx');
-const css = read('../frontend/src/styles.css');
-const server = read('../src/app.js');
+const css = appCss;
+// parseFilters and the routes that use it live in whichever module owns /api/stats
+// (src/routes/analytics.js today) — resolved by route, not by path.
+const server = sourceOf('get', '/api/stats');
 
 const f = (patch) => ({ ...emptyFilters(), ...patch });
 
@@ -347,7 +351,7 @@ test('the weekday filter reads UTC on both sides', () => {
   // then disagree, silently, only for some users.
   const { where } = buildTradeWhere(null, 'R', f({ dows: ['1'] }), null, false);
   assert.match(where, /ISODOW FROM \(close_time AT TIME ZONE 'UTC'\)/);
-  assert.match(read('../frontend/src/filterDefs.js'), /d\.getUTCDay\(\)/);
+  assert.match(read('../frontend/src/features/filters/filterDefs.js'), /d\.getUTCDay\(\)/);
   // 2026-07-06T23:30Z is Monday in UTC and Tuesday at UTC+5:30 — it must filter
   // as Monday wherever this runs.
   const lateMonday = { close_time: '2026-07-06T23:30:00Z', open_time: '2026-07-06T23:00:00Z' };
@@ -385,10 +389,20 @@ test('the button, its position and the top bar are untouched', () => {
   // Explicitly out of scope for this redesign: only what opens BELOW the button
   // changed. The button keeps its funnel icon, label, badge and place in the
   // right-hand control cluster.
-  assert.match(bar, /className=\{`tb-btn \$\{active \? 'active' : ''\}`\}/);
+  //
+  // REWRITTEN 2026-08-05 (Phase 4c) and the test's POINT is unchanged, which is worth
+  // being precise about. Three of these assertions named the button's legacy classes
+  // (`tb-btn`, `tb-badge`, `fb-unit`) as a way of saying "the button still looks and sits
+  // where it did". Phase 4c replaced those classes with components — a change of
+  // implementation, not of icon, label, badge or order — so the assertions are restated
+  // against what is durable. Anything pinned to a class name was pinning the migration's
+  // starting point rather than the requirement.
+  assert.match(bar, /variant="chrome" size="sm" active=\{active > 0\}/, 'still a quiet control that brightens when engaged');
+  assert.match(bar, /<Filter aria-hidden="true" \/>/, 'still a funnel icon');
   assert.match(bar, /<span>Filters<\/span>/);
-  assert.match(bar, /\{active > 0 && <span className="tb-badge">\{active\}<\/span>\}/);
-  assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<div className="fb-unit"'));
+  assert.match(bar, /\{active > 0 && <CountBadge>\{active\}<\/CountBadge>\}/, 'still a count badge');
+  // Order in the right-hand cluster: after the unit switch, before the account switcher.
+  assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<ToggleGroupExclusive'));
   assert.ok(bar.indexOf('<FiltersButton') < bar.indexOf('<AccountSwitcher'));
   assert.match(css, /\.tb-filters \{ position: relative; \}/);
 });
@@ -398,13 +412,13 @@ test('columns open beside each other instead of replacing one another', () => {
   // value column is open, which is the whole point of the cascade.
   assert.match(panel, /\{adding && \(\s*<Menu/);
   assert.match(panel, /\{def && \(\s*<Menu/);
-  assert.match(panel, /const openDef = \(id\) => \{ setAdding\(true\); setPickedId\(id\); \}/);
+  assert.match(panel, /const openDef = \(id, el\) => \{ setAdding\(true\); setPickedId\(id\); anchorFrom\(el\); \}/);
   // Within the cascade they run right-to-left, growing leftward from a button
   // that sits at the right edge of the bar.
   assert.match(css, /\.fp-cascade \{[^}]*flex-direction: row-reverse/);
   assert.match(css, /\.fp-stack \{[\s\S]*?right: 0/);
   // Too narrow for two columns → stack them instead of overflowing the viewport.
-  assert.match(css, /@media \(max-width: 720px\) \{[\s\S]*?\.fp-cascade \{ flex-direction: column; \}/);
+  assert.match(css, /@media \(max-width: 720px\) \{[\s\S]*?\.fp-cascade \{ flex-direction: column;/);
 });
 
 test('the cascade hangs below the panel, not alongside it', () => {
@@ -412,7 +426,7 @@ test('the cascade hangs below the panel, not alongside it', () => {
   // header. The panel is the anchor: it stays put under the button and the
   // columns drop beneath it, right-aligned with it.
   assert.match(css, /\.fp-stack \{[\s\S]*?flex-direction: column; align-items: flex-end/);
-  const both = panel.indexOf('<div className="fp-cascade">');
+  const both = panel.indexOf('className="fp-cascade"');
   assert.ok(both > panel.indexOf('className="fp-add"'), 'the cascade renders after the panel body');
   assert.ok(both < panel.indexOf('title="Add filter"'), 'both menus live inside the cascade row');
   assert.match(panel, /\{\(adding \|\| def\) && \(/, 'no empty cascade row when nothing is open');
@@ -422,17 +436,95 @@ test('the cascade hangs below the panel, not alongside it', () => {
 });
 
 test('hovering a filter opens its values — no click needed', () => {
-  assert.match(panel, /onHover=\{\(row\) => setPickedId\(row\.id\)\}/);
-  assert.match(panel, /onMouseEnter=\{\(\) => \{[\s\S]*?hoverOpen\(row\);/);
+  assert.match(panel, /onHover=\{\(row, el\) => \{ setPickedId\(row\.id\); anchorFrom\(el\); \}\}/);
+  assert.match(panel, /onMouseEnter=\{\(e\) => \{[\s\S]*?hoverOpen\(row, e\.currentTarget\);/);
   assert.match(panel, /onMouseLeave=\{cancelHover\}/);
   // Sweeping the pointer down the list must not fire a column open per row.
-  assert.match(panel, /hoverTimer\.current = setTimeout\(\(\) => onHover\(row\), \d+\)/);
+  assert.match(panel, /hoverTimer\.current = setTimeout\(\(\) => onHover\(row, el\), 60\)/);
   assert.match(panel, /clearTimeout\(hoverTimer\.current\)/);
   // Roadmap rows open nothing, and the keyboard stays quiet: only the choose
   // column passes onHover, and arrowing only moves the highlight.
   assert.match(panel, /if \(!onHover \|\| row\.soon\) return;/);
   const valueMenu = panel.slice(panel.indexOf('{def && ('));
   assert.ok(!valueMenu.includes('onHover'), 'hovering a value must not select it');
+});
+
+test('the values column opens level with the row that spawned it', () => {
+  // Anchored to the row, not to the top of the panel — otherwise a filter near the
+  // bottom of the list opens a column that appears unrelated to it.
+  assert.match(css, /\.fp-cascade \{ position: relative;/);
+  assert.match(css, /\.fp-menu--values \{ position: absolute; top: 0; right: calc\(100% \+ var\(--s-2\)\); \}/);
+  assert.match(panel, /style=\{valuesTop == null \? undefined : \{ top: `\$\{valuesTop\}px` \}\}/);
+  // The offset lands the column's FIRST ROW against the parent row, and the lead
+  // is measured so tuning the header/search padding can't break the alignment.
+  assert.match(panel, /const first = el\.querySelector\('\.fp-row, \.fp-range, \.fp-date'\);/);
+  assert.match(panel, /const lead = first \? first\.getBoundingClientRect\(\)\.top - box\.top : 0;/);
+  assert.match(panel, /anchorTop - lead/);
+  // Measured before paint, or the column visibly jumps up from the cascade's top.
+  assert.match(panel, /useLayoutEffect\(\(\) => \{/);
+  // Clamped so a row near the viewport edge can't push the column off-screen.
+  assert.match(panel, /window\.innerHeight - 8 - el\.offsetHeight - cTop/);
+  // Both the pointer and the keyboard hand over an anchor row.
+  assert.match(panel, /onPick\(pickable\[cursor\], bodyRef\.current\?\.querySelector\('\.is-cursor'\)\)/);
+  // Stacked layout puts it back in flow, where an inline `top` is inert.
+  assert.match(css, /@media \(max-width: 720px\) \{[\s\S]*?\.fp-menu--values \{ position: static; \}/);
+});
+
+test('menu rows use the default cursor, buttons keep the pointer', () => {
+  // A hand on every row of a list this long makes pointing at things flicker; the
+  // highlight is what marks the live row. Chips / Add filter / Clear are real
+  // buttons and must still say so.
+  assert.match(css, /\.fp-row \{[^}]*cursor: default;/);
+  assert.match(css, /\.fp-preset \{[^}]*cursor: default;/);
+  for (const sel of ['.fp-add', '.fp-chip-main', '.fp-chip-x', '.fp-menu-clear', '.fp-head-clear']) {
+    const rule = css.slice(css.indexOf(`${sel} {`), css.indexOf('}', css.indexOf(`${sel} {`)));
+    assert.match(rule, /cursor: pointer/, `${sel} is a button and should keep the pointer`);
+  }
+});
+
+test('pointing at a tick box lights it', () => {
+  assert.match(css, /\.fp-box:hover \{ border-color: var\(--accent-border-strong\); box-shadow: 0 0 0 3px var\(--accent-bg\); \}/);
+  // Transitioned, so it reads as a light rather than a snap.
+  assert.match(css, /\.fp-box \{[\s\S]*?transition:[^;]*border-color[^;]*box-shadow/);
+});
+
+test('an opening column does not look like something in it is selected', () => {
+  // The search field is focused as the column opens — that is what makes
+  // type-to-filter work — so an accent focus ring would paint every fresh column
+  // as though a value were already chosen. Focus shows as the caret plus a firmer
+  // border, not a blue ring.
+  assert.match(css, /\.fp-search:focus \{ outline: none; border-color: var\(--line-strong\); \}/);
+  const search = css.slice(css.indexOf('.fp-search {'), css.indexOf('.fp-menu-body'));
+  assert.ok(!/var\(--accent/.test(search), 'no accent ring on the search field');
+  // Focus itself must stay, or typing and the arrow keys go nowhere.
+  assert.match(panel, /searchRef\.current\?\.focus\(\)/);
+});
+
+test('a column names itself exactly once', () => {
+  // List columns say it in the search placeholder and render NO heading; range and
+  // date columns have no search box, so they keep the heading instead. Either way
+  // the column is labelled, and never labelled twice.
+  assert.match(panel, /title=\{valueItems \? undefined : def\.label\}/);
+  assert.match(panel, /\{title && \(\s*<div className="fp-menu-head">/);
+  assert.match(panel, /placeholder=\{`Search \$\{def\.label\.toLowerCase\(\)\}…`\}/);
+  // The choose column keeps its heading — it has no filter name to repeat.
+  assert.match(panel, /title="Add filter"/);
+  // With the visible heading gone, the name has to reach a screen reader anyway.
+  assert.match(panel, /ariaLabel=\{def\.label\}/);
+  assert.match(panel, /aria-label=\{ariaLabel\}/);
+  // The dropped subtitle's styling goes with it rather than lingering as dead CSS.
+  assert.ok(!css.includes('.fp-menu-sub'), 'dead .fp-menu-sub rule left behind');
+  assert.ok(!panel.includes('selectedCount'), 'dead selectedCount left behind');
+});
+
+test('the tick box shows on the hovered row, and wherever it is ticked', () => {
+  // A box on every row is decoration; a box on the row you're about to act on is
+  // an affordance. But a TICKED box must always show — hiding it would hide the
+  // selection. Opacity, not display, so revealing one doesn't shift the label.
+  assert.match(css, /\.fp-box \{[^}]*opacity: 0;/);
+  assert.match(css, /\.fp-row\.is-cursor \.fp-box, \.fp-box\.is-on \{ opacity: 1; \}/);
+  const box = css.slice(css.indexOf('.fp-box {'), css.indexOf('.fp-menu-foot'));
+  assert.ok(!/display:\s*none/.test(box), 'display:none would reflow the row on hover');
 });
 
 test('every list column is searchable and keyboard-drivable', () => {
@@ -460,7 +552,7 @@ test('Escape unwinds one column at a time, from anywhere in the panel', () => {
 });
 
 test('multi-select stays open, single-value commits and closes', () => {
-  const pick = panel.slice(panel.indexOf('const pickValue'), panel.indexOf('const selectedCount'));
+  const pick = panel.slice(panel.indexOf('const pickValue'), panel.indexOf('return (', panel.indexOf('const pickValue')));
   assert.match(pick, /cur\.includes\(row\.id\) \? cur\.filter/, 'multi toggles a value');
   assert.ok(!/closeValues\(\)/.test(pick.slice(0, pick.indexOf('// Single-value'))), 'a checkbox must not close the column');
   assert.match(pick, /\/\/ Single-value[\s\S]*closeValues\(\)/);
@@ -490,6 +582,19 @@ test('the date picker is unchanged, and only appears once Date is picked', () =>
 test('panel state is sanitized on read and on write', () => {
   assert.match(app, /const filters = sanitizeFilters\(config\.filters\)/);
   assert.match(app, /filters: \{ \.\.\.sanitizeFilters\(c\.filters\), \.\.\.p \}/);
+});
+
+test('every column is exactly as wide as the panel above it', () => {
+  // They stack vertically and share an edge, so a few px of difference reads as a
+  // mistake rather than as hierarchy. One declared width, two consumers — two
+  // literals would drift the moment either is tuned.
+  assert.match(css, /\.fp-stack \{[\s\S]*?--fp-w: \d+px;/);
+  assert.match(css, /\.fp \{\s*width: var\(--fp-w\)/);
+  assert.match(css, /\.fp-menu \{[\s\S]*?width: var\(--fp-w\)/);
+  // [^}] confines the search to each rule's own body — a lazy [\s\S]*? would run
+  // past the closing brace and match some later rule's width instead.
+  const literals = [...css.matchAll(/\.fp(?:-menu)? \{[^}]*width:\s*(\d+px)/g)].map((m) => m[1]);
+  assert.deepEqual(literals, [], 'a column must not hard-code its own width');
 });
 
 test('the panel styling stays inside the design language', () => {

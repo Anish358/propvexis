@@ -9,7 +9,7 @@
 // How it works: SSH to the EC2 box, pg_dump the prod DB to a local temp file,
 // and (only if the dump is complete) restore it into the local DB from
 // ./.env. The prod DB password never leaves the server — the remote side
-// hydrates DATABASE_URL from AWS SSM (via the app's own src/secrets.js
+// hydrates DATABASE_URL from AWS SSM (via the app's own src/platform/secrets.js
 // loader) and pipes it straight into pg_dump, so no secret is ever printed
 // or sent over the wire.
 //
@@ -118,7 +118,7 @@ if (SSM_PREFIX) {
   // --no-owner/--no-privileges drop refs to the prod-only 'amey' role.
   remoteCommand = `cd '${PROD_APP_DIR}' && SSM_PREFIX='${SSM_PREFIX}' node --input-type=module`;
   remoteStdin = `
-import { hydrateSecrets } from './src/secrets.js';
+import { hydrateSecrets } from './src/platform/secrets.js';
 import { spawn } from 'node:child_process';
 const stdoutLog = console.log;
 console.log = (...a) => console.error(...a); // keep hydrate chatter off the dump

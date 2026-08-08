@@ -2,14 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { defaultDashLayout } from '../frontend/src/dashLayout.js';
+import { defaultDashLayout } from '../frontend/src/features/dashboard/dashLayout.js';
 
+import { appCss } from './helpers/app-css.js';
 // Guards the dashboard action strip (Sync Trades / Customize layout). Its whole
 // point is to be chrome-free and to sit in a fixed slot in the page order, so
 // those are the two things worth pinning down.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const css = read('../frontend/src/styles.css');
-const dash = read('../frontend/src/Dashboard.jsx');
+const css = appCss;
+const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
 
 test('out of the box, the strip sits between Today\'s Brief and the KPI row', () => {
   // Page order is now data, not markup order (see dash-layout.test.js), so this

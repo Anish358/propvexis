@@ -1,0 +1,504 @@
+/* ===========================================================================
+   BRIDGE  —  PropVexis tokens  ->  Tailwind v4 + shadcn
+   ===========================================================================
+
+   DIRECTION OF DEPENDENCY, AND IT IS ONE-WAY:
+
+       tokens.css (source of truth)  ->  bridge.css  ->  Tailwind / shadcn
+
+   Every line below has a var(--our-token) on the RIGHT. Nothing in this file
+   declares a value; it only points library vocabulary at ours. Change a value in
+   tokens.css and it changes here. There is no path in the other direction — no
+   shadcn default can reach our tokens, because our tokens are never written to.
+
+   WHY `@theme inline`: with `inline`, a utility compiles to the raw
+   `var(--our-token)` reference instead of an intermediate copy. That is what
+   keeps `[data-theme="light"]` working at any depth — the variable resolves where
+   it is used, not where it is declared.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. THE LIBRARY'S VOCABULARY, POINTED AT OURS
+   shadcn components are generated against these names. The left column is theirs
+   and is not ours to rename; the right column is ours and is authoritative.
+--------------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+
+  --color-card: var(--panel);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface-2);
+  --color-popover-foreground: var(--text);
+
+  /* Their "primary" is a brand-filled action — exactly our accent. */
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+
+  --color-secondary: var(--sel-bg);
+  --color-secondary-foreground: var(--text);
+
+  /* COLLISION 1 — "muted". Theirs is a subtle SURFACE; our --muted is a TEXT
+     colour (an alias of --text-2). Their name is served from our neutral fill and
+     our --muted token is left completely alone. */
+  --color-muted: var(--sel-bg);
+  --color-muted-foreground: var(--text-2);
+
+  /* COLLISION 2 — "accent". The one the migration plan flagged. Theirs means a
+     subtle hover background; ours means brand blue. Their name is served from our
+     neutral hover token, which also satisfies the locked rule that chrome is
+     grayscale and never brand-tinted (DESIGN-LANGUAGE N4). Our brand blue is
+     exposed as `brand-*` in section 2. Our --accent token is never redefined. */
+  --color-accent: var(--surface-hover);
+  --color-accent-foreground: var(--text);
+
+  /* Their single "destructive" means a failed action. A losing trade is NOT a
+     destructive action, so this maps to our loss colour only because the library
+     has no other slot — error-vs-loss is an open question (DESIGN-LANGUAGE §17).
+     Revisit when that is settled. */
+  --color-destructive: var(--loss);
+  --color-destructive-foreground: var(--on-accent);
+
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent-ring);
+
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-foreground: var(--text);
+  --color-sidebar-primary: var(--accent);
+  --color-sidebar-primary-foreground: var(--on-accent);
+  --color-sidebar-accent: var(--surface-hover);
+  --color-sidebar-accent-foreground: var(--text);
+  --color-sidebar-border: var(--line);
+  --color-sidebar-ring: var(--accent-ring);
+}
+
+/* ---------------------------------------------------------------------------
+   2. OUR VOCABULARY, FIRST-CLASS
+   The domain ring is the asset a component library cannot supply: it knows
+   `destructive`, not `break-even`, `payout` or `quiet loss`. Each token below is
+   usable as a utility — bg-profit, text-loss-strong, border-line-strong — the
+   moment scanning reaches the file that uses it.
+--------------------------------------------------------------------------- */
+@theme inline {
+  /* Surfaces and lines */
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-hover: var(--surface-hover);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-topbar-bg: var(--topbar-bg);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-sel-bg: var(--sel-bg);
+  --color-sel-bg-strong: var(--sel-bg-strong);
+
+  /* Text tiers */
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+
+  /* Brand family. Deliberately NOT named accent-* — see COLLISION 2. */
+  --color-brand: var(--accent);
+  --color-brand-strong: var(--accent-strong);
+  --color-brand-bg: var(--accent-bg);
+  --color-brand-hover-bg: var(--accent-hover-bg);
+  --color-brand-border: var(--accent-border);
+  --color-brand-border-strong: var(--accent-border-strong);
+  --color-brand-ring: var(--accent-ring);
+  --color-on-brand: var(--on-accent);
+  /* Brand blue that is READ rather than filled — links, focus edges, chart lines.
+     The preset's brand value is a fill; as a foreground it fails AA. See tokens.css. */
+  --color-brand-on-surface: var(--accent-on-surface);
+
+  /* Outcomes — green and red are reserved for trade P&L */
+  --color-profit: var(--profit);
+  --color-profit-bg: var(--profit-bg);
+  --color-profit-border: var(--profit-border);
+  --color-profit-strong: var(--profit-strong);
+  --color-loss: var(--loss);
+  --color-loss-strong: var(--loss-strong);
+  --color-loss-bg: var(--loss-bg);
+  --color-loss-quiet: var(--loss-quiet);
+  --color-be: var(--be);
+  --color-be-bg: var(--be-bg);
+  --color-win-bg: var(--win-bg);
+
+  /* Status and domain accents */
+  --color-ai: var(--ai);
+  --color-ai-bg: var(--ai-bg);
+  --color-warning: var(--warning);
+  --color-payout: var(--payout);
+  --color-status-good: var(--status-good);
+  --color-status-warn: var(--status-warn);
+  --color-status-bad: var(--status-bad);
+  --color-status-info: var(--status-info);
+
+  /* Neutral scale */
+  --color-neutral-1: var(--neutral-1);
+  --color-neutral-2: var(--neutral-2);
+  --color-neutral-3: var(--neutral-3);
+  --color-neutral-4: var(--neutral-4);
+  --color-neutral-5: var(--neutral-5);
+  --color-neutral-6: var(--neutral-6);
+  --color-neutral-7: var(--neutral-7);
+  --color-neutral-8: var(--neutral-8);
+  --color-neutral-9: var(--neutral-9);
+  --color-neutral-10: var(--neutral-10);
+  --color-neutral-11: var(--neutral-11);
+  --color-neutral-12: var(--neutral-12);
+  --color-neutral-13: var(--neutral-13);
+  --color-neutral-14: var(--neutral-14);
+  --color-neutral-15: var(--neutral-15);
+
+  /* Trading tints */
+  --color-surface-tint-1: var(--surface-tint-1);
+  --color-tint-profit-1: var(--tint-profit-1);
+  --color-tint-profit-2: var(--tint-profit-2);
+  --color-tint-profit-3: var(--tint-profit-3);
+  --color-tint-profit-4: var(--tint-profit-4);
+  --color-tint-profit-5: var(--tint-profit-5);
+  --color-tint-profit-6: var(--tint-profit-6);
+  --color-tint-profit-7: var(--tint-profit-7);
+  --color-tint-profit-8: var(--tint-profit-8);
+  --color-tint-profit-9: var(--tint-profit-9);
+  --color-tint-profit-10: var(--tint-profit-10);
+  --color-tint-profit-11: var(--tint-profit-11);
+  --color-tint-loss-1: var(--tint-loss-1);
+  --color-tint-loss-2: var(--tint-loss-2);
+  --color-tint-loss-3: var(--tint-loss-3);
+  --color-tint-loss-4: var(--tint-loss-4);
+  --color-tint-loss-5: var(--tint-loss-5);
+  --color-tint-loss-6: var(--tint-loss-6);
+  --color-tint-loss-7: var(--tint-loss-7);
+  --color-tint-loss-8: var(--tint-loss-8);
+  --color-tint-loss-9: var(--tint-loss-9);
+  --color-tint-loss-10: var(--tint-loss-10);
+  --color-tint-loss-11: var(--tint-loss-11);
+  --color-tint-loss-12: var(--tint-loss-12);
+  --color-tint-loss-13: var(--tint-loss-13);
+  --color-tint-loss-14: var(--tint-loss-14);
+  --color-tint-loss-15: var(--tint-loss-15);
+  --color-tint-warn-1: var(--tint-warn-1);
+  --color-tint-warn-2: var(--tint-warn-2);
+  --color-tint-warn-3: var(--tint-warn-3);
+  --color-tint-warn-4: var(--tint-warn-4);
+  --color-tint-warn-5: var(--tint-warn-5);
+  --color-tint-warn-6: var(--tint-warn-6);
+  --color-tint-warn-7: var(--tint-warn-7);
+  --color-tint-warn-8: var(--tint-warn-8);
+  --color-tint-warn-9: var(--tint-warn-9);
+  --color-tint-warn-10: var(--tint-warn-10);
+  --color-tint-warn-11: var(--tint-warn-11);
+  --color-tint-payout-1: var(--tint-payout-1);
+  --color-tint-payout-2: var(--tint-payout-2);
+  --color-tint-payout-3: var(--tint-payout-3);
+  --color-tint-payout-4: var(--tint-payout-4);
+  --color-tint-payout-5: var(--tint-payout-5);
+  --color-tint-payout-6: var(--tint-payout-6);
+  --color-tint-payout-7: var(--tint-payout-7);
+  --color-tint-accent: var(--tint-accent);
+  --color-tint-ai-1: var(--tint-ai-1);
+  --color-tint-ai-2: var(--tint-ai-2);
+
+  /* Chart categorical palette — from preset b2qKmlY80 (chartColor: green).
+     Adopted provisionally: green is this product's profit colour, so a
+     categorical chart in these hues can read as an outcome. Revisit per
+     DESIGN-LANGUAGE §12. --profit / --loss are untouched. */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Scrims and sheens */
+  --color-scrim-1: var(--scrim-1);
+  --color-scrim-2: var(--scrim-2);
+  --color-scrim-3: var(--scrim-3);
+  --color-scrim-4: var(--scrim-4);
+  --color-skeleton-sheen: var(--skeleton-sheen);
+}
+
+/* ---------------------------------------------------------------------------
+   3. SHAPE, TYPE, SPACE, MOTION, ELEVATION
+--------------------------------------------------------------------------- */
+@theme inline {
+  /* Radius — our scale under Tailwind's names */
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: var(--r-2xl);
+  /* Our scale stops at 2xl, so every larger library step resolves to our largest rather
+     than inventing one — same reasoning as `--radius-4xl` further down. `3xl` is not
+     hypothetical: the generated popover asks for `rounded-3xl`, and without this line it
+     would silently fall back to Tailwind's 24px, putting two floating overlays on
+     different radii and breaking DESIGN-LANGUAGE §6 (an overlay is a card that floats). */
+  --radius-3xl: var(--r-2xl);
+  --radius-full: var(--r-full);
+  --radius-input: var(--r-input);   /* our own step — inputs are their own shape */
+
+  /* Type scale, part 1 — OUR ROLES, as named utilities. These are roles; the
+     sizes live in tokens.css. */
+  --text-page-title: var(--fs-page-title);
+  --text-section-title: var(--fs-section-title);
+  --text-card-title: var(--fs-card-title);
+  --text-primary-metric: var(--fs-primary-metric);
+
+  /* Type scale, part 2 — TAILWIND'S LADDER, REPOINTED AT OUR SCALE.
+     This is the one mapping that changes every generated component at once, and
+     without it they are all a step too large: `text-sm` is 14px in Tailwind but
+     13px in this app, so a migrated button sat 1px above every unmigrated one and
+     a migrated card title 1px above every `.panel h3`. Since the preset defines
+     no font sizes (Q9), the defaults were what was showing through.
+
+     Only the four steps generated components actually use are repointed, plus
+     2xl because we own that value already. `xl` and anything above 2xl keep
+     Tailwind's defaults: we have no token for them, and inventing one here would
+     be inventing design (AI-2).
+
+         xs   11px  --fs-label          (Tailwind 12px)  badges, pills
+         sm   13px  --fs-body           (Tailwind 14px)  buttons, controls, body
+         base 15px  --fs-card-title     (Tailwind 16px)  CardTitle
+         lg   16px  --fs-section-title  (Tailwind 18px)  section headings
+         2xl  24px  --fs-page-title     (Tailwind 24px)  same value, our token
+
+     The `--text-*--line-height` companions are deliberately NOT overridden:
+     Tailwind expresses them as unitless ratios, so they follow the new sizes on
+     their own. */
+  --text-xs: var(--fs-label);
+  --text-sm: var(--fs-body);
+  --text-base: var(--fs-card-title);
+  --text-lg: var(--fs-section-title);
+  --text-2xl: var(--fs-page-title);
+
+  /* Weights — 400 default, 600 ceiling (DESIGN-LANGUAGE N2) */
+  --font-weight-normal: var(--fw-regular);
+  --font-weight-medium: var(--fw-medium);
+  --font-weight-semibold: var(--fw-semibold);
+
+  /* Spacing. Our --s-* scale is 4px-based (s-1:4 s-2:8 s-3:12 s-4:16 s-6:24
+     s-8:32 s-10:40 s-12:48), so pointing Tailwind's base unit at --s-1 makes
+     p-1/p-2/p-4/p-6/p-8/p-12 resolve to exactly our steps. One value, one place. */
+  --spacing: var(--s-1);
+
+  /* ELEVATION — Tailwind's FIVE shadow names collapsed onto our THREE levels.
+     DESIGN-LANGUAGE §7 is settled now (levels by detachment: rests on / raised above /
+     blocks the page), so this maps the library's whole scale rather than just the step
+     that happened to be in use.
+
+     Mapping all of it is the point. Any unmapped name falls through to Tailwind's own
+     default, which is a hardcoded `#0000001a` — a raw colour literal, and not on our
+     ladder. That is not hypothetical: the generated Dialog asks for `shadow-xl`, and
+     before this mapping existed it compiled to exactly that literal, quietly breaking
+     both §7 and the locked "no raw colour anywhere" rule. A generated component now
+     lands on our ladder whichever step it reaches for.
+
+         2xs · xs · sm  ->  --sh-1   rests ON the page
+         md  · lg       ->  --sh-2   raised ABOVE it, page still live
+         xl  · 2xl      ->  --sh-3   BLOCKS the page
+
+     Collapsing five onto three is deliberate: the ladder has three levels because
+     three is how many distinct meanings exist, and inventing two more values to fill
+     the library's names would be inventing design (AI-2). */
+  --shadow-1: var(--sh-1);
+  --shadow-2: var(--sh-2);
+  --shadow-3: var(--sh-3);
+  --shadow-2xs: var(--sh-1);
+  --shadow-xs: var(--sh-1);
+  --shadow-sm: var(--sh-1);
+  --shadow-md: var(--sh-2);
+  --shadow-lg: var(--sh-2);
+  --shadow-xl: var(--sh-3);
+  --shadow-2xl: var(--sh-3);
+
+  /* Motion — every `transition` utility inherits our curve and duration */
+  --default-transition-duration: var(--dur);
+  --default-transition-timing-function: var(--ease);
+  --ease-brand: var(--ease);
+}
+
+/* ---------------------------------------------------------------------------
+   4. RESPONSIVE — OUR BREAKPOINTS, NOT TAILWIND'S
+   Tailwind's defaults are min-width (sm/md/lg/xl/2xl). This app is built on six
+   max-width breakpoints. Mixing both conventions in one codebase is how
+   responsive bugs get written, so the defaults are cleared outright and ours are
+   registered as named variants — `max-900:hidden`.
+--------------------------------------------------------------------------- */
+@theme {
+  --breakpoint-*: initial;
+}
+
+@custom-variant max-1100 (@media (max-width: 1100px));
+@custom-variant max-900 (@media (max-width: 900px));
+@custom-variant max-760 (@media (max-width: 760px));
+@custom-variant max-720 (@media (max-width: 720px));
+@custom-variant max-560 (@media (max-width: 560px));
+@custom-variant max-520 (@media (max-width: 520px));
+
+/* ---------------------------------------------------------------------------
+   5. THEMING — data-theme, NEVER .dark
+   shadcn ships `@custom-variant dark (&:is(.dark *))`. This app is dark-FIRST:
+   :root is dark and `[data-theme="light"]` overrides tokens. Redefining the
+   variant here means a generated component using `dark:` behaves correctly under
+   our architecture, and no `.dark` class ever has to exist.
+
+   Theming does not actually depend on these variants: because section 1 points
+   every colour at a token that already flips under [data-theme="light"], generated
+   components are theme-correct without a single `dark:` utility. These exist only
+   so that library code which does use `dark:` is not silently wrong.
+--------------------------------------------------------------------------- */
+@custom-variant dark (&:where(html:not([data-theme="light"]), html:not([data-theme="light"]) *));
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+/* ---------------------------------------------------------------------------
+   6. LIBRARY VARIABLES REFERENCED DIRECTLY BY GENERATED COMPONENTS
+
+   Sections 1–3 map our tokens into Tailwind's *utility* namespace, and with
+   `@theme inline` no custom property is emitted at all. That is correct for
+   utilities but leaves a hole: some generated components reference the library's
+   raw variables inside arbitrary values, where no utility is involved —
+   `bg-[color-mix(in oklch, var(--secondary), var(--foreground) 5%)]` in button,
+   `rounded-[min(var(--radius-4xl), 24px)]` in card. Those lookups need a real
+   property to resolve against or they silently produce nothing.
+
+   This list is AUDITED, not guessed: it is exactly the set of raw variables that
+   `components/ui` references today, and no more. Two names are deliberately
+   absent — `--accent` and `--muted` — because those are ours and mean something
+   different (see COLLISIONS 1 and 2). If a future component references either,
+   that is a conflict to resolve, not a line to add here.
+--------------------------------------------------------------------------- */
+:root {
+  --foreground: var(--text);
+  --secondary: var(--sel-bg);
+
+  /* Our radius scale stops at 2xl — 0.81rem, i.e. ~13px, NOT the 20px an earlier
+     version of this comment claimed. The preset replaced a px scale with a rem one
+     ~40% tighter (see tokens.css), and the old numbers outlived it in several
+     comments. The library's 4xl step has no equivalent, so it resolves to our
+     largest radius rather than inventing one. */
+  --radius-4xl: var(--r-2xl);
+}
+
+/* ---------------------------------------------------------------------------
+   7. Z-INDEX
+   The app's stacking order is tokenised. Tailwind has no z-index theme
+   namespace, so these are registered as named utilities rather than numbers.
+--------------------------------------------------------------------------- */
+@utility z-nav { z-index: var(--z-nav); }
+@utility z-dropdown { z-index: var(--z-dropdown); }
+@utility z-modal { z-index: var(--z-modal); }
+@utility z-toast { z-index: var(--z-toast); }
+
+/* ---------------------------------------------------------------------------
+   8. THE SCOPED RESET GENERATED COMPONENTS ASSUME AND THIS APP DOES NOT HAVE
+
+   Preflight is deliberately not imported (see tailwind.css) because a global reset
+   would visibly change every page at once — migration-plan risk R1. The cost, which
+   only became visible when the first generated component shipped its own skin:
+   **shadcn's components are written against Preflight.** Their item styles set no
+   resting `color` and no `text-decoration`, because Preflight has already
+   neutralised the browser's defaults for them. Here it has not.
+
+   The bug that found this: `<MenuItem render={<Link/>} />` renders a real `<a>`. The
+   legacy `.tb-menu-item` rule used to declare `color` and `text-decoration: none`,
+   which was silently doing Preflight's job. Deleting that rule when the preset took
+   over item styling exposed the UA default, and "Settings" and "Manage plan" in the
+   user menu turned **browser-default blue and underlined**. Nothing in the generated
+   component was wrong; the reset it relies on simply was not there.
+
+   THE PLAN ALREADY ALLOWS FOR THIS — §12: "Resets that library components genuinely
+   need are scoped to `components/ui/`." This is the first one, and it will not be the
+   last: every generated component that can render an anchor has the same exposure
+   (dialog footers, buttons-as-links, breadcrumbs, nav items).
+
+   SCOPING. `data-slot` is the hook: only generated components emit it, and with the
+   `render` prop the anchor carries the attribute itself rather than merely sitting
+   inside it — so both forms are matched. `:where()` keeps specificity at ZERO, which
+   is the difference between a reset and an opinion: any author rule beats it,
+   including the deliberate legacy ones (`.auth-alt a`, `.acct-kind-upsell a`), while
+   it still beats the UA sheet. It can only ever remove a browser default.
+--------------------------------------------------------------------------- */
+@layer base {
+  :where(a[data-slot], [data-slot] a) {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* THE SECOND ONE, and it arrived exactly as predicted above — 2026-08-05.
+     Found by the Journal workspace's timeframe switcher, but NOT caused by it: the
+     bug is in every generated control whose resting state declares no background,
+     which is `variant="ghost"` (and therefore our `chrome`) plus ToggleGroup's
+     default variant. Preflight sets `button { background-color: transparent }`; the
+     UA sheet sets `background-color: buttonface`, which under `color-scheme: dark`
+     resolves to an opaque `rgb(107,107,107)`. So an unpressed toggle and every quiet
+     icon button in the TOP BAR have been painting themselves a solid mid-grey slab
+     since Phase 4c — a colour that is in no token, cannot theme, and reads as
+     "pressed" on the one control where pressed means something.
+     Verified by CDP: the only background rule matching an unpressed toggle was the
+     user-agent's.
+     Same scoping and the same reasoning as the anchor reset above: `:where()` keeps
+     specificity at ZERO, so every author rule still wins and this can only ever
+     remove a browser default. */
+  :where(button[data-slot], [data-slot] button) {
+    background-color: transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   9. MOTION — the ONE overlay animation recipe (DESIGN-LANGUAGE §10)
+
+   §10 is LOCKED and is explicitly NOT a foundation concern: the preset expresses
+   no motion opinion, so generated components arriving with their own animation
+   defaults are subject to our scale rather than the reverse. This is the one place
+   the "preset wins" precedence rule does not apply.
+
+   WHY THIS IS A UTILITY AND NOT A CLASS LIST AT EACH CALL SITE: every overlay must
+   animate identically, and §10's duration/easing split (enter at --dur, leave at
+   --dur-fast) is three declarations plus a reduced-motion block. Repeated per
+   component that is three chances to drift; named once it is a rule with a home.
+
+   WHY IT BEATS THE GENERATED `duration-100` DETERMINISTICALLY, which is the part
+   worth understanding. tw-animate-css resolves its duration as:
+
+       animation: enter var(--tw-animation-duration, var(--tw-duration, .15s)) …
+
+   `duration-100` sets `--tw-duration`. This sets `--tw-animation-duration`, which is
+   read FIRST. So we win by variable precedence, not by cascade order — no source
+   ordering to get lucky with, no `!important`, and nothing breaks if shadcn changes
+   which duration utility it ships. `--tw-ease` has no fallback to Tailwind's default
+   timing function (it falls back to bare `ease`), so the curve must be set here too
+   or every overlay animates on the wrong curve while every transition uses ours.
+--------------------------------------------------------------------------- */
+@utility overlay-motion {
+  --tw-animation-duration: var(--dur);
+  --tw-ease: var(--ease);
+  /* Leaving is faster than arriving — §10. Once a user has dismissed something they
+     have moved on; making them wait for the exit is how "polished" becomes "slow". */
+  &[data-closed] { --tw-animation-duration: var(--dur-fast); }
+  /* §10's fallback: durations collapse to zero, the state change still happens, and
+     no substitute effect is introduced. */
+  @media (prefers-reduced-motion: reduce) {
+    --tw-animation-duration: 0s;
+    &[data-closed] { --tw-animation-duration: 0s; }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   NOT BRIDGED, DELIBERATELY
+
+   · --font-sans / --font-mono — these token names are identical to Tailwind's own
+     theme variables, so a mapping would be circular. None is needed: tokens.css
+     is unlayered and Tailwind's theme sits in a cascade layer, so our declaration
+     wins and `font-sans` already resolves to Geist. Verified in build output.
+   · Primitives (--blue-500, --slate-400, …) — never used directly by components,
+     by rule. Bridging them would invite exactly that.
+   · --chart-1…5 — shadcn expects a five-colour categorical palette. We do not
+     have one: DESIGN-LANGUAGE §12 lists the categorical palette as an open
+     decision, and inventing five colours here would be inventing design.
+   · --muted — our text alias; see COLLISION 1. Reachable as text-2.
+   · --green / --red / --brand / --brand-bg — aliases of tokens already bridged.
+   · Layout tokens (--dash-card-*, --dur-fast) — consumed by the CSS layer
+     directly; no utility needs them yet.
+--------------------------------------------------------------------------- */

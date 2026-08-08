@@ -1,25 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appCss } from './helpers/app-css.js';
+import { srcExists } from './helpers/src-files.js';
 import {
   DASH_ZONES, DASH_SECTIONS, KPI_WIDGETS, MAIN_WIDGETS, DASH_LABEL,
   GRID_COLUMNS, WIDGET_SIZES, widgetSpan, widgetSizeName,
   defaultDashLayout, sanitizeDashLayout, isDefaultDashLayout,
   moveDashId, moveDashIdBefore,
   isDashVisible, visibleDashIds, visibleSections, sectionVisible, hiddenDashWidgets,
-} from '../frontend/src/dashLayout.js';
+} from '../frontend/src/features/dashboard/dashLayout.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const dash = read('../frontend/src/Dashboard.jsx');
-const editor = read('../frontend/src/DashLayoutEditor.jsx');
+const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
+const editor = read('../frontend/src/features/dashboard/DashLayoutEditor.jsx');
 // Comments stripped. Use this for "the source must NOT contain X" checks — the
 // editor's own comments legitimately name the approaches it rejects
 // (elementFromPoint, HTML5 draggable), and matching prose gives a false positive.
 const editorCode = editor.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
 const app = read('../frontend/src/App.jsx');
-const layoutJsx = read('../frontend/src/Layout.jsx');
-const css = read('../frontend/src/styles.css');
+const layoutJsx = read('../frontend/src/app/Layout.jsx');
+const css = appCss;
 
 // ---- model ------------------------------------------------------------------
 
@@ -214,7 +216,9 @@ test('hidden widgets are enumerable, so the editor can offer them back', () => {
 // ---- editor: it is an editor, not a settings panel --------------------------
 
 test('the old settings-panel modal is gone', () => {
-  assert.ok(!existsSync(fileURLToPath(new URL('../frontend/src/DashCustomizeModal.jsx', import.meta.url))),
+  // Checked by name across the whole tree, not at one path: a path-based check
+  // would keep passing if the file came back in a feature folder.
+  assert.ok(!srcExists('DashCustomizeModal.jsx'),
     'DashCustomizeModal.jsx should have been replaced by DashLayoutEditor.jsx');
   assert.ok(!dash.includes('DashCustomizeModal'));
   assert.match(dash, /<DashLayoutEditor\b[\s\S]*open=\{customizeOpen\}/);
@@ -365,7 +369,17 @@ test('the editor is keyboard-operable, not pointer-exclusive', () => {
   assert.match(editor, /ArrowUp/);
   assert.match(editor, /ArrowLeft/);
   assert.match(editor, /tabIndex=\{0\}/);
-  assert.match(editor, /e\.key === 'Escape'/);
+  // Escape used to be a hand-rolled `document` keydown listener here. Phase 4b moved
+  // it — and the focus trap, focus return, aria-modal and scroll lock it never had —
+  // onto the shared Modal shell. The REQUIREMENT is unchanged and still pinned; only
+  // its source moved, so this asserts the editor is on the shell rather than
+  // re-asserting a listener it is now correct for it not to have.
+  assert.match(editor, /<Modal\b/, 'the editor must be on the shared Modal shell');
+  assert.doesNotMatch(
+    editor,
+    /addEventListener\('keydown'/,
+    'Escape is the shell\'s job now — a second listener would fight it',
+  );
 });
 
 test('row components stay at module scope so drags survive re-render', () => {

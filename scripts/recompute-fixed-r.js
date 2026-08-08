@@ -5,8 +5,8 @@
 //
 // Only touches source='ea' trades that have entry/exit prices + a positive SL.
 // Sheet imports and manual trades are left alone. Idempotent.
-import { pool, query } from '../src/db.js';
-import { pipSize, round2 } from '../src/derive.js';
+import { pool, query } from '../src/platform/db.js';
+import { pipSize, round2 } from '../src/domain/trades/derive.js';
 
 const DRY_RUN = process.env.DRY_RUN === '1';
 

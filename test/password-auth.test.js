@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 // are pinned here at the source level (this repo has no DB-backed route
 // harness). The hashing itself is covered by test/credentials.test.js.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const auth = read('../src/auth.js');
+const auth = read('../src/platform/auth/auth.js');
 const migration = read('../db/migrations/0021_password_auth.sql');
 
 // The body of one route handler, so assertions can't accidentally match another.

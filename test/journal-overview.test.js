@@ -2,12 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { NAV } from '../frontend/src/nav.js';
+import { NAV } from '../frontend/src/app/nav.js';
 
 // Phase 2 — Journal Overview module is built and wired (no longer a `soon` stub).
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const app = read('../frontend/src/App.jsx');
-const overview = read('../frontend/src/JournalOverview.jsx');
+const overview = read('../frontend/src/features/analytics/JournalOverview.jsx');
 
 test('the /journal Overview nav item is no longer marked soon', () => {
   const journal = NAV.find((i) => i.base === '/journal');
@@ -17,12 +17,14 @@ test('the /journal Overview nav item is no longer marked soon', () => {
 });
 
 test('App renders JournalOverview at the /journal index (not ComingSoon)', () => {
-  assert.match(app, /import JournalOverview from '\.\/JournalOverview\.jsx'/);
+  assert.match(app, /import JournalOverview from '[^']*JournalOverview\.jsx'/);
   assert.match(app, /<Route index element=\{<JournalOverview \/>\}/);
 });
 
 test('JournalOverview composes the shared component kit and real metrics', () => {
-  assert.match(overview, /from '\.\/ui\.jsx'/);
+  // The kit moved from ui.jsx to the primitives layer; this still asserts the page
+  // composes it rather than hand-rolling markup, which is what the test is for.
+  assert.match(overview, /from '@\/components\/primitives'/);
   assert.match(overview, /computeMetrics/);
   assert.match(overview, /<EmptyState/); // handles the no-trades case
 });

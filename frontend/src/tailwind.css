@@ -1,0 +1,64 @@
+/* ---------------------------------------------------------------------------
+   Tailwind CSS v4 entry — Phase 3 (infrastructure only).
+
+   Tailwind v4 has no tailwind.config.js: it is configured here, in CSS. This
+   file is the whole configuration. Two deliberate departures from the default
+   `@import "tailwindcss"`, both there to guarantee the install changes nothing
+   visually:
+
+   1. PREFLIGHT IS NOT IMPORTED.
+      `@import "tailwindcss"` pulls in theme + PREFLIGHT + utilities. Preflight is
+      a global reset: it zeroes margins, unstyles headings and lists, and changes
+      border and form-control defaults. On an app with a mature CSS design system
+      it would visibly change every page. So the parts are imported individually
+      and Preflight is left out. The app's own styles.css remains the only thing
+      establishing base styles.
+
+   2. SOURCE SCANNING IS OFF — source(none).
+      Tailwind generates a utility for any candidate string it finds in scanned
+      files. Scanning this app emits ~6 KB of utilities such as .grid, .hidden,
+      .table, .block and .container, harvested out of hyphenated app class names
+      like `dash-grid` and `dle-hidden`. Nothing uses those bare names today, so
+      they would be dead CSS — but they are live rules waiting for the first
+      element that gets a bare `table` or `container` class during the migration.
+      Phase 3 therefore ships no utilities at all; Phase 4 turns scanning on for
+      the directory that generated components land in, deliberately and in a
+      reviewable diff.
+
+   Layer order is declared explicitly so it is deterministic rather than
+   dependent on import order. `base` and `components` are named but empty —
+   reserved so anything added later lands in the right place.
+
+   Cascade note: everything Tailwind emits is inside a cascade layer, and the
+   app's styles.css is entirely unlayered. Unlayered declarations always beat
+   layered ones regardless of source order, so existing styles win over anything
+   Tailwind produces. That property is what makes this install a no-op.
+--------------------------------------------------------------------------- */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+/* Component variant definitions required by generated shadcn components —
+   data-open / data-closed and friends, plus the accordion keyframes. Verified to
+   contain no reset and no base rules: `@theme` and `@custom-variant` declarations
+   only. Contributes ~1.1 KB of @property declarations and one `.shimmer` rule that
+   matches no element in this app (ours is `.u-skeleton` with a `u-shimmer`
+   keyframes name). Introduced with the token bridge, as agreed. */
+@import "shadcn/tailwind.css";
+
+/* SCANNING — ON, and scoped to the component library ONLY.
+   These two directories are the only place Tailwind classes are written, so they
+   are the only place scanned. Deliberately NOT `./` or `./**`: scanning all of src/
+   harvests candidates out of hyphenated legacy class names (`dash-grid` yields
+   `grid`, `dle-hidden` yields `hidden`) and emits live .grid/.hidden/.table rules
+   that legacy markup collides with. That is not theoretical — `.grid` is the Trade
+   Log's <table>, and the mitigation is asserted by utility-collisions.test.js.
+
+   CONSEQUENCE, and it is intentional: a Tailwind class written in a page under src/
+   will NOT compile until that path is added here. Pages migrate by composing
+   primitives, not by writing utilities in place; when a page genuinely needs its
+   own utilities, widening this scope is a deliberate, reviewable change. */
+@source "./components/ui";
+@source "./components/primitives";

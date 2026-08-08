@@ -9,7 +9,7 @@
 ALTER TABLE users ALTER COLUMN google_sub DROP NOT NULL;
 
 -- scrypt hash in the self-describing `scrypt$N$r$p$salt$hash` format written by
--- src/credentials.js. NULL means "no password set" — a Google-only account.
+-- src/platform/auth/credentials.js. NULL means "no password set" — a Google-only account.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
 -- A row with neither identity could never log in; reject it at the DB level so

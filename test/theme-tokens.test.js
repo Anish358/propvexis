@@ -1,15 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss, bridgeCss } from './helpers/app-css.js';
+import { appFiles, appJsx, readSrc } from './helpers/src-files.js';
 // Guards the token layer, which is the prerequisite for a light theme: if every
 // colour lives in :root, a light theme is one `:root[data-theme="light"]` block.
 // A raw literal in a component rule is a colour that CAN'T be themed, so it would
 // stay dark on a light page — these tests exist to stop that creeping back.
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const css = read('../frontend/src/styles.css');
+const css = appCss;
 const lines = css.split('\n');
 
 // The three regions where a literal is legitimate, and why:
@@ -122,12 +124,22 @@ test('every themed scale is declared, ordered darkest to lightest', () => {
 test('white-on-fill uses --on-accent, not a literal or --text', () => {
   // --text inverts under a light theme; --on-accent doesn't. Text sitting on a
   // filled accent/danger button has to stay white either way.
-  for (const sel of ['.prop-controls .btn-primary', '.notif-badge', '.switch-knob']) {
+  for (const sel of ['.prop-controls .btn-primary', '.switch-knob']) {
     const at = css.indexOf(sel);
     assert.ok(at > -1, `${sel} not found`);
     const rule = css.slice(at, css.indexOf('}', at));
     assert.ok(rule.includes('var(--on-accent)'), `${sel} should use --on-accent`);
   }
+  // `.notif-badge` was the third selector here until Phase 4c (2026-08-05) deleted it —
+  // the unread count is the CountBadge primitive now. The requirement did not go away with
+  // the rule, so it is asserted where the colour actually lives: `text-destructive-foreground`,
+  // which the bridge maps to `--on-accent`. Getting this wrong is invisible in dark and
+  // wrong in light, which is why it keeps its own assertion rather than being dropped.
+  const count = read('../frontend/src/components/primitives/count-badge.jsx');
+  assert.match(count, /text-destructive-foreground/,
+    'the unread count must resolve to --on-accent, not --text and not a literal');
+  assert.match(bridgeCss, /--color-destructive-foreground:\s*var\(--on-accent\)/,
+    'the bridge is what makes that true — if it changes, white-on-red flips under light');
 });
 
 test('the JS-side chart colours carry no literals of their own', () => {
@@ -135,11 +147,11 @@ test('the JS-side chart colours carry no literals of their own', () => {
   // — but it must resolve TOKENS, never hold its own colours. (That the read
   // happens during render rather than at import is covered separately below; a
   // module-level const was the original bug.)
-  const widgets = read('../frontend/src/DashWidgets.jsx');
+  const widgets = read('../frontend/src/features/dashboard/DashWidgets.jsx');
   assert.ok(!/'#[0-9a-fA-F]{3,6}'/.test(widgets), 'no colour literals in DashWidgets');
   // theme.js's fallbacks are the one place JS may hold literals: they cover
   // non-DOM contexts (tests) where getComputedStyle isn't available.
-  const theme = read('../frontend/src/theme.js');
+  const theme = read('../frontend/src/lib/theme.js');
   assert.match(theme, /'--neutral-7': '#23232a'/);
 });
 
@@ -240,11 +252,11 @@ test('chart colours are read during render, never captured at import', () => {
   // A module-level `const X = token(...)` pins the palette to whichever theme was
   // active on first load, so switching would leave every chart on the old colours
   // until a reload. chartPalette() caches per data-theme instead.
-  const theme = read('../frontend/src/theme.js');
+  const theme = read('../frontend/src/lib/theme.js');
   assert.match(theme, /export function chartPalette\(\)/);
   assert.match(theme, /document\.documentElement\.dataset\.theme/, 'cache must key on the live theme');
   for (const f of ['Dashboard', 'Analytics', 'PropOS', 'Reports', 'DashWidgets']) {
-    const src = read(`../frontend/src/${f}.jsx`);
+    const src = readSrc(`${f}.jsx`);
     const captured = src.split('\n').filter((l) => /^const .*\btoken\(/.test(l));
     assert.deepEqual(captured, [], `${f}.jsx captures tokens at module scope: ${captured.join(' | ')}`);
     assert.match(src, /chartPalette\(\)/, `${f}.jsx should resolve its palette at render time`);
@@ -253,8 +265,8 @@ test('chart colours are read during render, never captured at import', () => {
 
 test('the theme toggle is wired to a server-synced preference', () => {
   const app = read('../frontend/src/App.jsx');
-  const bar = read('../frontend/src/FilterBar.jsx');
-  const layout = read('../frontend/src/Layout.jsx');
+  const bar = read('../frontend/src/features/filters/FilterBar.jsx');
+  const layout = read('../frontend/src/app/Layout.jsx');
   // Stored alongside the other global prefs, not in localStorage or per-scope.
   assert.match(app, /viewConfigs\.theme === 'light'/);
   assert.match(app, /theme: t === 'light' \? 'light' : 'dark'/);
@@ -270,19 +282,25 @@ test('the theme toggle is wired to a server-synced preference', () => {
   assert.match(bar, /function ThemeToggle/);
   assert.ok(bar.indexOf('<ThemeToggle') < bar.indexOf('<NotificationBell'));
   assert.match(bar, /aria-label=\{toLight \? 'Switch to light theme' : 'Switch to dark theme'\}/);
+  // Phase 4c turned it into a chrome icon Button (`.tb-icon-btn` deleted). The label above
+  // is the part that matters and is unchanged — an icon-only control whose icon shows the
+  // theme you would GET has to say so in text, and swapping the <button> for a component
+  // is exactly where that kind of attribute goes missing.
+  assert.match(bar, /variant="chrome"\s+size="icon-sm"/, 'the toggle is a chrome icon Button');
 });
 
 test('nothing calls token() without importing it', () => {
   // esbuild does no scope analysis, so an unimported `token` builds fine and then
   // throws a ReferenceError on render — which is exactly how the whole app went
   // blank behind an error boundary after the chartPalette refactor.
-  const files = readdirSync(fileURLToPath(new URL('../frontend/src', import.meta.url)))
-    .filter((f) => (f.endsWith('.jsx') || f.endsWith('.js')) && f !== 'theme.js');
+  const files = appFiles().filter((f) => !f.endsWith('lib/theme.js'));
   const broken = [];
   for (const f of files) {
-    const src = read(`../frontend/src/${f}`);
+    const src = readSrc(f);
     if (!/\btoken\(/.test(src)) continue;
-    if (!/import \{[^}]*\btoken\b[^}]*\} from '\.\/theme\.js'/.test(src)) broken.push(f);
+    // The specifier is path-agnostic on purpose: what matters is that `token` comes
+    // from theme.js, not how many `../` the importer's depth in the tree needs.
+    if (!/import \{[^}]*\btoken\b[^}]*\} from '[^']*\btheme\.js'/.test(src)) broken.push(f);
   }
   assert.deepEqual(broken, [], `token() used but not imported in: ${broken.join(', ')}`);
 });
@@ -290,18 +308,16 @@ test('nothing calls token() without importing it', () => {
 test('every chartPalette() key that is read actually exists', () => {
   // A typo'd key is silently `undefined` — no crash, just a chart drawn with no
   // colour, which is easy to miss.
-  const theme = read('../frontend/src/theme.js');
+  const theme = read('../frontend/src/lib/theme.js');
   // Search the closing marker FORWARD from the assignment: the cache-hit early
   // `return paletteCache;` sits above it, so an unanchored search slices nothing.
   const from = theme.indexOf('paletteCache = {');
   const block = theme.slice(from, theme.indexOf('return paletteCache;', from));
   const keys = new Set([...block.matchAll(/^\s{4}([a-zA-Z]+):/gm)].map((m) => m[1]));
   assert.ok(keys.size >= 5, 'could not parse the palette keys');
-  const files = readdirSync(fileURLToPath(new URL('../frontend/src', import.meta.url)))
-    .filter((f) => f.endsWith('.jsx'));
   const unknown = [];
-  for (const f of files) {
-    for (const [, k] of read(`../frontend/src/${f}`).matchAll(/chartPalette\(\)\.([a-zA-Z]+)/g)) {
+  for (const f of appJsx()) {
+    for (const [, k] of readSrc(f).matchAll(/chartPalette\(\)\.([a-zA-Z]+)/g)) {
       if (!keys.has(k)) unknown.push(`${f}: .${k}`);
     }
   }

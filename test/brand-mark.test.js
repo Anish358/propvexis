@@ -3,15 +3,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { appCss } from './helpers/app-css.js';
 // One brand mark everywhere. The geometry below is shared with the marketing
 // site (propvexis-web: public/favicon.svg + src/components/Logo.astro) — if the
 // mark is ever redrawn, all three places have to move together, and these tests
 // are the reminder.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const logo = read('../frontend/src/Logo.jsx');
+const logo = read('../frontend/src/components/Logo.jsx');
 const favicon = read('../frontend/public/favicon.svg');
-const sidebar = read('../frontend/src/Sidebar.jsx');
-const css = read('../frontend/src/styles.css');
+const sidebar = read('../frontend/src/app/Sidebar.jsx');
+const css = appCss;
 
 const CHEVRON = 'M9 21.5 15 10l6 11.5';
 
@@ -41,7 +42,7 @@ test('in-app the mark is token-driven, so it follows the theme', () => {
 });
 
 test('the sidebar brand uses the shared Logo and routes in-app', () => {
-  assert.match(sidebar, /import Logo from '\.\/Logo\.jsx'/);
+  assert.match(sidebar, /import Logo from '[^']*Logo\.jsx'/);
   assert.match(sidebar, /<Link to="\/" className="sb-brand"><Logo size=\{24\} \/>\{BRAND\}<\/Link>/);
   // The CSS-gradient square it replaced must not linger.
   assert.ok(!css.includes('.sb-brand::before'), 'the old gradient tile is removed');

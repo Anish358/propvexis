@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { verifyWebhookSignature, planForRazorpayPlanId, planStateFromEvent } from '../src/payments.js';
+import { verifyWebhookSignature, planForRazorpayPlanId, planStateFromEvent } from '../src/domain/billing/payments.js';
 
 const SECRET = 'whsec_test_123';
 const sign = (body) => crypto.createHmac('sha256', SECRET).update(body).digest('hex');
