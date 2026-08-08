@@ -1,4 +1,4 @@
-import { query } from './db.js';
+import { query } from '../../platform/db.js';
 
 // Per-user view state (display unit + data filters + widget overrides + trade
 // settings), moved off the browser's localStorage so it follows the USER across

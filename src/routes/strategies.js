@@ -1,4 +1,4 @@
-import { listStrategies, createStrategy, updateStrategy, deleteStrategy } from '../strategies.js';
+import { listStrategies, createStrategy, updateStrategy, deleteStrategy } from '../domain/trades/strategies.js';
 
 /**
  * Named strategies and their rule sets. Renames cascade to the user's trades,

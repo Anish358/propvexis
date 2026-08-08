@@ -6,7 +6,7 @@ import { fetchMe, fetchBillingConfig, fetchSubscription, startSubscription, canc
 // Pricing / plan-status page. When Razorpay is configured, the Pro CTA runs a
 // real recurring-subscription checkout; otherwise it stays a "coming soon"
 // placeholder. Plan slugs + entitlements are the source of truth in the backend
-// (src/plans.js); this is display + purchase flow.
+// (src/domain/billing/plans.js); this is display + purchase flow.
 const TIERS = [
   {
     id: 'free', name: 'Free', price: '₹0',

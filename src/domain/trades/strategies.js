@@ -1,4 +1,4 @@
-import { pool, query } from './db.js';
+import { pool, query } from '../../platform/db.js';
 import { normalizeRules } from './adherence.js';
 
 // User-owned strategy catalog. A trade is linked to its strategy by NAME

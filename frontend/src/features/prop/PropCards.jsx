@@ -7,7 +7,7 @@ import { advanceChallenge } from '../../lib/api.js';
 import PayoutCycleModal from './PayoutCycleModal.jsx';
 
 // The Prop OS Overview's content cards. All data comes server-computed from
-// GET /api/prop/overview (src/propOverview.js) — these components format and
+// GET /api/prop/overview (src/domain/prop/propOverview.js) — these components format and
 // arrange, they don't decide anything. The rules for "overdue", "ineligible",
 // "remaining to pass" and so on live in one tested module rather than in JSX.
 

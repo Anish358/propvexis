@@ -91,7 +91,7 @@ const CELLS = {
   setup: () => (t) => <td><Pill value={t.setup} kind="setup" /></td>,
   probability: () => (t) => <td><Pill value={t.probability} kind="prob" /></td>,
   // Objective rule adherence, from the trade's strategy rules (see
-  // src/adherence.js). Server-enriched as t.adherence, so this renders the same
+  // src/domain/trades/adherence.js). Server-enriched as t.adherence, so this renders the same
   // verdict the trade-preview badge shows rather than re-deciding it here. Off by
   // default: it only means anything once a strategy defines rules.
   adherence: () => (t) => {

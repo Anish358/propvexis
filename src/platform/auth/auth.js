@@ -1,10 +1,10 @@
 import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import { OAuth2Client } from 'google-auth-library';
-import { config } from './config.js';
+import { config } from '../config.js';
 import { isEmailPermitted } from './access.js';
 import { needsOnboarding } from './onboarding.js';
-import { pool, query } from './db.js';
+import { pool, query } from '../db.js';
 import {
   equalizeTiming,
   hashPassword,

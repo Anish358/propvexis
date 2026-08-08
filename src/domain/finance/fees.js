@@ -1,4 +1,4 @@
-import { query } from './db.js';
+import { query } from '../../platform/db.js';
 
 // Fee tracking for prop accounts — money OUT (evaluation / reset / activation
 // fees), the mirror of payouts (money in). Keyed by MT5 login (account_id) so it

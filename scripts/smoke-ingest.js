@@ -1,7 +1,7 @@
 // Smoke test: connect a WebSocket client, POST a sample trade to /ingest,
 // and confirm the live broadcast arrives. Run the server first (npm run dev).
 import { io } from 'socket.io-client';
-import { config } from '../src/config.js';
+import { config } from '../src/platform/config.js';
 
 const base = `http://127.0.0.1:${config.port}`;
 

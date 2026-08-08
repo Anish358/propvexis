@@ -1,8 +1,8 @@
-import { resolveScope, accountByToken, bindOrCheckLogin, ownedAccountByLogin } from '../accounts.js';
-import { listPayouts, createPayout, deletePayout, recordEaPayout } from '../payouts.js';
-import { listFees, createFee, deleteFee, FEE_TYPES } from '../fees.js';
-import { planForUser } from '../entitlements.js';
-import { canUseEA } from '../plans.js';
+import { resolveScope, accountByToken, bindOrCheckLogin, ownedAccountByLogin } from '../domain/accounts/accounts.js';
+import { listPayouts, createPayout, deletePayout, recordEaPayout } from '../domain/finance/payouts.js';
+import { listFees, createFee, deleteFee, FEE_TYPES } from '../domain/finance/fees.js';
+import { planForUser } from '../domain/billing/entitlements.js';
+import { canUseEA } from '../domain/billing/plans.js';
 
 /**
  * Money in and out of a funded account: payouts (with the trader's split) and

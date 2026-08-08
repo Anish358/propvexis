@@ -1,7 +1,7 @@
-import { resolveScope, listAccounts, createAccount, updateAccount, deleteAccount, stripNullProfitTarget } from '../accounts.js';
-import { createChallengeForAccount, syncActiveChallengeRules } from '../challenges.js';
-import { planForUser, syncedAccountCount, manualAccountCount } from '../entitlements.js';
-import { accountLimit, manualAccountLimit } from '../plans.js';
+import { resolveScope, listAccounts, createAccount, updateAccount, deleteAccount, stripNullProfitTarget } from '../domain/accounts/accounts.js';
+import { createChallengeForAccount, syncActiveChallengeRules } from '../domain/prop/challenges.js';
+import { planForUser, syncedAccountCount, manualAccountCount } from '../domain/billing/entitlements.js';
+import { accountLimit, manualAccountLimit } from '../domain/billing/plans.js';
 
 /**
  * The user's MT5 accounts — CRUD for the switcher and the account box, plus

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 
 import { appJs, routeFiles, routeSources, httpLayer } from './helpers/backend-src.js';
-import { eaSourceFile, repoRoot } from '../src/paths.js';
+import { eaSourceFile, repoRoot } from '../src/platform/paths.js';
 
 // app.js held ~50 route handlers in 1,648 lines. They now live in src/routes/,
 // grouped by domain. This file pins the three things that split could break

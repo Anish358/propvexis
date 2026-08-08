@@ -1,9 +1,9 @@
-import { resolveScope } from '../accounts.js';
-import { planForUser } from '../entitlements.js';
-import { canUseReports } from '../plans.js';
-import { computeStats, computeYearly } from '../aggregations.js';
-import { statsCache, cacheKey } from '../statsCache.js';
-import { buildReport, reportCsvRows, toCsv } from '../reports.js';
+import { resolveScope } from '../domain/accounts/accounts.js';
+import { planForUser } from '../domain/billing/entitlements.js';
+import { canUseReports } from '../domain/billing/plans.js';
+import { computeStats, computeYearly } from '../domain/analytics/aggregations.js';
+import { statsCache, cacheKey } from '../platform/statsCache.js';
+import { buildReport, reportCsvRows, toCsv } from '../domain/analytics/reports.js';
 
 /**
  * Everything computed over trades: dashboard stats, the yearly view, and the
@@ -63,7 +63,7 @@ export default function analyticsRoutes(app) {
   });
 
   // Both aggregate endpoints are cached per (scope, unit, filters, rounding) and
-  // invalidated on any write to that user's trades — see src/statsCache.js. The
+  // invalidated on any write to that user's trades — see src/platform/statsCache.js. The
   // numbers are a pure function of the trade set, so a hit is always as correct as
   // a recompute.
   app.get('/api/stats', { preHandler: app.requireAuth }, async (req, reply) => {

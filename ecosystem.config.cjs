@@ -2,7 +2,7 @@
 //   pm2 startOrReload ecosystem.config.cjs --only <app> --update-env
 //
 // Why this file exists: the bootstrap env vars below — especially SSM_PREFIX —
-// must be REAL process environment variables, because src/secrets.js reads
+// must be REAL process environment variables, because src/platform/secrets.js reads
 // SSM_PREFIX to decide whether to hydrate secrets from AWS SSM *before* dotenv
 // loads .env (dotenv runs later, inside app.js → config.js). Defining them here
 // makes them file-based and version-controlled, so they survive a fresh
@@ -36,7 +36,7 @@
 //
 // The two CORRECTNESS blockers are now solved in code by the Redis layer:
 //   * shared Socket.IO adapter  (@socket.io/redis-adapter, wired in app.js)
-//   * shared cache invalidation (src/statsBus.js over Redis pub/sub)
+//   * shared cache invalidation (src/platform/statsBus.js over Redis pub/sub)
 // Both are inert unless REDIS_URL is set.
 //
 // It is still 1 because of the OPERATIONAL prerequisites:
@@ -49,9 +49,9 @@
 //      ~90-150MB RSS, so a second prod worker needs an instance upsize.
 //   3. Postgres connections are workers x PG_POOL_MAX against
 //      max_connections=100 shared by three envs — see advisePoolMax() in
-//      src/cluster.js and LOWER PG_POOL_MAX before raising this.
+//      src/platform/cluster.js and LOWER PG_POOL_MAX before raising this.
 //
-// src/cluster.js re-checks the shared-state blockers at boot from LIVE Redis
+// src/platform/cluster.js re-checks the shared-state blockers at boot from LIVE Redis
 // state and logs a loud warning (plus the app_unsafe_cluster_mode gauge) if the
 // app finds itself clustered without them, so this cannot silently regress.
 // ---------------------------------------------------------------------------

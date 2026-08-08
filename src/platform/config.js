@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 // In production, process.env has already been hydrated from AWS SSM Parameter
-// Store by src/secrets.js (run from the entry point before this module loads),
+// Store by src/platform/secrets.js (run from the entry point before this module loads),
 // so the reads below transparently pick up SSM-sourced secrets. Locally / when
 // SSM_PREFIX is unset, that step is a no-op and dotenv/.env supplies the values.
 const isProd = process.env.NODE_ENV === 'production';
@@ -11,7 +11,7 @@ export const config = {
   host: process.env.HOST ?? '0.0.0.0',
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://localhost:5432/amey_journal',
 
-  // ---- Postgres connection pool (see src/db.js poolOptions) ----
+  // ---- Postgres connection pool (see src/platform/db.js poolOptions) ----
   // node-pg defaults to max:10 with NO connectionTimeoutMillis, so a traffic
   // burst silently queues forever on an exhausted pool instead of failing fast.
   // That pairing was the top bottleneck for the >=1000-concurrent-user bar.
@@ -94,9 +94,9 @@ export const config = {
 
   // ---- Redis (optional: shared socket adapter + cache invalidation) ----
   // Empty = disabled, and the app runs exactly as it did single-process (see
-  // src/redis.js). Accepts redis:// and rediss:// (TLS), so the same value works
+  // src/platform/redis.js). Accepts redis:// and rediss:// (TLS), so the same value works
   // for a native redis-server on the box, Upstash, or ElastiCache. REQUIRED
-  // before running more than one pm2 worker — see src/cluster.js.
+  // before running more than one pm2 worker — see src/platform/cluster.js.
   redisUrl: process.env.REDIS_URL ?? '',
 
   // ---- Observability (Sentry) ----

@@ -12,7 +12,7 @@
 // values come from, how it reads a trade, and how it serializes. Everything
 // generic — the panel UI, the client-side predicate, the active count, the chips,
 // the query string — is derived by walking FILTERS. Adding a dimension is one
-// object plus (if it's server-filtered too) one line in src/aggregations.js.
+// object plus (if it's server-filtered too) one line in src/domain/analytics/aggregations.js.
 //
 // Types:
 //   multi  — checkbox list; value is an array of strings; [] = unfiltered
@@ -56,7 +56,7 @@ const durationOf = (t) => {
 };
 // ISO weekday (Mon=1 … Sun=7) of the CLOSE. Read in UTC, not the viewer's zone:
 // the stats layer extracts every timestamp part `AT TIME ZONE 'UTC'` (see
-// src/statsSql.js), and the weekday a trade is filtered by has to be the same
+// src/domain/analytics/statsSql.js), and the weekday a trade is filtered by has to be the same
 // weekday it is grouped under, or the KPI cards and the trade table disagree for
 // anyone east or west of UTC.
 const weekdayOf = (t) => {

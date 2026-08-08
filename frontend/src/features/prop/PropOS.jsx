@@ -53,7 +53,7 @@ function RoiProgressionChart({ series }) {
 }
 
 // Finance band (Prop OS Overview): spend vs earnings → net + ROI, with a by-firm
-// breakdown. Data from GET /api/prop/finance (src/finance.js).
+// breakdown. Data from GET /api/prop/finance (src/domain/finance/finance.js).
 function FinKpi({ label, value, tone }) {
   return (
     <div className="kpi">
@@ -103,7 +103,7 @@ function FinanceBand({ fin, onLogFee }) {
 }
 
 // Passing & breach insights — pass rates + breach patterns across firm/size/phase.
-// Data from GET /api/prop/insights (src/insights.js).
+// Data from GET /api/prop/insights (src/domain/prop/insights.js).
 const pct = (v) => (v == null ? '—' : `${v}%`);
 
 function InsightDim({ title, rows }) {

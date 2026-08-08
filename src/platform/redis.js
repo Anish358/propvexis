@@ -1,7 +1,7 @@
 // Optional Redis, used for the two pieces of cross-process state that block
-// running more than one backend worker (see src/cluster.js):
+// running more than one backend worker (see src/platform/cluster.js):
 //   1. the Socket.IO adapter, so a broadcast reaches clients on every worker
-//   2. the analytics-cache invalidation bus (src/statsBus.js)
+//   2. the analytics-cache invalidation bus (src/platform/statsBus.js)
 //
 // Gated exactly like Sentry/Razorpay/metrics in this codebase: with REDIS_URL
 // unset this module is inert and the app behaves precisely as it did before —

@@ -1,4 +1,4 @@
-import { round2 } from './derive.js';
+import { round2 } from '../trades/derive.js';
 
 // Passing & breach insights (Prop OS Overview) — pass rates and breach patterns
 // across dimensions (firm / account size / phase), computed from the retained

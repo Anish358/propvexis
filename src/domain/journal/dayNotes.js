@@ -1,4 +1,4 @@
-import { query } from './db.js';
+import { query } from '../../platform/db.js';
 
 // Day notes — one reflection per trading day, per user. The table's own header
 // (db/migrations/0022_day_notes.sql) says why the day is the owning unit rather

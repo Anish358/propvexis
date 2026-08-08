@@ -8,7 +8,7 @@ import {
   presetRange, valueOptions, emptyFilterState, sanitizeFilterState, filterStateToQuery,
 } from '../frontend/src/features/filters/filterDefs.js';
 import { filterTrades, availableOptions, emptyFilters, sanitizeFilters } from '../frontend/src/features/filters/filters.js';
-import { buildTradeWhere } from '../src/aggregations.js';
+import { buildTradeWhere } from '../src/domain/analytics/aggregations.js';
 import { sourceOf } from './helpers/backend-src.js';
 
 import { appCss } from './helpers/app-css.js';

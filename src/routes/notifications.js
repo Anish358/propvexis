@@ -1,4 +1,4 @@
-import { listNotifications, markRead } from '../notifications.js';
+import { listNotifications, markRead } from '../domain/alerts/notifications.js';
 
 /**
  * In-app alerts. Created by the prop engine during ingest and pushed live over

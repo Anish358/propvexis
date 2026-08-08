@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { financeSummary, roiProgression } from '../src/finance.js';
+import { financeSummary, roiProgression } from '../src/domain/finance/finance.js';
 
 // Pure prop-finance aggregation: earned (payout trader_amount) − spent (fee
 // amount) → net, roiPct, and a by-firm breakdown attributed via account firm_id.

@@ -12,7 +12,7 @@ import { chartPalette } from '../../lib/theme.js';
 
 // Reports (V1) — one shareable artifact composing Journal analytics + Prop OS
 // state + payouts for the current scope. Server-composed via GET /api/report
-// (src/reports.js). Pro+ feature; Free sees a locked upgrade prompt. Print
+// (src/domain/analytics/reports.js). Pro+ feature; Free sees a locked upgrade prompt. Print
 // stylesheet (styles.css @media print) strips the app chrome for Save-as-PDF.
 
 const eaReports = (plan) => plan === 'pro' || plan === 'premium';

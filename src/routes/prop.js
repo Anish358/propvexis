@@ -1,13 +1,13 @@
-import { resolveScope, listAccounts, ownedLogins, ownedAccountByLogin } from '../accounts.js';
-import { listPayouts } from '../payouts.js';
-import { listFees } from '../fees.js';
-import { roiProgression } from '../finance.js';
-import { passBreachSummary } from '../insights.js';
-import { phasePassedAlert } from '../alerts.js';
-import { insertNotifications } from '../notifications.js';
-import { challengeHistory, challengesForScope, lastTradeByLogin, dailyTotalsForLogins, advanceChallenge } from '../challenges.js';
-import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, propCalendarEvents, propBrief } from '../propOverview.js';
-import { propStatesForScope } from '../reports.js';
+import { resolveScope, listAccounts, ownedLogins, ownedAccountByLogin } from '../domain/accounts/accounts.js';
+import { listPayouts } from '../domain/finance/payouts.js';
+import { listFees } from '../domain/finance/fees.js';
+import { roiProgression } from '../domain/finance/finance.js';
+import { passBreachSummary } from '../domain/prop/insights.js';
+import { phasePassedAlert } from '../domain/alerts/alerts.js';
+import { insertNotifications } from '../domain/alerts/notifications.js';
+import { challengeHistory, challengesForScope, lastTradeByLogin, dailyTotalsForLogins, advanceChallenge } from '../domain/prop/challenges.js';
+import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, propCalendarEvents, propBrief } from '../domain/prop/propOverview.js';
+import { propStatesForScope } from '../domain/analytics/reports.js';
 
 /**
  * The prop engine's read surface — rule state, challenge finance, the Overview
@@ -25,14 +25,14 @@ export default function propRoutes(app, ctx) {
 
   // ---------------------------------------------------------------------------
   // Prop OS — challenge / drawdown / rule state for the selected account, or a
-  // portfolio (one card per account) for the god view. Computed by src/prop.js over
+  // portfolio (one card per account) for the god view. Computed by src/domain/prop/prop.js over
   // the account's active challenge + trades + payouts + EA equity snapshots. All in
   // account currency ($). Scoped like /api/account.
   // ---------------------------------------------------------------------------
   app.get('/api/prop', { preHandler: app.requireAuth }, async (req, reply) => {
     const scope = await resolveScope(req.user.uid, req.query.account_id);
     if (!scope) return reply.code(403).send({ error: 'account not found' });
-    // Shared with the report composition (src/reports.js) — one bulk-fetch + build.
+    // Shared with the report composition (src/domain/analytics/reports.js) — one bulk-fetch + build.
     return propStatesForScope(scope);
   });
 

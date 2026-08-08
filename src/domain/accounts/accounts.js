@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { query } from './db.js';
+import { query } from '../../platform/db.js';
 
 const genToken = () => crypto.randomBytes(24).toString('hex'); // 48 hex chars
 // mt5_login is BIGINT (pg returns string) and nullable until bound — keep null

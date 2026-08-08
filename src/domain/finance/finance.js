@@ -1,4 +1,4 @@
-import { round2 } from './derive.js';
+import { round2 } from '../trades/derive.js';
 
 // Prop finance summary — the money view of a scope. Pure (no DB) so it's unit-
 // testable and shared by the /api/prop/finance route and the report.

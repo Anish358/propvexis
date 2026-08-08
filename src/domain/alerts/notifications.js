@@ -1,12 +1,12 @@
-import { query } from './db.js';
-import { activeChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from './challenges.js';
-import { listPayouts } from './payouts.js';
-import { challengeState } from './prop.js';
+import { query } from '../../platform/db.js';
+import { activeChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from '../prop/challenges.js';
+import { listPayouts } from '../finance/payouts.js';
+import { challengeState } from '../prop/prop.js';
 import { deriveAlerts } from './alerts.js';
 
 // Notifications data layer + the alert evaluator. The evaluator recomputes ONE
 // account's engine state on a live ingest, derives crossed-threshold alerts
-// (src/alerts.js), and inserts them deduped — so the same alert can't re-fire on
+// (src/domain/alerts/alerts.js), and inserts them deduped — so the same alert can't re-fire on
 // every tick. Server ingest paths call evaluateAccountAlerts and emit the newly-
 // created rows over the user's socket room.
 

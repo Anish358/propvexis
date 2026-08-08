@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import { config } from '../config.js';
-import { query } from '../db.js';
-import { registry as metricsRegistry } from '../metrics.js';
-import { getCalendarEvents } from '../calendar.js';
-import { eaSourceFile } from '../paths.js';
+import { config } from '../platform/config.js';
+import { query } from '../platform/db.js';
+import { registry as metricsRegistry } from '../platform/metrics.js';
+import { getCalendarEvents } from '../platform/calendar.js';
+import { eaSourceFile } from '../platform/paths.js';
 
 /**
  * Operational and public endpoints: the health probe, the Prometheus scrape
@@ -63,7 +63,7 @@ export default function systemRoutes(app) {
   // ---------------------------------------------------------------------------
   // Economic calendar — the upcoming macro events for Today's Brief, each with a
   // normalized `impact` label. Global (not user-scoped): the free ForexFactory
-  // weekly feed is the same for everyone, cached in-process (src/calendar.js).
+  // weekly feed is the same for everyone, cached in-process (src/platform/calendar.js).
   // Returns the whole upcoming window unfiltered; importance/currency/time-window
   // filtering is a per-user Today's Brief preference applied client-side. Never
   // fails the page — on a feed error it returns [] and the banner shows its

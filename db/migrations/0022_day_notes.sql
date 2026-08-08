@@ -12,7 +12,7 @@
 -- already scoped that way through the trade row's account_id.
 --
 -- One row per (user, day), created on first write. A day with nothing written has
--- no row at all rather than a row holding '' — see src/dayNotes.js for why absence
+-- no row at all rather than a row holding '' — see src/domain/journal/dayNotes.js for why absence
 -- is the honest representation and what counts over this table would otherwise
 -- report.
 CREATE TABLE IF NOT EXISTS day_notes (

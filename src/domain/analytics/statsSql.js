@@ -23,7 +23,7 @@
 // All timestamp extraction is forced to UTC (`AT TIME ZONE 'UTC'`) because the
 // JS original used getUTC* exclusively. Without this the results would silently
 // depend on the database session's TimeZone setting.
-import { scopeCondition } from './accounts.js';
+import { scopeCondition } from '../accounts/accounts.js';
 
 // Any trade whose Fixed R is within ±this of zero counts as an exact breakeven
 // when the user has breakeven-rounding on. A code constant, never user input,

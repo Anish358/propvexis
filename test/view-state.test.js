@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeState } from '../src/viewState.js';
+import { sanitizeState } from '../src/domain/journal/viewState.js';
 
 // View state is stored server-side per user (was browser localStorage). The blob
 // is client-owned + opaque, but the server fail-closes non-object input to {} so

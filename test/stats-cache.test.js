@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStatsCache, cacheKey, MAX_ENTRIES } from '../src/statsCache.js';
+import { createStatsCache, cacheKey, MAX_ENTRIES } from '../src/platform/statsCache.js';
 
 const SCOPE_A = { god: true, userId: 1, logins: [100, 200], filterCol: 'user_id' };
 const SCOPE_B = { god: false, userId: 2, logins: [300], filterCol: 'account_id' };

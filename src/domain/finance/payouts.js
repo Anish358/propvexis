@@ -1,4 +1,4 @@
-import { query } from './db.js';
+import { query } from '../../platform/db.js';
 
 // Payout tracking for funded prop accounts. A payout is a withdrawal of profit
 // from the trading account; the trader receives `gross_amount * split_pct/100`

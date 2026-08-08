@@ -1,7 +1,7 @@
 // Trade replay candles: M1 bars stored per normalized symbol, and the request
 // queue the EA works through to supply them (see db/migrations/0010_candles.sql
 // for the flow). All times are UTC; the EA converts broker time before sending.
-import { query } from './db.js';
+import { query } from '../../platform/db.js';
 
 // Replay window padding: context shown before entry / after exit. Shared by
 // the ingest-time enqueue and /replay so both derive the identical window

@@ -1,6 +1,6 @@
-import { query } from './db.js';
-import { listStrategies } from './strategies.js';
-import { evaluateAdherence } from './adherence.js';
+import { query } from '../../platform/db.js';
+import { listStrategies } from '../trades/strategies.js';
+import { evaluateAdherence } from '../trades/adherence.js';
 import {
   BE_THRESHOLD, MONTHS, DOW, unitField,
   buildTradeWhere, statsQuery, yearlyQuery, adherenceQuery,

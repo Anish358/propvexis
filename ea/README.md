@@ -18,7 +18,7 @@ with live-tracked MFE (Max Favorable Excursion).
   Pending MFE finalizations are persisted to `amey_journal_mfe.txt` and survive restarts.
 
 The EA sends raw prices + the favorable price excursion; the backend converts to pips/R
-using one symbol-aware rule (`src/derive.js`) so the pip convention matches your sheet.
+using one symbol-aware rule (`src/domain/trades/derive.js`) so the pip convention matches your sheet.
 Once MFE is finalized it is never overwritten by a later metric-less send.
 
 ## Install (Windows MT5)

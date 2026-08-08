@@ -470,7 +470,7 @@ function AccountHeader({ candidates, selectedId, onSelect }) {
 }
 
 // Lets a trader set a manual profit target on a funded account (which carries
-// no target by default — see profitTargetState in src/prop.js). Writes
+// no target by default — see profitTargetState in src/domain/prop/prop.js). Writes
 // `profit_target_pct` on the account via the existing PATCH /api/accounts/:id
 // route (which already mirrors it onto the active challenge), so once saved
 // the account picks up the exact same "Profit target" meter eval accounts use.

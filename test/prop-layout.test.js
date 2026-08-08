@@ -359,7 +359,7 @@ test('card tables scroll inside the card, not the page', () => {
 test('the Overview fetches once and the calendar rides the same payload', () => {
   // Per-day totals are aggregated in SQL: the calendar needs one row per DAY and
   // the page is portfolio-wide, so a trade-level payload would grow unbounded.
-  const challenges = read('../src/challenges.js');
+  const challenges = read('../src/domain/prop/challenges.js');
   assert.match(challenges, /export async function dailyTotalsForLogins/);
   assert.match(challenges, /GROUP BY 1/);
   assert.match(challenges, /COUNT\(\*\) FILTER \(WHERE pnl_money > 0\)/);

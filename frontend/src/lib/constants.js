@@ -68,7 +68,7 @@ export function fmtDuration(openIso, closeIso) {
   return rh ? `${d}d ${rh}h` : `${d}d`;
 }
 
-// Human labels for the objective adherence rule types (see src/adherence.js
+// Human labels for the objective adherence rule types (see src/domain/trades/adherence.js
 // RULE_TYPES). Shared by the trade-preview badge and the trade-log RULES column
 // so the two can never drift apart.
 export const RULE_LABEL = {

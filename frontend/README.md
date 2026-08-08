@@ -32,8 +32,8 @@ Set `VITE_BACKEND_URL` in `.env.local` if the backend isn't on `localhost:3000`.
 
 ## Files
 ```
-src/api.js          REST + socket helpers
-src/constants.js    select options, color slug, formatters
+frontend/src/lib/api.js          REST + socket helpers
+frontend/src/lib/constants.js    select options, color slug, formatters
 src/TradesTable.jsx the grid + colored pills
 src/TagModal.jsx    tagging form
 src/App.jsx         state, live merge, flash-on-new

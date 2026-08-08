@@ -1,12 +1,12 @@
-import { config } from '../config.js';
-import { pool, query } from '../db.js';
-import { resolveScope, scopeCondition, tradeOwnerUserId, accountByToken, bindOrCheckLogin, ownedAccountByLogin } from '../accounts.js';
-import { planForUser } from '../entitlements.js';
-import { canUseEA } from '../plans.js';
-import { parseCsv, buildImportTrades } from '../csv.js';
-import { adherenceOf } from '../adherence.js';
-import { enqueueCandleRequest } from '../candles.js';
-import { priceToPips, pipSize, deriveSession, deriveFixedR, deriveMaxR, normalizeSymbol, round2 } from '../derive.js';
+import { config } from '../platform/config.js';
+import { pool, query } from '../platform/db.js';
+import { resolveScope, scopeCondition, tradeOwnerUserId, accountByToken, bindOrCheckLogin, ownedAccountByLogin } from '../domain/accounts/accounts.js';
+import { planForUser } from '../domain/billing/entitlements.js';
+import { canUseEA } from '../domain/billing/plans.js';
+import { parseCsv, buildImportTrades } from '../domain/trades/csv.js';
+import { adherenceOf } from '../domain/trades/adherence.js';
+import { enqueueCandleRequest } from '../domain/trades/candles.js';
+import { priceToPips, pipSize, deriveSession, deriveFixedR, deriveMaxR, normalizeSymbol, round2 } from '../domain/trades/derive.js';
 
 /**
  * The trade record itself: EA ingest, listing, manual create, CSV import,

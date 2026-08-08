@@ -15,7 +15,7 @@ import { sevClass } from '../alerts/Notifications.jsx';
 //           evaluations still waiting on a funded login.
 //
 // Every item except the news comes server-computed from GET /api/prop/overview
-// (`brief.left` / `brief.right`, see propBrief() in src/propOverview.js), so the
+// (`brief.left` / `brief.right`, see propBrief() in src/domain/prop/propOverview.js), so the
 // rules that decide "near a violation" live in one tested place rather than in
 // JSX.
 //

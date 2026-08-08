@@ -1,5 +1,5 @@
-import { getViewState, saveViewState } from '../viewState.js';
-import { isDayKey, listDayNotes, saveDayNote } from '../dayNotes.js';
+import { getViewState, saveViewState } from '../domain/journal/viewState.js';
+import { isDayKey, listDayNotes, saveDayNote } from '../domain/journal/dayNotes.js';
 
 /**
  * Per-user state the client owns the shape of: the view-state blob (filters and
@@ -30,7 +30,7 @@ export default function journalRoutes(app) {
   // ---------------------------------------------------------------------------
   // Day notes — the session-level half of the Daily Journal, alongside the
   // per-trade notes on `trades.comments`. Per user, not per account: see
-  // src/dayNotes.js. GET returns the whole map in one trip; the journal renders a
+  // src/domain/journal/dayNotes.js. GET returns the whole map in one trip; the journal renders a
   // fortnight of days at once.
   // ---------------------------------------------------------------------------
   app.get('/api/day-notes', { preHandler: app.requireAuth }, async (req) =>

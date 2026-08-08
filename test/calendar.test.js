@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { upcomingEvents, normalizeImpact } from '../src/calendar.js';
+import { upcomingEvents, normalizeImpact } from '../src/platform/calendar.js';
 
 // Pure feed-normalization core: keep the upcoming events (within a 1h grace),
 // soonest first, capped, in the client-facing shape. Impact is NOT filtered here

@@ -8,7 +8,7 @@ import Logo from '../../components/Logo.jsx';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
-const PASSWORD_MIN = 8;   // mirrors PASSWORD_MIN in src/credentials.js
+const PASSWORD_MIN = 8;   // mirrors PASSWORD_MIN in src/platform/auth/credentials.js
 
 // Where the wordmark points. On the deployed app that's the marketing site; on
 // a dev box there is no local marketing site, and being thrown out to

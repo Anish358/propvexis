@@ -1,20 +1,20 @@
-import './instrument.js'; // Sentry init — must run before other imports load
+import './platform/instrument.js'; // Sentry init — must run before other imports load
 import * as Sentry from '@sentry/node';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { Server as IOServer } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { config, assertProdSecrets } from './config.js';
-import { pool } from './db.js';
-import { registerAuth } from './auth.js';
-import { ownedLogins } from './accounts.js';
-import { evaluateAccountAlerts } from './notifications.js';
-import { listStrategies } from './strategies.js';
-import { clusterSafety, isClustered } from './cluster.js';
-import { createRedisPair, redisStatus, redisNamespace } from './redis.js';
-import { statsBus, INVALIDATE_CHANNEL } from './statsBus.js';
-import { recordHttp } from './metrics.js';
+import { config, assertProdSecrets } from './platform/config.js';
+import { pool } from './platform/db.js';
+import { registerAuth } from './platform/auth/auth.js';
+import { ownedLogins } from './domain/accounts/accounts.js';
+import { evaluateAccountAlerts } from './domain/alerts/notifications.js';
+import { listStrategies } from './domain/trades/strategies.js';
+import { clusterSafety, isClustered } from './platform/cluster.js';
+import { createRedisPair, redisStatus, redisNamespace } from './platform/redis.js';
+import { statsBus, INVALIDATE_CHANNEL } from './platform/statsBus.js';
+import { recordHttp } from './platform/metrics.js';
 import systemRoutes from './routes/system.js';
 import tradeRoutes from './routes/trades.js';
 import candleRoutes from './routes/candles.js';
@@ -210,7 +210,7 @@ const start = async () => {
     // absent or down, realtime delivery and cached analytics both go subtly
     // wrong rather than failing outright — so say so loudly at boot. Both flags
     // are live, not compile-time: Redis can drop long after a good boot, and the
-    // socket adapter then goes quietly one-way. See src/cluster.js.
+    // socket adapter then goes quietly one-way. See src/platform/cluster.js.
     const safety = clusterSafety({
       clustered: isClustered(),
       hasSharedSocketAdapter: !!redis && redisStatus.connected,

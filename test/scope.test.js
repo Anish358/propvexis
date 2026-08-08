@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scopeCondition } from '../src/accounts.js';
-import { buildTradeWhere } from '../src/aggregations.js';
+import { scopeCondition } from '../src/domain/accounts/accounts.js';
+import { buildTradeWhere } from '../src/domain/analytics/aggregations.js';
 
 // Account scoping is the multi-tenant boundary. resolveScope hits the DB, but
 // its output shape + the SQL predicate it feeds are pure and guarded here:

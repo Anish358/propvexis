@@ -1,7 +1,7 @@
 // DB-aware layer over the pure entitlements in plans.js. Keeps the plan lookup
 // (a users.plan read) out of plans.js so that stays unit-testable, and gives the
 // route handlers a single place to resolve "what may this user do".
-import { query } from './db.js';
+import { query } from '../../platform/db.js';
 import { DEFAULT_PLAN } from './plans.js';
 
 // The plan slug for a user id. Fail-closed to DEFAULT_PLAN (free) when the user

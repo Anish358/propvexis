@@ -4,14 +4,14 @@
 // mt5_accounts row, create one owned by SEED_OWNER_EMAIL and give it a random
 // per-account ingest token. The owner user is created (find-or-link by email)
 // with a placeholder google_sub if they've never logged in — the real Google
-// `sub` gets linked on their first login (see findOrCreateUser in src/auth.js).
+// `sub` gets linked on their first login (see findOrCreateUser in src/platform/auth/auth.js).
 //
 // Idempotent: re-running only fills gaps. Owner is configurable so prod can seed
 // the real trader while local dev seeds the developer's own email.
 //
 //   SEED_OWNER_EMAIL=you@gmail.com node scripts/seed-accounts.js
 import crypto from 'node:crypto';
-import { pool, query } from '../src/db.js';
+import { pool, query } from '../src/platform/db.js';
 
 const ownerEmail = (process.env.SEED_OWNER_EMAIL ?? 'patilamey0718@gmail.com').trim().toLowerCase();
 const ownerName = process.env.SEED_OWNER_NAME ?? null;

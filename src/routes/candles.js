@@ -1,10 +1,10 @@
-import { query } from '../db.js';
-import { tradeOwnerUserId, accountByToken, bindOrCheckLogin } from '../accounts.js';
-import { insertEquitySnapshots } from '../challenges.js';
-import { planForUser } from '../entitlements.js';
-import { canUseEA } from '../plans.js';
-import { replayWindow, enqueueCandleRequest, pendingRequestsForLogin, markRequestDone, upsertCandles, listCandles, windowRequestStatus } from '../candles.js';
-import { normalizeSymbol } from '../derive.js';
+import { query } from '../platform/db.js';
+import { tradeOwnerUserId, accountByToken, bindOrCheckLogin } from '../domain/accounts/accounts.js';
+import { insertEquitySnapshots } from '../domain/prop/challenges.js';
+import { planForUser } from '../domain/billing/entitlements.js';
+import { canUseEA } from '../domain/billing/plans.js';
+import { replayWindow, enqueueCandleRequest, pendingRequestsForLogin, markRequestDone, upsertCandles, listCandles, windowRequestStatus } from '../domain/trades/candles.js';
+import { normalizeSymbol } from '../domain/trades/derive.js';
 
 /**
  * EA telemetry that is not a trade: the equity/balance feed behind the prop

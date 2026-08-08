@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { passBreachSummary } from '../src/insights.js';
+import { passBreachSummary } from '../src/domain/prop/insights.js';
 
 // Pure pass/breach aggregation over retained challenge history. A row is one
 // phase attempt: status active|passed|breached, with phase, start_balance, firm.

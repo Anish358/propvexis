@@ -18,7 +18,7 @@ import { fmtMoney } from '../../lib/metrics.js';
 // box with `spacing="none"`, and add no sizing of their own. A second geometry
 // here would drift from the master the first time either page was tuned.
 //
-// `k` is the `kpis` object from GET /api/prop/overview (src/propOverview.js).
+// `k` is the `kpis` object from GET /api/prop/overview (src/domain/prop/propOverview.js).
 
 const signTone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 

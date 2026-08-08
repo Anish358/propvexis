@@ -3,7 +3,7 @@
 // unit-tested; only createSubscription/cancelSubscription touch the network.
 // Uses global fetch + node:crypto — no new dependency.
 import crypto from 'node:crypto';
-import { config } from './config.js';
+import { config } from '../../platform/config.js';
 
 // Payments are live only when all three secrets are present. Absent → billing
 // routes 503 and the app behaves exactly as before (prod parity today).

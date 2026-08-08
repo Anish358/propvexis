@@ -11,7 +11,7 @@
 # How it works: SSH to the EC2 box, pg_dump the prod DB to a local temp file, and
 # (only if the dump is complete) restore it into the local DB from ./.env. The prod
 # DB password never leaves the server — the remote side hydrates DATABASE_URL from
-# AWS SSM (via the app's own src/secrets.js loader) and pipes it straight into
+# AWS SSM (via the app's own src/platform/secrets.js loader) and pipes it straight into
 # pg_dump, so no secret is ever printed or sent over the wire.
 #
 # Override any of these via env vars if the infra changes:

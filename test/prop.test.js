@@ -10,7 +10,7 @@ import {
   profitTargetState,
   healthScore,
   challengeState,
-} from '../src/prop.js';
+} from '../src/domain/prop/prop.js';
 
 // A GFT-style funded 25k account: 4% daily, 10% max, static, no target, 3 trading
 // days per payout cycle.

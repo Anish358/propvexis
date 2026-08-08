@@ -3,13 +3,13 @@
 // Composition only: it calls the existing engines (aggregations.js, prop.js) and
 // data-access layers — no new analytics math, no new tables. See CLAUDE.md.
 import { computeStats, computeYearly } from './aggregations.js';
-import { challengeState } from './prop.js';
-import { activeChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from './challenges.js';
-import { listPayouts } from './payouts.js';
-import { listFees } from './fees.js';
-import { financeSummary } from './finance.js';
-import { listAccounts } from './accounts.js';
-import { round2 } from './derive.js';
+import { challengeState } from '../prop/prop.js';
+import { activeChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from '../prop/challenges.js';
+import { listPayouts } from '../finance/payouts.js';
+import { listFees } from '../finance/fees.js';
+import { financeSummary } from '../finance/finance.js';
+import { listAccounts } from '../accounts/accounts.js';
+import { round2 } from '../trades/derive.js';
 
 // The Prop OS state for a scope — extracted verbatim from the /api/prop route so
 // the report and the live Prop OS page share ONE composition. Single account →

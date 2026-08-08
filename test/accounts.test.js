@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stripNullProfitTarget } from '../src/accounts.js';
+import { stripNullProfitTarget } from '../src/domain/accounts/accounts.js';
 
 // mt5_accounts.profit_target_pct is NOT NULL (the eval-template default);
 // challenges.profit_target_pct is nullable (NULL = no target). Clearing a

@@ -1,6 +1,6 @@
-import { pool, query } from './db.js';
+import { pool, query } from '../../platform/db.js';
 
-// Data access for the Prop Engine (src/prop.js). Challenges are keyed by the
+// Data access for the Prop Engine (src/domain/prop/prop.js). Challenges are keyed by the
 // mt5_accounts PK; everything the engine consumes (trades / payouts / equity
 // snapshots) is keyed by MT5 login (== trades.account_id). These helpers fetch in
 // BULK for a set of logins so the god-view portfolio is a few queries, not N.

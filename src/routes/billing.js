@@ -1,6 +1,6 @@
-import { config } from '../config.js';
-import { query } from '../db.js';
-import { paymentsEnabled, createSubscription, cancelSubscription, verifyWebhookSignature, planStateFromEvent } from '../payments.js';
+import { config } from '../platform/config.js';
+import { query } from '../platform/db.js';
+import { paymentsEnabled, createSubscription, cancelSubscription, verifyWebhookSignature, planStateFromEvent } from '../domain/billing/payments.js';
 
 /**
  * Razorpay subscriptions. Every route fails SAFE with a 503 when payments are
