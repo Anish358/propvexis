@@ -27,6 +27,19 @@ export default defineConfig({
   // stay SEPARATE deliberately — together they exceed the 500 kB warning again.
   build: {
     rollupOptions: {
+      // Importing a name a dependency does not export is a WARNING in Rollup, not
+      // an error: the build prints one line, exits 0, and ships the binding as
+      // `undefined`. Rendering `<undefined>` then blanks the page behind the error
+      // boundary. That is the exact failure mode a major-version bump of a
+      // component library produces, so it is promoted to a build failure here —
+      // verified by importing a non-existent react-router export and watching the
+      // build go from "✓ built" to a hard stop.
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'MISSING_EXPORT') {
+          throw new Error(`${warning.message}\n  (promoted from a warning — see rollupOptions.onwarn)`);
+        }
+        defaultHandler(warning);
+      },
       output: {
         manualChunks: {
           react: ['react', 'react-dom', 'react-router-dom'],
