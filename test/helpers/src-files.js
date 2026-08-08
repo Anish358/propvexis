@@ -59,3 +59,12 @@ export function resolveSrc(nameOrRel) {
 /** Read a source file by basename or relative path. */
 export const readSrc = (nameOrRel) =>
   readFileSync(path.join(srcDir, resolveSrc(nameOrRel)), 'utf8');
+
+/** Does a file with this basename exist ANYWHERE under frontend/src? For asserting
+ *  a deleted file stayed deleted: a path-based `!existsSync` check silently starts
+ *  passing once the tree is reorganised, because it now points at a location the
+ *  file would never have been re-created in. */
+export const srcExists = (name) => {
+  const hit = index.get(name);
+  return hit !== undefined || allSrcFiles().includes(name);
+};

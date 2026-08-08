@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
+import { srcExists } from './helpers/src-files.js';
 import {
   DASH_ZONES, DASH_SECTIONS, KPI_WIDGETS, MAIN_WIDGETS, DASH_LABEL,
   GRID_COLUMNS, WIDGET_SIZES, widgetSpan, widgetSizeName,
@@ -215,7 +216,9 @@ test('hidden widgets are enumerable, so the editor can offer them back', () => {
 // ---- editor: it is an editor, not a settings panel --------------------------
 
 test('the old settings-panel modal is gone', () => {
-  assert.ok(!existsSync(fileURLToPath(new URL('../frontend/src/DashCustomizeModal.jsx', import.meta.url))),
+  // Checked by name across the whole tree, not at one path: a path-based check
+  // would keep passing if the file came back in a feature folder.
+  assert.ok(!srcExists('DashCustomizeModal.jsx'),
     'DashCustomizeModal.jsx should have been replaced by DashLayoutEditor.jsx');
   assert.ok(!dash.includes('DashCustomizeModal'));
   assert.match(dash, /<DashLayoutEditor\b[\s\S]*open=\{customizeOpen\}/);
