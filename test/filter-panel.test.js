@@ -9,6 +9,7 @@ import {
 } from '../frontend/src/features/filters/filterDefs.js';
 import { filterTrades, availableOptions, emptyFilters, sanitizeFilters } from '../frontend/src/features/filters/filters.js';
 import { buildTradeWhere } from '../src/aggregations.js';
+import { sourceOf } from './helpers/backend-src.js';
 
 import { appCss } from './helpers/app-css.js';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
@@ -16,7 +17,9 @@ const panel = read('../frontend/src/features/filters/FilterPanel.jsx');
 const bar = read('../frontend/src/features/filters/FilterBar.jsx');
 const app = read('../frontend/src/App.jsx');
 const css = appCss;
-const server = read('../src/app.js');
+// parseFilters and the routes that use it live in whichever module owns /api/stats
+// (src/routes/analytics.js today) — resolved by route, not by path.
+const server = sourceOf('get', '/api/stats');
 
 const f = (patch) => ({ ...emptyFilters(), ...patch });
 

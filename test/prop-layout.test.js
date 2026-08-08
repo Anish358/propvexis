@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
+import { sourceOf } from './helpers/backend-src.js';
 import { createLayoutModel, moveId, moveIdBefore } from '../frontend/src/lib/layoutModel.js';
 import {
   PROP_SECTIONS, PROP_KPIS, PROP_MAIN_WIDGETS, PROP_LABEL, PROP_DEFAULT_HIDDEN,
@@ -362,7 +363,9 @@ test('the Overview fetches once and the calendar rides the same payload', () => 
   assert.match(challenges, /export async function dailyTotalsForLogins/);
   assert.match(challenges, /GROUP BY 1/);
   assert.match(challenges, /COUNT\(\*\) FILTER \(WHERE pnl_money > 0\)/);
-  const appJs = read('../src/app.js');
-  assert.match(appJs, /dailyTotalsForLogins\(logins\)/);
-  assert.match(appJs, /^\s+days,$/m, 'the route should return the per-day totals');
+  // Resolved by route rather than by file: the handler moved from app.js into
+  // src/routes/prop.js when the HTTP layer was split by domain.
+  const overview = sourceOf('get', '/api/prop/overview');
+  assert.match(overview, /dailyTotalsForLogins\(logins\)/);
+  assert.match(overview, /^\s+days,$/m, 'the route should return the per-day totals');
 });
