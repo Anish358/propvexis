@@ -4,7 +4,7 @@ A production, multi-tenant SaaS that ingests closed trades from MetaTrader 5, st
 
 **Live:** https://app.propvexis.com (also https://journal.anishdevlops.xyz during migration)
 
-![Node](https://img.shields.io/badge/Node-20-green)
+![Node](https://img.shields.io/badge/Node-22-green)
 ![Fastify](https://img.shields.io/badge/Fastify-5-black)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
@@ -112,7 +112,7 @@ Tests gate the release twice: on every PR/`dev` push (fast feedback) and again i
 
 ## Local development
 
-Requires Node 20+ and a reachable PostgreSQL 16.
+Requires Node 22+ and a reachable PostgreSQL 16.
 
 ```bash
 # Backend
