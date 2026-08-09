@@ -9,9 +9,14 @@ name: Security
 # this repo. Everything else reports and stays green. A permanently-red security
 # check teaches everyone to ignore red, which is worse than having no check —
 # so the split below is deliberate, not laziness. Each report-only job says why.
+# `dev` is in the PR list so Dependabot's PRs — which target dev — are actually
+# scanned. They previously matched no trigger at all and showed green having run
+# nothing. Note the Dependabot caveat: those PRs get a read-only GITHUB_TOKEN, so
+# the SARIF upload in iac-config cannot write to the Security tab. That step is
+# already `continue-on-error`, so the scan still reports and the job stays green.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
     branches: [dev]
   schedule:
