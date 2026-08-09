@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '20' # match the production box
+          node-version: '22' # match the production box
           cache: 'npm'
       # high/critical only. Moderate advisories in transitive dev deps are
       # near-permanent npm noise; failing on them would defeat the point.
@@ -112,7 +112,7 @@ jobs:
 
   # REPORT-ONLY. The Dockerfile is NOT what prod runs (prod is pm2 on EC2); it
   # serves local dev and the monitoring compose path. Its HIGH findings live in
-  # node:20-alpine's bundled npm (node-tar), which this repo cannot fix without
+  # node:22-alpine's bundled npm (node-tar), which this repo cannot fix without
   # waiting for an upstream base-image release — so this informs a base-image
   # bump rather than blocking a merge.
   image:
