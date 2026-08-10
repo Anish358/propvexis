@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # ---- deps: install production dependencies only ----
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # ---- runtime ----
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 # tini = proper PID 1: forwards signals (graceful shutdown) and reaps zombies.
 # Not pinning apk versions: tini is a tiny, stable init; pinning causes churn.
 # hadolint ignore=DL3018
