@@ -3,6 +3,27 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+// Vendor chunking, package name -> chunk. Each entry lists the package itself
+// AND the private dependencies that used to ride along with it under Rollup's
+// object form of manualChunks (see the note at the call site). Keeping recharts
+// and lightweight-charts in SEPARATE chunks is deliberate: combined they cross
+// Vite's 500 kB warning.
+const VENDOR_CHUNKS = [
+  ['react', new Set(['react', 'react-dom', 'react-router', 'react-router-dom', 'scheduler'])],
+  ['recharts', new Set([
+    'recharts', 'react-smooth', 'react-transition-group', 'victory-vendor',
+    'decimal.js-light', 'fast-equals', 'eventemitter3', 'es-toolkit',
+    'd3-array', 'd3-color', 'd3-format', 'd3-interpolate', 'd3-path',
+    'd3-scale', 'd3-shape', 'd3-time', 'd3-time-format', 'internmap',
+  ])],
+  ['lightweight-charts', new Set(['lightweight-charts', 'fancy-canvas'])],
+  ['sentry', new Set(['@sentry/react', '@sentry/browser', '@sentry/core'])],
+  ['socketio', new Set([
+    'socket.io-client', 'socket.io-parser', 'engine.io-client', 'engine.io-parser',
+    'ws', 'xmlhttprequest-ssl',
+  ])],
+];
+
 // In dev the frontend calls the backend with RELATIVE URLs (VITE_BACKEND_URL
 // is empty) so the session cookie is same-origin. These proxies forward
 // /api and /socket.io to the backend on :3000 (ws:true for the WebSocket).
@@ -41,12 +62,26 @@ export default defineConfig({
         defaultHandler(warning);
       },
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          recharts: ['recharts'],
-          'lightweight-charts': ['lightweight-charts'],
-          sentry: ['@sentry/react'],
-          socketio: ['socket.io-client'],
+        // FUNCTION FORM, not the object form Rollup accepted. Vite 8 bundles with
+        // Rolldown, which rejects `manualChunks: { name: [pkgs] }` outright —
+        // "Invalid type: Expected Function but received Object", a hard build
+        // failure rather than a silent behaviour change, which is the good case.
+        //
+        // The object form assigned a package AND everything reachable only from it
+        // to the chunk. A function keyed on the package name does not, so a
+        // library's private dependencies would fall back into the app chunk —
+        // recharts alone drags in d3-*, victory-vendor and react-smooth. Those are
+        // listed explicitly below to keep the split where it was; the assertion
+        // that this worked is the chunk sizes, which are unchanged.
+        manualChunks(id) {
+          const path = id.replace(/\\/g, '/');
+          const m = path.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/);
+          if (!m) return undefined;
+          const pkg = m[1];
+          for (const [chunk, packages] of VENDOR_CHUNKS) {
+            if (packages.has(pkg)) return chunk;
+          }
+          return undefined;
         },
       },
     },
