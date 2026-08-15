@@ -225,17 +225,30 @@ ${groupCte('g_week', 'wk AS key', { skipNullKey: false })},
       count(*) FILTER (WHERE max_r IS NOT NULL)         AS max_r_count
     FROM base WHERE fixed_r IS NOT NULL
   ),
+  -- Equity curve: a BARE ARRAY of running totals, one per scored trade, in
+  -- close order. Not objects.
+  --
+  -- It used to emit one object per point holding i, date and cum, and at 20k
+  -- trades that was 1175 KB — 99.6% of the whole /api/stats payload, and the
+  -- same again sitting in statsCache on a 1GB box. Two fields were being paid
+  -- for and not used:
+  --   * the date is rendered NOWHERE. Both charts (Analytics, Reports) plot the
+  --     position on X and the cumulative value on Y; the ISO string was ~40 of
+  --     the ~60 bytes per point and no consumer ever read it.
+  --   * i is just the 1-based position, so the array index already is it.
+  -- Same points, same values, same picture: 1175 KB -> 151 KB.
+  --
+  -- The row_number is still needed INSIDE the query — json_agg needs a
+  -- deterministic order and (close_time, id) is the same tiebreak the streak
+  -- CTEs use — it just does not need to be sent.
+  --
+  -- NOTE: this whole file is one JS template literal, so no backticks in here.
   equity AS (
-    SELECT COALESCE(json_agg(json_build_object(
-             'i', rn,
-             'date', to_char(close_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-             'cum', cum
-           ) ORDER BY rn), '[]'::json) AS points
+    SELECT COALESCE(json_agg(cum ORDER BY rn), '[]'::json) AS points
     FROM (
       SELECT
         row_number() OVER (ORDER BY close_time, id) AS rn,
-        SUM(val) OVER (ORDER BY close_time, id ROWS UNBOUNDED PRECEDING) AS cum,
-        close_time
+        SUM(val) OVER (ORDER BY close_time, id ROWS UNBOUNDED PRECEDING) AS cum
       FROM base WHERE raw IS NOT NULL
     ) q
   ),
