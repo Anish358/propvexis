@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { confirmVerification, fetchMe } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import AuthShell from './AuthShell.jsx';
+import { takeTokenFromUrl } from './takeTokenFromUrl.js';
 
 /**
  * Land here from the link in a verification email.
@@ -14,8 +15,9 @@ import AuthShell from './AuthShell.jsx';
  * at the login form.
  */
 export default function VerifyEmail() {
-  const [params] = useSearchParams();
-  const token = params.get('token') || '';
+  // Lifted out of the URL on mount and not put back — same reasoning as the
+  // reset screen, see takeTokenFromUrl.
+  const [token] = useState(takeTokenFromUrl);
   const { user, setUser } = useAuth();
   const [state, setState] = useState(token ? 'working' : 'missing');
   const [error, setError] = useState(null);

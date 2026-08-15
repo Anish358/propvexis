@@ -50,6 +50,33 @@ export function dropSessionEpoch(uid) {
   epochCache.delete(Number(uid));
 }
 
+// Set by app.js once Socket.IO exists (io is created after registerAuth runs).
+// Revocation has to reach the realtime channel too: refusing the cookie at the
+// handshake only stops NEW connections, while a socket opened before the reset
+// stays joined to the user's rooms and keeps streaming their trades.
+let revocationHandler = null;
+export function setRevocationHandler(fn) {
+  revocationHandler = typeof fn === 'function' ? fn : null;
+}
+
+/**
+ * Kill every session for a user: drop the cached epoch so this worker stops
+ * accepting the old token immediately, then close their open sockets.
+ *
+ * MUST be called only after the epoch bump has COMMITTED. Called inside the
+ * transaction, a concurrent request could re-read the pre-bump value and
+ * re-cache it for the full TTL — reinstating the very session being revoked.
+ */
+function revokeSessions(uid) {
+  dropSessionEpoch(uid);
+  try {
+    revocationHandler?.(Number(uid));
+  } catch {
+    // A failed disconnect must never undo the drop above, and must never
+    // propagate into the auth route that triggered it.
+  }
+}
+
 async function sessionEpochOf(uid) {
   const hit = epochCache.get(uid);
   if (hit && Date.now() - hit.at < EPOCH_TTL_MS) return hit.epoch;
@@ -58,6 +85,34 @@ async function sessionEpochOf(uid) {
   if (epochCache.size >= EPOCH_CACHE_MAX) epochCache.clear();
   epochCache.set(uid, { epoch, at: Date.now() });
   return epoch;
+}
+
+/**
+ * Is this verified JWT payload still a live session?
+ *
+ * THE ONE IMPLEMENTATION, on purpose. A signature check is not by itself an
+ * authentication decision any more, and this app verifies session cookies in
+ * two places — the HTTP guard below and the Socket.IO handshake in app.js. A
+ * second copy of the rule is a second thing to forget: a revoked cookie that
+ * still authenticated a socket would keep streaming the victim's trades and
+ * alerts for the JWT's full 30-day life, which is exactly what a password reset
+ * is supposed to stop.
+ *
+ * Tokens issued before this feature existed carry no `se`, which reads as
+ * epoch 0 — correct, because every existing row starts at 0.
+ *
+ * Fails OPEN if Postgres is unreachable: the choice is between logging everyone
+ * out of a degraded-but-working app and letting a rare revoked session live a
+ * little longer. Same trade as platform/redis.js — degrade, don't die.
+ */
+export async function isSessionCurrent(payload, log) {
+  try {
+    return await sessionEpochOf(Number(payload.uid)) === Number(payload.se ?? 0);
+  } catch (err) {
+    log?.error({ err: err.message, uid: payload?.uid },
+      'session epoch check failed — allowing session (fail-open)');
+    return true;
+  }
 }
 
 // Verify a Google ID token (the `credential` minted by Google Identity Services
@@ -78,6 +133,9 @@ async function verifyGoogleIdToken(credential) {
 // logins can't create duplicates.
 async function findOrCreateUser({ sub, email, name, picture }, log) {
   const client = await pool.connect();
+  // Set when the link revoked a squatted password. The sessions it invalidates
+  // are killed AFTER the commit, never inside the transaction — see below.
+  let revoked = null;
   try {
     await client.query('BEGIN');
 
@@ -127,7 +185,7 @@ async function findOrCreateUser({ sub, email, name, picture }, log) {
            WHERE id = $1 RETURNING ${USER_COLS};`,
           [squatterId, sub, name, picture]
         ));
-        if (squatted) dropSessionEpoch(squatterId);
+        if (squatted) revoked = squatterId;
       } else {
         ({ rows } = await client.query(
           `INSERT INTO users (google_sub, email, name, picture, email_verified_at)
@@ -138,6 +196,10 @@ async function findOrCreateUser({ sub, email, name, picture }, log) {
     }
 
     await client.query('COMMIT');
+    // AFTER the commit, never before: a concurrent request from the squatter
+    // could otherwise read the pre-bump epoch mid-transaction and re-cache it
+    // for the full TTL, quietly reinstating the session this just revoked.
+    if (revoked) revokeSessions(revoked);
     return rows[0];
   } catch (err) {
     await client.query('ROLLBACK');
@@ -216,22 +278,9 @@ export async function registerAuth(app) {
 
     // Revocation check. A token minted before the user's last password reset is
     // no longer a session, even though its signature and expiry are still good.
-    // Tokens issued before this feature existed carry no `se`, which reads as
-    // epoch 0 — correct, because every existing row starts at 0.
-    try {
-      const current = await sessionEpochOf(Number(req.user.uid));
-      if (current !== Number(req.user.se ?? 0)) {
-        reply.clearCookie(COOKIE_NAME, { path: '/' });
-        return reply.code(401).send({ error: 'session expired' });
-      }
-    } catch (err) {
-      // FAIL OPEN, deliberately. If Postgres is unreachable this check cannot be
-      // answered, and the choice is between logging everyone out of a
-      // degraded-but-working app and letting a rare revoked session live a
-      // little longer. Same trade as platform/redis.js: degrade, don't die. The
-      // window is small (revocation is a manual, rare event) and it is logged.
-      req.log.error({ err: err.message, uid: req.user.uid },
-        'session epoch check failed — allowing request (fail-open)');
+    if (!(await isSessionCurrent(req.user, req.log))) {
+      reply.clearCookie(COOKIE_NAME, { path: '/' });
+      return reply.code(401).send({ error: 'session expired' });
     }
   });
 
@@ -527,8 +576,10 @@ export async function registerAuth(app) {
 
     // MUST precede startSession: it reads the epoch through the cache, and the
     // cached value is now one behind. Without this the fresh cookie would carry
-    // the old generation and be rejected by its own revocation check.
-    dropSessionEpoch(uid);
+    // the old generation and be rejected by its own revocation check. This also
+    // disconnects the user's open sockets — the handshake check only stops new
+    // connections, and an already-joined socket would keep streaming.
+    revokeSessions(uid);
     req.log.info({ uid }, 'password reset completed; prior sessions revoked');
     return startSession(reply, rows[0]);
   });

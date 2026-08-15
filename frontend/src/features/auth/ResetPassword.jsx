@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { resetPassword } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import AuthShell from './AuthShell.jsx';
+import { takeTokenFromUrl } from './takeTokenFromUrl.js';
 
 const PASSWORD_MIN = 8;   // mirrors PASSWORD_MIN in src/platform/auth/credentials.js
 
 /**
  * Redeem a reset link and set a new password.
  *
- * The token comes from the query string and is never displayed or stored — it
- * goes straight into the request body. On success the server issues a session,
- * so this screen lands the user in the app rather than back at the login form.
+ * The token is lifted out of the URL on first render and never put back — see
+ * takeTokenFromUrl. It lives in component state until it is posted, and is
+ * never displayed. On success the server issues a session, so this screen lands
+ * the user in the app rather than back at the login form.
  */
 export default function ResetPassword() {
-  const [params] = useSearchParams();
-  const token = params.get('token') || '';
+  const [token] = useState(takeTokenFromUrl);
   const { setUser } = useAuth();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');

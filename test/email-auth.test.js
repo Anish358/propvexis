@@ -58,23 +58,91 @@ test('reset revokes every session issued before it', () => {
   assert.match(reset, /session_epoch = session_epoch \+ 1/);
   // ...and the cache must be cleared before the new cookie is minted, or that
   // cookie carries the pre-bump epoch and is rejected by its own check.
-  const dropAt = reset.indexOf('dropSessionEpoch(uid)');
+  const dropAt = reset.indexOf('revokeSessions(uid)');
   const startAt = reset.indexOf('startSession(reply, rows[0])');
   assert.ok(dropAt !== -1 && startAt !== -1);
-  assert.ok(dropAt < startAt, 'dropSessionEpoch must precede startSession');
+  assert.ok(dropAt < startAt, 'revokeSessions must precede startSession');
 });
 
 test('requireAuth enforces the epoch, and fails open when the DB is down', () => {
   const guard = auth.slice(auth.indexOf("app.decorate('requireAuth'"), auth.indexOf('equalizeTiming().catch'));
-  assert.match(guard, /const current = await sessionEpochOf\(Number\(req\.user\.uid\)\)/);
-  assert.match(guard, /if \(current !== Number\(req\.user\.se \?\? 0\)\)/);
+  assert.match(guard, /if \(!\(await isSessionCurrent\(req\.user, req\.log\)\)\)/);
   assert.match(guard, /reply\.code\(401\)\.send\(\{ error: 'session expired' \}\)/);
   // Pre-existing tokens carry no `se`; every existing row starts at epoch 0, so
   // they must keep working rather than logging the whole user base out.
-  assert.match(guard, /req\.user\.se \?\? 0/);
+  assert.match(auth, /Number\(payload\.se \?\? 0\)/);
   // Degrade, don't die: an unreachable Postgres must not log everyone out.
-  assert.match(guard, /fail-open/);
-  assert.match(guard, /catch \(err\) \{[\s\S]*?req\.log\.error/);
+  const check = auth.slice(auth.indexOf('export async function isSessionCurrent'));
+  assert.match(check, /catch \(err\) \{[\s\S]*?log\?\.error[\s\S]*?return true;/);
+});
+
+test('THE SOCKET HANDSHAKE ENFORCES THE SAME EPOCH — one implementation, two callers', () => {
+  // The handshake is the only place outside requireAuth that authenticates a
+  // session cookie. Verifying the signature there without the epoch check would
+  // leave a revoked cookie streaming the victim's trades and prop alerts for the
+  // JWT's full 30-day life — while every HTTP route 401s — which is precisely
+  // what the reset flow promises to stop.
+  const appjs = read('../src/app.js');
+  const handshake = appjs.slice(appjs.indexOf("io.on('connection'"), appjs.indexOf('const emitTrade'));
+  assert.match(handshake, /const payload = app\.jwt\.verify\(token\)/);
+  assert.match(handshake, /if \(!\(await isSessionCurrent\(payload, app\.log\)\)\) throw new Error\('session revoked'\)/);
+  const verifyAt = handshake.indexOf('app.jwt.verify');
+  const checkAt = handshake.indexOf('isSessionCurrent');
+  const joinAt = handshake.indexOf('socket.join');
+  assert.ok(verifyAt < checkAt && checkAt < joinAt, 'the check must run before any room is joined');
+
+  // And there must be exactly ONE implementation of the rule — a second copy is
+  // a second thing to forget.
+  assert.equal((auth.match(/export async function isSessionCurrent/g) || []).length, 1);
+  assert.equal((appjs.match(/jwt\.verify|jwtVerify/g) || []).length, 1,
+    'a new JWT verification site must also enforce the epoch');
+});
+
+test('revocation also closes sockets that are already connected', () => {
+  // Refusing the cookie at the handshake only stops the NEXT connection.
+  assert.match(auth, /function revokeSessions\(uid\) \{\s*\n\s*dropSessionEpoch\(uid\);/);
+  assert.match(read('../src/app.js'),
+    /setRevocationHandler\(\(uid\) => io\.in\(`user:\$\{uid\}`\)\.disconnectSockets\(true\)\)/);
+  // A failed disconnect must not undo the local drop or bubble into the route.
+  assert.match(auth, /revocationHandler\?\.\(Number\(uid\)\);\s*\n\s*\} catch \{/);
+});
+
+test('the squatter revoke happens AFTER the commit, not inside the transaction', () => {
+  // Called mid-transaction, a concurrent request from the squatter could read
+  // the pre-bump epoch and re-cache it for the full 60s TTL — reinstating the
+  // session that was just revoked.
+  const fn = auth.slice(auth.indexOf('async function findOrCreateUser'), auth.indexOf('async function createPasswordUser'));
+  assert.match(fn, /if \(squatted\) revoked = squatterId;/);
+  const commitAt = fn.indexOf("await client.query('COMMIT')");
+  const revokeAt = fn.indexOf('if (revoked) revokeSessions(revoked);');
+  assert.ok(commitAt !== -1 && revokeAt !== -1);
+  assert.ok(commitAt < revokeAt, 'revokeSessions must run after COMMIT');
+});
+
+test('an emailed token never survives in the URL', () => {
+  // A reset token is one POST from a new password and a session. Left in
+  // window.location it reaches Sentry (which is on in every prod build, samples
+  // pageloads, and does NOT redact URLs), browser history, and proxy logs — so
+  // the backend's hash-only storage rule would be undone by the frontend.
+  const strip = read('../frontend/src/features/auth/takeTokenFromUrl.js');
+  assert.match(strip, /url\.searchParams\.delete\('token'\)/);
+  assert.match(strip, /window\.history\.replaceState/);
+
+  for (const screen of ['ResetPassword', 'VerifyEmail']) {
+    const src = read(`../frontend/src/features/auth/${screen}.jsx`);
+    assert.match(src, /useState\(takeTokenFromUrl\)/,
+      `${screen} must lift the token out of the URL once, on mount`);
+    // Reading it from the router each render would put it back in play and
+    // return empty after the strip.
+    assert.ok(!src.includes('useSearchParams'), `${screen} must not re-read the query string`);
+  }
+
+  // Defence in depth: scrub it from Sentry payloads too, in case a token reaches
+  // a URL by some other route.
+  const main = read('../frontend/src/main.jsx');
+  assert.match(main, /replace\(\/\(\[\?&\]token=\)\[\^&\]\*\/gi, '\$1\[redacted\]'\)/);
+  assert.match(main, /beforeSend: scrub/);
+  assert.match(main, /beforeSendTransaction: scrub/);
 });
 
 test('the epoch check cannot become a per-request query', () => {
@@ -90,7 +158,8 @@ test('a Google link that revokes a squatted password also evicts its sessions', 
   // Clearing password_hash leaves the squatter's existing cookie working, which
   // defeats the revoke.
   assert.match(auth, /session_epoch = session_epoch\s*\n\s*\+ CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END/);
-  assert.match(auth, /if \(squatted\) dropSessionEpoch\(squatterId\);/);
+  assert.match(auth, /if \(squatted\) revoked = squatterId;/);
+  assert.match(auth, /if \(revoked\) revokeSessions\(revoked\);/);
 });
 
 test('verification: resend is authenticated, confirm grants no session', () => {
