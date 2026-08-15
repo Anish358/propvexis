@@ -13,12 +13,52 @@ import {
   passwordProblem,
   verifyPassword,
 } from './credentials.js';
+import { sendPasswordResetMail, sendVerificationMail } from './authMail.js';
+import { RESET, VERIFY, consumeToken, isTokenShaped, issueToken } from './tokens.js';
 
 const COOKIE_NAME = 'session';
 // Columns every auth route returns to the client. Never widen this to `*` —
 // password_hash lives on the same row.
-const USER_COLS = 'id, email, name, picture, plan, onboarded_at';
+const USER_COLS = 'id, email, name, picture, plan, onboarded_at, email_verified_at';
+// The fuller profile /api/auth/me returns. Same rule as USER_COLS: enumerated,
+// never `*`.
+const PROFILE_COLS = `${USER_COLS}, created_at, last_login_at`;
 const googleClient = new OAuth2Client(config.googleClientId);
+
+// ---------------------------------------------------------------------------
+// Session revocation
+//
+// Sessions are stateless JWTs, so a password reset cannot evict the sessions an
+// attacker already holds — which is most of the point of resetting. Each token
+// therefore carries the user's `session_epoch` (claim `se`), and this guard
+// rejects any token whose epoch is behind the row's.
+//
+// The cost has to be near zero: requireAuth runs on every authenticated
+// request, and this project's standing bar is >=1000 concurrent users, so a
+// per-request SELECT is not acceptable. Hence the short TTL cache — one query
+// per user per minute, which is noise next to the query the handler is about
+// to run anyway.
+// ---------------------------------------------------------------------------
+const EPOCH_TTL_MS = 60_000;
+// Crude cap rather than an LRU: entries are ~50 bytes and expire on their own,
+// so the only job here is to stop unbounded growth on a long-lived process.
+const EPOCH_CACHE_MAX = 10_000;
+const epochCache = new Map();
+
+/** Forget a cached epoch, so the next request re-reads it immediately. */
+export function dropSessionEpoch(uid) {
+  epochCache.delete(Number(uid));
+}
+
+async function sessionEpochOf(uid) {
+  const hit = epochCache.get(uid);
+  if (hit && Date.now() - hit.at < EPOCH_TTL_MS) return hit.epoch;
+  const { rows } = await query('SELECT session_epoch FROM users WHERE id = $1', [uid]);
+  const epoch = rows.length ? Number(rows[0].session_epoch) : 0;
+  if (epochCache.size >= EPOCH_CACHE_MAX) epochCache.clear();
+  epochCache.set(uid, { epoch, at: Date.now() });
+  return epoch;
+}
 
 // Verify a Google ID token (the `credential` minted by Google Identity Services
 // on the frontend) and return its trusted payload, or throw.
@@ -48,7 +88,8 @@ async function findOrCreateUser({ sub, email, name, picture }, log) {
 
     if (rows.length) {
       ({ rows } = await client.query(
-        `UPDATE users SET email = $2, name = $3, picture = $4, last_login_at = now()
+        `UPDATE users SET email = $2, name = $3, picture = $4, last_login_at = now(),
+                          email_verified_at = COALESCE(email_verified_at, now())
          WHERE id = $1 RETURNING ${USER_COLS};`,
         [rows[0].id, email, name, picture]
       ));
@@ -70,16 +111,27 @@ async function findOrCreateUser({ sub, email, name, picture }, log) {
           log?.warn({ uid: Number(rows[0].id) },
             'revoking unverified password on google link (email pre-registered)');
         }
+        const squatterId = Number(rows[0].id);
         ({ rows } = await client.query(
+          // Revoking the password is not enough on its own: a squatter who
+          // signed up with it may be holding a live session cookie right now,
+          // and that session outlives the credential it came from. Bumping the
+          // epoch in the same statement evicts it. The CASE reads the row's
+          // pre-UPDATE password_hash, so an account that never had a password
+          // keeps its epoch and its logged-in devices.
           `UPDATE users SET google_sub = $2, name = $3, picture = $4,
-                            password_hash = NULL, last_login_at = now()
+                            password_hash = NULL, last_login_at = now(),
+                            email_verified_at = COALESCE(email_verified_at, now()),
+                            session_epoch = session_epoch
+                              + CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END
            WHERE id = $1 RETURNING ${USER_COLS};`,
-          [rows[0].id, sub, name, picture]
+          [squatterId, sub, name, picture]
         ));
+        if (squatted) dropSessionEpoch(squatterId);
       } else {
         ({ rows } = await client.query(
-          `INSERT INTO users (google_sub, email, name, picture)
-           VALUES ($1, $2, $3, $4) RETURNING ${USER_COLS};`,
+          `INSERT INTO users (google_sub, email, name, picture, email_verified_at)
+           VALUES ($1, $2, $3, $4, now()) RETURNING ${USER_COLS};`,
           [sub, email, name, picture]
         ));
       }
@@ -107,6 +159,23 @@ async function createPasswordUser({ email, name, passwordHash }) {
     [email, name, passwordHash]
   );
   return rows[0] ?? null;
+}
+
+/**
+ * Issue a verification token and mail it.
+ *
+ * Never rejects — every caller either fires it without awaiting (signup) or
+ * reports `sent` to the user (the resend route), and neither should be able to
+ * fail because the mailer or the token INSERT had a bad day.
+ */
+async function mailVerification(user, log) {
+  try {
+    const token = await issueToken({ userId: Number(user.id), kind: VERIFY });
+    return await sendVerificationMail({ to: user.email, name: user.name, token }, log);
+  } catch (err) {
+    log?.error({ err: err.message, uid: Number(user.id) }, 'could not send verification email');
+    return { sent: false, reason: 'error' };
+  }
 }
 
 // Cookie attributes for the session JWT. httpOnly so JS can't read it; secure
@@ -137,12 +206,32 @@ export async function registerAuth(app) {
   });
 
   // preHandler guard: 401 unless a valid session cookie is present. On success
-  // `req.user` holds the JWT payload ({ uid, email, name }).
+  // `req.user` holds the JWT payload ({ uid, email, name, se }).
   app.decorate('requireAuth', async (req, reply) => {
     try {
       await req.jwtVerify();
     } catch {
       return reply.code(401).send({ error: 'authentication required' });
+    }
+
+    // Revocation check. A token minted before the user's last password reset is
+    // no longer a session, even though its signature and expiry are still good.
+    // Tokens issued before this feature existed carry no `se`, which reads as
+    // epoch 0 — correct, because every existing row starts at 0.
+    try {
+      const current = await sessionEpochOf(Number(req.user.uid));
+      if (current !== Number(req.user.se ?? 0)) {
+        reply.clearCookie(COOKIE_NAME, { path: '/' });
+        return reply.code(401).send({ error: 'session expired' });
+      }
+    } catch (err) {
+      // FAIL OPEN, deliberately. If Postgres is unreachable this check cannot be
+      // answered, and the choice is between logging everyone out of a
+      // degraded-but-working app and letting a rare revoked session live a
+      // little longer. Same trade as platform/redis.js: degrade, don't die. The
+      // window is small (revocation is a manual, rare event) and it is logged.
+      req.log.error({ err: err.message, uid: req.user.uid },
+        'session epoch check failed — allowing request (fail-open)');
     }
   });
 
@@ -153,9 +242,19 @@ export async function registerAuth(app) {
   equalizeTiming().catch(() => {});
 
   // Issue the session cookie for a user row and return the API shape. Shared by
-  // all three ways in (Google, signup, password login).
+  // every way in (Google, signup, password login, password reset).
+  //
+  // The epoch is read (through the cache) rather than passed in, so a caller can
+  // never mint a token stamped with a stale generation. A route that has just
+  // bumped the epoch must call dropSessionEpoch first — otherwise this reads the
+  // pre-bump value from cache and issues a session that is dead on arrival.
   const startSession = async (reply, user) => {
-    const token = await reply.jwtSign({ uid: Number(user.id), email: user.email, name: user.name });
+    const token = await reply.jwtSign({
+      uid: Number(user.id),
+      email: user.email,
+      name: user.name,
+      se: await sessionEpochOf(Number(user.id)),
+    });
     reply.setCookie(COOKIE_NAME, token, sessionCookieOpts());
     return { user };
   };
@@ -240,6 +339,10 @@ export async function registerAuth(app) {
     }
 
     req.log.info({ uid: Number(user.id) }, 'password signup');
+    // Fire-and-forget: a mail outage must not fail a signup that already
+    // succeeded in the database. Verification is soft (the app is usable
+    // unverified, with a banner), so the worst case is a resend from the banner.
+    void mailVerification(user, req.log);
     return startSession(reply, user);
   });
 
@@ -283,11 +386,159 @@ export async function registerAuth(app) {
   });
 
   // -------------------------------------------------------------------------
+  // POST /api/auth/verify/request — (re)send the verification email.
+  //
+  // Authenticated, because the address is read from the session rather than the
+  // body: an unauthenticated version would be an open relay for sending mail to
+  // any address on our domain's reputation.
+  // -------------------------------------------------------------------------
+  app.post('/api/auth/verify/request', {
+    preHandler: app.requireAuth,
+    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+  }, async (req, reply) => {
+    const { rows } = await query(
+      `SELECT ${USER_COLS} FROM users WHERE id = $1`,
+      [req.user.uid]
+    );
+    if (!rows.length) {
+      reply.clearCookie(COOKIE_NAME, { path: '/' });
+      return reply.code(401).send({ error: 'user no longer exists' });
+    }
+    const user = rows[0];
+    if (user.email_verified_at) return { ok: true, alreadyVerified: true };
+
+    const { sent } = await mailVerification(user, req.log);
+    // `sent: false` here means the mailer is unconfigured or SES failed. Say so:
+    // this route is authenticated and about the caller's own address, so there
+    // is no enumeration concern, and silently claiming success would leave the
+    // user waiting for mail that is never coming.
+    return { ok: true, sent };
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/auth/verify/confirm — redeem a link from that email.
+  //
+  // Deliberately NOT authenticated and deliberately NOT session-granting: the
+  // link is opened from an inbox, often in a different browser, so requiring a
+  // session would strand people — but treating the link as a login credential
+  // would make a 24-hour-lived URL sitting in an inbox equivalent to a password.
+  // It confirms the address and nothing else.
+  // -------------------------------------------------------------------------
+  app.post('/api/auth/verify/confirm', {
+    config: { rateLimit: { max: 20, timeWindow: '1 hour' } },
+  }, async (req, reply) => {
+    const token = req.body?.token;
+    const uid = await consumeToken({ token, kind: VERIFY });
+    if (!uid) {
+      return reply.code(400).send({ error: 'That link has expired or has already been used.' });
+    }
+    const { rows } = await query(
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, now())
+        WHERE id = $1 RETURNING email;`,
+      [uid]
+    );
+    req.log.info({ uid }, 'email verified');
+    return { ok: true, email: rows[0]?.email ?? null };
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/auth/password/forgot — mail a reset link.
+  //
+  // ALWAYS returns the same 200, for any input. An unauthenticated route that
+  // answered differently for a registered address would be a bulk account
+  // checker, and this one takes an address as its whole input.
+  //
+  // A Google-only account gets a link too, rather than a refusal. That is the
+  // documented way back for someone whose password was revoked by the
+  // Google-link rule in findOrCreateUser — refusing would leave them with no
+  // route at all, which is the gap this route exists to close.
+  // -------------------------------------------------------------------------
+  app.post('/api/auth/password/forgot', {
+    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+  }, async (req, reply) => {
+    const email = normalizeEmail(req.body?.email);
+    const ok = { ok: true };
+    if (!isEmailShaped(email)) return ok;
+
+    const { rows } = await query(
+      'SELECT id, name, email, password_hash FROM users WHERE email = $1',
+      [email]
+    );
+    const row = rows[0];
+    if (!row) {
+      req.log.info({ email }, 'password reset requested for unknown address');
+      return ok;
+    }
+
+    const token = await issueToken({ userId: Number(row.id), kind: RESET });
+    // Not awaited: SES latency is measurable and would make a registered
+    // address answer visibly slower than an unregistered one, reintroducing by
+    // timing exactly the oracle the identical response body removes. sendMail
+    // never rejects and logs its own failures.
+    void sendPasswordResetMail({
+      to: row.email,
+      name: row.name,
+      token,
+      hasPassword: Boolean(row.password_hash),
+    }, req.log);
+    req.log.info({ uid: Number(row.id) }, 'password reset link issued');
+    return ok;
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/auth/password/reset — redeem the link and set a new password.
+  // -------------------------------------------------------------------------
+  app.post('/api/auth/password/reset', {
+    config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+  }, async (req, reply) => {
+    const token = req.body?.token;
+    const password = req.body?.password;
+
+    if (!isTokenShaped(token)) {
+      return reply.code(400).send({ error: 'That link has expired or has already been used.' });
+    }
+    // Validate BEFORE redeeming. Tokens are single-use, so checking the password
+    // afterwards would burn the link on a typo and force another email.
+    const problem = passwordProblem(password);
+    if (problem) return reply.code(400).send({ error: problem });
+
+    const uid = await consumeToken({ token, kind: RESET });
+    if (!uid) {
+      return reply.code(400).send({ error: 'That link has expired or has already been used.' });
+    }
+
+    const { rows } = await query(
+      // Three things at once, all of which must be true afterwards:
+      //   - the new password is live;
+      //   - every session issued before this moment is dead (the reason a reset
+      //     exists is that someone else may hold one);
+      //   - the address counts as verified — redeeming this link proved control
+      //     of the inbox, which is a stronger check than the verify flow's.
+      `UPDATE users
+          SET password_hash = $2,
+              session_epoch = session_epoch + 1,
+              email_verified_at = COALESCE(email_verified_at, now()),
+              last_login_at = now()
+        WHERE id = $1
+      RETURNING ${USER_COLS};`,
+      [uid, await hashPassword(password)]
+    );
+    if (!rows.length) return reply.code(400).send({ error: 'That link is no longer valid.' });
+
+    // MUST precede startSession: it reads the epoch through the cache, and the
+    // cached value is now one behind. Without this the fresh cookie would carry
+    // the old generation and be rejected by its own revocation check.
+    dropSessionEpoch(uid);
+    req.log.info({ uid }, 'password reset completed; prior sessions revoked');
+    return startSession(reply, rows[0]);
+  });
+
+  // -------------------------------------------------------------------------
   // GET /api/auth/me — current user from the session, or 401.
   // -------------------------------------------------------------------------
   app.get('/api/auth/me', { preHandler: app.requireAuth }, async (req, reply) => {
     const { rows } = await query(
-      'SELECT id, email, name, picture, plan, onboarded_at, created_at, last_login_at FROM users WHERE id = $1',
+      `SELECT ${PROFILE_COLS} FROM users WHERE id = $1`,
       [req.user.uid]
     );
     if (!rows.length) {
@@ -304,7 +555,7 @@ export async function registerAuth(app) {
   // -------------------------------------------------------------------------
   app.post('/api/onboarding/complete', { preHandler: app.requireAuth }, async (req, reply) => {
     const { rows } = await query(
-      'SELECT id, email, name, picture, plan, onboarded_at, created_at, last_login_at FROM users WHERE id = $1',
+      `SELECT ${PROFILE_COLS} FROM users WHERE id = $1`,
       [req.user.uid]
     );
     if (!rows.length) {
@@ -315,7 +566,7 @@ export async function registerAuth(app) {
     if (needsOnboarding(user)) {
       ({ rows: [user] } = await query(
         `UPDATE users SET onboarded_at = now() WHERE id = $1
-         RETURNING id, email, name, picture, plan, onboarded_at, created_at, last_login_at;`,
+         RETURNING ${PROFILE_COLS};`,
         [req.user.uid]
       ));
     }

@@ -3,19 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { loginWithGoogle, loginWithPassword, signupWithPassword } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { BRAND } from '../../lib/theme.js';
-import AuthArt from './AuthArt.jsx';
-import Logo from '../../components/Logo.jsx';
+import AuthShell from './AuthShell.jsx';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
 const PASSWORD_MIN = 8;   // mirrors PASSWORD_MIN in src/platform/auth/credentials.js
-
-// Where the wordmark points. On the deployed app that's the marketing site; on
-// a dev box there is no local marketing site, and being thrown out to
-// production mid-test is worse than a no-op — so stay on this origin.
-const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]', ''];
-const isLocal = typeof window !== 'undefined' && LOCAL_HOSTS.includes(window.location.hostname);
-const SITE = isLocal ? '/' : 'https://propvexis.com';
 
 // Load the Google Identity Services script once.
 function loadGsi() {
@@ -138,53 +130,19 @@ export default function Login({ mode = 'login' }) {
   };
 
   return (
-    <div className="auth-screen">
-      {/* Right-hand visual: decoration only, so it's hidden from assistive tech
-          and dropped entirely below the tablet breakpoint. */}
-      <div className="auth-art" aria-hidden="true">
-        <AuthArt />
-        <div className="auth-art-veil" />
-        <div className="auth-chips">
-          <span className="auth-chip"><i /> Equity</span>
-          <span className="auth-chip"><i className="is-profit" /> Wins</span>
-          <span className="auth-chip"><i className="is-loss" /> Losses</span>
-        </div>
-        <div className="auth-mark">{BRAND}</div>
-      </div>
-      <svg className="auth-curve" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
-        <path
-          d="M 468 -20 C 604 118 744 244 706 400 C 672 542 540 620 452 720"
-          fill="none"
-          stroke="var(--line-strong)"
-          strokeWidth="1.5"
-          strokeDasharray="5 9"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-
-      <header className="auth-top">
-        <a className="auth-logo" href={SITE} aria-label={`${BRAND} home`}>
-          <Logo size={22} />
-          <span>{BRAND}<span className="auth-accent-dot">.</span></span>
-        </a>
-      </header>
-
-      <main className="auth-main">
-        <div className="auth-panel">
-          <p className="auth-eyebrow">{isSignup ? 'Start for free' : 'Welcome back'}</p>
-          <h1 className="auth-title">
-            {isSignup ? 'Create new account' : 'Log in to your journal'}
-            <span className="auth-accent-dot">.</span>
-          </h1>
-          <p className="auth-alt">
-            {isSignup ? (
-              <>Already a member? <Link to="/login">Log in</Link></>
-            ) : (
-              <>New to {BRAND}? <Link to="/signup">Create an account</Link></>
-            )}
-          </p>
-
-          <form className="auth-form" onSubmit={submit} noValidate>
+    <AuthShell
+      eyebrow={isSignup ? 'Start for free' : 'Welcome back'}
+      title={isSignup ? 'Create new account' : 'Log in to your journal'}
+      alt={isSignup ? (
+        <>Already a member? <Link to="/login">Log in</Link></>
+      ) : (
+        <>New to {BRAND}? <Link to="/signup">Create an account</Link></>
+      )}
+      note={isSignup
+        ? 'Free plan, no card. If you later sign in with Google on this address it takes over the same account, replacing the password.'
+        : 'Signed up with Google? Use the Google button above.'}
+    >
+      <form className="auth-form" onSubmit={submit} noValidate>
             {isSignup && (
               <label className="auth-field">
                 <span>Name <em>optional</em></span>
@@ -224,6 +182,12 @@ export default function Login({ mode = 'login' }) {
               </span>
             </label>
 
+            {!isSignup && (
+              <p className="auth-forgot">
+                <Link to="/forgot">Forgot your password?</Link>
+              </p>
+            )}
+
             {error && <div className="login-error auth-error" role="alert">{error}</div>}
 
             <button type="submit" className="auth-submit" disabled={busy}>
@@ -231,34 +195,20 @@ export default function Login({ mode = 'login' }) {
             </button>
           </form>
 
-          {CLIENT_ID && (
-            <>
-              <div className="auth-or"><span>or</span></div>
-              {/* Our button is the visible layer; the real (transparent) Google
-                  widget is stacked on top so the click still goes to Google. */}
-              <div className="auth-google" data-ready={ready ? 'yes' : 'no'}>
-                <span className="auth-google-face" aria-hidden="true">
-                  <GoogleIcon />
-                  {isSignup ? 'Sign up with Google' : 'Log in with Google'}
-                </span>
-                <div ref={btnRef} className="auth-gsi" />
-              </div>
-            </>
-          )}
-
-          <p className="auth-note">
-            {isSignup
-              ? 'Free plan, no card. If you later sign in with Google on this address it takes over the same account, replacing the password.'
-              : 'Signed up with Google? Use the Google button above.'}
-          </p>
-        </div>
-      </main>
-
-      <footer className="auth-foot">
-        <span>The Operating System for Traders.</span>
-        <a href={`${SITE}/privacy`}>Privacy</a>
-        <a href={`${SITE}/terms`}>Terms</a>
-      </footer>
-    </div>
+      {CLIENT_ID && (
+        <>
+          <div className="auth-or"><span>or</span></div>
+          {/* Our button is the visible layer; the real (transparent) Google
+              widget is stacked on top so the click still goes to Google. */}
+          <div className="auth-google" data-ready={ready ? 'yes' : 'no'}>
+            <span className="auth-google-face" aria-hidden="true">
+              <GoogleIcon />
+              {isSignup ? 'Sign up with Google' : 'Log in with Google'}
+            </span>
+            <div ref={btnRef} className="auth-gsi" />
+          </div>
+        </>
+      )}
+    </AuthShell>
   );
 }

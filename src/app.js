@@ -15,6 +15,7 @@ import { clusterSafety, isClustered } from './platform/cluster.js';
 import { createRedisPair, redisStatus, redisNamespace } from './platform/redis.js';
 import { statsBus, INVALIDATE_CHANNEL } from './platform/statsBus.js';
 import { recordHttp } from './platform/metrics.js';
+import { reportMailerConfig } from './platform/mailer.js';
 import systemRoutes from './routes/system.js';
 import tradeRoutes from './routes/trades.js';
 import candleRoutes from './routes/candles.js';
@@ -221,6 +222,10 @@ const start = async () => {
         app.log.error({ workerIndex: process.env.NODE_APP_INSTANCE }, `UNSAFE CLUSTER MODE: ${reason}`);
       }
     }
+    // Same class of silent-partial-config problem as Razorpay below: with mail
+    // unconfigured, signup and password reset still return 200 while no message
+    // is ever sent. Name what is missing at boot rather than at 3am.
+    reportMailerConfig(app.log);
     // Partial Razorpay config fails SAFE (billing 503s) but silently — the
     // dashboard shows keys set while checkout is dead. Name the missing var.
     const rzpMissing = ['razorpayKeyId', 'razorpayKeySecret', 'razorpayWebhookSecret']
