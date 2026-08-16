@@ -17,8 +17,8 @@ level instead of being sent. Signup, reset and verification all still work.
 | 1. `APP_BASE_URL` in SSM, all 3 envs | ✅ done 2026-08-15 | — |
 | 2. `ses:SendEmail` on the instance role | ✅ done 2026-08-15 | — |
 | 3. SES domain identity + DKIM keys | ✅ created, **PENDING verification** | — |
-| 4. DKIM CNAMEs in Route 53 | ❌ **TODO** | you |
-| 5. Production access (leave the sandbox) | ❌ **TODO** | you |
+| 4. DKIM CNAMEs in Route 53 | ✅ added 2026-08-16, resolving; SES still `PENDING` | — |
+| 5. Production access (leave the sandbox) | ⚠️ **DENIED on first request — must be appealed** | you |
 | 6. `MAIL_FROM` in SSM + restart | ❌ **TODO — do this LAST** | you |
 
 Steps 4 and 5 are independent; do them in either order. **Step 6 must come after
@@ -100,6 +100,46 @@ aws sesv2 put-account-details --region ap-south-1 \
 ```
 
 Approval is typically ~24h.
+
+### ⚠️ The first request was DENIED (2026-08-16) — case `178689643800463`
+
+`aws sesv2 get-account --region ap-south-1 --query Details.ReviewDetails` returns
+`{"Status": "DENIED", "CaseId": "178689643800463"}`.
+
+A denial is **not** final and re-submitting the same request does not help — you
+reply in the existing case. The reason is only visible in **AWS Console → Support
+→ Case 178689643800463** (the Support *API* needs a paid support plan, so it
+cannot be read from the CLI), and AWS also emails it to the account contact.
+
+First requests are commonly denied for a young account, or for a use-case
+description that doesn't spell out bounce/complaint handling. Read the actual
+reason first, then reply covering it. The facts below are all true of this
+account and are what AWS looks for:
+
+- **Purely transactional, and only two triggers exist in the code**: an
+  address-verification link on signup, and a password-reset link the user asks
+  for. There is no marketing, bulk, or newsletter path in the product at all.
+- **No purchased or imported lists.** Every recipient typed their own address
+  into our signup form; mail only ever goes to that same address.
+- **Bounce and complaint handling is already active**: SES account-level
+  suppression is enabled for both `BOUNCE` and `COMPLAINT`
+  (`aws sesv2 get-account --query SuppressionAttributes.SuppressedReasons`
+  → `["BOUNCE","COMPLAINT"]`), and account `EnforcementStatus` is `HEALTHY`.
+  Suppressed addresses are therefore dropped automatically before send.
+- **Volume is small and self-limiting**: under ~100 messages/day, and both
+  endpoints are rate-limited server-side (reset requests 5/hour per IP,
+  verification resend 5/hour).
+- **Authenticated**: DKIM is configured for propvexis.com, and the domain
+  publishes DMARC `p=quarantine`.
+- **The links are short-lived and single-use**: verification 24h, reset 1h, each
+  redeemable exactly once.
+- **Unsubscribe does not apply** — these are security notifications a user
+  triggers about their own account, not solicited marketing.
+- The product is live at https://app.propvexis.com.
+
+If the denial cites *sending history*, the practical route is to send genuine
+mail to verified recipients inside the sandbox for a few days, then reply to the
+case pointing at that record.
 
 ### While still in the sandbox — test with a verified recipient
 
