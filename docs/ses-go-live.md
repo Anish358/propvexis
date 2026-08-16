@@ -101,7 +101,113 @@ aws sesv2 put-account-details --region ap-south-1 \
 
 Approval is typically ~24h.
 
-### ⚠️ The first request was DENIED (2026-08-16) — case `178689643800463`
+### ⚠️ First request came back as a request for information — case `178689643800463`
+
+**The API reports `Status: DENIED`, but the actual correspondence is not a
+rejection** — AWS asked for more detail and will grant on a good reply. Don't
+re-submit; reply in the case.
+
+They asked four things, and stated one prerequisite:
+
+> *"We ask that you have a verified identity prior to being granted production
+> access."*
+
+**So wait for `propvexis.com` to show `Verified: true` before replying**, or the
+reply just earns another round-trip. Check with the command in step 4.
+
+#### Paste-ready reply (send once the identity is verified)
+
+```text
+Thanks for the quick response. Answers to each of your questions below.
+
+1) HOW OFTEN WE SEND
+
+Only in direct response to an action a user takes. There are exactly two
+triggers in our application, and no other code path sends email:
+
+  a. Address verification, sent once when someone creates an account.
+  b. A password-reset link, sent only when the user clicks "Forgot password".
+
+There is no marketing, newsletter, digest, announcement or bulk send anywhere
+in the product. Expected volume is under 100 messages per day. Both endpoints
+are additionally rate-limited server-side: 5 reset requests per hour per
+client, and 5 verification resends per hour per account.
+
+2) HOW WE MAINTAIN RECIPIENT LISTS
+
+We do not maintain mailing lists. There is nothing to subscribe to.
+
+Every recipient is a registered user of our application who typed their own
+email address into our signup form, and mail is only ever sent to that same
+address on that account. We have never imported, purchased, scraped or
+uploaded an address list, and there is no mechanism in the product to send to
+an address that is not an account holder acting on their own account.
+
+3) BOUNCES, COMPLAINTS AND UNSUBSCRIBES
+
+Bounces and complaints: the SES account-level suppression list is already
+enabled for both BOUNCE and COMPLAINT, so a suppressed address is dropped
+automatically before send. Our account EnforcementStatus is HEALTHY. Our
+application treats a send failure as non-fatal and logs it with the SES
+response for review rather than retrying blindly, so we do not repeatedly
+mail an address that is failing.
+
+Unsubscribe: these are transactional security notifications about the
+recipient's own account, triggered by that person, so there is no list to
+unsubscribe from - a user stops receiving mail by not requesting it, and by
+deleting their account. We honour the suppression list regardless.
+
+4) EXAMPLES OF THE EMAIL
+
+These are the only two messages the system can send, reproduced verbatim.
+
+--- Message 1 ---
+Subject: Confirm your email - PropVexis
+
+Hi <name>,
+
+Confirm this address to finish setting up your PropVexis account.
+
+https://app.propvexis.com/verify?token=<single-use token>
+
+The link works for 24 hours. If you did not create a PropVexis account,
+you can ignore this email.
+
+--- Message 2 ---
+Subject: Reset your PropVexis password
+
+Hi <name>,
+
+Someone asked to reset the password for your PropVexis account.
+
+https://app.propvexis.com/reset?token=<single-use token>
+
+The link works for 1 hour and can only be used once. If this was not you,
+ignore this email - your password has not changed.
+
+Both are sent as multipart text and HTML with identical wording. Tokens are
+single-use, high-entropy, and stored only as a SHA-256 hash on our side.
+
+ADDITIONAL DETAIL
+
+- Sending identity: the domain propvexis.com, verified in ap-south-1 with
+  Easy DKIM enabled. The domain also publishes a DMARC policy of
+  p=quarantine, so our mail is authenticated and aligned.
+- Sending is server-side only, from a single application on one EC2 instance,
+  using an IAM role scoped to ses:SendEmail on that one identity and further
+  conditioned on a single From address (no-reply@propvexis.com). No other
+  principal in the account can send.
+- PropVexis is a live trading-journal SaaS at https://app.propvexis.com.
+
+Happy to provide anything else that would help.
+```
+
+#### Why the first attempt fell short
+
+The original `--use-case-description` described what the mail *is* but never
+covered bounce/complaint handling, list hygiene, or sample content — which is
+most of what AWS actually screens for. The facts above were all already true of
+the account; they simply were not stated.
 
 `aws sesv2 get-account --region ap-south-1 --query Details.ReviewDetails` returns
 `{"Status": "DENIED", "CaseId": "178689643800463"}`.
