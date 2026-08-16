@@ -99,6 +99,27 @@ export const config = {
   // before running more than one pm2 worker — see src/platform/cluster.js.
   redisUrl: process.env.REDIS_URL ?? '',
 
+  // ---- Transactional email (verification + password reset) ----
+  // Optional, like Razorpay and Redis: unset means mailerEnabled() is false and
+  // the auth flows still work — they just log the link instead of sending it,
+  // so local dev needs no AWS at all. See src/platform/mailer.js.
+  //
+  // Sending is AWS SES via the instance role, so there is no key to store: only
+  // the region and a verified From address. MAIL_FROM must be an identity
+  // verified in SES, or every send is rejected.
+  mailFrom: process.env.MAIL_FROM ?? '',
+  mailReplyTo: process.env.MAIL_REPLY_TO ?? '',
+  awsRegion: process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? 'ap-south-1',
+
+  // Origin used to build the links inside those emails.
+  //
+  // SECURITY: this must be configuration and never the request's Host/Origin
+  // header. A password-reset link is a live credential, and a forged Host on an
+  // unauthenticated POST would mail the victim a link pointing at the
+  // attacker's domain — the classic host-header poisoning bug. Empty in prod is
+  // treated as "cannot send", not as "guess" (see mailer.js).
+  appBaseUrl: (process.env.APP_BASE_URL ?? (isProd ? '' : 'http://localhost:5173')).replace(/\/+$/, ''),
+
   // ---- Observability (Sentry) ----
   // DSN from the Sentry project. Empty = Sentry disabled (a no-op), so local/dev
   // and unconfigured environments run without it. `environment`/`release` tag events.

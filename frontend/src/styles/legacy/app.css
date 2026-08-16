@@ -1445,6 +1445,47 @@ label.full { margin-bottom: 16px; }
 .auth-note { margin: var(--s-4) 0 0; max-width: 340px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
 .auth-error { max-width: 340px; text-align: left; }
 
+/* Recovery screens (forgot / reset / verify). Same panel, same 340px measure —
+   they are the login screen in a different state, not a different design. */
+.auth-forgot { margin: calc(var(--s-2) * -1) 0 0; max-width: 340px; text-align: right; font-size: 12px; }
+.auth-forgot a { color: var(--text-2); text-decoration: none; }
+.auth-forgot a:hover { color: var(--accent-on-surface); text-decoration: underline; text-underline-offset: 2px; }
+.auth-said { margin: var(--s-4) 0 0; max-width: 340px; font-size: 14px; line-height: 1.65; color: var(--text-2); }
+.auth-said strong { color: var(--text); font-weight: var(--fw-medium); }
+
+/* Unverified-email banner: informational, never blocking. Sits at the top of
+   the app shell above the filter bar. */
+.verify-banner {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: 10px var(--s-5);
+  border-bottom: 1px solid var(--accent-border);
+  background: var(--accent-bg); color: var(--text-2); font-size: 13px;
+}
+.verify-banner-dot {
+  flex: none; width: 7px; height: 7px; border-radius: var(--r-full); background: var(--accent);
+}
+.verify-banner-text { flex: 1; min-width: 0; }
+.verify-banner-text strong { color: var(--text); font-weight: var(--fw-medium); }
+.verify-banner-error { color: var(--loss); font-size: 12px; }
+.verify-banner-action {
+  flex: none; padding: 5px 12px; border: 1px solid var(--accent-border-strong);
+  border-radius: var(--r-full); background: transparent; color: var(--accent-on-surface);
+  font-family: inherit; font-size: 12px; font-weight: var(--fw-medium); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.verify-banner-action:hover:not(:disabled) { background: var(--accent-hover-bg); }
+.verify-banner-action:disabled { opacity: 0.6; cursor: default; }
+.verify-banner-close {
+  flex: none; padding: 0 4px; border: 0; background: transparent; cursor: pointer;
+  color: var(--text-3); font-size: 18px; line-height: 1;
+}
+.verify-banner-close:hover { color: var(--text); }
+
+@media (max-width: 720px) {
+  .verify-banner { flex-wrap: wrap; padding: 10px var(--s-4); }
+  .verify-banner-text { flex: 1 0 100%; }
+}
+
 .auth-foot {
   position: relative; z-index: 2; flex: none;
   display: flex; align-items: center; gap: var(--s-6);

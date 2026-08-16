@@ -316,6 +316,31 @@ function thunderAxes({ winRate, profitFactor, avgWinLoss, ts, recoveryFactor, av
 }
 
 // R formatters — the dashboard/calendar P&L unit is R, not currency.
+/**
+ * Expand the equity curve into the rows Recharts wants.
+ *
+ * The API sends a bare array of running totals — one per scored trade, in close
+ * order — because that is all the chart reads: X is the trade's position, Y is
+ * the cumulative value. Shipping `{i, date, cum}` objects instead cost 1175 KB
+ * at 20k trades against 151 KB for the array, and the date was rendered nowhere.
+ *
+ * The objects still have to exist for Recharts, so this is the same allocation
+ * that used to happen on the server — just moved to the one place that needs it,
+ * off the response, off the cache, and off the wire. Call it inside a useMemo:
+ * a new array identity every render would re-render the chart.
+ *
+ * Tolerates the old object form so a client running against a not-yet-deployed
+ * backend (or a cached response from one) degrades instead of drawing nothing.
+ */
+export function equityPoints(curve) {
+  if (!Array.isArray(curve)) return [];
+  return curve.map((c, idx) => (
+    typeof c === 'object' && c !== null
+      ? { i: Number(c.i ?? idx + 1), cumR: Number(c.cumR ?? c.cum ?? 0) }
+      : { i: idx + 1, cumR: Number(c) }
+  ));
+}
+
 export function fmtR(n, { sign = true } = {}) {
   if (n === Infinity) return '∞';
   const v = Number(n || 0);

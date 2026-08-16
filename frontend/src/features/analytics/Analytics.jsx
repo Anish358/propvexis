@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -7,7 +7,7 @@ import {
 import PageHeader from '../../app/PageHeader.jsx';
 import { LoadingBlock } from '@/components/primitives';
 import { fetchStats, fetchYearly } from '../../lib/api.js';
-import { fmtVal, fmtAxis } from '../../lib/metrics.js';
+import { fmtVal, fmtAxis, equityPoints } from '../../lib/metrics.js';
 import { chartPalette } from '../../lib/theme.js';
 
 // Chart theming from design tokens (matches the rest of the app).
@@ -61,6 +61,10 @@ export default function Analytics() {
     fetchYearly(year, accountId, unit, filters, beRound).then(setYearly).catch((e) => setErr(e.message));
   }, [accountId, unit, filterKey, year, beRound]);
 
+  // Memoized because it allocates one object per trade: a fresh array identity
+  // on every render would re-render the whole chart.
+  const equity = useMemo(() => equityPoints(stats?.equityCurve), [stats]);
+
   const page = (body) => (
     <div className="page">
       <PageHeader title="Analytics" connected={connected} onMenu={toggleSidebar} />
@@ -90,7 +94,7 @@ export default function Analytics() {
       <div className="panel">
         <h3>Equity Curve (cumulative {unit === 'USD' ? 'P&L' : 'R'})</h3>
         <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={stats.equityCurve} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
+          <LineChart data={equity} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
             <CartesianGrid stroke={chartPalette().grid} />
             <XAxis dataKey="i" stroke={chartPalette().axis} fontSize={11} />
             <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtAxis(v, unit)} />

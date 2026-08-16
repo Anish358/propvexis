@@ -19,12 +19,24 @@ import './styles/index.css';
 // Frontend error tracking. No-op unless VITE_SENTRY_DSN is set at build time,
 // so dev builds (and any build without the var) ship with Sentry inert.
 if (import.meta.env.VITE_SENTRY_DSN) {
+  // Belt-and-braces against emailed credentials leaving the app. The reset and
+  // verify screens already strip `token` from the URL before React commits
+  // (features/auth/takeTokenFromUrl.js), so nothing should reach Sentry with one
+  // attached — but `sendDefaultPii: false` does NOT redact URLs, and a single
+  // sampled event carrying a live single-use token would be an account takeover
+  // sitting in a third-party store. Cheap enough to do in both places.
+  const scrub = (event) => {
+    if (event?.request?.url) event.request.url = event.request.url.replace(/([?&]token=)[^&]*/gi, '$1[redacted]');
+    return event;
+  };
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
     integrations: [Sentry.browserTracingIntegration()],
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
+    beforeSend: scrub,
+    beforeSendTransaction: scrub,
   });
 }
 

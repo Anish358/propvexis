@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
 import FilterBar from '../features/filters/FilterBar.jsx';
 import { Toasts } from '../features/alerts/Notifications.jsx';
+import VerifyBanner from '../features/auth/VerifyBanner.jsx';
 
 // App shell: fixed left sidebar + a global filter bar + the routed page area.
 // The display unit and data filters come from the active scope's ViewConfig
@@ -31,6 +32,10 @@ export default function Layout({
       {!collapsed && <Sidebar onToggle={toggleSidebar} />}
       <main className="shell-main">
         <Toasts items={toasts} onDismiss={dismissToast} />
+        {/* Above the filter bar, below the toasts: it is an account-level
+            message, so it should not scroll away with the page content, and it
+            renders nothing once the address is confirmed. */}
+        <VerifyBanner />
         <FilterBar
           collapsed={collapsed}
           onToggleSidebar={toggleSidebar}

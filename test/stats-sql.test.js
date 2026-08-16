@@ -137,7 +137,17 @@ test('statsQuery: every user value parameterized, timestamps forced to UTC', () 
   for (const part of ['EXTRACT(DOW', 'EXTRACT(YEAR', 'EXTRACT(MONTH', "date_trunc('week'"]) {
     assert.ok(sql.includes(part), `${part} missing`);
   }
-  assert.equal((sql.match(/AT TIME ZONE 'UTC'/g) ?? []).length >= 5, true, 'UTC coercion on every extraction');
+  // Asserted as a property rather than a count: every place the query reads a
+  // component out of close_time must coerce to UTC first. A bare count went
+  // stale the moment the equity curve stopped formatting a date, and it would
+  // not have caught a NEW uncoerced extraction being added alongside coerced
+  // ones — which is the actual failure mode.
+  for (const m of sql.matchAll(/(?:EXTRACT\([A-Z]+ FROM|date_trunc\('[a-z]+',)\s*([^)]*)/g)) {
+    assert.match(m[1], /close_time AT TIME ZONE 'UTC'/,
+      `timestamp extraction without UTC coercion: ${m[0]}`);
+  }
+  assert.ok((sql.match(/close_time AT TIME ZONE 'UTC'/g) ?? []).length >= 4,
+    'the DOW/YEAR/MONTH/week extractions are all still present');
   assert.ok(sql.includes('GROUP BY'), 'aggregation happens in SQL');
   assert.ok(!/SELECT \* FROM trades/.test(sql), 'the full-table projection must be gone');
 });
