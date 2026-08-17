@@ -200,8 +200,16 @@ test('the old per-account Overview is gone, and what it owned went somewhere', (
   assert.match(prop, /export function healthStatus/);
   const dash = read('../frontend/src/Dashboard.jsx');
   assert.match(dash, /import \{ roomStatus, healthStatus \} from '\.\/PropOS\.jsx'/);
-  // Finance is a separate page and is untouched by the Overview rebuild.
-  assert.match(prop, /export function PropFinance/);
+  // Finance is a separate page, and as of the Finance rebuild it is a separate
+  // MODULE too — PropOS.jsx no longer holds a copy of the finance UI, so there is
+  // one implementation of "total spent" in the app rather than two.
+  assert.ok(!prop.includes('PropFinance'), 'Finance no longer lives inside PropOS.jsx');
+  assert.ok(!prop.includes('FinanceBand'), 'the old finance band is superseded by Finance.jsx');
+  assert.match(app, /import Finance from '\.\/Finance\.jsx'/);
+  assert.match(app, /<Route path="finance" element=\{<Finance \/>\} \/>/);
+  // The insights band was on the old Finance page and has no place in the locked
+  // three-tab IA. Kept and exported rather than deleted — see its own comment.
+  assert.match(prop, /export function InsightsBand/);
 });
 
 test('business KPI cards borrow the locked geometry instead of redefining it', () => {

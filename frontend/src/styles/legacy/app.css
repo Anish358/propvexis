@@ -3654,3 +3654,225 @@ label.full { margin-bottom: 16px; }
 
 .pc-account { font-size: 13px; margin-bottom: 4px; }
 .pc-hint { margin: -4px 0 4px; font-size: 11px; line-height: 1.45; }
+
+/* ============================================================
+   Prop OS › Finance  (Finance.jsx + FinanceKpiCards / FinanceSummary /
+                       FinanceLedger)
+   ============================================================
+
+   WHY THIS PAGE HAS CSS AT ALL, given the direction is the component library:
+   Tailwind's source scanning is scoped to `components/ui` + `components/primitives`
+   (see tailwind.css), so a utility written in a page under src/ does not compile.
+   Pages compose primitives and bring their own layout CSS; that is the current
+   contract, and Finance follows it rather than quietly widening the scan.
+
+   WHAT IS NOT HERE, DELIBERATELY: card surfaces, KPI tile geometry, tab styling,
+   badges, buttons, inputs and menus. Those all come from the primitives — `.fin-*`
+   only ever positions things. The KPI row is literally `.jo-kpis.dash-stats` with
+   `--kpi-count`, i.e. the same locked row the Dashboard and Trade Log use, so the
+   tiles cannot drift from the master card.
+   ---- */
+
+/* The three-tab switcher. Stretched to full width because `.u-tabs`'s hairline stops
+   at the last label, which reads as an underlined fragment rather than a nav bar. */
+.fin-tabs { display: flex; width: 100%; }
+
+/* Summary: chart LEFT, breakdown RIGHT, ~2:1. The chart earns the width — it is a
+   time series, and squeezing one turns a trend into a squiggle — while the breakdown
+   is a ring over a short list and reads fine narrow. Stretch alignment (the default)
+   keeps the two cards the same height without either declaring a number. */
+.fin-cols {
+  display: grid; grid-template-columns: 1.95fr 1fr; gap: 16px; align-items: stretch;
+}
+
+.fin-card { min-width: 0; }
+.fin-card-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  margin-bottom: 12px;
+}
+.fin-card-titles { min-width: 0; }
+.fin-card-head h3 {
+  margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold);
+}
+/* One line of supporting copy under a section title, in the same muted slate every
+   other label in the app uses, at full opacity. */
+.fin-card-sub { margin: 4px 0 0; font-size: 12px; color: var(--text-2); line-height: 1.45; }
+
+/* ---- ROI Progression ---- */
+
+/* The two figures the chart is about, restated as text above it: a curve answers
+   "which way", and the reader still needs "how much". Mono, like every other figure. */
+.fin-roi-figures { display: flex; gap: 24px; margin-bottom: 4px; }
+.fin-figure { display: flex; flex-direction: column; gap: 2px; }
+.fin-figure-cap { font-size: 11px; color: var(--text-2); }
+.fin-figure-val { font-family: var(--font-mono); font-size: 17px; font-weight: var(--fw-semibold); }
+.fin-figure-val.pos { color: var(--profit); }
+.fin-figure-val.neg { color: var(--loss-quiet); }
+
+/* Height is a number rather than an aspect ratio for a mechanical reason: a
+   ResponsiveContainer inside a flex column with no resolved height computes to 0 and
+   the chart silently vanishes. It shrinks at the small breakpoints below, because
+   300px of chart on a phone leaves no page around it. */
+.fin-chart { height: 300px; min-width: 0; }
+
+/* A hand-built tooltip rather than Recharts' default rows, because it carries four
+   labelled figures with the net signed and coloured — which the built-in formatter
+   cannot express. Same surface, border and radius as chartPalette().tip, so it
+   matches every other chart's tooltip in the app. */
+.fin-tip {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-xl);
+  padding: 8px 10px; font-size: 12px; box-shadow: var(--sh-1);
+}
+.fin-tip-day { color: var(--text-2); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.fin-tip-row { display: flex; justify-content: space-between; gap: 16px; line-height: 1.7; }
+.fin-tip-row span { color: var(--text-2); }
+.fin-tip-row b { font-family: var(--font-mono); font-weight: var(--fw-regular); }
+.fin-tip-row b.pos { color: var(--profit); }
+.fin-tip-row b.neg { color: var(--loss-quiet); }
+
+/* ---- Finance Breakdown ---- */
+
+/* Four dimension labels have to fit a third-width card, so this tab row wraps — and
+   a wrapped row loses the hairline it would otherwise draw through its own middle. */
+.fin-breakdown-tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; border-bottom: none; }
+.fin-breakdown-tabs .u-tab { padding: 6px 2px 8px; }
+
+.fin-ring { position: relative; margin-top: 4px; }
+.fin-ring-center {
+  position: absolute; top: 74px; left: 0; right: 0;
+  transform: translateY(-50%); text-align: center; pointer-events: none;
+}
+.fin-ring-num { font-family: var(--font-mono); font-size: 17px; font-weight: var(--fw-semibold); line-height: 1.1; }
+.fin-ring-cap { font-size: 11px; color: var(--text-2); }
+
+/* One entity per block: name and net on the top line (the verdict), the two inputs
+   under it. A four-column table would align figures nobody reads across. */
+/* No inner scroller: this list grows the card, and because the two Summary cards
+   share a grid row, a long breakdown grows the row and the chart card follows. A
+   capped height with `overflow-y: auto` would hide firms behind a scrollbar in a card
+   that had room to show them. */
+.fin-breakdown-list { display: flex; flex-direction: column; margin-top: 12px; }
+.fin-bd-row { padding: 10px 0; border-top: 1px solid var(--line); }
+.fin-bd-row:first-child { border-top: none; padding-top: 4px; }
+.fin-bd-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fin-bd-name {
+  display: flex; align-items: center; gap: 7px; font-size: 13px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fin-bd-dot { width: 7px; height: 7px; border-radius: var(--r-full); flex: none; }
+.fin-bd-net { font-family: var(--font-mono); font-size: 13px; flex: none; }
+.fin-bd-net.pos { color: var(--profit); }
+.fin-bd-net.neg { color: var(--loss-quiet); }
+.fin-bd-facts {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px;
+  font-size: 11px; color: var(--text-2); padding-left: 14px;
+}
+.fin-bd-facts b { font-family: var(--font-mono); font-weight: var(--fw-regular); color: var(--text); }
+.fin-bd-share { color: var(--text-3); }
+
+/* ---- Transactions: controls ---- */
+
+/* Views on the left, tools on the right, wrapping to two rows when the card is too
+   narrow to hold both. */
+.fin-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px 16px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.fin-controls-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Search is the Input primitive with an icon inset left and a clear button right. The
+   padding sits on the input, not on a wrapper, so the focus ring still traces the
+   field rather than a box around it. */
+.fin-search { position: relative; display: flex; align-items: center; }
+.fin-search input { width: 260px; max-width: 100%; padding-left: 30px; padding-right: 28px; }
+.fin-search-icon { position: absolute; left: 9px; color: var(--text-3); pointer-events: none; }
+/* type="search" ships its own clear affordance, which is unstyleable and inconsistent
+   between engines — suppressed, and replaced with one that matches the app. */
+.fin-search input[type="search"]::-webkit-search-cancel-button { display: none; }
+.fin-search-clear {
+  position: absolute; right: 6px; display: grid; place-items: center;
+  width: 18px; height: 18px; border: none; background: transparent;
+  color: var(--text-3); border-radius: var(--r-sm); cursor: pointer;
+}
+.fin-search-clear:hover { color: var(--text); background: var(--surface-hover); }
+
+/* How many filters are on is drawn by the CountBadge primitive, not by a rule here —
+   it is the app's filter-count pill, already grayscale per the neutral-selection rule.
+   Only the menu's width is ours: a MenuContent sizes to its trigger by default, and a
+   "Filters" button is narrower than "Evaluation Fee". */
+.fin-filter-menu { min-width: 200px; }
+/* A menu row's secondary word ("money in") sits right and quiet: it disambiguates the
+   two Add Transaction items without competing with them. */
+.fin-menu-hint { margin-left: auto; padding-left: 16px; color: var(--text-3); font-size: 11px; }
+
+.fin-count { font-size: 12px; color: var(--text-2); margin-bottom: 8px; }
+
+/* ---- Transactions: the table ----
+   On `.prop-table`, the module's existing table treatment, so all that is declared
+   here is what nine columns of money need on top of it. */
+.fin-table-scroll { overflow-x: auto; }
+.fin-table { min-width: 940px; }
+.fin-table td { padding: 9px 12px 9px 0; }
+.fin-table th { padding: 0 12px 8px 0; }
+
+/* THE COLUMN MODEL, and it is two rules rather than nine widths.
+   `width: 1%` in an auto-layout table means "as narrow as the content allows", so
+   marking every known-short column tight is what leaves Description / Account / Firm
+   to split the rest. Without it, auto layout hands a third of the row to whichever
+   cell happens to hold the longest string.
+   `max-width: none` cancels `.prop-table`'s `max-width: 0`, which is the ellipsis
+   mechanism for long free text and is exactly wrong on a figure — it truncated
+   "-$2,260" to "-$2,…", which is not a smaller number, it is no number.
+   Both selectors carry `.fin-table` + the class + the element, so they tie with
+   `.prop-table td:first-child` on specificity and win by being later — which is what
+   lets the Date column out of that rule's 40%. */
+.fin-table td.fin-col-tight, .fin-table th.fin-col-tight {
+  width: 1%; max-width: none; white-space: nowrap;
+}
+/* A date is not a number: left-aligned with the text beside it (`.num` would push it
+   away from its own header), tabular so the digits still line up down the column. */
+.fin-table td.fin-col-date {
+  text-align: left; font-variant-numeric: tabular-nums; color: var(--text-2);
+}
+/* A pill must not be clipped by the row's overflow rule. */
+.fin-table td.fin-col-badge { overflow: visible; }
+
+/* ---- Responsive ----
+
+   THE KPI ROW IS NOT MENTIONED HERE, AND THAT IS THE POINT. `.dash-stats` already
+   drops its fixed --kpi-count grid for `auto-fit, minmax(150px, 1fr)` at 1100px
+   (see the Dashboard block above), so the four Finance tiles reflow 4 -> 3 -> 2 -> 1
+   on their own, by the same rule and at the same widths as every other KPI row in
+   the app. Restating it per page is how two rows come to wrap at different widths.
+
+   What IS Finance-specific is below: the two Summary cards stop competing for width,
+   the chart gives back height, and the controls row hands the search box the full
+   width it needs. The table keeps every column at every size and scrolls sideways
+   instead — see the note in FinanceLedger.jsx for why squeezing money figures is
+   worse than scrolling to them. */
+@media (max-width: 1200px) {
+  .fin-cols { grid-template-columns: minmax(0, 1fr); }
+  /* The card is full width now, so the ring is capped and centred rather than stretched
+     across it.
+     `width` + `align-self`, NOT `max-width` + `margin-inline: auto`, and the difference
+     is not stylistic. The card is a flex column, so an AUTO CROSS-AXIS MARGIN on a
+     child cancels `align-self: stretch` — the item falls back to its content width, and
+     its content is a Recharts ResponsiveContainer at `width: 100%`, i.e. a percentage of
+     a parent that is now sized by its content. The circular reference resolves to zero
+     and the ring silently disappears below 1200px. A definite width breaks the cycle. */
+  .fin-breakdown-card .fin-ring { width: 320px; max-width: 100%; align-self: center; }
+}
+@media (max-width: 900px) {
+  .fin-chart { height: 260px; }
+  /* The tools take the second row entirely, so the search field can grow instead of
+     being the one control that gets squeezed. */
+  .fin-controls-right { width: 100%; }
+  .fin-search { flex: 1 1 200px; }
+  .fin-search input { width: 100%; }
+}
+@media (max-width: 560px) {
+  .fin-chart { height: 220px; }
+  .fin-roi-figures { gap: 16px; }
+  /* Title and range control stack, rather than the toggle group wrapping mid-group. */
+  .fin-roi-card .fin-card-head { flex-direction: column; align-items: flex-start; gap: 12px; }
+}

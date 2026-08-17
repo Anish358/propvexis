@@ -254,7 +254,10 @@ test('chart colours are read during render, never captured at import', () => {
   const theme = read('../frontend/src/theme.js');
   assert.match(theme, /export function chartPalette\(\)/);
   assert.match(theme, /document\.documentElement\.dataset\.theme/, 'cache must key on the live theme');
-  for (const f of ['Dashboard', 'Analytics', 'PropOS', 'Reports', 'DashWidgets']) {
+  // PropOS.jsx left this list with the Finance rebuild: its ROI chart moved to
+  // FinanceSummary.jsx, and the Overview's remaining chart (the accounts ring) lives
+  // in PropCards.jsx. The list names the files that actually draw something.
+  for (const f of ['Dashboard', 'Analytics', 'PropCards', 'FinanceSummary', 'Reports', 'DashWidgets']) {
     const src = read(`../frontend/src/${f}.jsx`);
     const captured = src.split('\n').filter((l) => /^const .*\btoken\(/.test(l));
     assert.deepEqual(captured, [], `${f}.jsx captures tokens at module scope: ${captured.join(' | ')}`);

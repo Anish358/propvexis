@@ -52,6 +52,13 @@ export function chartPalette() {
     // The brand step meant to be READ, not filled: --accent is the preset's fill
     // value and measures 2.24:1 on --bg, which is invisible as a 2px stroke.
     accent: token('--accent-on-surface'),
+    // Two more domain hues, for the places one series is not enough: a categorical
+    // breakdown (Finance's spend ring) needs more than profit/loss/brand before it
+    // starts repeating, and both of these already exist as tokens with a settled
+    // meaning — payout money and AI/insight — so the palette exposes them rather
+    // than each chart inventing a fourth and fifth colour of its own.
+    payout: token('--payout'),
+    ai: token('--ai'),
     grid: token('--line'),
     gridStrong: token('--line-strong'),
     axis: token('--text-3'),
