@@ -4,7 +4,7 @@ import {
   registry,
   recordHttp,
   httpRequestsTotal,
-} from '../src/metrics.js';
+} from '../src/platform/metrics.js';
 
 test('registry exposes the RED + runtime + pg-pool metric families', async () => {
   const text = await registry.metrics();

@@ -5,7 +5,7 @@ import {
   accountsInScope, categoryTotal, clipSeries, filterLedger, financeBreakdown,
   financeLedger, financeTotals, fundedCapital, ledgerFilterOptions, roiSeries,
   scopeLogins, sizeLabel,
-} from '../frontend/src/financeData.js';
+} from '../frontend/src/features/prop/financeData.js';
 
 // Prop OS › Finance — the module's arithmetic. Everything the page shows is a
 // projection of one signed ledger, so these tests are the page's correctness:
@@ -121,7 +121,7 @@ test('roiPct is null with nothing spent — never a misleading 0%', () => {
 test('totals agree with the backend financeSummary on the same figures', async () => {
   // The two implementations exist for different reasons (the page derives from
   // context, the report needs it server-side) and must not drift.
-  const { financeSummary } = await import('../src/finance.js');
+  const { financeSummary } = await import('../src/domain/finance/finance.js');
   const server = financeSummary({ payouts, fees, accounts });
   const client = financeTotals(build());
   assert.deepEqual(

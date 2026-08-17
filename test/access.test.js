@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isEmailPermitted } from '../src/access.js';
+import { isEmailPermitted } from '../src/platform/auth/access.js';
 
 test('open signup admits any email', () => {
   const cfg = { openSignup: true, allowedEmails: [] };

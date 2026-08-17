@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { needsOnboarding } from '../src/onboarding.js';
+import { needsOnboarding } from '../src/platform/auth/onboarding.js';
 
 // A brand-new user has no onboarded_at yet → must go through the wizard.
 test('needsOnboarding: true when onboarded_at is null or absent', () => {

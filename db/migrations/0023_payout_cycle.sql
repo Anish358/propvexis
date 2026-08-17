@@ -24,6 +24,6 @@
 -- of rows: materializing future dates would need a job to keep them current and
 -- would drift the moment a payout landed early. The next date is computed on read
 -- from these two fields plus the payouts that already exist — one source of truth,
--- always consistent with history. See nextPayoutDate() in src/propOverview.js.
+-- always consistent with history. See nextPayoutDate() in src/domain/prop/propOverview.js.
 ALTER TABLE mt5_accounts ADD COLUMN IF NOT EXISTS payout_cycle_days INT NOT NULL DEFAULT 14;
 ALTER TABLE mt5_accounts ADD COLUMN IF NOT EXISTS payout_anchor_date DATE;

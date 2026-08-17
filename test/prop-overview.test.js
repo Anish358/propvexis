@@ -12,7 +12,7 @@ import {
   propBrief,
   DEFAULT_PAYOUT_CYCLE_DAYS,
   INACTIVE_DAYS,
-} from '../src/propOverview.js';
+} from '../src/domain/prop/propOverview.js';
 
 // Prop OS → Overview: the BUSINESS aggregation over accounts + engine states +
 // challenge history + money movements. Pure, so every case here pins a fixed

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { perf, shapePerf, groupPerf, streaks, snapBeRounding } from '../src/aggregations.js';
-import { buildTradeWhere, outcomeSql, valueSql, statsQuery, yearlyQuery, adherenceQuery, BE_THRESHOLD } from '../src/statsSql.js';
+import { perf, shapePerf, groupPerf, streaks, snapBeRounding } from '../src/domain/analytics/aggregations.js';
+import { buildTradeWhere, outcomeSql, valueSql, statsQuery, yearlyQuery, adherenceQuery, BE_THRESHOLD } from '../src/domain/analytics/statsSql.js';
 
 // The SQL aggregation path replaced `SELECT * FROM trades` + all-in-JS maths.
 // SQL now produces only counts and sums; every derived number still comes from

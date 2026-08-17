@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toCsv, reportCsvRows } from '../src/reports.js';
-import { canUseReports } from '../src/plans.js';
+import { toCsv, reportCsvRows } from '../src/domain/analytics/reports.js';
+import { canUseReports } from '../src/domain/billing/plans.js';
 
 // --- Gating (Pro+). Fail-closed on unknown/missing plan. ---
 test('canUseReports: Pro and Premium only; free/unknown fail-closed', () => {

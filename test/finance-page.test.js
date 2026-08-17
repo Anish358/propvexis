@@ -1,21 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { legacyCss } from './helpers/app-css.js';
-import { navTitle, navRoutes } from '../frontend/src/nav.js';
+import { readSrc } from './helpers/src-files.js';
+import { navTitle, navRoutes } from '../frontend/src/app/nav.js';
 
 // Prop OS › Finance — the page's STRUCTURE, as distinct from its arithmetic
 // (finance-data.test.js). These assert the two things a source-reading test can
 // actually protect: the locked information architecture, and the reuse rules that
 // keep the module from growing a second visual language.
 
-const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const page = read('../frontend/src/Finance.jsx');
-const kpis = read('../frontend/src/FinanceKpiCards.jsx');
-const summary = read('../frontend/src/FinanceSummary.jsx');
-const ledger = read('../frontend/src/FinanceLedger.jsx');
-const app = read('../frontend/src/App.jsx');
+// Read by BASENAME via readSrc, not by path: the feature-folder restructure moved
+// every one of these, and a hardcoded path is how a source-reading test silently
+// stops asserting anything.
+const page = readSrc('Finance.jsx');
+const kpis = readSrc('FinanceKpiCards.jsx');
+const summary = readSrc('FinanceSummary.jsx');
+const ledger = readSrc('FinanceLedger.jsx');
+const app = readSrc('App.jsx');
 
 // --- the locked IA ---------------------------------------------------------
 
@@ -147,8 +148,8 @@ test('the controls row is search + filters + add, over four views', () => {
   // replace the words a voice-control user can actually see.
   assert.ok(!/aria-label="Filter transactions"/.test(ledger));
   // Add Transaction opens the forms that already exist rather than a new one.
-  assert.match(page, /import FeesModal from '\.\/FeesModal\.jsx'/);
-  assert.match(page, /import PayoutsModal from '\.\/PayoutsModal\.jsx'/);
+  assert.match(page, /import FeesModal from '[^']*FeesModal\.jsx'/);
+  assert.match(page, /import PayoutsModal from '[^']*PayoutsModal\.jsx'/);
 });
 
 // --- one source of truth for the numbers ----------------------------------
@@ -183,7 +184,8 @@ test('no component decides a number', () => {
 
 test('charts are the library already in the project, themed from tokens', () => {
   assert.match(summary, /from 'recharts'/);
-  assert.match(summary, /import \{ chartPalette \} from '\.\/theme\.js'/);
+  // Path-agnostic: the module lives under features/prop/ now and could move again.
+  assert.match(summary, /import \{ chartPalette \} from '[^']*theme\.js'/);
   // Resolved during render, never captured at module scope.
   assert.ok(!/^const .*chartPalette\(/m.test(summary));
   for (const hex of summary.match(/#[0-9a-fA-F]{3,8}\b/g) || []) {

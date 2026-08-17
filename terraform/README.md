@@ -49,7 +49,7 @@ Until then this serves as authoritative documentation of the infrastructure.
 ## Secrets in SSM Parameter Store
 
 The backend loads its prod secrets from SSM Parameter Store at boot (via
-`src/secrets.js`, gated on the box env var `SSM_PREFIX`). `secrets.tf` codifies
+`src/platform/secrets.js`, gated on the box env var `SSM_PREFIX`). `secrets.tf` codifies
 only the **read permission** — the parameter *values* are created out-of-band so
 they never enter Terraform state. One-time setup / cutover:
 

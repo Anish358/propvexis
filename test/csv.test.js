@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCsv, detectColumns, parseWhen, buildImportTrades } from '../src/csv.js';
+import { parseCsv, detectColumns, parseWhen, buildImportTrades } from '../src/domain/trades/csv.js';
 
 test('parseCsv handles quotes, commas, and embedded newlines', () => {
   const rows = parseCsv('a,b,c\n1,"x,y","line1\nline2"\n');

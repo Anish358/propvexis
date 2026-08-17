@@ -4,7 +4,7 @@ A production, multi-tenant SaaS that ingests closed trades from MetaTrader 5, st
 
 **Live:** https://app.propvexis.com (also https://journal.anishdevlops.xyz during migration)
 
-![Node](https://img.shields.io/badge/Node-20-green)
+![Node](https://img.shields.io/badge/Node-22-green)
 ![Fastify](https://img.shields.io/badge/Fastify-5-black)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
@@ -112,7 +112,7 @@ Tests gate the release twice: on every PR/`dev` push (fast feedback) and again i
 
 ## Local development
 
-Requires Node 20+ and a reachable PostgreSQL 16.
+Requires Node 22+ and a reachable PostgreSQL 16.
 
 ```bash
 # Backend
@@ -141,7 +141,7 @@ rsync + pm2 (see below). Frontend runs separately via `vite`.
 
 ### Database connection pool
 
-The `pg` pool is explicitly sized in [`src/db.js`](src/db.js) (`poolOptions`) from
+The `pg` pool is explicitly sized in [`src/platform/db.js`](src/platform/db.js) (`poolOptions`) from
 `PG_POOL_*` env vars rather than riding node-pg's defaults, which capped the app at
 10 clients and — with no `connectionTimeoutMillis` — made an exhausted pool queue
 requests *forever* instead of erroring. Defaults: `max=20`, `idleTimeoutMillis=30s`,
@@ -168,9 +168,9 @@ also exported to Prometheus (`pg_pool_total_connections`, `pg_pool_idle_connecti
 ### Analytics aggregation & caching
 
 Dashboard/analytics numbers are aggregated **in Postgres**, not in Node.
-[`src/statsSql.js`](src/statsSql.js) builds one CTE query per request (headline,
+[`src/domain/analytics/statsSql.js`](src/domain/analytics/statsSql.js) builds one CTE query per request (headline,
 every `GROUP BY` block, R-distribution, MFE, equity curve, and win/loss streaks
-via gap-and-islands); [`src/aggregations.js`](src/aggregations.js) turns those
+via gap-and-islands); [`src/domain/analytics/aggregations.js`](src/domain/analytics/aggregations.js) turns those
 counts into the API shape.
 
 The split is deliberate: **SQL does only `COUNT`/`SUM`/`GROUP BY`, and every
@@ -187,7 +187,7 @@ strategy actually defines rules, so users with no rules pay nothing.
 
 `/api/stats` and `/api/yearly` are cached per
 `(kind, scope, unit, filters, rounding, year)` in
-[`src/statsCache.js`](src/statsCache.js), invalidated on every write to that
+[`src/platform/statsCache.js`](src/platform/statsCache.js), invalidated on every write to that
 user's trades (ingest, manual add, edit, delete, CSV import, strategy
 rename/rules edit). The cache is bounded (LRU + TTL backstop) because the box has
 1GB of RAM, and scoped per user so one trader's ingest can't flush everyone's.
@@ -202,10 +202,10 @@ become cross-process, which is what makes multiple workers possible:
 - **Socket.IO** uses `@socket.io/redis-adapter`, so a broadcast reaches clients
   connected to any worker.
 - **Cache invalidation** fans out over Redis pub/sub
-  ([`src/statsBus.js`](src/statsBus.js)), so a trade written on one worker drops
+  ([`src/platform/statsBus.js`](src/platform/statsBus.js)), so a trade written on one worker drops
   the stale entries on all of them.
 
-Two availability rules are deliberate in [`src/redis.js`](src/redis.js): a failed
+Two availability rules are deliberate in [`src/platform/redis.js`](src/platform/redis.js): a failed
 connect is **not fatal** (the app logs and runs degraded rather than refusing to
 boot — a Redis outage must not take the API down), and both clients get `error`
 listeners before connecting, since an unhandled `error` event would kill the
@@ -235,9 +235,9 @@ before raising it:
    RSS, so a second prod worker needs an upsize.
 3. **Lower `PG_POOL_MAX`** — total connections are `workers × PG_POOL_MAX` across
    three envs against `max_connections=100`; `advisePoolMax()` in
-   [`src/cluster.js`](src/cluster.js) computes the ceiling.
+   [`src/platform/cluster.js`](src/platform/cluster.js) computes the ceiling.
 
-[`src/cluster.js`](src/cluster.js) re-checks at boot from **live** Redis state
+[`src/platform/cluster.js`](src/platform/cluster.js) re-checks at boot from **live** Redis state
 (not boot-time config, since Redis can drop later) and logs `UNSAFE CLUSTER MODE`
 per reason, with the `app_unsafe_cluster_mode` gauge as the alarm.
 
@@ -289,7 +289,7 @@ Merge to `main` → GitHub Actions deploys to a single EC2 host: builds the SPA,
 In production the backend loads its secrets from **SSM Parameter Store**
 (SecureString/KMS) at boot, via the EC2 **instance IAM role** — no static AWS keys
 and no secret values on disk. The entry point ([`src/server.js`](src/server.js))
-hydrates `process.env` from SSM ([`src/secrets.js`](src/secrets.js)) *before* config
+hydrates `process.env` from SSM ([`src/platform/secrets.js`](src/platform/secrets.js)) *before* config
 is read, then loads the app. It's gated on the box env var `SSM_PREFIX`: unset (local
 dev, tests, CI, any un-migrated box) it's a pure no-op and `dotenv`/`.env` is used as
 before; set (e.g. `/amey-journal/prod/`) it fetches every parameter under that path
@@ -300,7 +300,14 @@ least-privilege in [`terraform/secrets.tf`](terraform/secrets.tf); see
 ## Project structure
 
 ```
-src/            Fastify API, Socket.IO, auth, scoping, analytics, money-math, Sentry init
+src/
+  server.js     entry: hydrate SSM secrets, then import the app
+  app.js        wiring only — Fastify, CORS, rate limit, auth, Socket.IO, Redis, metrics hook
+  routes/       the HTTP layer, one module per domain; called on the root instance, not registered
+  platform/     infrastructure with no domain model — config, db, redis, secrets, cluster,
+                metrics, paths, calendar, and platform/auth/
+  domain/       business logic, mirroring routes/: trades, accounts, prop, finance,
+                journal, analytics, billing, alerts
 db/             base schema + incremental migrations (runner: scripts/migrate.js)
 frontend/       React + Vite SPA
 ea/             MQL5 Expert Advisor (MT5 ingestion client)

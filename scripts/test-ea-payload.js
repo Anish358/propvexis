@@ -1,6 +1,6 @@
 // Simulates the exact JSON the MQL5 EA sends (raw prices + mfe_price, no pips).
 // Verifies the backend converts to pips / R correctly and matches the sheet.
-import { config } from '../src/config.js';
+import { config } from '../src/platform/config.js';
 
 const base = `http://127.0.0.1:${config.port}`;
 const headers = {

@@ -7,7 +7,7 @@ import {
   deriveFixedR,
   deriveMaxR,
   round2,
-} from '../src/derive.js';
+} from '../src/domain/trades/derive.js';
 
 test('normalizeSymbol strips broker suffixes to the known base', () => {
   assert.equal(normalizeSymbol('EURUSD.r'), 'EURUSD');

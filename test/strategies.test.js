@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeStrategyName } from '../src/strategies.js';
-import { orderSetups } from '../src/aggregations.js';
+import { normalizeStrategyName } from '../src/domain/trades/strategies.js';
+import { orderSetups } from '../src/domain/analytics/aggregations.js';
 
 test('normalizeStrategyName trims, collapses whitespace, caps length', () => {
   assert.equal(normalizeStrategyName('  Breakout  '), 'Breakout');

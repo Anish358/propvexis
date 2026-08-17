@@ -1,11 +1,19 @@
 name: CI
 
 # Fast feedback BEFORE code reaches prod: run the test suite on every PR to main
-# and every push to dev. The deploy workflow re-runs tests as a final gate, but
-# this surfaces failures as a red check on the PR so they're caught pre-merge.
+# or dev, and every push to dev. The deploy workflow re-runs tests as a final
+# gate, but this surfaces failures as a red check on the PR so they're caught
+# pre-merge.
+#
+# `dev` IS IN THE PR LIST FOR A REASON. It used to be main-only, and the effect
+# was invisible: Dependabot targets dev, so a PR to dev matched neither trigger —
+# not `pull_request` (wrong base) and not `push` (a PR branch is not dev). Nine
+# dependency PRs sat there showing a green tick that came from a third-party
+# secret scanner, with the test suite never having run on any of them. A PR that
+# runs no checks looks exactly like a PR that passed them.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
     branches: [dev]
 
@@ -13,10 +21,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20' # match the production box
+          node-version: '22' # match the production box
           cache: 'npm'
       - run: npm ci
       - run: npm test

@@ -6,17 +6,20 @@ import {
   FILTERS, LIVE_FILTERS, FILTER_GROUPS, FILTER_BY_ID, DATE_PRESETS,
   activeDefs, chipValue, clearPatch, countActive, isActive, matchedPreset,
   presetRange, valueOptions, emptyFilterState, sanitizeFilterState, filterStateToQuery,
-} from '../frontend/src/filterDefs.js';
-import { filterTrades, availableOptions, emptyFilters, sanitizeFilters } from '../frontend/src/filters.js';
-import { buildTradeWhere } from '../src/aggregations.js';
+} from '../frontend/src/features/filters/filterDefs.js';
+import { filterTrades, availableOptions, emptyFilters, sanitizeFilters } from '../frontend/src/features/filters/filters.js';
+import { buildTradeWhere } from '../src/domain/analytics/aggregations.js';
+import { sourceOf } from './helpers/backend-src.js';
 
 import { appCss } from './helpers/app-css.js';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const panel = read('../frontend/src/FilterPanel.jsx');
-const bar = read('../frontend/src/FilterBar.jsx');
+const panel = read('../frontend/src/features/filters/FilterPanel.jsx');
+const bar = read('../frontend/src/features/filters/FilterBar.jsx');
 const app = read('../frontend/src/App.jsx');
 const css = appCss;
-const server = read('../src/app.js');
+// parseFilters and the routes that use it live in whichever module owns /api/stats
+// (src/routes/analytics.js today) — resolved by route, not by path.
+const server = sourceOf('get', '/api/stats');
 
 const f = (patch) => ({ ...emptyFilters(), ...patch });
 
@@ -348,7 +351,7 @@ test('the weekday filter reads UTC on both sides', () => {
   // then disagree, silently, only for some users.
   const { where } = buildTradeWhere(null, 'R', f({ dows: ['1'] }), null, false);
   assert.match(where, /ISODOW FROM \(close_time AT TIME ZONE 'UTC'\)/);
-  assert.match(read('../frontend/src/filterDefs.js'), /d\.getUTCDay\(\)/);
+  assert.match(read('../frontend/src/features/filters/filterDefs.js'), /d\.getUTCDay\(\)/);
   // 2026-07-06T23:30Z is Monday in UTC and Tuesday at UTC+5:30 — it must filter
   // as Monday wherever this runs.
   const lateMonday = { close_time: '2026-07-06T23:30:00Z', open_time: '2026-07-06T23:00:00Z' };

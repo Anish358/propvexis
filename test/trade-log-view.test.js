@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { TRADE_COLUMNS, colVisible, visibleColumns, settingsColumns } from '../frontend/src/tradeColumns.js';
-import { fmtDayShort } from '../frontend/src/constants.js';
-import { exportValue, csvText, tradesToCsv } from '../frontend/src/tradeExport.js';
+import { TRADE_COLUMNS, colVisible, visibleColumns, settingsColumns } from '../frontend/src/features/trades/tradeColumns.js';
+import { fmtDayShort } from '../frontend/src/lib/constants.js';
+import { exportValue, csvText, tradesToCsv } from '../frontend/src/features/trades/tradeExport.js';
 
 import { appCss } from './helpers/app-css.js';
 // The Trade Log's default view, table behaviour and headline KPI row. The column
@@ -12,13 +12,13 @@ import { appCss } from './helpers/app-css.js';
 // are JSX and node can't import those, so their behaviour is read from source.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const css = appCss;
-const table = read('../frontend/src/TradesTable.jsx');
-const spec = read('../frontend/src/tradeColumns.js');
-const log = read('../frontend/src/TradeLog.jsx');
-const cards = read('../frontend/src/KpiCards.jsx');
-const bulk = read('../frontend/src/BulkActions.jsx');
-const dash = read('../frontend/src/Dashboard.jsx');
-const bar = read('../frontend/src/FilterBar.jsx');
+const table = read('../frontend/src/features/trades/TradesTable.jsx');
+const spec = read('../frontend/src/features/trades/tradeColumns.js');
+const log = read('../frontend/src/features/trades/TradeLog.jsx');
+const cards = read('../frontend/src/features/dashboard/KpiCards.jsx');
+const bulk = read('../frontend/src/features/trades/BulkActions.jsx');
+const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
+const bar = read('../frontend/src/features/filters/FilterBar.jsx');
 
 const cols = () => TRADE_COLUMNS;
 const shown = (overrides = {}) => visibleColumns(overrides);
@@ -54,7 +54,7 @@ test('the Rules column survived the refactor it landed across', () => {
   // Renders the server's verdict rather than re-deciding it here.
   assert.match(table, /t\.adherence\?\.status/);
   assert.match(table, /RULE_LABEL\[r\] \|\| r/);
-  assert.match(table, /from '\.\/constants\.js'/);
+  assert.match(table, /from '[^']*constants\.js'/);
   // And it exports, like every other column that can be turned on.
   assert.equal(exportValue({ adherence: { status: 'followed' } }, 'adherence'), 'Followed');
   assert.equal(exportValue({ adherence: { status: 'broken' } }, 'adherence'), 'Broke rules');
@@ -304,7 +304,7 @@ test('the date reads "22 Jul 26" over the time', () => {
   assert.match(css, /\.cell-time \{ display: block;/);
   // fmtDate is left alone — it feeds fmtDateTime, which the tag modal and preview
   // panel render inline and which this change doesn't cover.
-  assert.match(read('../frontend/src/constants.js'), /export function fmtDate\(/);
+  assert.match(read('../frontend/src/lib/constants.js'), /export function fmtDate\(/);
 });
 
 test('the Trade Settings button is icon-only', () => {
@@ -423,8 +423,8 @@ test('both pages render the SAME card components', () => {
     assert.match(cards, new RegExp(`export function ${c}\\b`), `KpiCards must export ${c}`);
     assert.ok(!new RegExp(`function ${c}\\b`).test(dash), `Dashboard must not redefine ${c}`);
   }
-  assert.match(dash, /from '\.\/KpiCards\.jsx'/);
-  assert.match(log, /from '\.\/KpiCards\.jsx'/);
+  assert.match(dash, /from '[^']*KpiCards\.jsx'/);
+  assert.match(log, /from '[^']*KpiCards\.jsx'/);
   // Dashboard keeps Day win %, which the trade log doesn't show.
   assert.match(cards, /export function DayWinCard/);
   assert.ok(!log.includes('DayWinCard'), 'the trade log shows four cards, not five');

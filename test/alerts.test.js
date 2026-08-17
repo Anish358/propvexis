@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveAlerts, phasePassedAlert } from '../src/alerts.js';
+import { deriveAlerts, phasePassedAlert } from '../src/domain/alerts/alerts.js';
 
 // Minimal challengeState-shaped fixtures. Only the fields deriveAlerts reads.
 const base = (over = {}) => ({

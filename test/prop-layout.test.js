@@ -3,33 +3,34 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
-import { createLayoutModel, moveId, moveIdBefore } from '../frontend/src/layoutModel.js';
+import { sourceOf } from './helpers/backend-src.js';
+import { createLayoutModel, moveId, moveIdBefore } from '../frontend/src/lib/layoutModel.js';
 import {
   PROP_SECTIONS, PROP_KPIS, PROP_MAIN_WIDGETS, PROP_LABEL, PROP_DEFAULT_HIDDEN,
   PROP_GRID_COLUMNS, propWidgetSpan,
   defaultPropLayout, sanitizePropLayout, isDefaultPropLayout,
   isPropVisible, visiblePropIds, visiblePropSections, hiddenPropWidgets,
-} from '../frontend/src/propLayout.js';
-import { defaultDashLayout, sanitizeDashLayout } from '../frontend/src/dashLayout.js';
+} from '../frontend/src/features/prop/propLayout.js';
+import { defaultDashLayout, sanitizeDashLayout } from '../frontend/src/features/dashboard/dashLayout.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const prop = read('../frontend/src/PropOS.jsx');
-const brief = read('../frontend/src/PropBrief.jsx');
-const cards = read('../frontend/src/PropKpiCards.jsx');
-const filter = read('../frontend/src/PropKpiFilter.jsx');
+const prop = read('../frontend/src/features/prop/PropOS.jsx');
+const brief = read('../frontend/src/features/prop/PropBrief.jsx');
+const cards = read('../frontend/src/features/prop/PropKpiCards.jsx');
+const filter = read('../frontend/src/features/prop/PropKpiFilter.jsx');
 const app = read('../frontend/src/App.jsx');
-const layoutJsx = read('../frontend/src/Layout.jsx');
-const api = read('../frontend/src/api.js');
+const layoutJsx = read('../frontend/src/app/Layout.jsx');
+const api = read('../frontend/src/lib/api.js');
 
 // ---- the shared engine -----------------------------------------------------
 
 test('one engine backs both layouts, so persistence logic exists once', () => {
   // The Dashboard and the Overview need identical machinery over different
   // catalogues. A second copy would drift the first time either page was touched.
-  const dashSrc = read('../frontend/src/dashLayout.js');
-  const propSrc = read('../frontend/src/propLayout.js');
+  const dashSrc = read('../frontend/src/features/dashboard/dashLayout.js');
+  const propSrc = read('../frontend/src/features/prop/propLayout.js');
   for (const [name, src] of [['dashLayout', dashSrc], ['propLayout', propSrc]]) {
-    assert.match(src, /from '\.\/layoutModel\.js'/, `${name} should build on the shared engine`);
+    assert.match(src, /from '[^']*layoutModel\.js'/, `${name} should build on the shared engine`);
     // The catalogue is all either file should own.
     assert.ok(!/function sanitize\w*Layout\s*\(/.test(src), `${name} must not re-implement sanitize`);
   }
@@ -198,14 +199,14 @@ test('the old per-account Overview is gone, and what it owned went somewhere', (
   // But the two helpers the Dashboard imports must survive the deletion.
   assert.match(prop, /export function roomStatus/);
   assert.match(prop, /export function healthStatus/);
-  const dash = read('../frontend/src/Dashboard.jsx');
-  assert.match(dash, /import \{ roomStatus, healthStatus \} from '\.\/PropOS\.jsx'/);
+  const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
+  assert.match(dash, /import \{ roomStatus, healthStatus \} from '[^']*PropOS\.jsx'/);
   // Finance is a separate page, and as of the Finance rebuild it is a separate
   // MODULE too — PropOS.jsx no longer holds a copy of the finance UI, so there is
   // one implementation of "total spent" in the app rather than two.
   assert.ok(!prop.includes('PropFinance'), 'Finance no longer lives inside PropOS.jsx');
   assert.ok(!prop.includes('FinanceBand'), 'the old finance band is superseded by Finance.jsx');
-  assert.match(app, /import Finance from '\.\/Finance\.jsx'/);
+  assert.match(app, /import Finance from '[^']*Finance\.jsx'/);
   assert.match(app, /<Route path="finance" element=\{<Finance \/>\} \/>/);
   // The insights band was on the old Finance page and has no place in the locked
   // three-tab IA. Kept and exported rather than deleted — see its own comment.
@@ -285,12 +286,12 @@ test('prop layout state is global and persisted, like the dashboard layout', () 
 // ---- the content cards -----------------------------------------------------
 
 test('the Overview reuses the Dashboard calendar rather than forking one', () => {
-  const cal = read('../frontend/src/MonthCalendar.jsx');
-  assert.match(prop, /import MonthCalendar from '\.\/MonthCalendar\.jsx'/);
+  const cal = read('../frontend/src/features/calendar/MonthCalendar.jsx');
+  assert.match(prop, /import MonthCalendar from '[^']*MonthCalendar\.jsx'/);
   // Markers are ADDITIVE: the Dashboard passes none and must render as before.
   assert.match(cal, /markers,/, 'MonthCalendar should accept an optional markers map');
   assert.match(cal, /const marks = markers\?\.get\(c\.key\);/);
-  const dash = read('../frontend/src/Dashboard.jsx');
+  const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
   assert.ok(!dash.includes('markers='), 'the Dashboard must not pass markers');
   // The Overview supplies the same per-day shape the Dashboard does.
   assert.match(prop, /dayMap=\{dayMap\}/);
@@ -298,7 +299,7 @@ test('the Overview reuses the Dashboard calendar rather than forking one', () =>
 });
 
 test('calendar markers are glyphs, not colour alone', () => {
-  const cal = read('../frontend/src/MonthCalendar.jsx');
+  const cal = read('../frontend/src/features/calendar/MonthCalendar.jsx');
   assert.match(cal, /MARKER_GLYPH = \{ payout: '\$', milestone: '✓', breach: '✕' \}/);
   for (const kind of ['payout', 'milestone', 'breach']) {
     assert.match(appCss, new RegExp(`\.cal-mark--${kind} \{ color:`), `${kind} needs its own colour too`);
@@ -312,8 +313,8 @@ test('phase advance is re-homed onto the account row it acts on', () => {
   // without it there is no way to progress a challenge, and the Evaluation
   // Success Rate KPI has no data source (pass rates come from the history that
   // only this route writes).
-  const cards2 = read('../frontend/src/PropCards.jsx');
-  assert.match(cards2, /import \{ advanceChallenge \} from '\.\/api\.js'/);
+  const cards2 = read('../frontend/src/features/prop/PropCards.jsx');
+  assert.match(cards2, /import \{ advanceChallenge \} from '[^']*api\.js'/);
   assert.match(cards2, /advanceChallenge\(\{ account_id: row\.accountId, to_phase: next, mark: 'passed' \}\)/);
   // Offered only once the target is actually met.
   assert.match(cards2, /\{r\.targetReached && <AdvanceButton/);
@@ -324,7 +325,7 @@ test('each accounts slice carries the columns that slice needs', () => {
   // Funded is judged on what it PAID, evaluation on what it must still EARN, and
   // a passed evaluation is a record with two dates. One shared column set would
   // serve none of them.
-  const cards2 = read('../frontend/src/PropCards.jsx');
+  const cards2 = read('../frontend/src/features/prop/PropCards.jsx');
   assert.match(cards2, /<th>Account<\/th><th className="num">P&amp;L<\/th><th className="num">Paid out<\/th>/);
   assert.match(cards2, /<th>Account<\/th><th className="num">P&amp;L<\/th><th className="num">To pass<\/th>/);
   assert.match(cards2, /<th>Account<\/th><th>Started<\/th><th>Passed<\/th>/);
@@ -332,7 +333,7 @@ test('each accounts slice carries the columns that slice needs', () => {
 });
 
 test('payout status is a word, and an overdue one is not hidden', () => {
-  const cards2 = read('../frontend/src/PropCards.jsx');
+  const cards2 = read('../frontend/src/features/prop/PropCards.jsx');
   for (const s of ['Upcoming', 'Due today', 'Overdue', 'Not eligible']) {
     assert.ok(cards2.includes(s), `payout status "${s}" should be spelled out`);
   }
@@ -340,8 +341,8 @@ test('payout status is a word, and an overdue one is not hidden', () => {
 });
 
 test('the payout cycle editor writes through the existing account route', () => {
-  const modal = read('../frontend/src/PayoutCycleModal.jsx');
-  assert.match(modal, /import \{ updateAccount \} from '\.\/api\.js'/);
+  const modal = read('../frontend/src/features/prop/PayoutCycleModal.jsx');
+  assert.match(modal, /import \{ updateAccount \} from '[^']*api\.js'/);
   assert.match(modal, /payout_cycle_days: n/);
   // Blank clears the override rather than storing an empty string.
   assert.match(modal, /payout_anchor_date: anchor === '' \? null : anchor/);
@@ -354,7 +355,7 @@ test('card tables scroll inside the card, not the page', () => {
   assert.match(appCss, /\.prop-table-wrap \{[\s\S]*?overflow-y: auto/);
   assert.match(appCss, /\.prop-card-box \{[\s\S]*?min-height: 0/);
   // Height classes match the declared row spans (card-md = 1 row, card-lg = 2).
-  const cards2 = read('../frontend/src/PropCards.jsx');
+  const cards2 = read('../frontend/src/features/prop/PropCards.jsx');
   for (const c of ['FirmsCard', 'UpcomingPayoutsCard', 'TransactionsCard']) {
     const at = cards2.indexOf(`export function ${c}`);
     assert.match(cards2.slice(at, at + 400), /card-md/, `${c} spans 1 row so it needs card-md`);
@@ -366,11 +367,13 @@ test('card tables scroll inside the card, not the page', () => {
 test('the Overview fetches once and the calendar rides the same payload', () => {
   // Per-day totals are aggregated in SQL: the calendar needs one row per DAY and
   // the page is portfolio-wide, so a trade-level payload would grow unbounded.
-  const challenges = read('../src/challenges.js');
+  const challenges = read('../src/domain/prop/challenges.js');
   assert.match(challenges, /export async function dailyTotalsForLogins/);
   assert.match(challenges, /GROUP BY 1/);
   assert.match(challenges, /COUNT\(\*\) FILTER \(WHERE pnl_money > 0\)/);
-  const appJs = read('../src/app.js');
-  assert.match(appJs, /dailyTotalsForLogins\(logins\)/);
-  assert.match(appJs, /^\s+days,$/m, 'the route should return the per-day totals');
+  // Resolved by route rather than by file: the handler moved from app.js into
+  // src/routes/prop.js when the HTTP layer was split by domain.
+  const overview = sourceOf('get', '/api/prop/overview');
+  assert.match(overview, /dailyTotalsForLogins\(logins\)/);
+  assert.match(overview, /^\s+days,$/m, 'the route should return the per-day totals');
 });

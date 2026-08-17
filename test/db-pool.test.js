@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { poolOptions, POOL_DEFAULTS, pool } from '../src/db.js';
+import { poolOptions, POOL_DEFAULTS, pool } from '../src/platform/db.js';
 
 const cfg = (over = {}) => ({
   databaseUrl: 'postgres://localhost:5432/test_db',
@@ -62,7 +62,7 @@ test('pool is tagged per environment for pg_stat_activity', () => {
 });
 
 test('the live pool is actually tuned — regression guard on the bare Pool()', () => {
-  // src/db.js used to be `new pg.Pool({ connectionString })`, silently capped at
+  // src/platform/db.js used to be `new pg.Pool({ connectionString })`, silently capped at
   // node-pg's default of 10 clients. Assert the real exported pool carries the
   // tuned options, not just that poolOptions() computes them.
   assert.ok(pool.options.max >= 20, `expected max >= 20, got ${pool.options.max}`);

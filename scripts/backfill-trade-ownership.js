@@ -7,7 +7,7 @@
 //
 // Idempotent. Owner is configurable so prod and local can differ.
 //   SEED_OWNER_EMAIL=you@gmail.com node scripts/backfill-trade-ownership.js
-import { pool, query } from '../src/db.js';
+import { pool, query } from '../src/platform/db.js';
 
 const ownerEmail = (process.env.SEED_OWNER_EMAIL ?? 'patilamey0718@gmail.com').trim().toLowerCase();
 

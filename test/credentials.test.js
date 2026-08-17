@@ -8,7 +8,7 @@ import {
   normalizeEmail,
   passwordProblem,
   verifyPassword,
-} from '../src/credentials.js';
+} from '../src/platform/auth/credentials.js';
 
 // scrypt at these cost parameters is ~100ms a call by design, so keep the number
 // of hashes here small.

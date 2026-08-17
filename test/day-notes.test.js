@@ -2,14 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { isDayKey, sanitizeNote } from '../src/dayNotes.js';
+import { isDayKey, sanitizeNote } from '../src/domain/journal/dayNotes.js';
+import { httpLayer } from './helpers/backend-src.js';
 
 // Day notes — one reflection per trading day, per user. The route's whole
 // validation story is these two pure functions plus the delete-on-empty rule, so
 // that is what this pins.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const mod = read('../src/dayNotes.js');
-const app = read('../src/app.js');
+const mod = read('../src/domain/journal/dayNotes.js');
+// The whole HTTP layer, not one file: these routes moved from app.js into
+// src/routes/journal.js and could move again without changing what is asserted.
+const app = httpLayer;
 const migration = read('../db/migrations/0022_day_notes.sql');
 
 test('isDayKey accepts the keys the client actually sends', () => {

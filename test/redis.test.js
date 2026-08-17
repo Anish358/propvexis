@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRedisPair, redisEnabled, redisStatus, redisNamespace, CONNECT_TIMEOUT_MS } from '../src/redis.js';
-import { clusterSafety } from '../src/cluster.js';
-import { createStatsBus, INVALIDATE_CHANNEL } from '../src/statsBus.js';
+import { createRedisPair, redisEnabled, redisStatus, redisNamespace, CONNECT_TIMEOUT_MS } from '../src/platform/redis.js';
+import { clusterSafety } from '../src/platform/cluster.js';
+import { createStatsBus, INVALIDATE_CHANNEL } from '../src/platform/statsBus.js';
 
 // Redis is optional and REDIS_URL-gated. These tests need no Redis server: they
 // pin the gating and the degrade-don't-die behaviour, which is the part that
@@ -18,7 +18,7 @@ test('disabled by default — no REDIS_URL means single-process behaviour', asyn
 test('an unreachable Redis degrades instead of stopping the app', async () => {
   // Point at a closed port: connect must fail, and createRedisPair must resolve
   // null rather than throw or hang. Booting degraded beats not booting.
-  const { config } = await import('../src/config.js');
+  const { config } = await import('../src/platform/config.js');
   const original = config.redisUrl;
   config.redisUrl = 'redis://127.0.0.1:6390'; // nothing listening
   const logged = [];

@@ -5,15 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
 import {
   summarizeDay, groupByDay, summarizeAll, holdMinutes, fmtMins, dayTitle, dayRelative,
-} from '../frontend/src/dayStats.js';
+} from '../frontend/src/features/calendar/dayStats.js';
 
 // The Daily Journal: a feed of day cards. The numbers come from dayStats.js, which
 // is plain JS and asserted directly here; the components are JSX (node can't import
 // those) so their structure is read from source.
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-const page = read('../frontend/src/DayView.jsx');
-const card = read('../frontend/src/DayCard.jsx');
-const work = read('../frontend/src/DayJournalWorkspace.jsx');
+const page = read('../frontend/src/features/calendar/DayView.jsx');
+const card = read('../frontend/src/features/calendar/DayCard.jsx');
+const work = read('../frontend/src/features/calendar/DayJournalWorkspace.jsx');
 const css = appCss;
 
 // Two days. Day 1 nets +1R over three trades (one breakeven); day 2 nets -1R.
