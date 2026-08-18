@@ -184,6 +184,35 @@ export async function ownedAccountById(userId, id) {
   return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login) };
 }
 
+// Mint the per-account ingest token if the account has none, and return it.
+//
+// Accounts created before migration 0005 introduced per-account tokens have
+// ingest_token NULL — they authenticated with the legacy GLOBAL token instead.
+// That is a legitimate historical state, not corruption, and server-side sync
+// cannot work without a token because the worker posts trades exactly the way the
+// EA does. Refusing such an account left the user at a dead end with no button
+// anywhere that could mint one, so enabling live sync mints it instead.
+//
+// Idempotent, and never overwrites an existing token: the WHERE clause carries the
+// IS NULL, so two concurrent callers cannot rotate a token the EA is already
+// using (which would silently break that trader's EA sync).
+export async function ensureIngestToken(userId, id) {
+  const { rows } = await query(
+    `UPDATE mt5_accounts SET ingest_token = $3
+      WHERE id = $1 AND user_id = $2 AND ingest_token IS NULL
+      RETURNING ingest_token;`,
+    [id, userId, genToken()]
+  );
+  if (rows.length) return rows[0].ingest_token;
+  // Either it already had one, or this is not the caller's account. Re-read under
+  // the same ownership filter so the second case still returns null.
+  const { rows: cur } = await query(
+    'SELECT ingest_token FROM mt5_accounts WHERE id = $1 AND user_id = $2',
+    [id, userId]
+  );
+  return cur.length ? cur[0].ingest_token : null;
+}
+
 // Look up an account by its ingest token (for the EA ingest path).
 export async function accountByToken(token) {
   const { rows } = await query('SELECT * FROM mt5_accounts WHERE ingest_token = $1', [token]);

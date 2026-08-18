@@ -35,7 +35,7 @@ test('the investor-password requirement is stated, not assumed', () => {
 test('a bound login cannot be repointed from the UI', () => {
   // Trades are filed under mt5_login, so changing it would hand another account's
   // history to this one. The backend refuses too; this stops the user trying.
-  assert.match(modal, /disabled=\{account\.mt5_login != null\}/);
+  assert.match(modal, /disabled=\{blocked \|\| account\.mt5_login != null\}/);
 });
 
 test('live sync is offered only where it can work', () => {
@@ -43,6 +43,15 @@ test('live sync is offered only where it can work', () => {
   // not be woken up by the scheduler.
   assert.match(account, /a\.kind !== 'manual' && !archived/);
   assert.match(account, /<SyncModal\b/);
+});
+
+test('the form is disabled once the server has already refused', () => {
+  // The status GET and the credential PUT share one guard (ownership, account
+  // kind, plan). If the GET failed, the PUT will fail identically — so a form that
+  // still invites a password just 402s after the user types a real credential.
+  assert.match(modal, /const blocked = Boolean\(unconfigured \|\| loadErr\)/);
+  assert.equal((modal.match(/disabled=\{blocked/g) || []).length, 4,
+    'all three inputs and the submit button must respect it');
 });
 
 test('the sync API surfaces the server message, not a status code', () => {

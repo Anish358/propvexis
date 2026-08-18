@@ -139,6 +139,11 @@ export default function SyncModal({ account, onClose, onChanged }) {
 
   const cred = state?.credential;
   const unconfigured = state && state.configured === false;
+  // If the status call itself failed, the save will fail the same way — the two
+  // share a guard (ownership, account kind, plan). So don't invite a password we
+  // already know will be refused: a disabled form with the reason above it is more
+  // honest than a submit button that 402s after the user types a credential.
+  const blocked = Boolean(unconfigured || loadErr);
 
   return (
     <Modal onClose={onClose} className="sync-modal" label="Live sync">
@@ -181,6 +186,7 @@ export default function SyncModal({ account, onClose, onChanged }) {
               onChange={(e) => setServer(e.target.value)}
               placeholder="GoatFunded-Server"
               autoComplete="off"
+              disabled={blocked}
             />
           </label>
           <label>
@@ -192,7 +198,7 @@ export default function SyncModal({ account, onClose, onChanged }) {
               placeholder="314943467"
               // Once an account is bound to a login it cannot be repointed — the
               // trades already filed under it would change owner.
-              disabled={account.mt5_login != null}
+              disabled={blocked || account.mt5_login != null}
             />
           </label>
           <label>
@@ -203,6 +209,7 @@ export default function SyncModal({ account, onClose, onChanged }) {
               onChange={(e) => setPassword(e.target.value)}
               placeholder={cred ? 'Replace the stored password' : 'Read-only password'}
               autoComplete="new-password"
+              disabled={blocked}
             />
           </label>
 
@@ -216,7 +223,7 @@ export default function SyncModal({ account, onClose, onChanged }) {
             {cred && cred.read_only !== false && (
               <button type="button" onClick={syncNow} disabled={busy}>Sync now</button>
             )}
-            <button type="submit" className="primary" disabled={busy || !server.trim() || !password}>
+            <button type="submit" className="primary" disabled={blocked || busy || !server.trim() || !password}>
               {busy ? 'Saving…' : cred ? 'Replace password' : 'Enable live sync'}
             </button>
           </div>

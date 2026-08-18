@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   BACKOFF_MS,
@@ -171,6 +172,18 @@ test('re-saving a password clears the read-only verdict', () => {
   const { text } = saveCredentialQuery({ accountId: 1, server: 'S', firmKey: 'gft', passwordCt: 'v1.a.b.c' });
   assert.match(text, /read_only = NULL/);
   assert.match(text, /verified_at = NULL/);
+});
+
+test('minting an ingest token never overwrites an existing one', () => {
+  // Accounts predating per-account tokens have none, and server-side sync cannot
+  // work without one — but rotating a token the EA is ALREADY using would silently
+  // break that trader's existing sync, so the IS NULL lives in the WHERE clause.
+  const src = readFileSync(new URL('../src/domain/accounts/accounts.js', import.meta.url), 'utf8');
+  const fn = src.slice(src.indexOf('export async function ensureIngestToken'),
+                       src.indexOf('// Look up an account by its ingest token'));
+  assert.match(fn, /AND ingest_token IS NULL/);
+  assert.match(fn, /AND user_id = \$2/);            // tenant-scoped
+  assert.ok(!/ingest_token = \$3;/.test(fn.replace(/WHERE[\s\S]*/, '')), 'no unconditional write');
 });
 
 test('a detected master password is deleted, not flagged', () => {

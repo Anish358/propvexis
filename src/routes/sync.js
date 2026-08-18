@@ -1,5 +1,5 @@
 import { config } from '../platform/config.js';
-import { ownedAccountById, bindOrCheckLogin } from '../domain/accounts/accounts.js';
+import { ownedAccountById, bindOrCheckLogin, ensureIngestToken } from '../domain/accounts/accounts.js';
 import { planForUser } from '../domain/billing/entitlements.js';
 import { canUseEA } from '../domain/billing/plans.js';
 import {
@@ -250,10 +250,12 @@ export default function syncRoutes(app) {
       return reply.code(403).send({ error: 'login does not match this account' });
     }
 
-    if (!acct.ingest_token) {
-      // The agent authenticates to the ingest endpoints with this, exactly as the
-      // EA does. An account created without one cannot be synced.
-      return reply.code(409).send({ error: 'account has no ingest token' });
+    // The agent authenticates to the ingest endpoints with this, exactly as the EA
+    // does. Accounts predating per-account tokens have none, so mint one rather
+    // than refuse — a 409 here was a dead end, with no button anywhere in the app
+    // that could produce a token.
+    if (!(await ensureIngestToken(req.user.uid, acct.id))) {
+      return reply.code(409).send({ error: 'could not issue an ingest token for this account' });
     }
 
     const saved = await saveCredential({
