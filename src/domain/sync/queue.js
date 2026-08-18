@@ -168,6 +168,26 @@ export function leasedPayloadQuery(jobIds, lookbackMs = 48 * 60 * 60 * 1000) {
   };
 }
 
+/**
+ * The job a worker is entitled to report on. Both conditions matter:
+ *
+ *  - `status = 'leased'` — a done/failed job is not reportable twice;
+ *  - `leased_by = $2`   — only the lease holder may close it, so one worker
+ *    cannot finish (or fail) work another worker is still doing.
+ *
+ * The row it returns is also the ONLY trustworthy source of the job's account_id.
+ * Taking that from the request body would let any token-holding caller mutate any
+ * account's credential, which is the whole reason this query exists.
+ */
+export function jobForWorkerQuery(jobId, workerId) {
+  return {
+    text: `SELECT id, account_id, status, attempts, reason
+             FROM sync_jobs
+            WHERE id = $1 AND status = 'leased' AND leased_by = $2;`,
+    values: [jobId, workerId],
+  };
+}
+
 /** Mark a job done and record what it moved, for the account's sync status UI. */
 export function completeQuery(jobId, stats = {}) {
   return {
@@ -275,5 +295,6 @@ export const completeJob = async (jobId, stats) => (await run(completeQuery(jobI
 export const failJob = async (jobId, error) => (await run(failQuery(jobId, error)))[0] ?? null;
 export const reclaimExpired = () => run(reclaimQuery());
 export const lastJob = async (accountId) => (await run(lastJobQuery(accountId)))[0] ?? null;
+export const jobForWorker = async (jobId, workerId) => (await run(jobForWorkerQuery(jobId, workerId)))[0] ?? null;
 export const heartbeat = (workerId, version, note) => run(heartbeatQuery(workerId, version, note));
 export const staleWorkers = (maxAgeMs) => run(staleWorkersQuery(maxAgeMs));

@@ -74,6 +74,20 @@ test('a master password is deleted before anything else happens', () => {
   assert.match(src, /read_only === false[\s\S]{0,300}rejectMasterPassword\(/);
 });
 
+test('a job result can only touch the account the job is for', () => {
+  // Found in review: taking account_id from the body let any token-holding caller
+  // mark ANOTHER tenant's credential "verified read-only" with no login, or delete
+  // it. The account must come from the job row, and the caller must hold the lease.
+  const src = handler('post', '/api/sync/jobs/:id/result');
+  assert.match(src, /jobForWorker\(jobId, workerId\)/);
+  assert.match(src, /Number\(owned\.account_id\)/);
+  assert.ok(!/Number\(b\.account_id\)/.test(src), 'account_id must not come from the request body');
+  for (const call of ['rejectMasterPassword(', 'markVerified(', 'markError(']) {
+    const at = src.indexOf(call);
+    assert.ok(at > src.indexOf('jobForWorker('), `${call} must run after the lease check`);
+  }
+});
+
 test('every user-facing sync route goes through the ownership + plan guard', () => {
   const src = syncSrc();
   for (const route of [

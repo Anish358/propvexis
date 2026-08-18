@@ -119,7 +119,12 @@ one is already queued is a no-op, not a second job.
 Worker-authenticated (bearer token, `SYNC_WORKER_TOKEN`, timing-safe compare):
 
 - `POST /api/sync/lease` → `{ jobs: [{ id, login, server, firm_key, password, ingest_token, since }] }`
-- `POST /api/sync/jobs/:id/result` → `{ ok, stats }` or `{ ok: false, error }`
+- `POST /api/sync/jobs/:id/result` → `{ worker_id, ok, stats }` or `{ worker_id, ok: false, error }`.
+  The account the result applies to is read from the **job row**, never from the
+  body, and the caller must hold the job's lease (`leased_by = worker_id`).
+  Security review found the first cut trusted a body-supplied `account_id`, which
+  let any token-holding caller mark another tenant's credential "verified
+  read-only" with no login, or delete it.
 - `POST /api/sync/heartbeat` → records `last_seen`
 
 User-authenticated (session cookie):

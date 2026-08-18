@@ -12,6 +12,7 @@ import {
   reclaimExpired,
   heartbeat,
   lastJob,
+  jobForWorker,
   isMarketOpen,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
@@ -157,23 +158,33 @@ export default function syncRoutes(app) {
     const jobId = Number(req.params.id);
     if (!Number.isFinite(jobId)) return reply.code(400).send({ error: 'invalid job id' });
     const b = req.body ?? {};
-    const accountId = Number(b.account_id);
+    const workerId = String(b.worker_id ?? '').slice(0, 64);
+    if (!workerId) return reply.code(400).send({ error: 'worker_id required' });
 
-    if (b.read_only === false && Number.isFinite(accountId)) {
+    // Which account this result is about comes from the JOB, never from the body.
+    // The body is written by a box we treat as hostile: trusting an account_id
+    // from it would let any token-holding caller mark another tenant's credential
+    // "verified read-only" without a login ever happening, or delete it outright.
+    // Requiring the lease holder also stops one worker closing another's job.
+    const owned = await jobForWorker(jobId, workerId);
+    if (!owned) return reply.code(409).send({ error: 'job is not leased by this worker' });
+    const accountId = Number(owned.account_id);
+
+    if (b.read_only === false) {
       await rejectMasterPassword(accountId);
       await failJob(jobId, 'master password supplied — deleted; enter the investor (read-only) password');
       return reply.send({ ok: false, credential: 'rejected' });
     }
 
     if (b.ok) {
-      if (Number.isFinite(accountId)) await markVerified(accountId);
+      await markVerified(accountId);
       const job = await completeJob(jobId, b.stats ?? {});
       if (!job) return reply.code(409).send({ error: 'job is not leased' });
       return reply.send({ ok: true, job });
     }
 
     const error = String(b.error ?? 'sync failed').slice(0, 1000);
-    if (Number.isFinite(accountId)) await markError(accountId, error);
+    await markError(accountId, error);
     const job = await failJob(jobId, error);
     if (!job) return reply.code(409).send({ error: 'job is not leased' });
     return reply.send({ ok: false, job });

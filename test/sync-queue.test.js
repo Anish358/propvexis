@@ -17,6 +17,7 @@ import {
   reclaimQuery,
   heartbeatQuery,
   staleWorkersQuery,
+  jobForWorkerQuery,
 } from '../src/domain/sync/queue.js';
 import {
   credAad,
@@ -124,6 +125,15 @@ test('failure escalates the backoff from the attempts column, in SQL', () => {
 test('a long error message is truncated before it reaches the column', () => {
   const { values } = failQuery(5, 'x'.repeat(5000));
   assert.equal(values[1].length, 1000);
+});
+
+test('a worker can only fetch a job it currently holds', () => {
+  // Both halves matter: 'leased' stops a finished job being reported twice, and
+  // leased_by stops one worker closing another worker's in-flight job.
+  const { text, values } = jobForWorkerQuery(7, 'worker-2');
+  assert.match(text, /status = 'leased'/);
+  assert.match(text, /leased_by = \$2/);
+  assert.deepEqual(values, [7, 'worker-2']);
 });
 
 test('expired leases are reclaimed', () => {
