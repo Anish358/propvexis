@@ -248,7 +248,11 @@ export function reclaimQuery() {
  */
 export function lastJobQuery(accountId) {
   return {
-    text: `SELECT id, status, reason, attempts, run_after, finished_at, error, stats, created_at
+    // lease_expires_at is selected so the UI can tell "a worker is working on this"
+    // apart from "a worker died holding this". Both are status='leased', and
+    // without the expiry they look identical for up to ten minutes.
+    text: `SELECT id, status, reason, attempts, run_after, finished_at, error, stats,
+                  created_at, lease_expires_at
              FROM sync_jobs
             WHERE account_id = $1
             ORDER BY id DESC

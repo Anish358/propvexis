@@ -29,6 +29,24 @@ const JOB_LABEL = {
   queued: 'Queued', leased: 'Syncing now', done: 'Synced', failed: 'Failed',
 };
 
+/**
+ * What to call a job's state.
+ *
+ * 'leased' means a worker holds it — but a worker that DIED holding it stays
+ * 'leased' until its lease expires, which is up to ten minutes of the UI claiming
+ * "Syncing now" about nothing. The expiry is the only thing that distinguishes the
+ * two, so use it: past the expiry the job is going back in the queue, and saying so
+ * is more honest than a spinner that means nothing.
+ */
+function jobLabel(job) {
+  if (!job) return null;
+  if (job.status === 'leased' && job.lease_expires_at
+      && new Date(job.lease_expires_at) < new Date()) {
+    return 'Interrupted — will retry';
+  }
+  return JOB_LABEL[job.status] || job.status;
+}
+
 function StatusRows({ state }) {
   const { credential: cred, last_job: job, market_open: marketOpen } = state;
   return (
@@ -48,7 +66,7 @@ function StatusRows({ state }) {
         <tr>
           <td>Last sync</td>
           <td className="num">
-            {job ? `${JOB_LABEL[job.status] || job.status} · ${fmtWhen(job.finished_at || job.created_at)}` : '—'}
+            {job ? `${jobLabel(job)} · ${fmtWhen(job.finished_at || job.created_at)}` : '—'}
           </td>
         </tr>
         {job?.stats?.trades != null && (

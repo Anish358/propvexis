@@ -54,6 +54,17 @@ test('the form is disabled once the server has already refused', () => {
     'all three inputs and the submit button must respect it');
 });
 
+test('a dead worker is not reported as "Syncing now"', () => {
+  // status='leased' covers both "a worker is working" and "a worker died holding
+  // this", and they are indistinguishable for up to ten minutes. The lease expiry
+  // is the only signal, so the label has to use it.
+  assert.match(modal, /function jobLabel\(job\)/);
+  assert.match(modal, /new Date\(job\.lease_expires_at\) < new Date\(\)/);
+  assert.match(modal, /Interrupted/);
+  assert.ok(!/JOB_LABEL\[job\.status\] \|\| job\.status\} ·/.test(modal),
+    'the raw status map must not be used for the label any more');
+});
+
 test('the sync API surfaces the server message, not a status code', () => {
   // "enter the investor password" and "sync not configured" are the entire value
   // of these responses; `sync 409` tells the user nothing actionable.

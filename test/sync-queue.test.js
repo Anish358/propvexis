@@ -19,6 +19,7 @@ import {
   heartbeatQuery,
   staleWorkersQuery,
   jobForWorkerQuery,
+  lastJobQuery,
 } from '../src/domain/sync/queue.js';
 import {
   cancelOpenJobsQuery,
@@ -127,6 +128,11 @@ test('failure escalates the backoff from the attempts column, in SQL', () => {
 test('a long error message is truncated before it reaches the column', () => {
   const { values } = failQuery(5, 'x'.repeat(5000));
   assert.equal(values[1].length, 1000);
+});
+
+test('the status query returns the lease expiry the UI needs', () => {
+  // Without it the UI cannot tell a live sync from a dead worker's leftover lease.
+  assert.match(lastJobQuery(5).text, /lease_expires_at/);
 });
 
 test('a worker can only fetch a job it currently holds', () => {
