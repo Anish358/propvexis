@@ -34,20 +34,31 @@ Write-Host '== PropVexis sync agent setup ==' -ForegroundColor Cyan
 Write-Host '-- setting timezone to UTC'
 tzutil /s 'UTC'
 
-Write-Host '-- installing Python'
-if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-  winget install --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements
+Write-Host '-- installing Python 3.12'
+# NOT winget: Windows Server 2022 does not ship it, so `winget install` fails on
+# exactly the OS this script is written for. Direct download instead.
+#
+# 3.12 specifically, not "latest": the MetaTrader5 wheel is Windows-only and
+# publishes no build for 3.13 yet.
+$py = "$env:ProgramFiles\Python312\python.exe"
+if (-not (Test-Path $py)) {
+  $ProgressPreference = 'SilentlyContinue'
+  New-Item -ItemType Directory -Force -Path C:\propvexis\dl | Out-Null
+  Invoke-WebRequest -UseBasicParsing -OutFile C:\propvexis\dl\python.exe `
+    -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe'
+  Start-Process C:\propvexis\dl\python.exe -Wait `
+    -ArgumentList '/quiet','InstallAllUsers=1','PrependPath=1','Include_test=0'
   $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
 }
-python --version
+& $py --version
 
 Write-Host "-- laying out $AgentDir"
 New-Item -ItemType Directory -Force -Path $AgentDir | Out-Null
 Copy-Item -Path "$PSScriptRoot\*.py", "$PSScriptRoot\requirements.txt" -Destination $AgentDir -Force
 
 Push-Location $AgentDir
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+& $py -m pip install --no-warn-script-location --upgrade pip
+& $py -m pip install --no-warn-script-location -r requirements.txt
 Pop-Location
 
 Write-Host '-- writing config.json'
@@ -63,7 +74,11 @@ $config = [ordered]@{
   firms            = @{ gft = @{ terminal = "$Mt5Root\gft\terminal64.exe" } }
 }
 $configPath = Join-Path $AgentDir 'config.json'
-$config | ConvertTo-Json -Depth 5 | Set-Content -Path $configPath -Encoding UTF8
+# WriteAllText with an explicit no-BOM encoder, because Set-Content -Encoding UTF8
+# on Windows PowerShell 5.1 prepends a BOM. The agent tolerates one now, but a
+# config file that only some JSON parsers accept is a trap for the next tool.
+[IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json -Depth 5),
+  (New-Object System.Text.UTF8Encoding($false)))
 
 $acl = Get-Acl $configPath
 $acl.SetAccessRuleProtection($true, $false)
@@ -83,7 +98,7 @@ Write-Host '-- registering the scheduled task'
 # Task Scheduler rather than a service: MT5 wants a desktop session, and NSSM is
 # another dependency to install on every rebuild. Restart-on-failure is what keeps
 # a single box honest — plus the backend heartbeat alert for when that is not enough.
-$action  = New-ScheduledTaskAction -Execute 'python' -Argument 'sync_agent.py' -WorkingDirectory $AgentDir
+$action  = New-ScheduledTaskAction -Execute $py -Argument 'sync_agent.py' -WorkingDirectory $AgentDir
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
   -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries

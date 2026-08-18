@@ -1,2 +1,5 @@
-MetaTrader5==5.0.45
+# Pinned, and the pin is REAL — verified against PyPI on the box, not guessed.
+# The MetaTrader5 wheel is Windows-only and publishes no build for Python 3.13
+# yet, which is why setup.ps1 installs 3.12 specifically rather than "latest".
+MetaTrader5==5.0.6090
 requests>=2.32.0

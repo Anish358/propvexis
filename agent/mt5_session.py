@@ -31,6 +31,11 @@ OFFSET_GRANULARITY = 900
 
 CALIBRATION_SYMBOLS = ('EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD')
 
+# Terminal startup. The MT5 default is 60s, which a fresh install does not meet.
+INIT_TIMEOUT_MS = 180_000
+INIT_ATTEMPTS = 3
+INIT_RETRY_SECS = 20
+
 
 class Mt5Error(RuntimeError):
     pass
@@ -47,10 +52,28 @@ class Terminal:
     def open(self):
         if self._open:
             return
-        if not mt5.initialize(path=self.exe_path, portable=True):
-            raise Mt5Error(f'initialize failed: {mt5.last_error()}')
-        self._open = True
-        log.info('terminal up: %s', self.exe_path)
+        # A COLD FIRST LAUNCH NEEDS MORE THAN THE DEFAULT 60s. initialize() both
+        # starts terminal64.exe and completes an IPC handshake with it; on a fresh
+        # install the terminal is still unpacking its profile and pulling the server
+        # list when the default timeout expires, and the failure is reported as
+        # (-10005, 'IPC timeout') — which reads like a dead terminal rather than a
+        # slow one.
+        #
+        # So: a longer timeout, and retries. The retry is not superstition — after a
+        # failed handshake the terminal is usually ALREADY RUNNING, and the next
+        # initialize() attaches to it instead of starting one, which is the attempt
+        # that tends to succeed.
+        last = None
+        for attempt in range(1, INIT_ATTEMPTS + 1):
+            if mt5.initialize(path=self.exe_path, portable=True, timeout=INIT_TIMEOUT_MS):
+                self._open = True
+                log.info('terminal up: %s (attempt %d)', self.exe_path, attempt)
+                return
+            last = mt5.last_error()
+            log.warning('initialize attempt %d/%d failed: %s', attempt, INIT_ATTEMPTS, last)
+            if attempt < INIT_ATTEMPTS:
+                time.sleep(INIT_RETRY_SECS)
+        raise Mt5Error(f'initialize failed after {INIT_ATTEMPTS} attempts: {last}')
 
     def close(self):
         if self._open:

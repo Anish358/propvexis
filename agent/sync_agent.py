@@ -37,7 +37,11 @@ VERSION = '1.0'
 
 def load_config():
     path = Path(os.environ.get('PROPVEXIS_AGENT_CONFIG', HERE / 'config.json'))
-    cfg = json.loads(path.read_text())
+    # utf-8-sig, not utf-8: Windows PowerShell's Set-Content -Encoding UTF8 writes a
+    # BOM, and a plain read_text() then fails with "Expecting value: line 1 column
+    # 1" — which reads like a corrupt config rather than an encoding artefact. Any
+    # config written on the box will have one, setup.ps1's included.
+    cfg = json.loads(path.read_text(encoding='utf-8-sig'))
     for required in ('api_base', 'worker_token', 'worker_id'):
         if not cfg.get(required):
             raise SystemExit(f'config: {required} is required ({path})')
