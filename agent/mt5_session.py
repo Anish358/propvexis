@@ -50,27 +50,39 @@ class Terminal:
         self._open = False
 
     def open(self):
+        """Start the terminal with no account. Diagnostics only — prefer login()."""
+        self._start(INIT_TIMEOUT_MS)
+
+    def _start(self, timeout_ms, creds=None):
         if self._open:
             return
-        # A COLD FIRST LAUNCH NEEDS MORE THAN THE DEFAULT 60s. initialize() both
-        # starts terminal64.exe and completes an IPC handshake with it; on a fresh
-        # install the terminal is still unpacking its profile and pulling the server
-        # list when the default timeout expires, and the failure is reported as
-        # (-10005, 'IPC timeout') — which reads like a dead terminal rather than a
-        # slow one.
+        # HAND THE CREDENTIALS TO initialize(); DO NOT initialize-then-login.
         #
-        # So: a longer timeout, and retries. The retry is not superstition — after a
-        # failed handshake the terminal is usually ALREADY RUNNING, and the next
-        # initialize() attaches to it instead of starting one, which is the attempt
-        # that tends to succeed.
+        # A terminal with no saved account opens its "open an account" wizard on
+        # first run, and in that state the IPC handshake never completes — so
+        # initialize() does not merely time out, it BLOCKS PAST ITS OWN TIMEOUT.
+        # That looks like a hung agent rather than a misconfigured terminal.
+        # Observed on this box: six minutes against a 180s timeout, no error.
+        #
+        # Passing login/password/server makes the terminal log in as it starts, so
+        # there is no wizard to block on.
         last = None
         for attempt in range(1, INIT_ATTEMPTS + 1):
-            if mt5.initialize(path=self.exe_path, portable=True, timeout=INIT_TIMEOUT_MS):
+            kwargs = {'path': self.exe_path, 'portable': True, 'timeout': timeout_ms}
+            if creds:
+                kwargs.update(login=int(creds[0]), password=creds[1], server=creds[2])
+            if mt5.initialize(**kwargs):
                 self._open = True
                 log.info('terminal up: %s (attempt %d)', self.exe_path, attempt)
                 return
             last = mt5.last_error()
             log.warning('initialize attempt %d/%d failed: %s', attempt, INIT_ATTEMPTS, last)
+            # Leave no half-open IPC channel behind — the next attempt should start
+            # from a known state rather than inherit this one.
+            try:
+                mt5.shutdown()
+            except Exception:  # noqa: BLE001 - shutting down a dead channel is noise
+                pass
             if attempt < INIT_ATTEMPTS:
                 time.sleep(INIT_RETRY_SECS)
         raise Mt5Error(f'initialize failed after {INIT_ATTEMPTS} attempts: {last}')
@@ -81,7 +93,15 @@ class Terminal:
             self._open = False
 
     def login(self, login, password, server, timeout_ms=60000):
-        self.open()
+        """Point the terminal at this account.
+
+        A cold start hands the credentials to initialize() (see _start). A terminal
+        that is already warm switches accounts with mt5.login(), which is the entire
+        reason the terminal is kept running between jobs.
+        """
+        if not self._open:
+            self._start(INIT_TIMEOUT_MS, creds=(login, password, server))
+            return
         if not mt5.login(int(login), password=password, server=server, timeout=timeout_ms):
             raise Mt5Error(f'login failed for {login}@{server}: {mt5.last_error()}')
 
