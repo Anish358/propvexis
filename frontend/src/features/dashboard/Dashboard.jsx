@@ -36,11 +36,13 @@ import {
 } from './dashLayout.js';
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
-import { roomStatus, healthStatus } from '../prop/PropOS.jsx';
+import { healthStatus } from '../prop/PropOS.jsx';
+import AccountDetails from '../prop/AccountDetails.jsx';
+import RecentTrades from '../trades/RecentTrades.jsx';
 import { fetchProp, updateAccount, fetchCalendar } from '../../lib/api.js';
 import { chartPalette } from '../../lib/theme.js';
 import {
-  computeMetrics, fmtVal, fmtValShort, fmtMoney, valueField, tradeOutcome,
+  computeMetrics, fmtVal, fmtValShort,
 } from '../../lib/metrics.js';
 
 // Chart theming from design tokens (matches Analytics.jsx's equity curve).
@@ -238,44 +240,6 @@ function DashActions({ onCustomize }) {
 
 // ---- Section 3 left: recent trades / open positions ----------------------
 
-function RecentTrades({ trades, unit, beRounding }) {
-  const field = valueField(unit);
-  const recent = useMemo(
-    () => trades
-      .filter((t) => t[field] != null && t.close_time)
-      .sort((a, b) => new Date(b.close_time) - new Date(a.close_time))
-      .slice(0, 6),
-    [trades, field],
-  );
-  if (!recent.length) {
-    return <EmptyState title="No trades yet" description="Recent trades show up here once you have closed trades." />;
-  }
-  return (
-    <table className="jo-recent-table">
-      <thead>
-        <tr>
-          <th className="jo-rt-date">Date</th>
-          <th className="jo-rt-symbol">Symbol</th>
-          <th className="jo-rt-val">Net P&amp;L</th>
-        </tr>
-      </thead>
-      <tbody>
-        {recent.map((t) => {
-          const out = tradeOutcome(t, unit, beRounding);
-          const val = Number(t[field]);
-          return (
-            <tr key={t.id}>
-              <td className="jo-rt-date">{fmtDate(t.close_time)}</td>
-              <td className="jo-rt-symbol">{t.symbol_base || t.symbol}</td>
-              <td className={`jo-rt-val num jo-trade-val ${out === 'win' ? 'pos' : out === 'loss' ? 'neg' : ''}`}>{fmtVal(val, unit)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
 function OpenPositions() {
   return (
     <EmptyState
@@ -345,25 +309,6 @@ function CumulativePnlCard({ days, unit }) {
 // ---- Section 3 right: account health cards --------------------------------
 
 const PHASE_LABEL = { funded: 'Funded', p2: 'Phase 2', p1: 'Phase 1' };
-
-// A single "$used / $limit" row with a fill bar — used/limit framing (bar fills
-// UP as risk grows) rather than a room-remaining framing, so a nearly-full bar
-// reads as a warning at a glance.
-function UsageMeter({
-  label, used, limit, pct, tone, sub,
-}) {
-  const money = (n) => (n == null ? '—' : fmtMoney(n));
-  return (
-    <div className={`dash-usage prop-${tone}`}>
-      <div className="dash-usage-head">
-        <span className="dash-usage-label">{label}</span>
-        <span className="dash-usage-val">{money(used)} <span className="muted">/ {money(limit)}</span></span>
-      </div>
-      <div className="prop-meter-track"><div className="prop-meter-fill" style={{ width: `${Math.round((pct || 0) * 100)}%` }} /></div>
-      {sub && <div className="dash-usage-sub">{sub}</div>}
-    </div>
-  );
-}
 
 // Attention icon shown next to an account's name — ONLY for warn/bad. A
 // healthy account gets no icon at all (zero visual emphasis is the point);
@@ -559,80 +504,20 @@ function AccountCard({
   data, candidates, selectedId, onSelect, onOpen, accounts, onChanged,
 }) {
   const [targetOpen, setTargetOpen] = useState(false);
-  const maxSt = roomStatus(data.maxDd?.fracRemaining, data.maxDd?.breached);
-  const daySt = roomStatus(data.dailyDd?.fracRemaining, data.dailyDd?.breached);
-  const money = (n) => (n == null ? '—' : fmtMoney(n));
-  const pct1 = (f) => `${((f || 0) * 100).toFixed(1)}%`;
-
-  const maxUsed = data.maxDd ? data.maxDd.limit - data.maxDd.roomLeft : null;
-  const maxPct = data.maxDd?.limit ? maxUsed / data.maxDd.limit : 0;
-  const dayPct = data.dailyDd?.limit ? data.dailyDd.usedToday / data.dailyDd.limit : 0;
-  const fundedProfit = data.currentEquity != null && data.startBalance != null ? data.currentEquity - data.startBalance : null;
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
 
   return (
     <Card className="dash-acct-card dash-acct-card-wide">
       <AccountHeader candidates={candidates} selectedId={selectedId} onSelect={onSelect} />
 
-      <div className="dash-acct-usages dash-acct-usages-grid">
-        <UsageMeter
-          label="Daily drawdown"
-          used={data.dailyDd?.usedToday}
-          limit={data.dailyDd?.limit}
-          pct={dayPct}
-          tone={daySt}
-          sub={`${pct1(dayPct)} used · ${money(data.dailyDd?.roomLeft)} remaining`}
-        />
-        <UsageMeter
-          label="Max drawdown"
-          used={maxUsed}
-          limit={data.maxDd?.limit}
-          pct={maxPct}
-          tone={maxSt}
-          sub={`${pct1(maxPct)} used · ${money(data.maxDd?.roomLeft)} remaining`}
-        />
-        {data.profitTarget ? (
-          <UsageMeter
-            label={data.phase === 'funded' ? 'Payout target' : 'Profit target'}
-            used={data.profitTarget.current}
-            limit={data.profitTarget.target}
-            pct={data.profitTarget.pctToTarget}
-            tone={data.phase === 'funded' ? 'payout' : 'target'}
-            sub={(
-              <>
-                <span>
-                  {data.profitTarget.reached
-                    ? 'Target reached'
-                    : `${pct1(data.profitTarget.pctToTarget)} of target · ${money(data.profitTarget.target - data.profitTarget.current)} to go`}
-                </span>
-                {data.phase === 'funded' && acctRecord && (
-                  <button
-                    type="button"
-                    className="dash-usage-settarget dash-usage-settarget--edit"
-                    onClick={() => setTargetOpen(true)}
-                  >
-                    Edit payout target
-                  </button>
-                )}
-              </>
-            )}
-          />
-        ) : data.phase === 'funded' ? (
-          <div className="dash-usage prop-na">
-            <div className="dash-usage-head">
-              <span className="dash-usage-label">Payout</span>
-              <span className="dash-usage-val">{money(fundedProfit)}</span>
-            </div>
-            <div className="prop-meter-track"><div className="prop-meter-fill" style={{ width: '0%' }} /></div>
-            <div className="dash-usage-sub">
-              No payout target set for this funded account.{' '}
-              {acctRecord && (
-                <button type="button" className="dash-usage-settarget" onClick={() => setTargetOpen(true)}>Set payout target</button>
-              )}
-            </div>
-          </div>
-        ) : <div className="dash-usage dash-usage-empty" />}
-      </div>
+      {/* The three rule meters live in AccountDetails.jsx now — Accounts › Details
+          renders the same section, and one component is what keeps the two from
+          drifting. This page keeps the target-editing flow (SetTargetModal below),
+          which it hands in; a surface without that flow passes nothing. */}
+      <AccountDetails
+        data={data}
+        onSetTarget={acctRecord ? () => setTargetOpen(true) : null}
+      />
 
       <div className="dash-acct-foot">
         <span className="dash-acct-days">{data.tradingDays.completed}/{data.tradingDays.required} days completed</span>

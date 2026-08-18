@@ -18,6 +18,7 @@ import Calendar from './features/calendar/Calendar.jsx';
 import Billing from './features/billing/Billing.jsx';
 import PropOS from './features/prop/PropOS.jsx';
 import Finance from './features/prop/Finance.jsx';
+import PropAccounts from './features/prop/PropAccounts.jsx';
 import Reports from './features/reports/Reports.jsx';
 import ComingSoon from './components/ComingSoon.jsx';
 import JournalOverview from './features/analytics/JournalOverview.jsx';
@@ -477,7 +478,7 @@ export default function App() {
             <Route path="prop">
               <Route index element={<PropOS />} />
               <Route path="finance" element={<Finance />} />
-              <Route path="accounts" element={<ComingSoon title="Prop Accounts" blurb="Accounts grouped by stage — Evaluation, Funded and Breached." />} />
+              <Route path="accounts" element={<PropAccounts />} />
               <Route path="challenges" element={<ComingSoon title="Challenges" blurb="Challenge history and phase timelines per account." />} />
               <Route path="analytics" element={<ComingSoon title="Prop Analytics" blurb="ROI progression, finance breakdown, passing and breach insights." />} />
             </Route>

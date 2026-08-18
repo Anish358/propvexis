@@ -6,7 +6,7 @@ import { passBreachSummary } from '../domain/prop/insights.js';
 import { phasePassedAlert } from '../domain/alerts/alerts.js';
 import { insertNotifications } from '../domain/alerts/notifications.js';
 import { challengeHistory, challengesForScope, lastTradeByLogin, dailyTotalsForLogins, advanceChallenge } from '../domain/prop/challenges.js';
-import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, propCalendarEvents, propBrief } from '../domain/prop/propOverview.js';
+import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, passedChallenges, propCalendarEvents, propBrief } from '../domain/prop/propOverview.js';
 import { propStatesForScope } from '../domain/analytics/reports.js';
 
 /**
@@ -89,6 +89,40 @@ export default function propRoutes(app, ctx) {
       accounts: accountsBreakdown({ accounts, states, challenges, payouts }),
       calendarEvents: propCalendarEvents({ challenges, payouts, accounts }),
       days,
+    };
+  });
+
+  // Prop OS -> Accounts (Portfolio). The live rule state of EVERY owned account,
+  // plus the pass history the "Passed" sub-tab is built from.
+  //
+  // DELIBERATELY IGNORES ?account_id, for the same reason /api/prop/overview does:
+  // the Portfolio is the multi-account view, and narrowing it to the account the
+  // top-bar switcher happens to be on would empty three of its four sub-tabs. The
+  // Details view is the single-account surface and reads GET /api/prop with the
+  // selected account, exactly like every other per-account screen.
+  //
+  // It returns the engine states RAW rather than a bucketed shape: the four
+  // sub-tabs are a presentation split over one predicate each (phase, breached),
+  // and every figure a card shows — drawdown room, target progress, trading days —
+  // is already on the state. Bucketing here would mean a second, thinner copy of
+  // challengeState's output that the cards would then have to be fed from.
+  //
+  // `accounts` is not returned: the client already holds listAccounts() from
+  // GET /api/accounts (it is in the app-wide outlet context), so shipping it again
+  // would be a second copy that can go stale against the first.
+  app.get('/api/prop/portfolio', { preHandler: app.requireAuth }, async (req) => {
+    const logins = await ownedLogins(req.user.uid);
+    const scope = { god: true, userId: req.user.uid, logins, filterCol: 'user_id' };
+
+    const [propStates, accounts, challenges] = await Promise.all([
+      propStatesForScope(scope),
+      listAccounts(req.user.uid),
+      challengesForScope(logins),
+    ]);
+
+    return {
+      states: propStates?.accounts ?? [],
+      passed: passedChallenges({ challenges, accounts }),
     };
   });
 

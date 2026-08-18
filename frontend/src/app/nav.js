@@ -28,7 +28,7 @@ export const NAV = [
     children: [
       { to: '/prop', label: 'Overview', end: true },
       { to: '/prop/finance', label: 'Finance' },
-      { to: '/prop/accounts', label: 'Accounts', soon: true },
+      { to: '/prop/accounts', label: 'Accounts' },
       { to: '/prop/challenges', label: 'Challenges', soon: true },
       { to: '/prop/analytics', label: 'Analytics', soon: true },
     ],
@@ -59,6 +59,27 @@ export const LEGACY_REDIRECTS = {
   '/journal/strategies': '/strategies',
   '/journal/backtesting': '/backtesting',
 };
+
+// Routes on which the top bar's universal account switcher is SINGLE-SELECT.
+//
+// The switcher is multi-select everywhere else on purpose: picking two or three
+// accounts gives an aggregate (R-based) view across them, which is what god view
+// is for. Prop OS > Accounts > Details is a single-account workspace — its
+// drawdown meters, profit target and equity curve all belong to one account's
+// challenge, and there is no such thing as the aggregate max drawdown of three
+// accounts at two firms. So on this route the switcher offers one account at a
+// time rather than a page having to explain why a valid selection shows nothing.
+//
+// Declared HERE, with the rest of the IA, rather than as a check inside the top
+// bar: which page behaves how is an information-architecture fact, and the bar
+// and the page both read it from one place. Kept as an exact-path list (no
+// subtree matching) because the behaviour is a property of a specific screen.
+export const SINGLE_ACCOUNT_ROUTES = ['/prop/accounts'];
+
+export function isSingleAccountRoute(pathname = '/') {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  return SINGLE_ACCOUNT_ROUTES.includes(path);
+}
 
 // Routes that exist in the router but deliberately aren't in the sidebar (reached
 // from a menu instead), so the top bar can still name them.

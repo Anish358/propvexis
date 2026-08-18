@@ -196,11 +196,16 @@ test('the old per-account Overview is gone, and what it owned went somewhere', (
   for (const dead of ['HealthGauge', 'PortfolioCard', 'AccountDetail', 'ChallengeControls', 'MiniBar']) {
     assert.ok(!prop.includes(dead), `${dead} should have been removed from the Overview`);
   }
-  // But the two helpers the Dashboard imports must survive the deletion.
+  // But the two helpers must survive the deletion, and both must still be
+  // imported from here rather than re-derived. `roomStatus` moved one consumer
+  // along with the drawdown meters themselves: those live in AccountDetails.jsx
+  // now, shared by the Dashboard's account card and Prop OS > Accounts > Details.
   assert.match(prop, /export function roomStatus/);
   assert.match(prop, /export function healthStatus/);
   const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
-  assert.match(dash, /import \{ roomStatus, healthStatus \} from '[^']*PropOS\.jsx'/);
+  const details = read('../frontend/src/features/prop/AccountDetails.jsx');
+  assert.match(dash, /import \{ healthStatus \} from '[^']*PropOS\.jsx'/);
+  assert.match(details, /import \{ roomStatus \} from '[^']*PropOS\.jsx'/);
   // Finance is a separate page, and as of the Finance rebuild it is a separate
   // MODULE too — PropOS.jsx no longer holds a copy of the finance UI, so there is
   // one implementation of "total spent" in the app rather than two.

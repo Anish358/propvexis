@@ -3876,3 +3876,139 @@ label.full { margin-bottom: 16px; }
   /* Title and range control stack, rather than the toggle group wrapping mid-group. */
   .fin-roi-card .fin-card-head { flex-direction: column; align-items: flex-start; gap: 12px; }
 }
+
+/* ============================================================
+   Prop OS › Accounts  (PropAccounts.jsx + AccountPortfolioCard /
+                        AccountWorkspace / AccountKpiCards)
+
+   The `pa-` namespace. Everything this module needs that already exists is
+   REUSED rather than restated, and the list is most of the page: the KPI row is
+   `.jo-kpis.dash-stats` with --kpi-count, the rule meters are `.dash-usage*`
+   (AccountDetails.jsx, shared with the Dashboard), the section grid is
+   `.dash-grid` on its card-md/card-lg heights, the bars are `.prop-meter-track`
+   / `.prop-meter-fill` reading `--status` from the `.prop-good|warn|bad|na|
+   target|payout` tone classes, the card heads are `.prop-card-head`, and the
+   trade table is `.jo-recent-table`. What is below is only what is new: the
+   portfolio card, the selected-account header, and two small tab adjustments.
+   ============================================================ */
+
+/* The two main tabs get the section rhythm below them; the sub-tabs sit closer
+   to the cards they filter, because they belong to the group beneath them
+   rather than dividing the page. */
+.pa-tabs { align-self: flex-start; }
+.pa-slices { align-self: flex-start; margin-bottom: -4px; }
+/* `.u-tab` sets `font:` shorthand and is not a flex box, so a count pill inside
+   it would sit on the text baseline. This only makes the row a flex line — the
+   tab's own type, colour and underline treatment are untouched. */
+.pa-slices .u-tab { display: inline-flex; align-items: center; gap: 6px; }
+.pa-tab-count { flex: none; }
+
+/* Auto-fit rather than a fixed column count: the number of accounts is the
+   user's, not the layout's, and a trader with two accounts should not get two
+   cards stretched across a 27" monitor. 320px is the width at which the card's
+   widest line — "$50,000 / $150,000" beside its label — still fits on one row. */
+.pa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--dash-card-gap);
+  align-items: start;
+}
+
+/* ---- Portfolio account card ---- */
+/* No fixed height: this is not a KPI tile, so the locked master-card geometry
+   does not apply to it, and an eval card (three meters) and a passed card (two
+   dates) have genuinely different amounts to say. The grid's `align-items:
+   start` keeps a short card short instead of stretching it. */
+.pa-card { display: flex; flex-direction: column; gap: 16px; }
+
+.pa-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pa-card-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pa-card-name {
+  font-size: var(--fs-card-title); font-weight: var(--fw-semibold); color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pa-card-sub {
+  font-size: var(--fs-label); color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Balance / Profit / Status, divided by the same hairline the Dashboard's
+   account metrics row uses — so the two read as the same kind of strip. */
+.pa-card-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+.pa-card-figures > .pa-fig { padding: 0 12px; border-left: 1px solid var(--line); min-width: 0; }
+.pa-card-figures > .pa-fig:first-child { padding-left: 0; border-left: none; }
+.pa-fig { display: flex; flex-direction: column; gap: 4px; }
+.pa-fig-label { font-size: var(--fs-label); font-weight: 400; color: var(--text-2); }
+.pa-fig-value {
+  font-family: var(--font-mono); font-weight: 400; font-size: 14px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* A status is a WORD, so it is set in the interface face, not the mono one. */
+.pa-status-good, .pa-status-warn, .pa-status-bad, .pa-status-na { font-family: var(--font-sans); }
+.pa-status-good { color: var(--status-good); }
+.pa-status-warn { color: var(--status-warn); }
+.pa-status-bad  { color: var(--status-bad); }
+.pa-status-na   { color: var(--muted); }
+
+.pa-card-meters { display: flex; flex-direction: column; gap: 14px; }
+.pa-meter-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.pa-meter-label { font-size: var(--fs-label); font-weight: 400; color: var(--text-2); }
+.pa-meter-val {
+  font-family: var(--font-mono); font-weight: 400; font-size: var(--fs-body); color: var(--status);
+  white-space: nowrap;
+}
+.pa-meter-val .muted { color: var(--muted); }
+/* Shorter than the Dashboard's 7px bars: a card holds three of them at card
+   density, where the Dashboard's row holds three across a full page width. */
+.pa-meter .prop-meter-track, .pa-meter .prop-meter-fill { height: 5px; }
+.pa-meter-note { font-size: 12px; color: var(--muted); margin-top: 7px; }
+
+.pa-card-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-top: 14px; border-top: 1px solid var(--line); margin-top: auto;
+}
+.pa-card-days { font-size: 12px; color: var(--text-2); }
+
+/* ---- Details: selected account header ---- */
+.pa-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.pa-header-id { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pa-header-name-row { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+/* --fs-section-title, not --fs-page-title: the page already has its one title in
+   the top bar ("Prop OS › Accounts"), and a second 24px line under it would be
+   two page titles. */
+.pa-header-name {
+  margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold); color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pa-header-sub { font-size: var(--fs-body); color: var(--text-2); }
+.pa-header-health { display: flex; align-items: center; gap: 8px; flex: none; }
+.pa-header-health-text { font-size: var(--fs-body); color: var(--text); }
+.pa-header-health-why { color: var(--text-2); }
+
+/* ---- Details: sections ---- */
+.pa-rules { display: flex; flex-direction: column; }
+/* A fixed-height chart box inside the card, matching `.fin-chart` — the app's
+   one working pattern for a Recharts container. 260px is what a card-md (355px)
+   has left after its padding and head, so the chart fills the card without the
+   ResponsiveContainer ever having to measure a box the flex column has not
+   resolved yet. */
+.pa-equity { min-height: 0; }
+.pa-chart { height: 260px; min-width: 0; }
+.pa-equity .u-empty { flex: 1 1 auto; }
+.pa-viewall { font-size: 12px; color: var(--accent-on-surface); text-decoration: none; flex: none; }
+.pa-viewall:hover { text-decoration: underline; }
+
+@media (max-width: 900px) {
+  /* One card per row below the two-column threshold — a 320px minimum on a
+     narrow viewport would otherwise force a horizontal scroll. */
+  .pa-grid { grid-template-columns: minmax(0, 1fr); }
+  /* The card's three-figure strip stacks rather than squeezing three mono
+     values into a third of a phone's width each. */
+  .pa-card-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
+  .pa-card-figures > .pa-fig:nth-child(odd) { padding-left: 0; border-left: none; }
+}
+@media (max-width: 560px) {
+  .pa-card-figures { grid-template-columns: minmax(0, 1fr); }
+  .pa-card-figures > .pa-fig { padding-left: 0; border-left: none; }
+  .pa-header { align-items: flex-start; }
+}
