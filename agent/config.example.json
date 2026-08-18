@@ -1,0 +1,12 @@
+{
+  "api_base": "https://app-dev.propvexis.com",
+  "worker_token": "PASTE_SYNC_WORKER_TOKEN",
+  "worker_id": "sync-01",
+  "poll_secs": 30,
+  "post_delay_ms": 50,
+  "default_terminal": "C:\\mt5\\default\\terminal64.exe",
+  "firms": {
+    "gft": { "terminal": "C:\\mt5\\gft\\terminal64.exe" },
+    "ftmo": { "terminal": "C:\\mt5\\ftmo\\terminal64.exe" }
+  }
+}
