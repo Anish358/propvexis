@@ -71,6 +71,43 @@ Neither can be settled from documentation, and both can invalidate assumptions:
    is blocked under our investor-only rule, and we say so rather than accepting a
    master password.
 
+## The agent runs in an interactive session, and that is not negotiable
+
+Running it as SYSTEM (session 0) was tried first and **does not work**.
+`terminal64.exe` starts and sits there at ~195 MB, but session 0 has no window
+station, so the terminal's IPC endpoint never comes up and `mt5.initialize()` fails:
+
+```
+initialize attempt 1/3 failed: (-10005, 'IPC timeout')
+initialize attempt 2/3 failed: (-10005, 'IPC timeout')
+```
+
+That error is indistinguishable from a dead terminal, which is why it is worth
+writing down: the terminal is fine, the *session* is wrong. Verified twice on
+Windows Server 2022 with a 180s timeout before switching approaches.
+
+So the box logs itself in as a dedicated **standard** account (`pvsync`) and the
+agent runs as a scheduled task at logon. Three details that matter:
+
+- The password is stored as an **encrypted LSA secret** via Sysinternals Autologon,
+  not as a plaintext `DefaultPassword` registry value. Same functionality, and
+  `setup.ps1` asserts the plaintext key is absent afterwards.
+- It lives at `/propvexis/sync-farm/AUTOLOGON_PASSWORD` — deliberately **not** under
+  `/amey-journal/*`, because `platform/secrets.js` maps every parameter under that
+  prefix into the backend's `process.env`. A Windows password would have become an
+  environment variable on the API box.
+- `config.json` needs an explicit **Read** grant for the agent account. Its ACL is
+  protected (inheritance off) and lists only SYSTEM + Administrators, so without
+  that grant the agent cannot read its own config — and the symptom is a JSON error,
+  not a permission error.
+
+Confirm it landed in the right place after a reboot:
+
+```powershell
+quser                                                    # pvsync, console, session 1
+Get-Process python,terminal64 | Select ProcessName,Id,SessionId   # SessionId must be 1
+```
+
 ## Clock calibration, and why a sync can legitimately refuse
 
 MT5 reports times in the **broker's** timezone dressed as a Unix timestamp. The EA

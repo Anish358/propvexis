@@ -21,7 +21,14 @@ param(
   [Parameter(Mandatory = $true)][string]$WorkerToken,
   [string]$WorkerId = 'sync-01',
   [string]$AgentDir = 'C:\propvexis\agent',
-  [string]$Mt5Root  = 'C:\mt5'
+  [string]$Mt5Root  = 'C:\mt5',
+  [string]$AgentUser = 'pvsync',
+  [string]$Region = 'ap-south-1',
+  # NOT under /amey-journal/* on purpose: platform/secrets.js maps every parameter
+  # under that prefix into the backend's process.env, so a Windows password there
+  # would end up as an environment variable on the API box.
+  [string]$AutologonPasswordParam = '/propvexis/sync-farm/AUTOLOGON_PASSWORD',
+  [string]$aws = "$env:ProgramFiles\Amazon\AWSCLIV2\aws.exe"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -94,16 +101,61 @@ foreach ($firm in 'default', 'gft') {
   New-Item -ItemType Directory -Force -Path (Join-Path $Mt5Root $firm) | Out-Null
 }
 
-Write-Host '-- registering the scheduled task'
-# Task Scheduler rather than a service: MT5 wants a desktop session, and NSSM is
-# another dependency to install on every rebuild. Restart-on-failure is what keeps
-# a single box honest — plus the backend heartbeat alert for when that is not enough.
+# ---------------------------------------------------------------------------
+# THE AGENT MUST RUN IN AN INTERACTIVE SESSION. This is not a preference.
+#
+# Running it as SYSTEM (session 0) was tried first and does not work: terminal64.exe
+# starts, but session 0 has no window station, so the terminal's IPC endpoint never
+# comes up and mt5.initialize() fails with (-10005, 'IPC timeout') — indistinguishable
+# from a dead terminal. Verified on Windows Server 2022, twice, with a 180s timeout.
+#
+# So the box logs itself in as a dedicated account and the agent runs at logon.
+# ---------------------------------------------------------------------------
+Write-Host '-- creating the agent account'
+$pw = & $aws ssm get-parameter --region $Region --name $AutologonPasswordParam `
+        --with-decryption --query Parameter.Value --output text
+if (-not $pw -or $pw.Length -lt 16) { throw "no autologon password at $AutologonPasswordParam" }
+
+# A STANDARD user, not an administrator. MT5 writes only inside its own portable
+# folder, so the account gets Modify on those two trees and nothing else. An
+# autologon account is a standing credential and should hold the least it can.
+if (-not (Get-LocalUser -Name $AgentUser -ErrorAction SilentlyContinue)) {
+  New-LocalUser -Name $AgentUser -Password (ConvertTo-SecureString $pw -AsPlainText -Force) `
+    -FullName 'PropVexis sync agent' -Description 'Runs the MT5 sync agent interactively' `
+    -PasswordNeverExpires | Out-Null
+} else {
+  Set-LocalUser -Name $AgentUser -Password (ConvertTo-SecureString $pw -AsPlainText -Force)
+}
+foreach ($dir in $Mt5Root, 'C:\propvexis') {
+  $dacl = Get-Acl $dir
+  $dacl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+    $AgentUser, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow')))
+  Set-Acl -Path $dir -AclObject $dacl
+}
+# READ, not Modify: the agent has no reason to rewrite the file holding its token.
+# Without this the protected ACL above locks the agent out of its own config.
+$cacl = Get-Acl $configPath
+$cacl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+  $AgentUser, 'Read', 'Allow')))
+Set-Acl -Path $configPath -AclObject $cacl
+
+Write-Host '-- configuring autologon'
+# Sysinternals Autologon stores the password as an ENCRYPTED LSA SECRET. The registry
+# AutoAdminLogon + DefaultPassword route leaves it in plaintext for any local admin
+# to read — identical functionality, strictly worse trade.
+Invoke-WebRequest -UseBasicParsing -Uri 'https://live.sysinternals.com/Autologon64.exe' `
+  -OutFile C:\propvexis\dl\Autologon64.exe
+Start-Process C:\propvexis\dl\Autologon64.exe -Wait `
+  -ArgumentList '-accepteula', $AgentUser, $env:COMPUTERNAME, $pw
+
+Write-Host '-- registering the scheduled task (at logon, interactive)'
 $action  = New-ScheduledTaskAction -Execute $py -Argument 'sync_agent.py' -WorkingDirectory $AgentDir
-$trigger = New-ScheduledTaskTrigger -AtStartup
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $AgentUser
 $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
   -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$principal = New-ScheduledTaskPrincipal -UserId $AgentUser -LogonType Interactive -RunLevel Limited
 Register-ScheduledTask -TaskName 'PropVexisSyncAgent' -Action $action -Trigger $trigger `
-  -Settings $settings -RunLevel Highest -User 'SYSTEM' -Force | Out-Null
+  -Settings $settings -Principal $principal -Force | Out-Null
 
 Write-Host ''
 Write-Host '== done ==' -ForegroundColor Green
@@ -118,6 +170,12 @@ STILL MANUAL — one per prop firm:
      works, then close it.
   3. Add the firm to `firms` in $configPath if it is not there.
 
-Then start the agent:   Start-ScheduledTask -TaskName PropVexisSyncAgent
+Then REBOOT. Autologon creates the interactive session and the task starts in it:
+    Restart-Computer -Force
+
+Verify it landed in session 1 (session 0 cannot run MT5):
+    quser
+    Get-Process python,terminal64 | Select-Object ProcessName, Id, SessionId
+
 Watch it:               Get-Content $AgentDir\agent.log -Wait -Tail 20
 "@
