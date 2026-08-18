@@ -17,6 +17,7 @@ each firm gets its own portable install and `firm_key` selects it.
 import json
 import logging
 import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -37,6 +38,8 @@ CALIBRATION_SYMBOLS = ('EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD')
 INIT_TIMEOUT_MS = 90_000
 INIT_ATTEMPTS = 2
 INIT_RETRY_SECS = 15
+# How long to let the terminal settle after launching it before probing the pipe.
+LAUNCH_SETTLE_SECS = 20
 
 # What -10005 actually means, in practice, on a server-side terminal.
 #
@@ -49,10 +52,31 @@ INIT_RETRY_SECS = 15
 # GoatFunded-Server against the generic MetaQuotes build: a byte search of
 # servers.dat finds "MetaQuotes" and no "Goat". Prop white-label servers ship in the
 # FIRM'S OWN installer, so each firm needs its own portable build.
+# MT5's documented startup configuration. THIS IS THE ONE THAT MATTERS:
+# AllowLiveTrading is the GUI's "Allow algorithmic trading" master switch, and it is
+# OFF on a fresh install. With it off the terminal serves its pipe, accepts the
+# connection, and refuses to speak the API -- see IPC_HINT.
+#
+# The Python-specific option ("Disable algorithmic trading via external Python API")
+# must ALSO be off, but it is off by default; the master switch is the one that bites.
+#
+# Passing this at every launch rather than trusting settings.ini is what makes a
+# rebuilt box behave like this one: a GUI setting nobody wrote down is not
+# reproducible infrastructure.
+#
+# AllowDllImport is deliberately NOT set -- reading trade history needs no DLLs, and
+# it is the one flag here with real blast radius.
+START_CONFIG = """[Experts]
+Enabled=1
+AllowLiveTrading=1
+"""
+
 IPC_HINT = (
-    'the terminal is up but did not log in unattended -- usually the server is '
-    'missing from this build\'s server list, which means this firm needs its own '
-    'MT5 install (see agent/README.md, "Per-firm terminals")'
+    'the terminal accepted the connection but refused the API. Check Tools > Options '
+    '> Experts: "Allow algorithmic trading" must be ON (it is off by default) and '
+    '"Disable algorithmic trading via external Python API" must be OFF. If the login '
+    'itself failed, the server may be missing from this build\'s server list -- see '
+    'agent/README.md'
 )
 
 
@@ -72,7 +96,7 @@ class Terminal:
         """Start the terminal with no account. Diagnostics only — prefer login()."""
         self._start(INIT_TIMEOUT_MS)
 
-    def _start(self, timeout_ms, creds=None):
+    def _start(self, timeout_ms):
         if self._open:
             return
         # HAND THE CREDENTIALS TO initialize(); DO NOT initialize-then-login.
@@ -87,10 +111,8 @@ class Terminal:
         # there is no wizard to block on.
         last = None
         for attempt in range(1, INIT_ATTEMPTS + 1):
-            kwargs = {'path': self.exe_path, 'portable': True, 'timeout': timeout_ms}
-            if creds:
-                kwargs.update(login=int(creds[0]), password=creds[1], server=creds[2])
-            if mt5.initialize(**kwargs):
+            self._launch_with_config()
+            if mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms):
                 self._open = True
                 log.info('terminal up: %s (attempt %d)', self.exe_path, attempt)
                 return
@@ -109,6 +131,32 @@ class Terminal:
         # tell them nothing they can act on.
         raise Mt5Error(f'initialize failed after {INIT_ATTEMPTS} attempts: {last} -- {IPC_HINT}')
 
+    def _launch_with_config(self):
+        """Start the terminal ourselves, with the startup config applied.
+
+        mt5.initialize() can launch the terminal, but not with a /config file — and
+        the config is the only way to guarantee algorithmic trading is enabled
+        without a human in the GUI. So launch it here and let initialize() ATTACH to
+        what is already running.
+
+        Harmless when a terminal is already up: MT5 refuses a second instance on the
+        same data directory, and initialize() then attaches to the first.
+        """
+        cfg = Path(self.exe_path).parent / 'propvexis-start.ini'
+        try:
+            if cfg.read_text() != START_CONFIG:
+                cfg.write_text(START_CONFIG)
+        except OSError:
+            cfg.write_text(START_CONFIG)
+        try:
+            subprocess.Popen([self.exe_path, '/portable', f'/config:{cfg}'],
+                             close_fds=True)
+            # The terminal needs a moment before its pipe is answerable; initialize()
+            # does its own waiting after this.
+            time.sleep(LAUNCH_SETTLE_SECS)
+        except OSError as err:
+            log.warning('could not launch the terminal directly: %s', err)
+
     def close(self):
         if self._open:
             mt5.shutdown()
@@ -117,13 +165,35 @@ class Terminal:
     def login(self, login, password, server, timeout_ms=60000):
         """Point the terminal at this account.
 
-        A cold start hands the credentials to initialize() (see _start). A terminal
-        that is already warm switches accounts with mt5.login(), which is the entire
-        reason the terminal is kept running between jobs.
+        Attach to the terminal (launching it if needed -- see _start), then switch
+        accounts with mt5.login(). Credentials never go to initialize(): that path
+        disconnects an already-authorized terminal and hangs.
         """
-        if not self._open:
-            self._start(INIT_TIMEOUT_MS, creds=(login, password, server))
+        self._start(INIT_TIMEOUT_MS)
+
+        # ALREADY ON THIS ACCOUNT? DO NOT RE-LOGIN.
+        #
+        # The terminal restores its last account on startup, so after a launch it is
+        # usually already where we want to be. Calling mt5.login() for the SAME
+        # account then disconnects the live session and hangs -- measured here as
+        # 'login failed ... (-10005, IPC timeout)' after 65s, with the terminal log
+        # showing a disconnect and no reconnect.
+        #
+        # Only the login NUMBER is compared, never the server string: the terminal
+        # reports 'FundedNext-Server 3' where the credential says
+        # 'FundedNext-Server3', and the login is the identity that trades are filed
+        # under anyway.
+        #
+        # CAVEAT, deliberately recorded rather than hidden: on this path the
+        # read-only verdict comes from the terminal's LIVE session rather than from a
+        # login with our stored password, so it proves the session is investor-mode
+        # but not that our stored credential is the investor one. See
+        # agent/README.md ("Verification caveat").
+        info = mt5.account_info()
+        if info is not None and int(info.login) == int(login):
+            log.info('terminal already on account %s (no re-login)', login)
             return
+
         if not mt5.login(int(login), password=password, server=server, timeout=timeout_ms):
             raise Mt5Error(f'login failed for {login}@{server}: {mt5.last_error()}')
 

@@ -99,28 +99,50 @@ Neither can be settled from documentation, and both can invalidate assumptions:
    is blocked under our investor-only rule, and we say so rather than accepting a
    master password.
 
-## ⚠️ FIRST THING TO CHECK: the terminal's Python API switch
+## ⚠️ FIRST THING TO CHECK: algorithmic trading must be ON
 
-MT5 ships with **"Disable algorithmic trading via external Python API" ENABLED** in
-recent builds. With it on, everything looks perfect and nothing works:
+`Tools > Options > Experts` has a master switch, **"Allow algorithmic trading"**, and
+it is **OFF on a fresh install**. With it off, everything looks perfect and nothing
+works:
 
-- the terminal starts, logs in, shows a real title (`34728798 - FundedNext-Server3
-  - Netting - GBPUSD,H1`), opens its `MCP` listener;
+- the terminal starts, logs in, shows a real title, opens its `MCP` listener;
 - its own log records a clean start with **no error of any kind**;
-- `mt5.initialize()` returns `(-10005, 'IPC timeout')` -- whether it launches the
-  terminal or attaches to a running, logged-in one.
+- the named pipe exists and a same-user process can **open** it;
+- and every `mt5.initialize()` returns `(-10005, 'IPC timeout')`.
 
-**Fix (GUI only, once per installation):** Tools -> Options -> **Algo Trading** ->
-uncheck **"Disable algorithmic trading via external Python API"** -> OK -> File ->
-Exit (the clean exit is what persists it).
+The nearby option "Disable algorithmic trading via external Python API" must also be
+off, but it is off by default — **the master switch is the one that bites.** Turning
+it on by hand fixed nothing until it was on; turning it on is what fixed it.
 
-It cannot be scripted: MT5 stores options in an **encrypted** `config/settings.ini`,
-so there is no key to set and no registry value to poke. Launch the terminal with
-`/portable` when changing it, or you will change a different installation's settings
-and see no effect.
+**The agent handles this itself** and does not depend on the GUI: it launches the
+terminal with `/config:propvexis-start.ini` containing `[Experts] AllowLiveTrading=1`,
+which the terminal confirms in its log (`successfully initialized from start config`).
+A GUI setting nobody wrote down is not reproducible infrastructure. `AllowDllImport`
+is deliberately NOT set — reading history needs no DLLs.
 
-Do this BEFORE suspecting anything else. It cost several hours of chasing sessions,
-credentials, portable directories and package versions -- all of which were fine.
+## Two ordering rules that cost hours each
+
+**1. Attach, then log in. Never pass credentials to `initialize()`.**
+Measured twice on the box: `initialize(path, portable)` attaches in **0.0s**, while
+the same call with `login/password/server` times out after 90s. The terminal log
+shows why — it had already authorized from its saved account, and `initialize()`'s
+login attempt **disconnected it and hung**.
+
+**2. Do not re-login to the account the terminal is already on.**
+The terminal restores its last account at startup, so after a launch it is usually
+already where we want to be. Calling `mt5.login()` for that same account disconnects
+the live session and hangs (`login failed ... IPC timeout` after 65s). Only the login
+NUMBER is compared, never the server string: the terminal reports
+`FundedNext-Server 3` where the credential says `FundedNext-Server3`.
+
+### Verification caveat
+
+On that short-circuit path the read-only verdict comes from the terminal's **live
+session**, not from a login with our stored password. So it proves the session is
+investor-mode; it does not prove the stored credential is the investor one. For a
+box dedicated to one account that is fine. Before multi-account use, either clear
+`config/accounts.dat` so the terminal starts accountless, or verify on the first
+sync only.
 
 ## The agent runs in an interactive session, and that is not negotiable
 

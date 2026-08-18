@@ -192,12 +192,25 @@ def payouts_from_deals(deals, login, offset_secs):
 
 
 # --- field access -----------------------------------------------------------
-# MT5 returns namedtuples; tests pass dicts. One accessor for both keeps the
-# module free of isinstance checks at every call site.
+# THREE record shapes reach this module, and they do not agree on access:
+#   - deals/orders from MT5 are NAMEDTUPLES        -> attribute access
+#   - rates from copy_rates_range are a NUMPY STRUCTURED ARRAY, whose rows are
+#     numpy.void                                   -> KEY access only
+#   - tests pass DICTS                             -> key access
+#
+# The first version of this used getattr() only. numpy.void has no `.high`, so
+# every high/low silently read as the 0.0 default: for a sell that made `best` 0
+# and MFE came out as the entire entry price -- 11577.1 pips on a real trade,
+# recorded as fact. No error, and the unit tests could not catch it because they
+# pass dicts. Try key access first, fall back to attributes.
 def _get(rec, name, default=None):
     if isinstance(rec, dict):
         return rec.get(name, default)
-    return getattr(rec, name, default)
+    try:
+        return rec[name]
+    except (TypeError, IndexError, KeyError, ValueError):
+        # A namedtuple raises TypeError on a string index; fall through to getattr.
+        return getattr(rec, name, default)
 
 
 def _int(rec, name):

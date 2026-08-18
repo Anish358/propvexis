@@ -120,6 +120,37 @@ class TestTime(unittest.TestCase):
             iso_utc(1_750_000_000, None)
 
 
+class TestRecordShapes(unittest.TestCase):
+    """Rates come back as a numpy structured array, not namedtuples."""
+
+    def test_key_only_records_are_read(self):
+        # numpy.void supports rec['high'] and NOT rec.high. Reading it with getattr
+        # returned the 0.0 default for every bar, which turned a sell's MFE into the
+        # whole entry price (11577.1 pips on a real trade). Simulate that shape.
+        class KeyOnly:
+            def __init__(self, **kw):
+                self._d = kw
+
+            def __getitem__(self, k):
+                return self._d[k]
+
+        rates = [KeyOnly(high=1.1020, low=1.0990), KeyOnly(high=1.1070, low=1.1010)]
+        self.assertAlmostEqual(mfe_price('buy', 1.1, rates), 0.007)
+        self.assertAlmostEqual(mfe_price('sell', 1.1, rates), 0.001)
+
+    def test_a_sell_never_reports_the_entry_price_as_its_excursion(self):
+        # The exact regression: a missing low must not make `best` zero.
+        class KeyOnly:
+            def __init__(self, **kw):
+                self._d = kw
+
+            def __getitem__(self, k):
+                return self._d[k]
+
+        mfe = mfe_price('sell', 1.15771, [KeyOnly(high=1.15790, low=1.15760)])
+        self.assertLess(mfe, 0.001, 'MFE must be an excursion, not a price')
+
+
 class TestMfe(unittest.TestCase):
     def test_buy_takes_the_highest_high(self):
         rates = [dict(high=1.102, low=1.099), dict(high=1.107, low=1.101)]
