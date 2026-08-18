@@ -21,6 +21,7 @@ import tradeRoutes from './routes/trades.js';
 import candleRoutes from './routes/candles.js';
 import accountRoutes from './routes/accounts.js';
 import strategyRoutes from './routes/strategies.js';
+import syncRoutes from './routes/sync.js';
 import payoutRoutes from './routes/payouts.js';
 import propRoutes from './routes/prop.js';
 import notificationRoutes from './routes/notifications.js';
@@ -67,7 +68,9 @@ await app.register(rateLimit, {
   global: true,
   max: 300,
   timeWindow: '1 minute',
-  allowList: ['127.0.0.1', '::1'],
+  // Loopback plus RATE_LIMIT_ALLOWLIST — the sync box's static IP goes there,
+  // because a first-run backfill posts hundreds of trades in one burst.
+  allowList: ['127.0.0.1', '::1', ...config.rateLimitAllowlist],
 });
 
 // Auth: cookie + JWT plugins, the `requireAuth` guard, and /api/auth/* routes.
@@ -209,6 +212,7 @@ systemRoutes(app);
 tradeRoutes(app, ctx);
 candleRoutes(app, ctx);
 accountRoutes(app, ctx);
+syncRoutes(app);
 strategyRoutes(app, ctx);
 payoutRoutes(app, ctx);
 propRoutes(app, ctx);

@@ -172,6 +172,18 @@ export async function ownedAccountByLogin(userId, login) {
   return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login) };
 }
 
+// Look up one of the user's own accounts by its primary key. The server-side
+// sync path addresses accounts by id (a credential can exist before any trade has
+// bound an mt5_login), so ownedAccountByLogin is not usable there.
+export async function ownedAccountById(userId, id) {
+  const { rows } = await query(
+    `SELECT ${ACCT_COLS} FROM mt5_accounts WHERE user_id = $1 AND id = $2`,
+    [userId, id]
+  );
+  if (!rows.length) return null;
+  return { ...rows[0], mt5_login: loginNum(rows[0].mt5_login) };
+}
+
 // Look up an account by its ingest token (for the EA ingest path).
 export async function accountByToken(token) {
   const { rows } = await query('SELECT * FROM mt5_accounts WHERE ingest_token = $1', [token]);

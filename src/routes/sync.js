@@ -1,0 +1,283 @@
+import { config } from '../platform/config.js';
+import { ownedAccountById, bindOrCheckLogin } from '../domain/accounts/accounts.js';
+import { planForUser } from '../domain/billing/entitlements.js';
+import { canUseEA } from '../domain/billing/plans.js';
+import {
+  enqueue,
+  enqueueDue,
+  leaseJobs,
+  leasedPayloads,
+  completeJob,
+  failJob,
+  reclaimExpired,
+  heartbeat,
+  lastJob,
+  isMarketOpen,
+} from '../domain/sync/queue.js';
+import { workerTokenMatches } from '../domain/sync/workerAuth.js';
+import {
+  credentialsEnabled,
+  credentialStatus,
+  saveCredential,
+  deleteCredential,
+  markVerified,
+  markError,
+  rejectMasterPassword,
+  openPassword,
+} from '../domain/sync/credentials.js';
+
+/**
+ * Server-side MT5 sync: the API half of the self-hosted terminal farm.
+ *
+ * Two audiences, two auth schemes:
+ *
+ *  - the off-box Windows agent (bearer SYNC_WORKER_TOKEN) leases jobs, receives
+ *    the decrypted investor password for the leased account, and reports results;
+ *  - the signed-in user attaches or removes a credential and asks for a sync.
+ *
+ * The agent posts the trades themselves to the EXISTING ingest endpoints with the
+ * account's own ingest_token, so nothing here touches the trade path — dedup,
+ * derivation and alerting stay in one place for both the EA and the farm.
+ *
+ * Registered by calling this function on the ROOT app instance rather than through
+ * app.register(). A registered plugin gets its own encapsulated context, and a
+ * route defined there cannot see decorators or hooks added to the parent
+ * afterwards — app.requireAuth would be undefined and the global rate-limit hook
+ * would not apply.
+ */
+export default function syncRoutes(app) {
+  // --- worker auth -----------------------------------------------------------
+  // Timing-safe and closed when unconfigured — see domain/sync/workerAuth.js.
+  const requireWorker = async (req, reply) => {
+    if (!workerTokenMatches(req.headers.authorization, config.syncWorkerToken)) {
+      return reply.code(401).send({ error: 'worker not authorized' });
+    }
+  };
+
+  // Shared guard for the user-facing routes: the account must be the caller's,
+  // must be a real MT5 account rather than a manual bucket, and the plan must
+  // include live sync. Returns the account or sends the response itself.
+  const ownedSyncAccount = async (req, reply) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      reply.code(400).send({ error: 'invalid account id' });
+      return null;
+    }
+    const acct = await ownedAccountById(req.user.uid, id);
+    if (!acct) {
+      reply.code(404).send({ error: 'account not found' });
+      return null;
+    }
+    if (acct.kind !== 'synced') {
+      reply.code(400).send({ error: 'manual accounts cannot be synced from a terminal' });
+      return null;
+    }
+    if (!canUseEA(await planForUser(req.user.uid))) {
+      reply.code(402).send({ error: 'live sync requires the Pro plan' });
+      return null;
+    }
+    return acct;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Worker endpoints
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Lease work. One call does the whole housekeeping cycle, because the agent is
+   * the only thing that runs on a schedule and a separate cron on the API box
+   * would be a second thing to keep alive:
+   *
+   *   heartbeat -> reclaim dead leases -> queue what is due -> lease -> hand over
+   *
+   * The response is the ONLY place a plaintext password appears. It is not
+   * logged, and a credential that fails to decrypt fails its job rather than
+   * being skipped silently.
+   */
+  app.post('/api/sync/lease', { preHandler: requireWorker }, async (req, reply) => {
+    const body = req.body ?? {};
+    const workerId = String(body.worker_id ?? '').slice(0, 64);
+    if (!workerId) return reply.code(400).send({ error: 'worker_id required' });
+    if (!credentialsEnabled()) {
+      return reply.code(503).send({ error: 'sync not configured (SYNC_CRED_KEY)' });
+    }
+
+    const limit = Math.min(Math.max(Number(body.limit ?? 1), 1), 5);
+    await heartbeat(workerId, body.version ?? null, body.note ?? null);
+    const reclaimed = await reclaimExpired();
+    // Scheduled syncs pause over the weekend; a manual "Sync now" is already in
+    // the queue by the time we get here, so it is unaffected.
+    const queued = isMarketOpen() ? await enqueueDue() : [];
+    const leased = await leaseJobs(workerId, limit);
+    const rows = await leasedPayloads(leased.map((j) => j.id));
+
+    const jobs = [];
+    for (const row of rows) {
+      let password;
+      try {
+        password = openPassword(row);
+      } catch (err) {
+        // Unusable credential: burn the job with a clear reason rather than
+        // handing the agent something it cannot log in with. The user sees this
+        // in the sync panel.
+        req.log.error({ account: row.account_id, err: err.message }, 'credential failed to decrypt');
+        await failJob(row.job_id, 'stored credential could not be decrypted');
+        await markError(row.account_id, 'credential unreadable — re-enter the investor password');
+        continue;
+      }
+      jobs.push({
+        job_id: Number(row.job_id),
+        account_id: Number(row.account_id),
+        login: row.mt5_login == null ? null : Number(row.mt5_login),
+        server: row.server,
+        firm_key: row.firm_key,
+        password,
+        ingest_token: row.ingest_token,
+        since: row.since,
+        reason: row.reason,
+        first_sync: row.verified_at == null,
+      });
+    }
+
+    return reply.send({
+      jobs,
+      housekeeping: { reclaimed: reclaimed.length, queued: queued.length, market_open: isMarketOpen() },
+    });
+  });
+
+  /**
+   * Report a finished job.
+   *
+   * `read_only` is the enforcement point for the investor-password-only rule: the
+   * agent reads account_info().trade_allowed after logging in, and if the
+   * credential can trade we delete it here. That makes "we only ever read" a
+   * property the code checks rather than a promise in a policy document.
+   */
+  app.post('/api/sync/jobs/:id/result', { preHandler: requireWorker }, async (req, reply) => {
+    const jobId = Number(req.params.id);
+    if (!Number.isFinite(jobId)) return reply.code(400).send({ error: 'invalid job id' });
+    const b = req.body ?? {};
+    const accountId = Number(b.account_id);
+
+    if (b.read_only === false && Number.isFinite(accountId)) {
+      await rejectMasterPassword(accountId);
+      await failJob(jobId, 'master password supplied — deleted; enter the investor (read-only) password');
+      return reply.send({ ok: false, credential: 'rejected' });
+    }
+
+    if (b.ok) {
+      if (Number.isFinite(accountId)) await markVerified(accountId);
+      const job = await completeJob(jobId, b.stats ?? {});
+      if (!job) return reply.code(409).send({ error: 'job is not leased' });
+      return reply.send({ ok: true, job });
+    }
+
+    const error = String(b.error ?? 'sync failed').slice(0, 1000);
+    if (Number.isFinite(accountId)) await markError(accountId, error);
+    const job = await failJob(jobId, error);
+    if (!job) return reply.code(409).send({ error: 'job is not leased' });
+    return reply.send({ ok: false, job });
+  });
+
+  /** Liveness only — for the stretch between leases when there is no work. */
+  app.post('/api/sync/heartbeat', { preHandler: requireWorker }, async (req, reply) => {
+    const workerId = String(req.body?.worker_id ?? '').slice(0, 64);
+    if (!workerId) return reply.code(400).send({ error: 'worker_id required' });
+    const [row] = await heartbeat(workerId, req.body?.version ?? null, req.body?.note ?? null);
+    return reply.send({ ok: true, last_seen: row?.last_seen ?? null });
+  });
+
+  // ---------------------------------------------------------------------------
+  // User endpoints
+  // ---------------------------------------------------------------------------
+
+  /** Credential + last-job status for one account. Never returns the password. */
+  app.get('/api/accounts/:id/sync', { preHandler: app.requireAuth }, async (req, reply) => {
+    const acct = await ownedSyncAccount(req, reply);
+    if (!acct) return reply;
+    const [cred, job] = await Promise.all([
+      credentialStatus(req.user.uid, acct.id),
+      lastJob(acct.id),
+    ]);
+    return reply.send({
+      configured: credentialsEnabled(),
+      credential: cred,
+      last_job: job,
+      market_open: isMarketOpen(),
+    });
+  });
+
+  /**
+   * Attach an investor password. Requires the MT5 login too when the account has
+   * never been bound — the farm cannot discover the login the way the EA does
+   * (the EA learns it from the first trade it sends).
+   */
+  app.put('/api/accounts/:id/credentials', { preHandler: app.requireAuth }, async (req, reply) => {
+    const acct = await ownedSyncAccount(req, reply);
+    if (!acct) return reply;
+    if (!credentialsEnabled()) {
+      // Refusing is the right failure: storing a broker password we cannot
+      // encrypt would be worse than not offering the feature.
+      return reply.code(503).send({ error: 'sync not configured (SYNC_CRED_KEY)' });
+    }
+
+    const b = req.body ?? {};
+    const server = String(b.server ?? '').trim();
+    const password = String(b.password ?? '');
+    if (!server) return reply.code(400).send({ error: 'server required' });
+    if (!password) return reply.code(400).send({ error: 'password required' });
+
+    const login = b.login == null ? null : Number(b.login);
+    if (acct.mt5_login == null) {
+      if (!Number.isFinite(login) || login <= 0) {
+        return reply.code(400).send({ error: 'login required for an unbound account' });
+      }
+      const bind = await bindOrCheckLogin(acct, login);
+      if (bind === 'mismatch') return reply.code(403).send({ error: 'login does not match this account' });
+      if (bind === 'conflict') return reply.code(409).send({ error: 'this MT5 login is already registered to another account' });
+    } else if (Number.isFinite(login) && Number(acct.mt5_login) !== login) {
+      return reply.code(403).send({ error: 'login does not match this account' });
+    }
+
+    if (!acct.ingest_token) {
+      // The agent authenticates to the ingest endpoints with this, exactly as the
+      // EA does. An account created without one cannot be synced.
+      return reply.code(409).send({ error: 'account has no ingest token' });
+    }
+
+    const saved = await saveCredential({
+      accountId: acct.id,
+      server,
+      firmKey: b.firm_key ?? null,
+      password,
+    });
+    // Sync immediately: the first run is what proves the credential works, and
+    // it is also what backfills the history the user came here for.
+    const job = await enqueue(acct.id, 'first_sync');
+    return reply.code(201).send({ credential: saved, job });
+  });
+
+  app.delete('/api/accounts/:id/credentials', { preHandler: app.requireAuth }, async (req, reply) => {
+    const acct = await ownedSyncAccount(req, reply);
+    if (!acct) return reply;
+    const gone = await deleteCredential(req.user.uid, acct.id);
+    return reply.send({ deleted: Boolean(gone) });
+  });
+
+  /**
+   * Manual "Sync now". Returns 202 with `queued: false` when a job is already
+   * open for the account — the partial unique index makes that a no-op rather
+   * than a backlog, so pressing the button twice is harmless.
+   */
+  app.post('/api/accounts/:id/sync', { preHandler: app.requireAuth }, async (req, reply) => {
+    const acct = await ownedSyncAccount(req, reply);
+    if (!acct) return reply;
+    const cred = await credentialStatus(req.user.uid, acct.id);
+    if (!cred) return reply.code(409).send({ error: 'no credential stored for this account' });
+    if (cred.read_only === false) {
+      return reply.code(409).send({ error: 'stored credential can trade — enter the investor password' });
+    }
+    const job = await enqueue(acct.id, 'manual');
+    return reply.code(202).send({ queued: Boolean(job), job });
+  });
+}

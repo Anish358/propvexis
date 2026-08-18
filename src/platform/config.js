@@ -133,6 +133,26 @@ export const config = {
   // /metrics, so it's reachable only on the box (by a co-located Prometheus).
   // Set it for defense-in-depth; Prometheus then scrapes with a bearer_token.
   metricsToken: process.env.METRICS_TOKEN ?? '',
+
+  // ---- Server-side MT5 sync (self-hosted terminal farm) ----
+  // Gated exactly like Redis/SES: with these unset the sync routes report
+  // themselves unconfigured and nothing else changes. The EA path is untouched
+  // either way.
+  //
+  // SYNC_CRED_KEY: 32 bytes (base64 or hex) for AES-256-GCM at rest. Without it
+  // credentials cannot be stored at all, which is the correct failure — storing
+  // a broker password we cannot protect is worse than refusing the feature.
+  syncCredKey: process.env.SYNC_CRED_KEY ?? '',
+  // Bearer token the off-box Windows agent authenticates with. Compared
+  // timing-safe; empty means the worker routes are closed.
+  syncWorkerToken: process.env.SYNC_WORKER_TOKEN ?? '',
+  // Extra IPs exempt from the global rate limit, on top of loopback. The sync
+  // box needs it: a first-run backfill of 200 trades is 200 ingest POSTs in a
+  // burst, well past the 300/min per-IP cap, so the worker would throttle itself.
+  rateLimitAllowlist: (process.env.RATE_LIMIT_ALLOWLIST ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 };
 
 // Fail closed: refuse to start the server in production with the shipped dev
