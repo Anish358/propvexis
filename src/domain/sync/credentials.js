@@ -90,6 +90,29 @@ export function deleteCredentialQuery(userId, accountId) {
   };
 }
 
+/**
+ * Close any open job for an account whose credential just went away.
+ *
+ * Without this the job spins in silence: leasedPayloadQuery JOINs mt5_credentials,
+ * so a job with no credential returns NO payload row — the agent is handed nothing,
+ * therefore reports nothing, therefore the lease expires, therefore reclaimExpired
+ * puts it back, forever. No error anywhere, and the account looks permanently
+ * "Syncing now" in the UI.
+ *
+ * `failed`, not deleted: the job history is the audit trail for "where is my
+ * trade", and a job that was cancelled for a real reason should say so.
+ */
+export function cancelOpenJobsQuery(accountId, reason = 'credential removed') {
+  return {
+    text: `UPDATE sync_jobs
+              SET status = 'failed', error = $2, finished_at = now(),
+                  leased_by = NULL, lease_expires_at = NULL
+            WHERE account_id = $1 AND status IN ('queued', 'leased')
+          RETURNING id, status;`,
+    values: [accountId, reason],
+  };
+}
+
 /** Record a successful, verified-read-only login. */
 export function markVerifiedQuery(accountId) {
   return {
@@ -140,8 +163,13 @@ export async function saveCredential({ accountId, server, firmKey, password }, c
 
 export const credentialStatus = async (userId, accountId) =>
   (await run(credentialStatusQuery(userId, accountId)))[0] ?? null;
-export const deleteCredential = async (userId, accountId) =>
-  (await run(deleteCredentialQuery(userId, accountId)))[0] ?? null;
+export async function deleteCredential(userId, accountId) {
+  const gone = (await run(deleteCredentialQuery(userId, accountId)))[0] ?? null;
+  // Only after a confirmed delete — cancelling jobs for an account the caller does
+  // not own would be a cross-tenant write.
+  if (gone) await run(cancelOpenJobsQuery(accountId));
+  return gone;
+}
 export const markVerified = (accountId) => run(markVerifiedQuery(accountId));
 export const markError = (accountId, error) => run(markErrorQuery(accountId, error));
 export const rejectMasterPassword = (accountId) => run(rejectMasterPasswordQuery(accountId));

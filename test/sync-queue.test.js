@@ -21,6 +21,7 @@ import {
   jobForWorkerQuery,
 } from '../src/domain/sync/queue.js';
 import {
+  cancelOpenJobsQuery,
   credAad,
   saveCredentialQuery,
   credentialStatusQuery,
@@ -184,6 +185,20 @@ test('minting an ingest token never overwrites an existing one', () => {
   assert.match(fn, /AND ingest_token IS NULL/);
   assert.match(fn, /AND user_id = \$2/);            // tenant-scoped
   assert.ok(!/ingest_token = \$3;/.test(fn.replace(/WHERE[\s\S]*/, '')), 'no unconditional write');
+});
+
+test('removing a credential closes the jobs that can no longer run', () => {
+  // Found while cleaning up a dead account by hand. leasedPayloadQuery JOINs
+  // mt5_credentials, so a job whose credential is gone returns no payload: the
+  // agent is handed nothing, reports nothing, the lease expires, reclaimExpired
+  // puts it back — forever, with no error and the account stuck on "Syncing now".
+  const { text, values } = cancelOpenJobsQuery(7);
+  assert.match(text, /status IN \('queued', 'leased'\)/);
+  assert.match(text, /SET status = 'failed'/);
+  // failed, not deleted: the job history is the audit trail for "where is my trade".
+  assert.ok(!/^DELETE/.test(text.trim()));
+  assert.equal(values[0], 7);
+  assert.match(values[1], /credential removed/);
 });
 
 test('a detected master password is deleted, not flagged', () => {
