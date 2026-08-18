@@ -31,10 +31,29 @@ OFFSET_GRANULARITY = 900
 
 CALIBRATION_SYMBOLS = ('EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD')
 
-# Terminal startup. The MT5 default is 60s, which a fresh install does not meet.
-INIT_TIMEOUT_MS = 180_000
-INIT_ATTEMPTS = 3
-INIT_RETRY_SECS = 20
+# Terminal startup. The MT5 default of 60s does not cover a cold first launch, but
+# three long attempts is nine minutes of a worker slot spent on a terminal that is
+# usually never going to answer — the common cause is not slowness (see IPC_HINT).
+INIT_TIMEOUT_MS = 90_000
+INIT_ATTEMPTS = 2
+INIT_RETRY_SECS = 15
+
+# What -10005 actually means, in practice, on a server-side terminal.
+#
+# Diagnosed the hard way: the terminal starts, loads its main window, opens its
+# listener — and puts up a modal `Login` dialog (window class #32770). Nothing
+# completes the handshake behind a modal dialog, so initialize() times out or hangs.
+#
+# It reaches that state when it cannot log in unattended, and the usual reason is
+# that the account's SERVER IS NOT IN THIS TERMINAL'S servers.dat. Confirmed for
+# GoatFunded-Server against the generic MetaQuotes build: a byte search of
+# servers.dat finds "MetaQuotes" and no "Goat". Prop white-label servers ship in the
+# FIRM'S OWN installer, so each firm needs its own portable build.
+IPC_HINT = (
+    'the terminal is up but did not log in unattended -- usually the server is '
+    'missing from this build\'s server list, which means this firm needs its own '
+    'MT5 install (see agent/README.md, "Per-firm terminals")'
+)
 
 
 class Mt5Error(RuntimeError):
@@ -85,7 +104,10 @@ class Terminal:
                 pass
             if attempt < INIT_ATTEMPTS:
                 time.sleep(INIT_RETRY_SECS)
-        raise Mt5Error(f'initialize failed after {INIT_ATTEMPTS} attempts: {last}')
+        # Name the likely cause in the error itself. This string lands in
+        # sync_jobs.error and is shown to the user, so "IPC timeout" alone would
+        # tell them nothing they can act on.
+        raise Mt5Error(f'initialize failed after {INIT_ATTEMPTS} attempts: {last} -- {IPC_HINT}')
 
     def close(self):
         if self._open:

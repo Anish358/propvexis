@@ -52,13 +52,41 @@ Two SSM parameters per environment:
 Without `SYNC_CRED_KEY` the credential endpoints return 503 by design: storing a
 broker password we cannot encrypt is worse than not offering the feature.
 
-## Per-firm terminals
+## Per-firm terminals — CONFIRMED, not theoretical
 
-Prop white-label servers (`GoatFunded-Server`, most FTMO servers) are **not in the
-MetaQuotes server list**, so each firm needs its own portable install of that
-firm's build — the installer ships the `.srv` file. `firm_key` on the credential
-selects which one to log in with. Adding a firm is a directory, a manual installer
-download, and a `firms` entry in `config.json`.
+The generic MetaQuotes build **does not know `GoatFunded-Server`**. Verified by byte
+search of `C:\mt5\gft\config\servers.dat` (50 KB): `MetaQuotes` is present in
+UTF-16, `Goat` is absent entirely.
+
+The failure this causes is worth knowing by shape, because it looks like nothing:
+
+1. `initialize()` starts the terminal, which loads fine and opens its listener;
+2. unable to log in unattended, the terminal puts up a modal **`Login` dialog**
+   (window class `#32770`) in front of its main window;
+3. nothing completes the IPC handshake behind a modal dialog, so `initialize()`
+   returns `(-10005, 'IPC timeout')` — or worse, blocks past its own timeout;
+4. the terminal log shows a clean start and no error at all.
+
+So each firm needs its own portable install of **that firm's build**, which ships the
+server. `firm_key` on the credential selects it. There is no public download for
+GFT's build — it comes from their client area, behind a login.
+
+**One-time, per firm, by a human. Two ways:**
+
+- **Install the firm's build** into `C:\mt5\<firm>\`, run it once with `/portable`,
+  log in by hand to confirm, close it. Add a `firms` entry in `config.json`.
+- **Or add the server to an existing build**: RDP in, open the terminal's login
+  wizard and search the broker by name — MT5 queries MetaQuotes' online directory
+  and writes the server into `servers.dat`. Cheaper if the firm is listed there.
+
+Either way, verify before walking away:
+
+```powershell
+# Should print utf16=True once the server is known to this build
+$b = [IO.File]::ReadAllBytes('C:\mt5\gft\config\servers.dat')
+$n = [Text.Encoding]::Unicode.GetBytes('Goat')
+(0..($b.Length-$n.Length)) | Where-Object { $i=$_; -not (0..($n.Length-1) | Where-Object { $b[$i+$_] -ne $n[$_] }) } | Select-Object -First 1
+```
 
 ## The two things to verify on the first real account
 
