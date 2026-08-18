@@ -99,6 +99,29 @@ Neither can be settled from documentation, and both can invalidate assumptions:
    is blocked under our investor-only rule, and we say so rather than accepting a
    master password.
 
+## ⚠️ FIRST THING TO CHECK: the terminal's Python API switch
+
+MT5 ships with **"Disable algorithmic trading via external Python API" ENABLED** in
+recent builds. With it on, everything looks perfect and nothing works:
+
+- the terminal starts, logs in, shows a real title (`34728798 - FundedNext-Server3
+  - Netting - GBPUSD,H1`), opens its `MCP` listener;
+- its own log records a clean start with **no error of any kind**;
+- `mt5.initialize()` returns `(-10005, 'IPC timeout')` -- whether it launches the
+  terminal or attaches to a running, logged-in one.
+
+**Fix (GUI only, once per installation):** Tools -> Options -> **Algo Trading** ->
+uncheck **"Disable algorithmic trading via external Python API"** -> OK -> File ->
+Exit (the clean exit is what persists it).
+
+It cannot be scripted: MT5 stores options in an **encrypted** `config/settings.ini`,
+so there is no key to set and no registry value to poke. Launch the terminal with
+`/portable` when changing it, or you will change a different installation's settings
+and see no effect.
+
+Do this BEFORE suspecting anything else. It cost several hours of chasing sessions,
+credentials, portable directories and package versions -- all of which were fine.
+
 ## The agent runs in an interactive session, and that is not negotiable
 
 Running it as SYSTEM (session 0) was tried first and **does not work**.
