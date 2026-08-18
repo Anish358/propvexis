@@ -2485,6 +2485,47 @@ label.full { margin-bottom: 16px; }
 /* ---- Account page ---- */
 .acct-card.archived { opacity: .55; }
 .acct-card .settings-btn { margin-top: 8px; }
+/* Two actions per card now (Manage, Live sync). They wrap rather than shrink,
+   because at the 900px drawer breakpoint the card is narrow enough that side-by-
+   side buttons would truncate their labels. */
+.acct-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- Live sync (server-side MT5 terminal farm) ---- */
+.sync-modal { padding-bottom: 16px; }
+.sync-body { padding: 12px 24px; display: flex; flex-direction: column; gap: 16px; }
+.sync-intro { font-size: 13px; line-height: 1.55; margin: 0; }
+.sync-intro strong { color: var(--text); font-weight: 400; }
+.sync-status { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sync-status td { padding: 7px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+.sync-status tr:last-child td { border-bottom: none; }
+.sync-status td.num { color: var(--text); text-align: right; }
+.sync-form { display: flex; flex-direction: column; gap: 12px; }
+.sync-form label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 12px; color: var(--muted);
+}
+.sync-form input {
+  background: var(--sidebar-bg); border: 1px solid var(--line); color: var(--text);
+  border-radius: 7px; padding: 8px 12px; font-size: 13px;
+}
+.sync-form input:disabled { color: var(--muted); cursor: not-allowed; }
+.sync-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.sync-actions button {
+  background: var(--neutral-3); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer;
+}
+.sync-actions .primary {
+  background: var(--accent-bg); border-color: var(--accent-border);
+  color: var(--accent-on-surface); font-weight: 400;
+}
+.sync-actions button:disabled { opacity: .55; cursor: not-allowed; }
+/* A broker-side failure is a warning, not a loss: the trader lost no money, the
+   sync just needs attention. So it borrows the warn tint, not .login-error's. */
+.sync-warn {
+  background: var(--tint-warn-7); color: var(--tint-warn-11);
+  border-radius: 8px; padding: 8px 12px; font-size: 12px;
+}
+.sync-note { color: var(--profit); font-size: 12px; }
 
 /* ---- Alerts page (reuses notif-* item styles) ---- */
 .alerts-page { display: flex; flex-direction: column; gap: 4px; }

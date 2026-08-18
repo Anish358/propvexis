@@ -59,6 +59,7 @@ const DIALOGS = [
   ['ImportTradesModal.jsx', 'modal'],
   ['PayoutsModal.jsx', 'modal'],
   ['StrategyRulesModal.jsx', 'modal'],
+  ['SyncModal.jsx', 'modal'],
   ['TagModal.jsx', 'modal'],
   ['TradeSettingsModal.jsx', 'modal'],
   ['Dashboard.jsx', 'modal'],          // SetTargetModal, inline
@@ -66,7 +67,7 @@ const DIALOGS = [
   ['DashLayoutEditor.jsx', 'dle-panel'], // its own light-scrim editor panel
 ];
 
-test('all thirteen dialogs are on the shared shell', () => {
+test('every dialog is on the shared shell', () => {
   for (const [file] of DIALOGS) {
     const s = code(src(file));
     assert.match(s, /from '@\/components\/primitives'/, `${file} must import the primitives`);

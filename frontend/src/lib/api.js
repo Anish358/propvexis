@@ -152,6 +152,37 @@ export async function deleteAccount(id) {
   return res.json();
 }
 
+// ---- Server-side MT5 sync (the self-hosted terminal farm) ----
+// Unlike the calls above, these surface the SERVER's message rather than a
+// generic "name 404". Every failure here is something the user must act on —
+// "enter the investor password", "login required for an unbound account", "sync
+// not configured" — and a status code tells them none of it.
+async function syncCall(path, opts = {}) {
+  const res = await apiFetch(path, {
+    headers: { 'content-type': 'application/json' },
+    ...opts,
+  });
+  const body = res.status === 204 ? {} : await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `sync ${res.status}`);
+  return body;
+}
+
+export const fetchAccountSync = (id) => syncCall(`/api/accounts/${id}/sync`);
+
+// The investor password goes UP and never comes back down: no read endpoint
+// returns it, and the status response carries only metadata.
+export const saveAccountCredential = (id, { server, login, firm_key, password }) =>
+  syncCall(`/api/accounts/${id}/credentials`, {
+    method: 'PUT',
+    body: JSON.stringify({ server, login, firm_key, password }),
+  });
+
+export const deleteAccountCredential = (id) =>
+  syncCall(`/api/accounts/${id}/credentials`, { method: 'DELETE' });
+
+export const syncAccountNow = (id) =>
+  syncCall(`/api/accounts/${id}/sync`, { method: 'POST' });
+
 // ---- Strategies (the user's managed strategy catalog; scoped to the user) ----
 export async function fetchStrategies() {
   return getJson('/api/strategies');
