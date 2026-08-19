@@ -1,6 +1,6 @@
 # Self-hosted MT5 sync farm — design
 
-**Date:** 2026-08-18 · **Status:** approved for build · **Supersedes:** the MetaApi
+**Date:** 2026-08-18 · **Status:** BUILT AND WORKING (see "As built" at the end) · **Supersedes:** the MetaApi
 path in the `saas-broker-integration` memory (rejected 2026-07-28).
 
 ## Problem
@@ -29,7 +29,7 @@ friend case.
 | Feed parity | Trades + payouts + balance/equity snapshot. Replay candles are a fast-follow |
 | Trigger | Every ~15 min in market hours, plus a manual "Sync now" |
 | Transport | Pull-based agent over HTTPS; Postgres job queue |
-| Host | AWS Lightsail `small_win_3_1` (2 vCPU / 2 GB / 60 GB, `ap-south-1`), blueprint `windows_server_2022` — $22/mo, free for the first 90 days |
+| Host | ~~Lightsail~~ → **EC2 `t3.medium` Windows Server 2022, `ap-south-1`** (the Lightsail free trial turned out to be retired, and Lightsail bills a stopped instance in full; only EC2 truly pauses) |
 
 ### Why pull-based over HTTPS
 
@@ -185,12 +185,14 @@ move by re-running the script.
 
 | Phase | Cost |
 |---|---|
-| Build + test (now) | **$0** — Lightsail 90-day free trial, 750 hrs/mo |
-| Launch month | **$0** if inside the 90 days |
-| After trial, 24/7 | $22/mo, or migrate per the table above |
+| Build + test (actual) | **~$0.40** — EC2 hourly, stopped between sessions |
+| Idle | **~$2.74/mo** — 30 GB gp3 only, compute billing stops |
+| Live 24/7 | $46/mo on t3.medium, or ~$12/mo on Contabo India (4 vCPU / 8 GB) |
 
-Capacity at ~90s/account-sync, serial: ~950 syncs/day ≈ **150–230 accounts** at
-4–6 syncs/day. Against MetaApi's ~$9/account/month, self-hosting is ~$0.10–0.15.
+Capacity, now MEASURED rather than estimated: a warm incremental sync takes **0.15s**
+and a cold one **20s** (19s of that the launch settle). The 90s/account assumption was
+very conservative, so the 150–300 accounts/box figure holds comfortably. Against
+MetaApi's ~$9/account/month, self-hosting is ~$0.10–0.15.
 
 ## Build order
 
@@ -214,3 +216,33 @@ Capacity at ~90s/account-sync, serial: ~950 syncs/day ≈ **150–230 accounts**
   compatibility list is needed before public launch.
 - **2 GB is tight.** Fine for one account; production may need the $44 4 GB
   bundle or a cheaper 8 GB box elsewhere.
+
+---
+
+## As built (2026-08-18)
+
+Working end to end: a trade taken on the **mobile app** reaches the journal, and the
+broker itself confirms the credential is read-only (`trading has been disabled -
+investor mode`). Four things differ from the design above, each learned by running it:
+
+1. **The host is EC2, not Lightsail.** The Lightsail 3-month free trial is retired,
+   and both Lightsail and Vultr bill a *stopped* instance in full. Only EC2 pauses.
+2. **The box has an IAM instance profile**, which this spec said it would not. It is
+   scoped to SSM management plus read of exactly two parameters the box already holds
+   — no added blast radius, and strictly better than passing secrets through Run
+   Command, where they would persist in console history in plaintext.
+3. **The agent must run in an interactive session.** MT5 in session 0 has no window
+   station, so the terminal starts and its IPC never comes up. The box autologons as a
+   dedicated standard user.
+4. **`Allow algorithmic trading` must be ON** (Tools > Options > Experts; off by
+   default). With it off the terminal starts, logs in, serves a pipe a same-user
+   process can open — and refuses the API with `IPC timeout`, logging nothing. The
+   agent now sets it via an MT5 startup config so a rebuilt box does not depend on a
+   GUI setting.
+
+Two ordering rules that are not obvious and are load-bearing: never pass credentials
+to `mt5.initialize()`, and never re-login to the account the terminal already holds.
+Both disconnect a working session and hang. `agent/README.md` has the detail.
+
+Still open: merge to `main` + prod/staging SSM params, the heartbeat alert (a dead box
+still stops syncing silently), and replay-candle parity.
