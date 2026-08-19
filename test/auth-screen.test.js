@@ -12,6 +12,10 @@ import { appCss } from './helpers/app-css.js';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const login = read('../frontend/src/features/auth/Login.jsx');
 const art = read('../frontend/src/features/auth/AuthArt.jsx');
+// The split-screen chrome moved out of Login when the recovery screens arrived,
+// so the assertions about the chrome follow it here. They are about the shell,
+// not about which screen is rendering inside it.
+const shell = read('../frontend/src/features/auth/AuthShell.jsx');
 const css = appCss;
 
 test('one component serves both routes, differing only in copy', () => {
@@ -28,11 +32,23 @@ test('one component serves both routes, differing only in copy', () => {
 });
 
 test('brand mark is the shared Logo, and the wordmark link stays on-origin locally', () => {
-  assert.match(login, /import Logo from '[^']*Logo\.jsx'/);
-  assert.match(login, /<Logo size=\{22\} \/>/);
-  assert.match(login, /const SITE = isLocal \? '\/' : 'https:\/\/propvexis\.com'/);
+  assert.match(shell, /import Logo from '[^']*Logo\.jsx'/);
+  assert.match(shell, /<Logo size=\{22\} \/>/);
+  assert.match(shell, /const SITE = isLocal \? '\/' : 'https:\/\/propvexis\.com'/);
   for (const host of ['localhost', '127.0.0.1']) {
-    assert.ok(login.includes(`'${host}'`), `${host} must count as local`);
+    assert.ok(shell.includes(`'${host}'`), `${host} must count as local`);
+  }
+});
+
+test('every logged-out screen renders through the one shell', () => {
+  // The chrome exists once. A screen that hand-rolled the panel would drift
+  // from the others the first time either changed, which is exactly what the
+  // extraction was for.
+  for (const file of ['Login', 'ForgotPassword', 'ResetPassword', 'VerifyEmail']) {
+    const src = read(`../frontend/src/features/auth/${file}.jsx`);
+    assert.match(src, /import AuthShell from '\.\/AuthShell\.jsx'/, `${file} must use AuthShell`);
+    assert.match(src, /<AuthShell/, `${file} must render AuthShell`);
+    assert.ok(!src.includes('className="auth-screen"'), `${file} must not rebuild the chrome`);
   }
 });
 
@@ -72,8 +88,8 @@ test('the Google button is our dark face, not the white GSI widget', () => {
 });
 
 test('the artwork is decoration: hidden from AT and dropped on small screens', () => {
-  assert.match(login, /className="auth-art" aria-hidden="true"/);
-  assert.match(login, /className="auth-curve"[\s\S]*?aria-hidden="true"/);
+  assert.match(shell, /className="auth-art" aria-hidden="true"/);
+  assert.match(shell, /className="auth-curve"[\s\S]*?aria-hidden="true"/);
   const mq = css.slice(css.indexOf('@media (max-width: 900px)'));
   assert.match(mq, /\.auth-art, \.auth-curve \{ display: none; \}/);
 });

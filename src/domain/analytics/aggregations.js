@@ -222,6 +222,23 @@ async function loadAdherence(scope, unit, filters, beRound) {
 // -> account_id = ANY(logins). The predicate is built by scopeCondition (safe).
 // `filters` are the global data filters — the SQL half of the client's filter
 // registry, built by buildTradeWhere in statsSql.js — applied app-wide.
+/**
+ * The equity curve, as the API sends it: running totals only, one per scored
+ * trade, in close order. The X value each chart plots is the position, so it is
+ * the array index and does not need sending — see the equity CTE in statsSql.js
+ * for what that saved.
+ *
+ * Rounding stays here rather than in SQL on purpose: Postgres round() is
+ * half-away-from-zero and Math.round is half-up, and an equity curve spends
+ * plenty of time negative, so moving it into the query would quietly change
+ * values while looking like a pure optimisation.
+ *
+ * Pure, so it is testable without a database (CI has no Postgres).
+ */
+export function shapeEquityCurve(equity) {
+  return (equity ?? []).map((c) => round(Number(c)));
+}
+
 export async function computeStats(scope, unit = 'R', filters = {}, beRound = false) {
   const { sql, params } = statsQuery(scope, unit, filters, beRound);
   const [{ rows }, adherence] = await Promise.all([
@@ -273,7 +290,7 @@ export async function computeStats(scope, unit = 'R', filters = {}, beRound = fa
     byDay: shapeGroups(d.byDay, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], (r) => DOW[Number(r.key)]),
     byMonth: shapeGroups(d.byMonth, null, (r) => `${MONTHS[Number(r.mon) - 1]} ${Number(r.yr)}`),
     byWeek: shapeGroups(d.byWeek, null, (r) => weekKey(new Date(`${r.key}T00:00:00Z`))),
-    equityCurve: (d.equity ?? []).map((p) => ({ i: Number(p.i), date: p.date, cumR: round(Number(p.cum)) })),
+    equityCurve: shapeEquityCurve(d.equity),
     // R-distribution is intrinsically in R, so it is always computed from fixed_r.
     rDistribution: R_BUCKETS.map((label, i) => ({ label, count: num((d.rDist ?? {})[R_BUCKET_COLS[i]]) })),
     mfeEfficiency: {

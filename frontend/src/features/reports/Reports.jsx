@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
@@ -7,7 +7,7 @@ import PageHeader from '../../app/PageHeader.jsx';
 import { LoadingBlock } from '@/components/primitives';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { fetchReport, reportCsvUrl } from '../../lib/api.js';
-import { fmtVal, fmtAxis, fmtMoney } from '../../lib/metrics.js';
+import { fmtVal, fmtAxis, fmtMoney, equityPoints } from '../../lib/metrics.js';
 import { chartPalette } from '../../lib/theme.js';
 
 // Reports (V1) — one shareable artifact composing Journal analytics + Prop OS
@@ -103,6 +103,9 @@ export default function Reports() {
     fetchReport(accountId, unit, filters, beRound, year).then(setReport).catch((e) => setErr(e.message));
   }, [allowed, accountId, unit, filterKey, year, beRound]);
 
+  // One object per trade — memoized so a re-render doesn't rebuild the chart.
+  const equity = useMemo(() => equityPoints(report?.stats?.equityCurve), [report]);
+
   const page = (body) => (
     <div className="page report-print">
       <PageHeader title="Reports" connected={connected} onMenu={toggleSidebar} />
@@ -185,7 +188,7 @@ export default function Reports() {
       <div className="panel">
         <h3>Equity Curve (cumulative {unit === 'USD' ? 'P&L' : 'R'})</h3>
         <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={report.stats.equityCurve} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
+          <LineChart data={equity} margin={{ top: 8, right: 16, bottom: 4, left: -16 }}>
             <CartesianGrid stroke={chartPalette().grid} />
             <XAxis dataKey="i" stroke={chartPalette().axis} fontSize={11} />
             <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtAxis(v, unit)} />

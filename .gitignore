@@ -20,3 +20,7 @@ frontend/dist/
 # Planning docs — kept local, deliberately untracked
 Plan.md
 Foundational_files/
+
+# Python bytecode (the MT5 sync agent)
+__pycache__/
+*.pyc

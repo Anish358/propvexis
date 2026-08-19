@@ -7,7 +7,7 @@ import { Server as IOServer } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { config, assertProdSecrets } from './platform/config.js';
 import { pool } from './platform/db.js';
-import { registerAuth } from './platform/auth/auth.js';
+import { isSessionCurrent, registerAuth, setRevocationHandler } from './platform/auth/auth.js';
 import { ownedLogins } from './domain/accounts/accounts.js';
 import { evaluateAccountAlerts } from './domain/alerts/notifications.js';
 import { listStrategies } from './domain/trades/strategies.js';
@@ -15,11 +15,13 @@ import { clusterSafety, isClustered } from './platform/cluster.js';
 import { createRedisPair, redisStatus, redisNamespace } from './platform/redis.js';
 import { statsBus, INVALIDATE_CHANNEL } from './platform/statsBus.js';
 import { recordHttp } from './platform/metrics.js';
+import { reportMailerConfig } from './platform/mailer.js';
 import systemRoutes from './routes/system.js';
 import tradeRoutes from './routes/trades.js';
 import candleRoutes from './routes/candles.js';
 import accountRoutes from './routes/accounts.js';
 import strategyRoutes from './routes/strategies.js';
+import syncRoutes from './routes/sync.js';
 import payoutRoutes from './routes/payouts.js';
 import propRoutes from './routes/prop.js';
 import notificationRoutes from './routes/notifications.js';
@@ -66,7 +68,9 @@ await app.register(rateLimit, {
   global: true,
   max: 300,
   timeWindow: '1 minute',
-  allowList: ['127.0.0.1', '::1'],
+  // Loopback plus RATE_LIMIT_ALLOWLIST — the sync box's static IP goes there,
+  // because a first-run backfill posts hundreds of trades in one burst.
+  allowList: ['127.0.0.1', '::1', ...config.rateLimitAllowlist],
 });
 
 // Auth: cookie + JWT plugins, the `requireAuth` guard, and /api/auth/* routes.
@@ -104,6 +108,14 @@ if (redis) {
 // Every write path goes through this, so the fanout can't be forgotten at a call site.
 const invalidateStats = (userId) => statsBus.invalidate(userId);
 
+// Close the realtime channel when a session is revoked. Registered here rather
+// than inside registerAuth because `io` does not exist yet at that point.
+// Refusing the cookie at the handshake only stops the NEXT connection; a socket
+// opened before the reset is already in the user's rooms and would keep
+// receiving their trades and alerts. With the Redis adapter this reaches
+// sockets held by other workers too.
+setRevocationHandler((uid) => io.in(`user:${uid}`).disconnectSockets(true));
+
 // Authenticate each socket from the session cookie and join it to a room per
 // account the user owns, so trade events are delivered only to their owner —
 // never broadcast to every connected client.
@@ -113,6 +125,12 @@ io.on('connection', async (socket) => {
     const token = raw ? app.parseCookie(raw).session : null;
     if (!token) throw new Error('no session cookie');
     const payload = app.jwt.verify(token);
+    // A valid signature is not enough: a cookie minted before the user's last
+    // password reset has been revoked, and this handshake is the only place
+    // outside requireAuth that authenticates one. Skipping it here would leave
+    // the realtime channel — every trade event and prop alert — open to a
+    // session the HTTP API already refuses.
+    if (!(await isSessionCurrent(payload, app.log))) throw new Error('session revoked');
     socket.data.uid = payload.uid;
     socket.join(`user:${payload.uid}`); // for account-less (strategy/manual) trade events
     const logins = await ownedLogins(payload.uid);
@@ -194,6 +212,7 @@ systemRoutes(app);
 tradeRoutes(app, ctx);
 candleRoutes(app, ctx);
 accountRoutes(app, ctx);
+syncRoutes(app);
 strategyRoutes(app, ctx);
 payoutRoutes(app, ctx);
 propRoutes(app, ctx);
@@ -221,6 +240,10 @@ const start = async () => {
         app.log.error({ workerIndex: process.env.NODE_APP_INSTANCE }, `UNSAFE CLUSTER MODE: ${reason}`);
       }
     }
+    // Same class of silent-partial-config problem as Razorpay below: with mail
+    // unconfigured, signup and password reset still return 200 while no message
+    // is ever sent. Name what is missing at boot rather than at 3am.
+    reportMailerConfig(app.log);
     // Partial Razorpay config fails SAFE (billing 503s) but silently — the
     // dashboard shows keys set while checkout is dead. Name the missing var.
     const rzpMissing = ['razorpayKeyId', 'razorpayKeySecret', 'razorpayWebhookSecret']

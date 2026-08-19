@@ -28,3 +28,11 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm test
+
+      # The sync agent is Python (the MT5 API is a Windows Python package), so its
+      # unit tests cannot run under node:test. history.py deliberately imports
+      # nothing from MetaTrader5 precisely so this step needs no Windows runner and
+      # no dependencies — if these tests ever need `pip install`, that is a signal
+      # the deal-grouping logic has picked up a coupling it should not have.
+      - name: Sync agent unit tests
+        run: python3 -m unittest discover -s agent -v

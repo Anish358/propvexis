@@ -75,6 +75,39 @@ export const signupWithPassword = ({ name, email, password }) =>
 export const loginWithPassword = ({ email, password }) =>
   postCredentials('/api/auth/login', { email, password });
 
+// ---- Email verification + password reset ----
+// These four are unauthenticated (or, for the resend, session-authenticated)
+// and return plain JSON rather than a user, so they don't go through
+// postCredentials. Errors carry the server's user-facing string.
+async function postJson(path, body) {
+  const res = await fetch(`${BACKEND_URL}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `request failed (${res.status})`);
+  return data;
+}
+
+/** Ask for a fresh verification email for the logged-in account. */
+export const requestVerification = () => postJson('/api/auth/verify/request');
+
+/** Redeem a link from that email. Confirms the address; does NOT log you in. */
+export const confirmVerification = (token) => postJson('/api/auth/verify/confirm', { token });
+
+/**
+ * Ask for a reset link. Always resolves — the server answers identically for a
+ * registered and an unregistered address, so the UI must not imply it knows
+ * which one this was.
+ */
+export const requestPasswordReset = (email) => postJson('/api/auth/password/forgot', { email });
+
+/** Redeem a reset link and set the new password. Returns the logged-in user. */
+export const resetPassword = ({ token, password }) =>
+  postCredentials('/api/auth/password/reset', { token, password });
+
 export async function logout() {
   await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
 }
@@ -118,6 +151,37 @@ export async function deleteAccount(id) {
   if (!res.ok) throw new Error(`deleteAccount ${res.status}`);
   return res.json();
 }
+
+// ---- Server-side MT5 sync (the self-hosted terminal farm) ----
+// Unlike the calls above, these surface the SERVER's message rather than a
+// generic "name 404". Every failure here is something the user must act on —
+// "enter the investor password", "login required for an unbound account", "sync
+// not configured" — and a status code tells them none of it.
+async function syncCall(path, opts = {}) {
+  const res = await apiFetch(path, {
+    headers: { 'content-type': 'application/json' },
+    ...opts,
+  });
+  const body = res.status === 204 ? {} : await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `sync ${res.status}`);
+  return body;
+}
+
+export const fetchAccountSync = (id) => syncCall(`/api/accounts/${id}/sync`);
+
+// The investor password goes UP and never comes back down: no read endpoint
+// returns it, and the status response carries only metadata.
+export const saveAccountCredential = (id, { server, login, firm_key, password }) =>
+  syncCall(`/api/accounts/${id}/credentials`, {
+    method: 'PUT',
+    body: JSON.stringify({ server, login, firm_key, password }),
+  });
+
+export const deleteAccountCredential = (id) =>
+  syncCall(`/api/accounts/${id}/credentials`, { method: 'DELETE' });
+
+export const syncAccountNow = (id) =>
+  syncCall(`/api/accounts/${id}/sync`, { method: 'POST' });
 
 // ---- Strategies (the user's managed strategy catalog; scoped to the user) ----
 export async function fetchStrategies() {

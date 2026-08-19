@@ -9,6 +9,9 @@ import { sanitizeBriefPrefs, defaultBriefPrefs } from './features/dashboard/brie
 import { applyBeRounding } from './lib/metrics.js';
 import Layout from './app/Layout.jsx';
 import Login from './features/auth/Login.jsx';
+import ForgotPassword from './features/auth/ForgotPassword.jsx';
+import ResetPassword from './features/auth/ResetPassword.jsx';
+import VerifyEmail from './features/auth/VerifyEmail.jsx';
 import Onboarding from './features/auth/Onboarding.jsx';
 import Dashboard from './features/dashboard/Dashboard.jsx';
 import TradeLog from './features/trades/TradeLog.jsx';
@@ -406,6 +409,12 @@ export default function App() {
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Login mode="signup" />} />
+        {/* Recovery routes. /verify and /reset stay reachable while logged in:
+            both are opened from an email, often in a browser that already has a
+            session, and bouncing those to the dashboard would strand the link. */}
+        <Route path="/forgot" element={user ? <Navigate to="/" replace /> : <ForgotPassword />} />
+        <Route path="/reset" element={<ResetPassword />} />
+        <Route path="/verify" element={<VerifyEmail />} />
         {user && !user.onboarded_at ? (
           // First-run users are routed to the setup wizard for every path until
           // it's completed; completing it sets onboarded_at and re-renders here.

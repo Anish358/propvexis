@@ -13,7 +13,17 @@
 //      so a trade written on worker A leaves worker B serving stale numbers
 //      until its TTL lapses.
 //
-// Both are fixed by the same piece of work — a shared Redis-backed adapter and
+// A third piece of per-process state exists but is deliberately NOT a blocking
+// reason below: the session-epoch cache in platform/auth/auth.js. Its staleness
+// is bounded by a 60s TTL, so after a password reset the revocation is exact on
+// the worker that handled it and lands within a minute everywhere else — a
+// bounded delay, not the silent unbounded wrongness the two items above cause.
+// (Open sockets are not affected: disconnectSockets goes through the Redis
+// adapter, so it already reaches every worker.) Closing that last minute means
+// putting epoch invalidation on the statsBus channel; worth doing before
+// raising `instances`, but it does not make cluster mode incorrect.
+//
+// Both of the items above are fixed by the same piece of work — a shared Redis-backed adapter and
 // invalidation channel. Until then `instances` stays 1 in ecosystem.config.cjs,
 // and this module makes the constraint enforceable rather than tribal knowledge:
 // the app checks at boot and complains loudly if it finds itself clustered

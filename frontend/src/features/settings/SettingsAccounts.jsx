@@ -6,6 +6,7 @@ import {
   MenuSeparator, MenuTrigger, Tabs,
 } from '@/components/primitives';
 import { AccountFormModal, EaSetupModal } from '../accounts/AccountForms.jsx';
+import SyncModal from '../accounts/SyncModal.jsx';
 import { deleteAccount, updateAccount } from '../../lib/api.js';
 import { fmtMoney } from '../../lib/metrics.js';
 
@@ -94,7 +95,7 @@ function syncStatus(a) {
 // lets EA Setup appear only where it means something — a manual account has no EA —
 // without leaving a hole in a button strip.
 // ---------------------------------------------------------------------------
-function RowMenu({ account, onEdit, onSetup, onArchive, onDelete }) {
+function RowMenu({ account, onEdit, onSetup, onSync, onArchive, onDelete }) {
   const archived = account.is_active === false;
   return (
     <Menu>
@@ -110,6 +111,15 @@ function RowMenu({ account, onEdit, onSetup, onArchive, onDelete }) {
       <MenuContent>
         <MenuItem onClick={onEdit}>Edit account</MenuItem>
         {account.kind !== 'manual' && <MenuItem onClick={onSetup}>EA setup</MenuItem>}
+        {/* Live sync is the OTHER way trades arrive: our own MT5 terminal logs in with
+            the account's read-only investor password, for a trader who has no PC to
+            leave the EA running on. It sits next to EA setup because they are the two
+            halves of one question — how does this account get its trades — and it is
+            hidden on the same two conditions: a manual bucket has no terminal to log
+            into, and an archived account should not be woken by a scheduler. */}
+        {account.kind !== 'manual' && !archived && (
+          <MenuItem onClick={onSync}>Live sync</MenuItem>
+        )}
         <MenuSeparator />
         <MenuItem onClick={onArchive}>{archived ? 'Restore account' : 'Archive account'}</MenuItem>
         <MenuItem variant="destructive" onClick={onDelete}>Delete account</MenuItem>
@@ -126,7 +136,7 @@ function RowMenu({ account, onEdit, onSetup, onArchive, onDelete }) {
 // eight columns of account data cannot be honestly reflowed into a phone's width, and
 // a figure squeezed until it wraps is not a smaller figure, it is an unreadable one.
 // ---------------------------------------------------------------------------
-function AccountsTable({ rows, onEdit, onSetup, onArchive, onDelete }) {
+function AccountsTable({ rows, onEdit, onSetup, onSync, onArchive, onDelete }) {
   return (
     <div className="set-table-scroll">
       <table className="prop-table set-table">
@@ -180,6 +190,7 @@ function AccountsTable({ rows, onEdit, onSetup, onArchive, onDelete }) {
                     account={a}
                     onEdit={() => onEdit(a)}
                     onSetup={() => onSetup(a)}
+                    onSync={() => onSync(a)}
                     onArchive={() => onArchive(a)}
                     onDelete={() => onDelete(a)}
                   />
@@ -201,6 +212,7 @@ export default function SettingsAccounts() {
   // for different reasons and neither is a mode of the other.
   const [form, setForm] = useState(null);
   const [setup, setSetup] = useState(null);
+  const [syncFor, setSyncFor] = useState(null);
   const [err, setErr] = useState(null);
 
   // Newest first. `created_at` ascending is what the API returns (the switcher wants a
@@ -290,6 +302,7 @@ export default function SettingsAccounts() {
             rows={rows}
             onEdit={(a) => setForm({ mode: 'edit', account: a })}
             onSetup={(a) => setSetup(a)}
+            onSync={(a) => setSyncFor(a)}
             onArchive={toggleArchive}
             onDelete={remove}
           />
@@ -305,6 +318,9 @@ export default function SettingsAccounts() {
         />
       )}
       {setup && <EaSetupModal account={setup} onClose={() => setSetup(null)} />}
+      {syncFor && (
+        <SyncModal account={syncFor} onClose={() => setSyncFor(null)} onChanged={reloadAccounts} />
+      )}
     </>
   );
 }

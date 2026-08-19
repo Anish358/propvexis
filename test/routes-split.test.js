@@ -21,6 +21,10 @@ const ROUTES = [
   ['get', '/api/candles/requests'], ['get', '/api/trades/:id/replay'],
   ['get', '/api/ea/download'],
   ['get', '/api/accounts'], ['post', '/api/accounts'],
+  ['post', '/api/sync/lease'], ['post', '/api/sync/jobs/:id/result'],
+  ['post', '/api/sync/heartbeat'],
+  ['get', '/api/accounts/:id/sync'], ['post', '/api/accounts/:id/sync'],
+  ['put', '/api/accounts/:id/credentials'], ['delete', '/api/accounts/:id/credentials'],
   ['patch', '/api/accounts/:id'], ['delete', '/api/accounts/:id'], ['get', '/api/account'],
   ['get', '/api/strategies'], ['post', '/api/strategies'],
   ['patch', '/api/strategies/:id'], ['delete', '/api/strategies/:id'],
@@ -87,24 +91,40 @@ test('route modules are called, never registered as plugins', () => {
 });
 
 test('the guarded routes kept their guard', () => {
-  // Everything except the EA/webhook callers and the two ops endpoints is session
-  // -guarded. Losing `preHandler` in a copy-paste would expose a user's data with
+  // Everything except the EA/webhook callers and the two ops endpoints is
+  // guarded. Losing `preHandler` in a copy-paste would expose a user's data with
   // no visible symptom, so it is asserted per route rather than spot-checked.
+  //
+  // There are two guards, not one: `app.requireAuth` is the session cookie, and
+  // `requireWorker` is the sync farm's bearer token (the off-box Windows agent
+  // has no session). A route must carry one of them — but WHICH one is also
+  // pinned below, so a user route cannot be quietly downgraded to worker auth.
   const PUBLIC = new Set([
     'get /health', 'get /metrics', 'get /api/ea/download',
     'post /api/trades/ingest', 'post /api/equity/ingest', 'post /api/candles/ingest',
     'get /api/candles/requests', 'post /api/payouts/ingest',
     'get /api/billing/config', 'post /api/billing/webhook',
   ]);
+  // The only routes the sync worker's token may open. Everything else is a session.
+  const WORKER = new Set([
+    'post /api/sync/lease', 'post /api/sync/jobs/:id/result', 'post /api/sync/heartbeat',
+  ]);
   const unguarded = [];
+  const wrongGuard = [];
   for (const { text } of routeSources) {
     for (const m of text.matchAll(/app\.(get|post|put|patch|delete)\('([^']+)',\s*(\{[^}]*\})?/g)) {
       const key = `${m[1]} ${m[2]}`;
       if (PUBLIC.has(key)) continue;
-      if (!/preHandler:\s*app\.requireAuth/.test(m[3] ?? '')) unguarded.push(key);
+      const opts = m[3] ?? '';
+      const session = /preHandler:\s*app\.requireAuth/.test(opts);
+      const worker = /preHandler:\s*requireWorker/.test(opts);
+      if (!session && !worker) unguarded.push(key);
+      else if (worker !== WORKER.has(key)) wrongGuard.push(key);
     }
   }
-  assert.deepEqual(unguarded, [], `these routes lost app.requireAuth: ${unguarded.join(', ')}`);
+  assert.deepEqual(unguarded, [], `these routes lost their guard: ${unguarded.join(', ')}`);
+  assert.deepEqual(wrongGuard, [],
+    `these routes use the wrong guard for their audience: ${wrongGuard.join(', ')}`);
 });
 
 test('the EA source file resolves from wherever the route lives', () => {
