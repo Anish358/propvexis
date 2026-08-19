@@ -30,7 +30,12 @@ const signTone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 // payout statuses follow.
 const HEALTH_LABEL = { good: 'On Track', warn: 'At Risk', bad: 'Critical', na: 'No Data' };
 
-function MiniMeter({ label, value, limit, pct, tone, note }) {
+// One "$used / $limit" bar at card density. Exported because Prop OS > Challenges
+// draws the same two bars on its challenge cards, and a second copy of this markup is
+// how a card in one module and a card in the other would drift apart on what a
+// drawdown bar looks like. The classes travel with the component, which is why the
+// challenge card carries `.pa-meter*` rules it does not own.
+export function MiniMeter({ label, value, limit, pct, tone, note }) {
   return (
     <div className={`pa-meter prop-${tone}`}>
       <div className="pa-meter-head">

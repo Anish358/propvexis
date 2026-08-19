@@ -29,7 +29,7 @@ export const NAV = [
       { to: '/prop', label: 'Overview', end: true },
       { to: '/prop/finance', label: 'Finance' },
       { to: '/prop/accounts', label: 'Accounts' },
-      { to: '/prop/challenges', label: 'Challenges', soon: true },
+      { to: '/prop/challenges', label: 'Challenges' },
       { to: '/prop/analytics', label: 'Analytics', soon: true },
     ],
   },
@@ -70,11 +70,16 @@ export const LEGACY_REDIRECTS = {
 // accounts at two firms. So on this route the switcher offers one account at a
 // time rather than a page having to explain why a valid selection shows nothing.
 //
+// Prop OS > Challenges > Details is the same kind of screen for the same reason: a
+// challenge IS one account plus the phase rows it has accumulated, so its lifecycle,
+// its stage tiles and its current-phase rules all belong to exactly one account, and
+// there is no aggregate Phase 1 of three accounts at two firms.
+//
 // Declared HERE, with the rest of the IA, rather than as a check inside the top
 // bar: which page behaves how is an information-architecture fact, and the bar
 // and the page both read it from one place. Kept as an exact-path list (no
 // subtree matching) because the behaviour is a property of a specific screen.
-export const SINGLE_ACCOUNT_ROUTES = ['/prop/accounts'];
+export const SINGLE_ACCOUNT_ROUTES = ['/prop/accounts', '/prop/challenges'];
 
 export function isSingleAccountRoute(pathname = '/') {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;

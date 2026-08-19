@@ -4012,3 +4012,150 @@ label.full { margin-bottom: 16px; }
   .pa-card-figures > .pa-fig { padding-left: 0; border-left: none; }
   .pa-header { align-items: flex-start; }
 }
+
+/* ============================================================
+   Prop OS › Challenges  (PropChallenges.jsx + ChallengeCard /
+                          ChallengeDetails / ChallengeKpiCards /
+                          ChallengeLifecycle)
+
+   The `pc-` namespace, and it is deliberately SHORT. Almost everything this module
+   draws already existed: the challenge card is the `.pa-card*` frame the Accounts
+   card uses (same shape, same head, same figure strip, same footer, same
+   `MiniMeter` bars), the KPI tiles are `.jo-kpis.dash-stats` on --kpi-count with
+   `.dash-stat--typo-match` geometry, the selected-challenge header is `.pa-header*`,
+   the card heads are `.prop-card-head`, and every bar is `.prop-meter-track` /
+   `.prop-meter-fill` taking `--status` from the shared
+   `.prop-good|warn|bad|na|target|payout` tone classes.
+
+   What is new is only what did not exist: the lifecycle rail (the module's whole
+   reason for being), the current-phase metric block, the prop-firm sections and a
+   two-up card grid.
+   ============================================================ */
+
+/* The prop-firm selector. Same treatment as the Accounts sub-tabs: it belongs to
+   the sections beneath it rather than dividing the page, so it sits closer to them.
+   Scrolls rather than wraps — a wrapped row would leave an active underline
+   floating mid-control, since `.u-tab::after` draws under its own tab. */
+.pc-firms { align-self: flex-start; max-width: 100%; overflow-x: auto; margin-bottom: -4px; }
+/* `.u-tab` sets a `font:` shorthand and is not a flex box, so a count pill inside it
+   would sit on the text baseline. This only makes the row a flex line — the tab's
+   own type, colour and underline treatment are untouched. */
+.pc-firms .u-tab { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+/* ---- one prop firm, and the challenges under it ---- */
+/* The firm sections are direct children of `.page-body`, so the locked 16px section
+   rhythm between them is the page's gap and is not restated here. */
+.pc-firm { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pc-firm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* --fs-section-title, not --fs-page-title: the page's one title is in the top bar
+   ("Prop OS › Challenges"), and a firm is a section of this page. */
+.pc-firm-name {
+  margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold); color: var(--text);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pc-firm-count { font-size: var(--fs-body); color: var(--text-2); flex: none; }
+
+/* Two up on desktop, and a fixed two rather than the Accounts grid's auto-fill: a
+   challenge card carries a lifecycle rail plus two meters plus a figure strip, and
+   at three columns the rail's stage labels start truncating. The card is the unit of
+   comparison here, so it gets the width it needs to stay readable. */
+.pc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--dash-card-gap);
+  align-items: start;
+}
+/* The figure strip reads as a summary of the two meters above it, so it is grouped
+   off from them. The footer already carries the same rule. */
+.pc-card .pa-card-figures { padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* ---- the lifecycle rail ---- */
+/* ONE STEPPER, TWO DENSITIES (`--compact` on the cards). A stop's colour comes from
+   `--status` on the tone class the component sets, so nothing here names a colour. */
+.pc-rail { list-style: none; margin: 0 0 20px; padding: 0; display: flex; align-items: flex-start; }
+.pc-step { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.pc-step-track { display: flex; align-items: center; width: 100%; }
+.pc-step-line { flex: 1 1 auto; height: 2px; min-width: 8px; background: var(--line); border-radius: 2px; }
+/* The legs either side of the first and last stop are kept in the layout, not
+   removed, so every stop's node lands on the same centre line. */
+.pc-step-line.is-end { visibility: hidden; }
+.pc-step-line.is-travelled { background: var(--status-good); }
+.pc-step-node {
+  flex: none; width: 30px; height: 30px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: var(--fw-semibold) 12px/1 var(--font-sans);
+  border: 1.5px solid var(--line-strong); color: var(--muted); background: transparent;
+}
+/* A cleared or current stop is SOLID and a stop still ahead is an outline, so the
+   rail reads without colour at all; the mark inside differs too (tick / cross /
+   step number). */
+.pc-step--complete .pc-step-node,
+.pc-step--active .pc-step-node,
+.pc-step--breached .pc-step-node {
+  background: var(--status); border-color: var(--status); color: var(--bg);
+}
+/* A phase this challenge never ran is not a phase it has yet to reach. */
+.pc-step--skipped .pc-step-node { border-style: dashed; }
+.pc-step-text { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; text-align: center; }
+.pc-step-label { font-size: var(--fs-body); color: var(--text); }
+.pc-step--upcoming .pc-step-label, .pc-step--skipped .pc-step-label { color: var(--text-2); }
+.pc-step-status { font-size: var(--fs-label); color: var(--status); }
+
+.pc-rail--compact { margin-bottom: 0; }
+.pc-rail--compact .pc-step { gap: 6px; }
+.pc-rail--compact .pc-step-node { width: 22px; height: 22px; font-size: 11px; }
+.pc-rail--compact .pc-step-label { font-size: var(--fs-label); color: var(--text-2); }
+.pc-rail--compact .pc-step--active .pc-step-label,
+.pc-rail--compact .pc-step--breached .pc-step-label { color: var(--text); }
+
+/* ---- Details: the lifecycle card + the current phase ---- */
+.pc-lifecycle { display: flex; flex-direction: column; }
+.pc-current { border-top: 1px solid var(--line); padding-top: 16px; }
+.pc-current-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.pc-current-title { font-size: var(--fs-card-title); font-weight: var(--fw-semibold); color: var(--text); }
+.pc-current-meta { font-size: var(--fs-body); color: var(--text-2); }
+.pc-current-none { margin: 0; font-size: var(--fs-body); color: var(--text-2); max-width: 68ch; }
+
+/* One column per rule the phase actually carries — between two and four, so
+   auto-fit rather than a fixed count: a challenge with no trading-day requirement
+   gets three full-width columns instead of three and a gap. */
+.pc-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; }
+.pc-metric { min-width: 0; }
+.pc-metric-label { font-size: var(--fs-label); font-weight: 400; color: var(--text-2); }
+/* --fs-section-title, not --fs-primary-metric: the KPI row above is this page's hero
+   figures, and four 28px numbers under it would be a second, competing hero row. */
+.pc-metric-value {
+  margin: 4px 0 10px; font-family: var(--font-mono); font-feature-settings: 'tnum' 1, 'cv01' 1;
+  font-size: var(--fs-section-title); font-weight: var(--fw-semibold); color: var(--text);
+  letter-spacing: -.01em;
+}
+.pc-metric .prop-meter-track, .pc-metric .prop-meter-fill { height: 6px; }
+.pc-metric-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+/* ---- Details: the three stage KPI tiles ---- */
+/* The tile's status WORD carries the stage's tone. Scoped to this module rather than
+   written onto `.dash-stat-context-label`, which every other KPI row in the app uses
+   for a plain label. */
+.pc-stage-kpi .dash-stat-context-label { color: var(--status); }
+/* Emphasis on the stage the challenge is actually on is NEUTRAL — brand colour never
+   tints chrome (DESIGN-LANGUAGE N4). A stronger border, plus the fact that it is the
+   only tile carrying live figures, is the emphasis. */
+.pc-stage-kpi--current { border-color: var(--line-strong); }
+
+@media (max-width: 900px) {
+  /* One challenge per row — a two-up grid below this width would put the rail's
+     three stage labels into about 150px each. */
+  .pc-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  /* The rail STACKS rather than compressing: three stops across a phone would
+     truncate every label, and a lifecycle whose stages cannot be read is not a
+     lifecycle. The legs become vertical, so the journey still reads as one
+     connected line top to bottom. */
+  .pc-rail { flex-direction: column; align-items: stretch; }
+  .pc-step { flex-direction: row; align-items: center; gap: 14px; min-height: 52px; }
+  .pc-step-track { flex-direction: column; width: auto; align-self: stretch; }
+  .pc-step-line { width: 2px; height: auto; min-height: 10px; }
+  .pc-step-text { align-items: flex-start; text-align: left; }
+  .pc-current-head { margin-bottom: 12px; }
+}

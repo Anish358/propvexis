@@ -63,6 +63,19 @@ export function accountRow(state, account) {
 }
 
 /**
+ * Order rows by how much attention each needs, not alphabetically: the account
+ * closest to a breach is the one a trader has to look at first, and health is the
+ * engine's single answer to that question. Ties fall back to the name so the order
+ * is stable between polls.
+ *
+ * Exported (rather than living inside `bucketAccounts`) because Prop OS > Challenges
+ * lists the same rows under a different grouping and has the same first question. A
+ * second comparator there would be two answers to "which of these matters most".
+ */
+export const byRisk = (a, b) => (a.health?.score ?? 100) - (b.health?.score ?? 100)
+  || String(a.label).localeCompare(String(b.label));
+
+/**
  * Split every owned account into the four Portfolio sub-tabs.
  *
  * `states`  — GET /api/prop/portfolio's `states`: one challengeState per login.
@@ -88,13 +101,6 @@ export function bucketAccounts({ states = [], passed = [], accounts = [] } = {})
     else if (s.phase === 'funded') funded.push(row);
     else if (EVAL_PHASES.has(s.phase)) evaluation.push(row);
   }
-
-  // Sorted by how much attention each needs, not alphabetically: the account
-  // closest to a breach is the one a trader has to look at first, and health is
-  // the engine's single answer to that question. Ties fall back to the name so
-  // the order is stable between polls.
-  const byRisk = (a, b) => (a.health?.score ?? 100) - (b.health?.score ?? 100)
-    || String(a.label).localeCompare(String(b.label));
 
   return {
     evaluation: evaluation.sort(byRisk),

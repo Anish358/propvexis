@@ -25,6 +25,17 @@ const dash = readSrc('Dashboard.jsx');
 const topbar = readSrc('FilterBar.jsx');
 const app = readSrc('App.jsx');
 
+// The Accounts CSS block, bounded at BOTH ends. It used to be sliced to the end of
+// the stylesheet, which was true only while Accounts was the last block in the file;
+// Prop OS > Challenges now follows it, and an unbounded slice would read that
+// module's `pc-` selectors as this one's namespace violations.
+const accountsCssBlock = () => {
+  const start = legacyCss.indexOf('Prop OS › Accounts');
+  const end = legacyCss.indexOf('Prop OS › Challenges');
+  assert.ok(start !== -1, 'the Accounts CSS block should exist');
+  return legacyCss.slice(start, end === -1 ? undefined : end);
+};
+
 // ---------------------------------------------------------------------------
 // The locked IA
 // ---------------------------------------------------------------------------
@@ -104,11 +115,14 @@ test('selecting a card writes to the app-wide selection, then flips to Details',
 });
 
 test('the switcher is single-select on this route, and the IA is where that is declared', () => {
-  assert.deepEqual(SINGLE_ACCOUNT_ROUTES, ['/prop/accounts']);
+  // Challenges > Details joined the list when that module was built: a challenge is
+  // one account plus its phase rows, so it is a single-account workspace for the same
+  // reason. See nav.js — and test/prop-challenges.test.js, which asserts its half.
+  assert.deepEqual(SINGLE_ACCOUNT_ROUTES, ['/prop/accounts', '/prop/challenges']);
   assert.equal(isSingleAccountRoute('/prop/accounts'), true);
   assert.equal(isSingleAccountRoute('/prop/accounts/'), true, 'a trailing slash is the same page');
-  // ...and ONLY on this route: multi-select is the default everywhere else,
-  // because an aggregate view across accounts is what god view is for.
+  // ...and ONLY on the single-account workspaces: multi-select is the default
+  // everywhere else, because an aggregate view across accounts is what god view is for.
   for (const other of ['/prop', '/prop/finance', '/', '/journal/trades']) {
     assert.equal(isSingleAccountRoute(other), false, `${other} must keep multi-select`);
   }
@@ -218,7 +232,7 @@ test('status is a word plus a colour, never a colour alone', () => {
 // ---------------------------------------------------------------------------
 
 test('the module writes only its own namespace, and reuses the rest', () => {
-  const block = legacyCss.slice(legacyCss.indexOf('Prop OS › Accounts'));
+  const block = accountsCssBlock();
   assert.ok(block.length > 0, 'the Accounts CSS block should exist');
   // Every selector it introduces is `pa-` prefixed (plus the media queries and
   // the one `.u-tab` alignment fix scoped under `.pa-slices`).
@@ -235,7 +249,7 @@ test('the module writes only its own namespace, and reuses the rest', () => {
 });
 
 test('the portfolio grid is responsive without a new breakpoint vocabulary', () => {
-  const block = legacyCss.slice(legacyCss.indexOf('Prop OS › Accounts'));
+  const block = accountsCssBlock();
   assert.match(block, /\.pa-grid \{[^}]*repeat\(auto-fill, minmax\(320px, 1fr\)\)/s);
   // The same two breakpoints the Finance module already uses.
   assert.match(block, /@media \(max-width: 900px\)/);
