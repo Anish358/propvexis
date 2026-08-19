@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { NAV } from './nav.js';
 import { BRAND } from '../lib/theme.js';
@@ -95,20 +95,47 @@ function RailGroup({ item }) {
   );
 }
 
-export default function Sidebar({ onToggle = () => {} }) {
+/**
+ * @param {object}   props
+ * @param {Function} props.onToggle  hide the rail / close the drawer
+ * @param {boolean}  props.inDrawer  true when rendered as the mobile off-canvas
+ *   drawer. Only the semantics change — the nav itself is identical, because a
+ *   second copy of the tree for mobile is how the two silently drift apart.
+ */
+export default function Sidebar({ onToggle = () => {}, inDrawer = false }) {
+  const closeRef = useRef(null);
+
+  // Opening a drawer must move focus into it, or a keyboard user "opens" a menu
+  // and their next Tab continues from the button behind the scrim. Layout owns
+  // the return trip when it closes.
+  useEffect(() => {
+    if (inDrawer) closeRef.current?.focus();
+  }, [inDrawer]);
+
   return (
-    <aside className="sidebar">
+    <aside
+      className={`sidebar ${inDrawer ? 'is-drawer' : ''}`}
+      // As a drawer it is a modal surface over the page, so it says so; as a
+      // static rail it is just a landmark and must NOT claim to be a dialog.
+      {...(inDrawer ? { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Main navigation' } : {})}
+    >
       <div className="sb-head">
         {/* Router Link, not an href — the mark stays inside whichever origin
             the app is served from (localhost in dev, the deployed host in prod). */}
         <Link to="/" className="sb-brand"><Logo size={24} />{BRAND}</Link>
-        <button className="sb-collapse" onClick={onToggle} title="Hide sidebar" aria-label="Hide sidebar">
+        <button
+          ref={closeRef}
+          className="sb-collapse"
+          onClick={onToggle}
+          title={inDrawer ? 'Close menu' : 'Hide sidebar'}
+          aria-label={inDrawer ? 'Close menu' : 'Hide sidebar'}
+        >
           <span /><span /><span />
         </button>
       </div>
 
       {/* Sign-out lives in the top-bar avatar menu; the rail is nav-only. */}
-      <nav className="sb-nav">
+      <nav className="sb-nav" aria-label="Main">
         {NAV.map((item) =>
           item.children
             ? <RailGroup key={item.base} item={item} />

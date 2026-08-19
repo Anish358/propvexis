@@ -1014,6 +1014,33 @@ label.full { margin-bottom: 16px; }
    ============================================================ */
 .shell { display: flex; min-height: 100vh; }
 .shell-main { flex: 1; min-width: 0; }
+/* The skip link targets it, so it must be focusable — but never a tab stop of
+   its own, and never with a focus ring, since focusing a whole page region
+   should not draw a box around the viewport. */
+.shell-main:focus { outline: none; }
+
+/* Visually hidden, still in the accessibility tree. NOT display:none or
+   visibility:hidden — both remove the node from that tree, so a live region
+   using them would never announce anything. Defined here rather than as a
+   Tailwind utility because utilities only compile for components/{ui,primitives}
+   and Announcer.jsx lives in components/, where a class emits no CSS at all. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* Skip link — the first focusable element in the document. The rail is ~20 tab
+   stops, so without this every keyboard navigation to a new page starts by
+   traversing the entire nav again. Hidden until focused, then a real target. */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 100;
+  transform: translateY(-200%);
+  padding: 10px 16px; border-radius: var(--r-md);
+  background: var(--accent-strong); color: var(--on-accent);
+  font-size: 13px; font-weight: var(--fw-medium); text-decoration: none;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.skip-link:focus { transform: translateY(0); }
 
 .sidebar {
   width: 230px; flex-shrink: 0; background: var(--sidebar-bg); border-right: 1px solid var(--line);
@@ -2458,6 +2485,47 @@ label.full { margin-bottom: 16px; }
 /* ---- Account page ---- */
 .acct-card.archived { opacity: .55; }
 .acct-card .settings-btn { margin-top: 8px; }
+/* Two actions per card now (Manage, Live sync). They wrap rather than shrink,
+   because at the 900px drawer breakpoint the card is narrow enough that side-by-
+   side buttons would truncate their labels. */
+.acct-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- Live sync (server-side MT5 terminal farm) ---- */
+.sync-modal { padding-bottom: 16px; }
+.sync-body { padding: 12px 24px; display: flex; flex-direction: column; gap: 16px; }
+.sync-intro { font-size: 13px; line-height: 1.55; margin: 0; }
+.sync-intro strong { color: var(--text); font-weight: 400; }
+.sync-status { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sync-status td { padding: 7px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+.sync-status tr:last-child td { border-bottom: none; }
+.sync-status td.num { color: var(--text); text-align: right; }
+.sync-form { display: flex; flex-direction: column; gap: 12px; }
+.sync-form label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 12px; color: var(--muted);
+}
+.sync-form input {
+  background: var(--sidebar-bg); border: 1px solid var(--line); color: var(--text);
+  border-radius: 7px; padding: 8px 12px; font-size: 13px;
+}
+.sync-form input:disabled { color: var(--muted); cursor: not-allowed; }
+.sync-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.sync-actions button {
+  background: var(--neutral-3); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer;
+}
+.sync-actions .primary {
+  background: var(--accent-bg); border-color: var(--accent-border);
+  color: var(--accent-on-surface); font-weight: 400;
+}
+.sync-actions button:disabled { opacity: .55; cursor: not-allowed; }
+/* A broker-side failure is a warning, not a loss: the trader lost no money, the
+   sync just needs attention. So it borrows the warn tint, not .login-error's. */
+.sync-warn {
+  background: var(--tint-warn-7); color: var(--tint-warn-11);
+  border-radius: 8px; padding: 8px 12px; font-size: 12px;
+}
+.sync-note { color: var(--profit); font-size: 12px; }
 
 /* ---- Alerts page (reuses notif-* item styles) ---- */
 .alerts-page { display: flex; flex-direction: column; gap: 4px; }
@@ -3695,3 +3763,59 @@ label.full { margin-bottom: 16px; }
 
 .pc-account { font-size: 13px; margin-bottom: 4px; }
 .pc-hint { margin: -4px 0 4px; font-size: 11px; line-height: 1.45; }
+
+/* ============================================================
+   Design B — responsive shell (drawer) + dense tables on phones
+   ============================================================
+   ONE breakpoint for the shell: 900px, mirrored by MOBILE_QUERY in
+   lib/useMediaQuery.js. JS and CSS must agree — a drawer that opens at 900
+   while the layout keeps a fixed rail until 860 is broken in between. */
+
+@media (max-width: 900px) {
+  /* Off-canvas: the rail leaves the flow entirely rather than shrinking. A
+     230px rail on a 390px phone leaves 160px for a data table, which is not a
+     layout you can fix by narrowing it. */
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; z-index: 60;
+    height: 100dvh;              /* dvh, not vh: vh ignores mobile browser chrome */
+    width: min(280px, 84vw);
+    box-shadow: var(--sh-3);
+    overflow-y: auto;
+    /* Momentum scrolling inside the drawer without the page behind it moving
+       (Layout also locks body scroll while it is open). */
+    overscroll-behavior: contain;
+  }
+  .shell-scrim {
+    position: fixed; inset: 0; z-index: 55;
+    background: var(--scrim-3);
+  }
+
+  /* Touch targets. 44x44 is the floor; the rail's items are laid out for a
+     mouse at rest. */
+  .sidebar .sb-item, .sidebar .sb-sub-item { min-height: 44px; }
+  .sb-collapse { min-width: 44px; min-height: 44px; }
+
+  /* DENSE TABLES.
+     body sets `overflow-x: hidden` on the argument that anything that wide is
+     blank overflow rather than reachable content. True on desktop; false on a
+     phone, where the trade table is genuinely wider than the viewport and every
+     column is real data. So the table scrolls in its own box here.
+     The trade-off, made deliberately: .log-panel .grid-wrap is normally
+     `overflow: visible` so the sticky column header sticks to the PAGE. A
+     scroll box would capture it and pin it out of sight, so the header stops
+     being sticky at this width. On a phone a persistent header costs more
+     vertical space than it returns. */
+  .log-panel .grid-wrap { overflow-x: auto; overscroll-behavior-x: contain; }
+  .log-panel .grid thead th { position: static; }
+  .grid-wrap { -webkit-overflow-scrolling: touch; }
+  /* A fixed table layout divides the viewport between every column, so at phone
+     widths each one collapses to a few characters. Let content set the width and
+     scroll instead. */
+  .log-panel .grid { table-layout: auto; min-width: 720px; }
+}
+
+/* The drawer slides; users who ask for less motion just get it. */
+@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .sidebar.is-drawer { animation: drawer-in var(--dur) var(--ease) both; }
+  @keyframes drawer-in { from { transform: translateX(-100%); } to { transform: none; } }
+}

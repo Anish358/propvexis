@@ -9,6 +9,8 @@ import TradeSettingsModal from './TradeSettingsModal.jsx';
 import TradePreview from './TradePreview.jsx';
 import ReplayModal from './ReplayModal.jsx';
 import Explain from '../../components/Explain.jsx';
+import { Button, EmptyState } from '@/components/primitives';
+import { activeFilterCount } from '../filters/filters.js';
 import { NetPnlCard, ProfitFactorCard, TradeWinCard, AvgWinLossCard } from '../dashboard/KpiCards.jsx';
 import BulkActions from './BulkActions.jsx';
 import { computeMetrics } from '../../lib/metrics.js';
@@ -21,7 +23,11 @@ export default function TradeLog() {
     reloadTrades, strategies = [], accounts = [],
     toggleSidebar, accountId = 'all', unit = 'R',
     tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
+    filters, clearFilters = () => {},
   } = useOutletContext();
+  // "No trades at all" and "no trades matching the filters" look identical on
+  // screen but need opposite actions, so the empty state has to tell them apart.
+  const filtersActive = activeFilterCount(filters) > 0;
   // Clicking a row opens the read-only preview panel; its edit icon opens the
   // TagModal editor. `previewId` (not a snapshot) so the panel reflects live edits
   // and closes itself if the trade is deleted or filtered out.
@@ -192,19 +198,40 @@ export default function TradeLog() {
           />
         </div>
 
-        <div className="panel log-panel">
-          <TradesTable
-            trades={trades}
-            onRowClick={(t) => setPreviewId(t.id)}
-            highlightId={flashId}
-            unit={unit}
-            columnOverrides={columnOverrides}
-            beRounding={!!tradeSettings.beRounding}
-            selected={selected}
-            onSelect={selectOne}
-            onSelectAll={selectAll}
+        {/* Zero trades used to render a lone column header over blank space,
+            with no indication of whether the account was empty or the filters
+            were simply too narrow. Those are different problems with different
+            fixes, so they get different copy. */}
+        {trades.length === 0 ? (
+          <EmptyState
+            title={filtersActive ? 'No trades match these filters' : 'No trades yet'}
+            description={filtersActive
+              ? 'Widen or clear the filters in the bar above to see more of your history.'
+              : 'Trades appear here automatically once the EA is running on your MT5 account. You can also import a CSV or add one by hand.'}
+            actions={filtersActive
+              ? <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>
+              : (
+                <>
+                  <Button onClick={() => setImporting(true)}>Import CSV</Button>
+                  <Button variant="secondary" onClick={() => setAdding(true)}>Add trade</Button>
+                </>
+              )}
           />
-        </div>
+        ) : (
+          <div className="panel log-panel">
+            <TradesTable
+              trades={trades}
+              onRowClick={(t) => setPreviewId(t.id)}
+              highlightId={flashId}
+              unit={unit}
+              columnOverrides={columnOverrides}
+              beRounding={!!tradeSettings.beRounding}
+              selected={selected}
+              onSelect={selectOne}
+              onSelectAll={selectAll}
+            />
+          </div>
+        )}
       </div>
 
       <TradePreview

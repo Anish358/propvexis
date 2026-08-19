@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import PageHeader from '../../app/PageHeader.jsx';
 import AccountsModal from './AccountsModal.jsx';
+import SyncModal from './SyncModal.jsx';
 import PayoutsModal from '../prop/PayoutsModal.jsx';
 import FeesModal from '../prop/FeesModal.jsx';
 import { fmtMoney } from '../../lib/metrics.js';
@@ -13,7 +14,7 @@ import { fmtMoney } from '../../lib/metrics.js';
 
 const TYPE_LABEL = { eval: 'Evaluation', funded: 'Funded' };
 
-function AccountCard({ a, onManage }) {
+function AccountCard({ a, onManage, onSync }) {
   const archived = a.is_active === false;
   const status = archived ? 'Archived' : a.pending ? 'Pending first trade' : 'Active';
   return (
@@ -31,7 +32,15 @@ function AccountCard({ a, onManage }) {
           <tr><td>Status</td><td className="num">{status}</td></tr>
         </tbody>
       </table>
-      <button className="btn settings-btn" onClick={onManage}>Manage →</button>
+      <div className="acct-card-actions">
+        <button className="btn settings-btn" onClick={onManage}>Manage →</button>
+        {/* Live sync is server-side MT5: it needs a real login to log into, so a
+            manual bucket has nothing to sync, and an archived account should not
+            be woken up by a scheduler. */}
+        {a.kind !== 'manual' && !archived && (
+          <button className="btn settings-btn" onClick={onSync}>Live sync</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -42,6 +51,7 @@ export default function Account() {
     payouts = [], reloadPayouts, fees = [], reloadFees,
   } = useOutletContext();
   const [manageOpen, setManageOpen] = useState(false);
+  const [syncFor, setSyncFor] = useState(null);
   const [payoutsOpen, setPayoutsOpen] = useState(false);
   const [feesOpen, setFeesOpen] = useState(false);
 
@@ -81,7 +91,14 @@ export default function Account() {
           </div>
         ) : (
           <div className="bd-grid">
-            {active.map((a) => <AccountCard key={a.id} a={a} onManage={() => setManageOpen(true)} />)}
+            {active.map((a) => (
+              <AccountCard
+                key={a.id}
+                a={a}
+                onManage={() => setManageOpen(true)}
+                onSync={() => setSyncFor(a)}
+              />
+            ))}
           </div>
         )}
         {archived.length > 0 && (
@@ -94,6 +111,9 @@ export default function Account() {
         )}
       </div>
 
+      {syncFor && (
+        <SyncModal account={syncFor} onClose={() => setSyncFor(null)} onChanged={reloadAccounts} />
+      )}
       {manageOpen && (
         <AccountsModal accounts={accounts} onClose={() => setManageOpen(false)} onChanged={reloadAccounts} />
       )}

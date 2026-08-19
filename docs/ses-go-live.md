@@ -16,13 +16,31 @@ level instead of being sent. Signup, reset and verification all still work.
 |---|---|---|
 | 1. `APP_BASE_URL` in SSM, all 3 envs | ✅ done 2026-08-15 | — |
 | 2. `ses:SendEmail` on the instance role | ✅ done 2026-08-15 | — |
-| 3. SES domain identity + DKIM keys | ✅ created, **PENDING verification** | — |
-| 4. DKIM CNAMEs in Route 53 | ✅ added 2026-08-16, resolving; SES still `PENDING` | — |
-| 5. Production access (leave the sandbox) | ⚠️ **DENIED on first request — must be appealed** | you |
-| 6. `MAIL_FROM` in SSM + restart | ❌ **TODO — do this LAST** | you |
+| 3. SES domain identity + DKIM keys | ✅ `Verified: true`, DKIM `SUCCESS` 2026-08-19 | — |
+| 4. DKIM CNAMEs in Route 53 | ✅ added 2026-08-16, verified 2026-08-19 | — |
+| 5. Production access (leave the sandbox) | ✅ **`GRANTED` 2026-08-19** — 50k/day, 14/sec | — |
+| 6. `MAIL_FROM` in SSM + restart | ✅ **dev** 2026-08-19 · ⏳ **prod TODO** · ⛔ staging blocked | you |
 
 Steps 4 and 5 are independent; do them in either order. **Step 6 must come after
 step 4**, for the reason in its section.
+
+### Where it stands 2026-08-19
+
+Everything upstream of step 6 is green — the sandbox exit came through, the
+identity verified, and a probe send from the **instance role** succeeded
+(`ses:FromAddress` is matched against the parsed address, so the friendly form
+`PropVexis <no-reply@propvexis.com>` satisfies the IAM condition). Dev is live:
+signup and forgot-password both log `mail sent` and the mail arrives.
+
+**Prod was still `MAIL_FROM`-unset, which is the entire reason "Forgot password?"
+delivered nothing** — `mailerEnabled()` was false, so every link was written to
+the log instead of sent. Run the prod half of step 6 to close it.
+
+⛔ **staging cannot be turned on yet**: `/opt/amey-staging/node_modules` has no
+`@aws-sdk/client-sesv2`, so setting `MAIL_FROM` there would make `sendMail`
+throw on the lazy import — no mail *and* no logged link, the exact trap step 6
+warns about. Run `npm install` in `/opt/amey-staging` first (or let the next
+staging deploy do it), then set the parameter.
 
 ---
 
@@ -277,6 +295,19 @@ for env in dev staging prod; do
     --type String --overwrite
 done
 ```
+
+> **2026-08-19:** `dev` is done. Do **prod** next (staging is blocked — see the
+> status section). Prod is two commands:
+>
+> ```bash
+> aws ssm put-parameter --region ap-south-1 \
+>   --name /amey-journal/prod/MAIL_FROM \
+>   --value 'PropVexis <no-reply@propvexis.com>' \
+>   --type String --overwrite
+>
+> ssh -i ~/.ssh/amey-journal.pem ubuntu@13.205.66.72 \
+>   'pm2 restart amey-backend --update-env'
+> ```
 
 `MAIL_FROM` must stay `no-reply@propvexis.com` — the IAM policy
 (`amey-journal-ses-send`) is conditioned on that exact address, so a different
