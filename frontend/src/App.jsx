@@ -26,7 +26,10 @@ import JournalOverview from './features/analytics/JournalOverview.jsx';
 import DayView from './features/calendar/DayView.jsx';
 import Alerts from './features/alerts/Alerts.jsx';
 import Settings from './features/settings/Settings.jsx';
-import Account from './features/accounts/Account.jsx';
+import SettingsAccounts from './features/settings/SettingsAccounts.jsx';
+import {
+  SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
+} from './features/settings/SettingsPanels.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login (per-device nav state)
@@ -495,8 +498,17 @@ export default function App() {
 
             <Route path="alerts" element={<Alerts />} />
             <Route path="reports" element={<Reports />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="account" element={<Account />} />
+            {/* Settings module. Six sections, six routes, one shell that draws the
+                section rail and forwards this Outlet's context down (Settings.jsx).
+                The rail is in the PAGE, not the sidebar — nav.js `subnavInPage`. */}
+            <Route path="settings" element={<Settings />}>
+              <Route index element={<SettingsProfile />} />
+              <Route path="plan" element={<SettingsPlan />} />
+              <Route path="accounts" element={<SettingsAccounts />} />
+              <Route path="trades" element={<SettingsTrades />} />
+              <Route path="appearance" element={<SettingsAppearance />} />
+              <Route path="session" element={<SettingsSession />} />
+            </Route>
             <Route path="billing" element={<Billing />} />
 
             {/* Legacy flat routes → module routes (kept in sync via nav.js LEGACY_REDIRECTS) */}

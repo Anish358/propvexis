@@ -51,7 +51,10 @@ const code = (s) => s
 // Dashboard.jsx, and DashLayoutEditor uses `.dle-*` classes, so neither turned up in a
 // grep for `*Modal.jsx` or `.modal-backdrop`.
 const DIALOGS = [
-  ['AccountsModal.jsx', 'modal'],
+  // Was `AccountsModal.jsx`. The manage-everything modal split into AccountFormModal
+  // (add / edit) + EaSetupModal when its account LIST became Settings > Accounts; both
+  // live in this file, so the count is unchanged and so is every assertion below.
+  ['AccountForms.jsx', 'modal'],
   ['AddTradeModal.jsx', 'modal'],
   ['DayJournalWorkspace.jsx', 'modal'],
   ['DayTradesModal.jsx', 'modal'],

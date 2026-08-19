@@ -47,7 +47,6 @@ export default function Layout({
           accounts={accounts}
           accountId={accountId}
           setAccountId={setAccountId}
-          reloadAccounts={reloadAccounts}
           tradeSettings={tradeSettings}
           setBeRounding={setBeRounding}
           setColumnVisible={setColumnVisible}

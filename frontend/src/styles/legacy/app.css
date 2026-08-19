@@ -242,7 +242,7 @@ label.full { margin-bottom: 16px; }
 /* Convergence: every modal/form control gets the same soft brand focus ring as
    the ui.jsx u-input primitive (overrides the global outline for inputs). */
 .modal input:focus, .modal select:focus, .modal textarea:focus,
-.acct-prop input:focus, .acct-prop select:focus, .acct-add input:focus,
+.acct-prop input:focus, .acct-prop select:focus,
 .acct-template-row select:focus, .at-form input:focus, .at-form select:focus,
 .po-field input:focus, .po-field select:focus, .strat-add input:focus,
 .strat-row-name:focus, .rule-num:focus, .rule-text:focus,
@@ -890,7 +890,6 @@ label.full { margin-bottom: 16px; }
 }
 
 /* ---- account modal: prop config ---- */
-.acct-badge.type { background: var(--tint-ai-1); color: var(--ai); margin-left: 8px; }
 /* Prop-firm template picker (catalog in propFirms.js) */
 .acct-template { margin-top: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 8px; background: var(--surface-hover); }
 .acct-template-head { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
@@ -913,13 +912,6 @@ label.full { margin-bottom: 16px; }
   background: var(--bg); border: 1px solid var(--line); color: var(--text);
   border-radius: 8px; padding: 8px 8px; font-size: 13px;
 }
-.acct-edit { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.acct-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.acct-edit-actions button {
-  background: var(--neutral-3); border: 1px solid var(--line); color: var(--muted);
-  border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer;
-}
-.acct-edit-actions .primary { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent-on-surface); font-weight: 400; }
 
 /* ---- calendar ---- */
 /* .cal fills .dash-cal-panel's fixed (card-lg) height: .cal-head stays its
@@ -1121,49 +1113,16 @@ label.full { margin-bottom: 16px; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .modal-head h3 { margin: 0; font-size: var(--fs-section-title); }
 .modal-x { background: transparent; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
-.acct-modal { padding-bottom: 16px; }
-.acct-list { padding: 12px 24px; display: flex; flex-direction: column; gap: 12px; }
 .acct-empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
-.acct-row { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--surface-2); }
-.acct-row-main { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.acct-row-label { font-weight: 400; font-size: 14px; }
-.acct-badge { font-size: 11px; padding: 4px 8px; border-radius: 8px; }
-.acct-badge.pending { background: var(--tint-warn-7); color: var(--tint-warn-11); }
-.acct-badge.bound { background: var(--tint-profit-5); color: var(--profit); }
-.acct-row-actions { display: flex; gap: 8px; margin-top: 12px; }
-.acct-row-actions button, .acct-add button {
-  background: var(--surface-2); border: 1px solid var(--line); color: var(--neutral-14);
-  border-radius: 7px; padding: 8px 12px; font-size: 12px; cursor: pointer;
-}
-.acct-row-actions button:hover { border-color: var(--line-strong); }
-.acct-row-actions .danger:hover { background: var(--tint-loss-7); border-color: var(--red); color: var(--loss); }
 .acct-setup { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
 .acct-steps { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--neutral-14); }
 .acct-steps code { background: var(--neutral-1); padding: 4px 8px; border-radius: 4px; font-size: 11.5px; color: var(--tint-accent); }
 .acct-copy { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .acct-copy code { flex: 1; overflow-x: auto; white-space: nowrap; padding: 4px 8px; }
-.acct-token { color: var(--tint-warn-11) !important; }
 .acct-copy button { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent-on-surface); border-radius: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer; }
 .acct-created { margin: 4px 24px 0; background: var(--tint-profit-3); border: 1px solid var(--profit-border); border-radius: 10px; padding: 12px; }
 .acct-created-head { color: var(--profit); font-size: 13px; font-weight: var(--fw-semibold); }
-.acct-add-toggle { display: flex; justify-content: center; padding: 16px 24px 4px; }
-.acct-add-btn {
-  background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent-on-surface);
-  border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 400; cursor: pointer;
-}
-.acct-add-btn:hover { background: var(--accent-hover-bg); }
-.acct-row.archived { opacity: 0.6; }
-.acct-badge.archived { background: var(--tint-warn-5); color: var(--tint-warn-10); margin-left: 8px; }
-.acct-add { padding: 16px 24px 0; margin-top: 8px; }
 .acct-add-row { display: flex; gap: 8px; }
-.acct-add input {
-  background: var(--sidebar-bg); border: 1px solid var(--line); color: var(--text);
-  border-radius: 7px; padding: 8px 12px; font-size: 13px;
-}
-.acct-add input:first-child { flex: 1; }
-.acct-add input[type=number] { width: 120px; }
-.acct-add button { white-space: nowrap; background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent-on-surface); font-weight: 400; }
-.acct-badge.manual { background: var(--tint-ai-1); color: var(--ai); }
 /* kind picker (manual bucket vs live EA sync) in the add-account form */
 .acct-kind { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .acct-kind-opt {
@@ -2400,24 +2359,6 @@ label.full { margin-bottom: 16px; }
   border-radius: 999px; padding: 4px 12px;
 }
 
-/* ---- Settings page ---- */
-.settings-page { max-width: 640px; }
-.settings-profile { display: flex; gap: 16px; align-items: flex-start; }
-.settings-pic { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line); }
-.settings-rows { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-.settings-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 4px 0; }
-.settings-btn {
-  margin-top: 12px; display: inline-block; background: transparent; color: var(--text);
-  border: 1px solid var(--line); padding: 8px 16px; border-radius: 6px; cursor: pointer;
-  font-weight: 400; font-size: 13px; text-decoration: none;
-}
-.settings-btn:hover { border-color: var(--accent-border-strong); color: var(--accent-on-surface); }
-.settings-btn.danger:hover { border-color: var(--red); color: var(--status-bad); }
-
-/* ---- Account page ---- */
-.acct-card.archived { opacity: .55; }
-.acct-card .settings-btn { margin-top: 8px; }
-
 /* ---- Alerts page (reuses notif-* item styles) ---- */
 .alerts-page { display: flex; flex-direction: column; gap: 4px; }
 .alerts-page .notif-item { border-bottom: 1px solid var(--line); }
@@ -3422,11 +3363,6 @@ label.full { margin-bottom: 16px; }
    the width floor is not, so it is all that remains. */
 .tb-acct .acct-menu { min-width: 220px; }
 
-/* Settings modal (opened from the top-bar avatar) */
-.settings-modal { max-width: 460px; }
-.settings-modal-body { display: flex; flex-direction: column; }
-.settings-modal .settings-btn { margin-top: 12px; }
-
 /* Page header — ghost hamburger (fewer boxed elements) */
 .ph-menu { background: transparent; border: 1px solid transparent; }
 .ph-menu:hover { background: var(--surface-hover); }
@@ -3461,7 +3397,6 @@ label.full { margin-bottom: 16px; }
 .cs-badge { background: var(--sel-bg); color: var(--text-2); border-color: var(--line); }
 .wcz-opt input, .ts-col-opt input { accent-color: var(--text-2); }
 .sb-plan-badge.pro { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
-.acct-badge.bound { background: var(--sel-bg); color: var(--text); }
 
 /* ============================================================
    Flat surfaces — no gradients (brand design language). The top bar stays
@@ -3501,7 +3436,7 @@ label.full { margin-bottom: 16px; }
 .pill, .chip, .cal-stats-pill, .cal-week-days, .dash-banner-alert, .dash-stat-count,
 .import-stat, .log-untagged, .tp-badge, .rp-dir, .prop-phase, .prop-mode,
 .conn, .auto-hint, .po-src, .sb-soon,
-.cs-badge, .precision-chip, .rule-chip, .acct-badge, .prop-reason-chip {
+.cs-badge, .precision-chip, .rule-chip, .prop-reason-chip {
   font-weight: var(--fw-semibold);
 }
 
@@ -3511,11 +3446,10 @@ label.full { margin-bottom: 16px; }
    weight from the preset (`font-medium`), which is the 500 step this 600 rule was
    approximating before the foundation existed. */
 .modal button.primary, .modal button.danger, .fb-clear,
-.acct-template-apply, .acct-edit-actions .primary, .cal-today-btn, .add-trade-btn,
-.at-actions button, .acct-add-btn, .acct-add button, .ea-download,
+.acct-template-apply, .cal-today-btn, .add-trade-btn, .at-actions button, .ea-download,
 .import-actions .primary, .view-tab, .ts-open-btn, .tp-replay-btn, .rp-tf-btn,
 .rp-retry, .rp-speed, .strat-add button, .strat-btn, .prop-controls .btn-primary,
-.prop-finance-head .btn, .report-actions .btn, .report-locked .btn, .settings-btn,
+.prop-finance-head .btn, .report-actions .btn, .report-locked .btn,
 .payout-add .primary, .tp-delete-confirm .danger {
   font-weight: var(--fw-semibold);
 }
@@ -4158,4 +4092,218 @@ label.full { margin-bottom: 16px; }
   .pc-step-line { width: 2px; height: auto; min-height: 10px; }
   .pc-step-text { align-items: flex-start; text-align: left; }
   .pc-current-head { margin-bottom: 12px; }
+}
+
+/* ============================================================
+   Settings module  (Settings.jsx + settingsNav / SettingsAccounts /
+                     SettingsPanels + the account dialogs in AccountForms)
+
+   The `set-` namespace. As with the Prop OS modules, everything this one needs
+   that already exists is REUSED rather than restated, and that is most of the
+   page: every panel is the `Card` primitive on the preset's skin, the tab row is
+   `.u-tabs` via the Tabs primitive, the accounts table is `.prop-table` with the
+   `.fin-table` column model, empty states are `.u-empty`, badges are `.u-badge`
+   and the plan pill is `.sb-plan-badge`. What is below is the section rail, the
+   label/value rows, and what eight columns of account admin need on top of
+   `.prop-table`.
+
+   WHAT THIS BLOCK REPLACED: the old `.settings-*` rules (a 640px one-column page
+   of four panels) and the manage-accounts modal's `.acct-list` / `.acct-row*` /
+   `.acct-badge*` list. Both are deleted rather than left in place, because an
+   unlayered legacy rule outranks everything Tailwind emits — a dead one is not
+   inert, it is a rule waiting to capture a future class name.
+   ============================================================ */
+
+/* ---- The shell: section rail + one section's panels ---- */
+
+/* 190px, not the screenshot's ~130: our longest label is "Plan & Billing" and a
+   rail is only useful if every row reads at a glance. The gutter is 16px, the
+   same gutter `.fin-cols` and `.dash-grid` use — layout spacing is a locked
+   invariant, so it takes the app's existing number rather than a new one. */
+.set-shell {
+  display: grid; grid-template-columns: 190px minmax(0, 1fr);
+  gap: 16px; align-items: start;
+}
+
+/* Sticky, so the rail is still reachable after scrolling a long section (the
+   column checklist runs past a laptop viewport). `--topbar-h` is published by the
+   top bar itself — the same measured value the trade log's sticky header reads,
+   rather than a second guess at the bar's height. */
+.set-rail {
+  position: sticky; top: calc(var(--topbar-h, 50px) + 16px);
+  display: flex; flex-direction: column; min-width: 0;
+}
+.set-rail-group { display: flex; flex-direction: column; gap: 2px; }
+.set-rail-group + .set-rail-group { margin-top: 20px; }
+/* Title Case at --fs-label, and NOT all-caps with wide tracking. All-caps is
+   prohibited outright (DESIGN-LANGUAGE §3) and the tracking that normally makes it
+   legible is prohibited with it, so a group divider does its job with size and
+   colour instead — which is all it was ever doing. */
+.set-rail-group-label {
+  font-size: var(--fs-label); font-weight: 400; color: var(--text-2);
+  padding: 0 10px 6px;
+}
+/* --r-md: a rail row is "smaller chrome — icon buttons, menu rows" in §6's
+   assignment table, a step below the button radius. */
+.set-rail-link {
+  display: block; padding: 7px 10px; border-radius: var(--r-md);
+  font-size: var(--fs-body); color: var(--text-2); text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+/* §14 read literally: this row has no border, so hover fills the surface rather
+   than brightening an edge it does not have. Selection is NEUTRAL (--sel-bg) —
+   brand colour never tints chrome. */
+.set-rail-link:hover { background: var(--surface-hover); color: var(--text); }
+.set-rail-link.active { background: var(--sel-bg); color: var(--text); }
+
+/* 16px between the section header and the panels, and between panels: the locked
+   section rhythm, expressed once as the column's gap instead of as a margin on
+   each child. */
+.set-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* --fs-section-title, not --fs-page-title: the page's one title is already in the
+   top bar ("Settings › Accounts"), and a 24px line under it would be two. */
+.set-section-head { min-width: 0; }
+.set-section-title {
+  margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold); color: var(--text);
+}
+/* The same one-line supporting copy `.fin-card-sub` sets under a section title —
+   interface text, so the foundation's leading, not prose's 1.6. */
+.set-section-blurb { margin: 4px 0 0; font-size: 12px; color: var(--text-2); line-height: 1.45; }
+
+/* ---- Panels ---- */
+
+.set-card { min-width: 0; }
+.set-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.set-tabs { align-self: flex-start; }
+/* `.u-tab` sets a `font:` shorthand and is not a flex box, so a count pill inside
+   one would sit on the text baseline. Makes the row a flex line and nothing else —
+   the tab's type, colour and underline are untouched. Same two lines as
+   `.pa-slices`. */
+.set-tabs .u-tab { display: inline-flex; align-items: center; gap: 6px; }
+.set-tab-count { flex: none; }
+.set-error { margin-bottom: 12px; }
+
+/* A label/value list, divided by the hairline every other row strip in the app
+   uses. The label is --text-2 at full opacity, the standard for a label beside a
+   value; the value is --text, because it is the content. */
+.set-rows { display: flex; flex-direction: column; }
+.set-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 0; border-top: 1px solid var(--line); font-size: var(--fs-body);
+}
+.set-row:first-child { border-top: none; padding-top: 0; }
+.set-row-label { color: var(--text-2); flex: none; }
+.set-row-value { color: var(--text); text-align: right; min-width: 0; }
+
+.set-identity {
+  display: flex; align-items: center; gap: 16px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 16px;
+}
+.set-identity-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-identity-name {
+  font-size: var(--fs-card-title); font-weight: var(--fw-semibold); color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.set-identity-email {
+  font-size: 12px; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.set-note { margin: 16px 0 0; font-size: 12px; color: var(--text-2); line-height: 1.45; }
+.set-actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+
+/* Trade Settings hosts `.ts-section`, which was written for a modal and opens with
+   `padding: 16px 0 4px`. Inside a card that already pads itself, the first one's
+   top padding is doubled — this cancels exactly that, and nothing else, so the
+   panel's own rhythm still comes from one place. */
+.set-card--flush-sections > .ts-section:first-of-type { padding-top: 0; }
+
+/* ---- The accounts table ----
+   On `.prop-table`, with the `.fin-table` column model: `width: 1%` on every
+   known-short column is what leaves Account and Firm to split the rest, instead of
+   auto layout handing a third of the row to whichever cell holds the longest
+   string. `max-width: none` cancels `.prop-table`'s `max-width: 0` — that is the
+   ellipsis mechanism for long free text and it is exactly wrong on a figure, where
+   it truncates $100,000 to "$100,…", which is not a smaller number.
+
+   Both selectors carry `.set-table` + the class + the element, so they tie with
+   `.prop-table td:first-child` on specificity and win by being later in the file —
+   which is what lets the Account column out of that rule's 40%. */
+.set-table-scroll { overflow-x: auto; }
+.set-table { min-width: 880px; }
+.set-table td { padding: 10px 12px 10px 0; vertical-align: middle; }
+.set-table th { padding: 0 12px 8px 0; }
+.set-table td.set-col-tight, .set-table th.set-col-tight {
+  width: 1%; max-width: none; white-space: nowrap;
+}
+.set-table td.set-col-name, .set-table th.set-col-name { width: auto; max-width: 280px; }
+/* A figure is mono and tabular so the column aligns on the digit. */
+.set-table td.set-col-figure {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text);
+}
+/* A date is not a number: left-aligned with the text beside it (`.num` would push
+   it away from its own header), tabular so the digits still line up. */
+.set-table td.set-col-date { font-variant-numeric: tabular-nums; color: var(--text-2); }
+/* A pill and a menu trigger must not be clipped by the row's overflow rule. */
+.set-table td.set-col-badge { overflow: visible; }
+.set-table td.set-col-actions, .set-table th.set-col-actions {
+  width: 1%; max-width: none; text-align: right; padding-right: 0; overflow: visible;
+}
+
+/* The login is the account's identity to MT5 and to nobody else, so it rides under
+   the name the trader gave it rather than taking a column of its own. */
+.set-acct-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.set-acct-sub { font-size: var(--fs-label); color: var(--text-2); margin-top: 2px; }
+/* "Auto sync" is the mechanism, the pill is its state — a word first, colour only
+   reinforcing it. */
+.set-sync { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.set-sync-word { color: var(--text-2); }
+
+/* ---- The account dialogs (AccountForms.jsx) ----
+   `.modal` carries its own 24px padding from the original modal rules, and
+   `.modal-head` pads itself as well — so a modal built the `.modal-head` way has to
+   cancel the outer padding or every section is inset twice. That is what the
+   accounts modal did through `.acct-list`'s own padding; this states it directly. */
+.acct-form-modal { padding: 0; }
+.acct-form-body { padding: 16px 24px; }
+.acct-form-body .acct-created { margin: 0 0 12px; }
+.acct-form-field {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--muted); margin-top: 12px;
+}
+.acct-form-subject { font-size: var(--fs-body); color: var(--text); margin-bottom: 8px; }
+.acct-form-foot {
+  display: flex; justify-content: flex-end; gap: 12px;
+  padding: 16px 24px; border-top: 1px solid var(--line); margin-top: 4px;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 900px) {
+  /* The rail goes ON TOP and scrolls sideways rather than narrowing. Six labels at
+     body size need roughly 600px laid out in a row, and a rail narrow enough to sit
+     beside content on a phone is a rail of truncated words — the same reasoning the
+     Challenges lifecycle stacks by rather than compressing. The group labels stay:
+     they are what keeps the scroller readable as two groups instead of one run of
+     six links. */
+  .set-shell { grid-template-columns: minmax(0, 1fr); }
+  .set-rail {
+    position: static; flex-direction: row; align-items: center; gap: 4px;
+    overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 4px;
+  }
+  .set-rail-group { flex-direction: row; align-items: center; gap: 4px; }
+  .set-rail-group + .set-rail-group { margin-top: 0; }
+  .set-rail-group-label { padding: 0 2px 0 8px; white-space: nowrap; }
+  .set-rail-link { white-space: nowrap; }
+}
+@media (max-width: 560px) {
+  /* A label above its value, not beside it: at this width the two were sharing
+     about 130px each, and an email is the one value in here that cannot shorten. */
+  .set-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .set-row-value { text-align: left; }
+  .set-card-head { align-items: stretch; }
 }

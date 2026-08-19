@@ -1,12 +1,34 @@
 import React, { useState } from 'react';
-// PHASE 4b — on the shared Modal shell. This modal had no Escape, no role, no focus
-// trap, no focus return and no scroll lock; all five come from the shell now, and the
-// hand-rolled portal is gone with it. Its content below is untouched.
 import { Modal } from '@/components/primitives';
 import { Link } from 'react-router-dom';
-import { createAccount, updateAccount, deleteAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from '../../lib/api.js';
+import { createAccount, updateAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { PROP_FIRMS, findFirm, templateToFields } from '../prop/propFirms.js';
+
+// ---------------------------------------------------------------------------
+// The account FORMS — the shared field components plus the two dialogs that host
+// them. Everything about adding, editing and wiring up a trading account is here;
+// nothing here LISTS accounts.
+//
+// THIS FILE USED TO BE `AccountsModal.jsx`, ONE MODAL THAT DID ALL FOUR JOBS: it
+// listed every account, added one, edited one inline and showed the EA setup, and it
+// was opened from three places. The list half moved to Settings > Accounts, where it
+// is a table with a row menu (SettingsAccounts.jsx) — so what was left was a modal
+// that showed a second, smaller copy of the same list underneath a form. Two lists of
+// the same accounts, one of them inside a dialog opened from the other, is the
+// duplication this split removes.
+//
+// So the modal became two, each answering one question:
+//
+//   AccountFormModal   add an account, or edit one's rules
+//   EaSetupModal       how do I get trades flowing into this account
+//
+// WHAT DID NOT CHANGE, AND DELIBERATELY: the fields. `TemplatePicker`, `PropFields`,
+// `SetupCard`, `toPayload` and `formFrom` are the same components and the same
+// arithmetic they always were, because the onboarding wizard renders them too
+// (Onboarding.jsx) and a second copy of a drawdown field is how a rule ends up
+// meaning one thing on first run and another afterwards.
+// ---------------------------------------------------------------------------
 
 // Human size label: 50000 -> "50K".
 const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : String(n));
@@ -218,60 +240,59 @@ export const applyTemplateToForm = (prev, fields) => ({
   firm_name: fields.firm_name ?? null,
 });
 
-// Inline editor for an existing account's prop-firm config.
-function EditForm({ account, onSaved, onCancel }) {
+// ---------------------------------------------------------------------------
+// AccountFormModal — add an account, or edit an existing one's rules.
+//
+// ONE COMPONENT FOR BOTH, because the two forms are the same form minus one field.
+// Adding asks which KIND of account it is (a manual bucket or a live EA-synced one),
+// and that question has exactly one right moment: a synced account is provisioned
+// with an ingest token and a manual one is given a synthetic login, so `kind` is not
+// editable afterwards by design (see domain/accounts/accounts.js). Everything else —
+// the label, the firm template, the six rule fields — is identical, and writing it
+// twice is how an edit form ends up missing the field an add form gained.
+//
+// ADDING A SYNCED ACCOUNT CONTINUES INTO ITS EA SETUP RATHER THAN CLOSING. The
+// account exists at that point but no trades reach it until the EA is attached, so
+// closing on success would leave a row reading "Waiting for first trade" with no
+// indication of what the user is waiting for. A manual account needs nothing, so it
+// closes immediately. That is the behaviour the old modal had; it is written down
+// here because it is the one place the two kinds diverge after submit.
+// ---------------------------------------------------------------------------
+
+export function AccountFormModal({ mode = 'add', account = null, onClose, onSaved }) {
+  const { user } = useAuth();
+  const eaOk = eaAllowed(user?.plan);
+  const editing = mode === 'edit';
+
+  const [label, setLabel] = useState(account?.label || '');
+  // Default to EA sync where the plan allows it — that is what a trader adding a prop
+  // account almost always wants; the manual bucket is the deliberate choice.
+  const [kind, setKind] = useState(eaOk ? 'synced' : 'manual');
   const [v, setV] = useState(formFrom(account));
   const [busy, setBusy] = useState(false);
-  const set = (f, val) => setV((p) => ({ ...p, [f]: val }));
-  async function save() {
-    setBusy(true);
-    try {
-      await updateAccount(account.id, toPayload(v));
-      onSaved?.();
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="acct-edit">
-      <TemplatePicker onApply={(fields) => setV((p) => applyTemplateToForm(p, fields))} />
-      <PropFields v={v} set={set} />
-      <div className="acct-edit-actions">
-        <button onClick={onCancel}>Cancel</button>
-        <button className="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
-      </div>
-    </div>
-  );
-}
-
-export default function AccountsModal({ accounts = [], onClose, onChanged }) {
-  const { user } = useAuth();
-  const eaOk = eaAllowed(user?.plan); // may create live-synced (EA) accounts
-  const [label, setLabel] = useState('');
-  // 'manual' = a no-sync bucket to segregate manual/CSV trades (any plan);
-  // 'synced' = a live EA-linked account (Pro+). Default to EA when allowed.
-  const [kind, setKind] = useState(eaOk ? 'synced' : 'manual');
-  const [v, setV] = useState(formFrom(null));
-  const [busy, setBusy] = useState(false);
-  const [created, setCreated] = useState(null); // freshly created account -> show its setup
-  const [openSetupId, setOpenSetupId] = useState(null);
-  const [editId, setEditId] = useState(null);
   const [err, setErr] = useState(null);
-  const [showAdd, setShowAdd] = useState(false); // add form hidden until user opts in
+  // Set once a synced account has been created — the dialog's second step.
+  const [created, setCreated] = useState(null);
   const set = (f, val) => setV((p) => ({ ...p, [f]: val }));
 
-  async function add(e) {
+  async function submit(e) {
     e.preventDefault();
     if (!label.trim()) return;
     setBusy(true);
     setErr(null);
     try {
-      const acct = await createAccount({ label: label.trim(), kind, ...toPayload(v) });
-      setCreated(acct);
-      setLabel('');
-      setV(formFrom(null));
-      setShowAdd(false);
-      onChanged?.();
+      if (editing) {
+        await updateAccount(account.id, { label: label.trim(), ...toPayload(v) });
+        onSaved?.();
+        onClose?.();
+      } else {
+        const acct = await createAccount({ label: label.trim(), kind, ...toPayload(v) });
+        onSaved?.();
+        // See the header: a synced account continues to its EA setup, a manual one is
+        // ready the moment it exists.
+        if (acct.kind === 'manual') onClose?.();
+        else setCreated(acct);
+      }
     } catch (e2) {
       setErr(e2.message);
     } finally {
@@ -279,43 +300,40 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
     }
   }
 
-  async function remove(id) {
-    if (!confirm('Delete this account? Its trades stay but become unlinked.')) return;
-    await deleteAccount(id);
-    if (created?.id === id) setCreated(null);
-    onChanged?.();
-  }
+  const title = editing ? 'Edit Account' : 'Add Account';
 
-  // Archive/unarchive: soft toggle via is_active. Archived accounts drop out of
-  // the switcher but keep their trades and can be restored here.
-  async function toggleArchive(a) {
-    await updateAccount(a.id, { is_active: a.is_active === false });
-    onChanged?.();
+  if (created) {
+    return (
+      <Modal onClose={onClose} className="acct-form-modal" label="Finish EA setup">
+        <div className="modal-head">
+          <h3>Finish EA Setup</h3>
+          <button className="modal-x" onClick={onClose} aria-label="Close">&#10005;</button>
+        </div>
+        <div className="acct-form-body">
+          <div className="acct-created">
+            <div className="acct-created-head">
+              &ldquo;{created.label}&rdquo; created. Attach the EA to start syncing:
+            </div>
+          </div>
+          <SetupCard account={created} />
+        </div>
+        <div className="acct-form-foot">
+          <button type="button" className="primary" onClick={onClose}>Done</button>
+        </div>
+      </Modal>
+    );
   }
-
-  const acctType = (a) => (a.account_type === 'funded' ? 'Funded' : 'Eval');
-  const isArchived = (a) => a.is_active === false;
-  // Newest account first (most recently added at the top).
-  const sorted = [...accounts].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   return (
-    <Modal onClose={onClose} className="acct-modal" label="MT5 Accounts">
-        <div className="modal-head">
-          <h3>MT5 Accounts</h3>
-          <button className="modal-x" onClick={onClose}>✕</button>
-        </div>
-
-        {/* add account toggle — centered at the top; the form is hidden until opened */}
-        <div className="acct-add-toggle">
-          <button type="button" className="acct-add-btn" onClick={() => { setShowAdd((s) => !s); setErr(null); }}>
-            {showAdd ? 'Cancel' : '+ Add account'}
-          </button>
-        </div>
-
-        {/* add form — only shown once the user clicks "Add account" */}
-        {showAdd && (
-          <form className="acct-add" onSubmit={add}>
-            {/* Kind picker: a manual bucket (any plan) vs live EA sync (Pro+). */}
+    <Modal onClose={onClose} className="acct-form-modal" label={title}>
+      <div className="modal-head">
+        <h3>{title}</h3>
+        <button className="modal-x" onClick={onClose} aria-label="Close">&#10005;</button>
+      </div>
+      <form className="acct-form-body" onSubmit={submit}>
+        {/* Kind is an add-time decision only — see the header. */}
+        {!editing && (
+          <>
             <div className="acct-kind">
               <label className={`acct-kind-opt ${kind === 'manual' ? 'sel' : ''}`}>
                 <input type="radio" name="acct-kind" checked={kind === 'manual'} onChange={() => setKind('manual')} />
@@ -331,78 +349,63 @@ export default function AccountsModal({ accounts = [], onClose, onChanged }) {
             </div>
             {!eaOk && (
               <div className="acct-kind-upsell">
-                Want live sync? <Link to="/billing" onClick={onClose}>Upgrade to Pro →</Link>
+                Want live sync? <Link to="/billing" onClick={onClose}>Upgrade to Pro &rarr;</Link>
               </div>
             )}
-            <div className="acct-add-row">
-              <input
-                placeholder="Account label (e.g. GFT Challenge #1)"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-              <button type="submit" disabled={busy || !label.trim()}>{busy ? 'Adding…' : '+ Add account'}</button>
-            </div>
-            <TemplatePicker onApply={(fields, suggested) => {
-              setV((p) => applyTemplateToForm(p, fields));
-              if (!label.trim() && suggested) setLabel(suggested);
-            }} />
-            <PropFields v={v} set={set} />
-            {err && <div className="login-error">{err}</div>}
-          </form>
+          </>
         )}
 
-        {/* freshly created -> manual accounts are ready now; synced ones need EA setup */}
-        {created && (
-          <div className="acct-created">
-            {created.kind === 'manual' ? (
-              <div className="acct-created-head">✓ “{created.label}” created — switch to it in the account picker to log or import trades there.</div>
-            ) : (
-              <>
-                <div className="acct-created-head">✓ “{created.label}” created. Finish setup in your EA:</div>
-                <SetupCard account={created} />
-              </>
-            )}
-          </div>
-        )}
+        <label className="acct-form-field">
+          <span>Account name</span>
+          <input
+            placeholder="e.g. FTMO Challenge #1"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </label>
 
-        {/* existing accounts, newest first */}
-        <div className="acct-list">
-          {accounts.length === 0 && <div className="acct-empty">No accounts yet — add one above.</div>}
-          {sorted.map((a) => (
-            <div key={a.id} className={`acct-row${isArchived(a) ? ' archived' : ''}`}>
-              <div className="acct-row-main">
-                <div className="acct-row-label">{a.label}</div>
-                <div className="acct-row-meta">
-                  {a.kind === 'manual' ? (
-                    <span className="acct-badge manual">✎ Manual</span>
-                  ) : a.pending ? (
-                    <span className="acct-badge pending">● Waiting for first trade</span>
-                  ) : (
-                    <span className="acct-badge bound">MT5 {a.mt5_login}</span>
-                  )}
-                  <span className="acct-badge type">{acctType(a)}</span>
-                  {isArchived(a) && <span className="acct-badge archived">Archived</span>}
-                </div>
-              </div>
-              <div className="acct-row-actions">
-                <button onClick={() => { setEditId(editId === a.id ? null : a.id); setOpenSetupId(null); }}>
-                  {editId === a.id ? 'Close' : 'Edit'}
-                </button>
-                {a.kind !== 'manual' && (
-                  <button onClick={() => { setOpenSetupId(openSetupId === a.id ? null : a.id); setEditId(null); }}>
-                    {openSetupId === a.id ? 'Hide setup' : 'Setup'}
-                  </button>
-                )}
-                <button onClick={() => toggleArchive(a)}>{isArchived(a) ? 'Unarchive' : 'Archive'}</button>
-                <button className="danger" onClick={() => remove(a.id)}>Delete</button>
-              </div>
-              {editId === a.id && (
-                <EditForm account={a} onCancel={() => setEditId(null)} onSaved={() => { setEditId(null); onChanged?.(); }} />
-              )}
-              {openSetupId === a.id && a.kind !== 'manual' && <SetupCard account={a} />}
-            </div>
-          ))}
+        {/* Picking a firm and a size pre-fills the six rule fields below, all still
+            editable. On the edit form it is a correction tool: choose the template the
+            account should have been on and the fields catch up. */}
+        <TemplatePicker onApply={(fields, suggested) => {
+          setV((p) => applyTemplateToForm(p, fields));
+          if (!label.trim() && suggested) setLabel(suggested);
+        }} />
+        <PropFields v={v} set={set} />
+        {err && <div className="login-error">{err}</div>}
+
+        <div className="acct-form-foot">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button type="submit" className="primary" disabled={busy || !label.trim()}>
+            {busy ? (editing ? 'Saving…' : 'Adding…') : (editing ? 'Save Changes' : 'Add Account')}
+          </button>
         </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EaSetupModal — the three EA steps for an account that already exists, reached from
+// the accounts table's row menu. The steps themselves are `SetupCard`, the same
+// component the add flow's second step renders, so "how do I attach the EA" has one
+// answer whether it is asked at creation or a month later.
+// ---------------------------------------------------------------------------
+
+export function EaSetupModal({ account, onClose }) {
+  return (
+    <Modal onClose={onClose} className="acct-form-modal" label="EA setup">
+      <div className="modal-head">
+        <h3>EA Setup</h3>
+        <button className="modal-x" onClick={onClose} aria-label="Close">&#10005;</button>
+      </div>
+      <div className="acct-form-body">
+        <div className="acct-form-subject">{account?.label}</div>
+        <SetupCard account={account} />
+      </div>
+      <div className="acct-form-foot">
+        <button type="button" className="primary" onClick={onClose}>Done</button>
+      </div>
     </Modal>
   );
 }

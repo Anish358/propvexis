@@ -32,7 +32,6 @@ import {
 } from '@/components/primitives';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { NotificationBell } from '../alerts/Notifications.jsx';
-import AccountsModal from '../accounts/AccountsModal.jsx';
 import TradeSettingsModal from '../trades/TradeSettingsModal.jsx';
 
 // Light/dark switch. Shows the theme you'd GET by clicking — a sun while you're in
@@ -96,7 +95,7 @@ const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 // than being told "checkbox" and then finding the other boxes clear themselves.
 // "All accounts" stays: god view is still a legitimate scope, and it is what the
 // page shows before an account has been picked.
-function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage, singleSelect = false }) {
+function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect = false }) {
   // Bound + active only; archived accounts stay out of the switcher (still in the modal).
   const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
   const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
@@ -182,7 +181,12 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, onManage, sin
             );
           })}
           <MenuSeparator />
-          <MenuItem onClick={onManage}>
+          {/* A LINK, NOT A DIALOG. Managing accounts is a page now — Settings >
+              Accounts — so this navigates there instead of opening a modal that
+              held a second copy of the same list. `render` keeps the row's menu
+              semantics while making the anchor real, so middle-click and
+              copy-link work; the two rows below it already do this. */}
+          <MenuItem render={<Link to="/settings/accounts" />}>
             <Settings aria-hidden="true" />
             Manage accounts{pendingCount ? ` (${pendingCount} pending)` : ''}
           </MenuItem>
@@ -245,7 +249,9 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
 }
 
 // The avatar opens a DROPDOWN (not a modal) with the user's identity + settings
-// shortcuts. "Trade settings" still opens its own modal (column visibility etc.).
+// shortcuts. "Trade settings" still opens its own modal (column visibility etc.) —
+// the same controls Settings > Trade Settings hosts as a page, rendered from the one
+// `TradeSettingsPanel` so the quick way in and the durable home cannot drift.
 //
 // PHASE 4b — on Base UI. Same markup, same classes, same order; the open/close state,
 // the outside-click listener and the hand-written role="menu"/role="menuitem"
@@ -257,7 +263,7 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
 // `onClick` handlers no longer close the menu by hand — activating a MenuItem closes
 // it. The two that open something else (Trade settings, Sign out) keep their handler
 // and drop the setOpen call.
-function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns }) {
+function UserMenu({ tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns }) {
   const { user, logout } = useAuth();
   const [prefsOpen, setPrefsOpen] = useState(false);
 
@@ -331,7 +337,6 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
       <TradeSettingsModal
         open={prefsOpen}
         onClose={() => setPrefsOpen(false)}
-        unit={unit}
         beRounding={!!tradeSettings.beRounding}
         setBeRounding={setBeRounding}
         columnOverrides={tradeSettings.columns || {}}
@@ -350,13 +355,12 @@ function UserMenu({ unit, tradeSettings = {}, setBeRounding, setColumnVisible, r
 export default function FilterBar({
   unit, filters, options, setUnit, patchFilters, clearFilters,
   notifications = [], unread = 0, onMarkAllRead,
-  accounts = [], accountId = 'all', setAccountId = () => {}, reloadAccounts = () => {},
+  accounts = [], accountId = 'all', setAccountId = () => {},
   tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   collapsed = false, onToggleSidebar = () => {}, slotRef,
   theme = 'dark', setTheme = () => {},
 }) {
   const active = activeFilterCount(filters);
-  const [manageOpen, setManageOpen] = useState(false);
   // Publish this bar's height as --topbar-h. Anything else that wants to sit
   // directly beneath it while the page scrolls — the trade log's sticky column
   // header — reads that instead of hardcoding a guess: too small and the header
@@ -421,13 +425,11 @@ export default function FilterBar({
           accounts={accounts}
           accountId={accountId}
           setAccountId={setAccountId}
-          onManage={() => setManageOpen(true)}
           singleSelect={singleAccount}
         />
         <ThemeToggle theme={theme} setTheme={setTheme} />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
         <UserMenu
-          unit={unit}
           tradeSettings={tradeSettings}
           setBeRounding={setBeRounding}
           setColumnVisible={setColumnVisible}
@@ -435,9 +437,6 @@ export default function FilterBar({
         />
       </div>
 
-      {manageOpen && (
-        <AccountsModal accounts={accounts} onClose={() => setManageOpen(false)} onChanged={reloadAccounts} />
-      )}
     </div>
   );
 }

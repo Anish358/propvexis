@@ -238,7 +238,6 @@ export default function TradeLog() {
       <TradeSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        unit={unit}
         beRounding={!!tradeSettings.beRounding}
         setBeRounding={setBeRounding}
         columnOverrides={columnOverrides}

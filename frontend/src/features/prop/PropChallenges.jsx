@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button, CountBadge, EmptyState, LoadingBlock, Tabs } from '@/components/primitives';
 import PageHeader from '../../app/PageHeader.jsx';
-import AccountsModal from '../accounts/AccountsModal.jsx';
+import { AccountFormModal } from '../accounts/AccountForms.jsx';
 import { fetchPropHistory, fetchPropPortfolio } from '../../lib/api.js';
 import ChallengeCard from './ChallengeCard.jsx';
 import ChallengeDetails from './ChallengeDetails.jsx';
@@ -230,10 +230,10 @@ export default function PropChallenges() {
         ) : tab === 'challenges' ? challenges : details}
       </div>
       {addOpen && (
-        <AccountsModal
-          accounts={accounts}
+        <AccountFormModal
+          mode="add"
           onClose={() => setAddOpen(false)}
-          onChanged={reloadAccounts}
+          onSaved={reloadAccounts}
         />
       )}
     </div>

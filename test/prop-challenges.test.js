@@ -33,10 +33,14 @@ const app = readSrc('App.jsx');
 // explanation as the very thing it rules out. So the negative assertions read the CODE.
 const code = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
+// The Challenges block, bounded at BOTH ends. It used to run to the end of the file
+// because it was the last block; the Settings module now follows it, and an unbounded
+// slice would judge that block's selectors against this module's namespace.
 const challengesCssBlock = () => {
   const start = legacyCss.indexOf('Prop OS › Challenges');
   assert.ok(start !== -1, 'the Challenges CSS block should exist');
-  return legacyCss.slice(start);
+  const next = legacyCss.indexOf('/* ============================================================', start);
+  return next === -1 ? legacyCss.slice(start) : legacyCss.slice(start, next);
 };
 
 // ---------------------------------------------------------------------------
@@ -240,16 +244,20 @@ test('history resets to null (not []) on an account change, because they differ'
 });
 
 test('Start New Challenge is an entry point to the EXISTING flow, not a fake purchase', () => {
-  assert.match(page, /import AccountsModal from '[^']*AccountsModal\.jsx'/);
+  // It opens the app's own add-account form. That form used to be one section of
+  // `AccountsModal`, which also listed every account; the list is Settings > Accounts
+  // now, so what this button opens is the add HALF of it — same fields, same template
+  // catalog, no list of existing accounts inside a "start new" dialog.
+  assert.match(page, /import \{ AccountFormModal \} from '[^']*AccountForms\.jsx'/);
   assert.match(page, /<span>Start New Challenge<\/span>/);
   assert.match(page, /onClick=\{\(\) => setAddOpen\(true\)\}/);
-  assert.match(page, /<AccountsModal[\s\S]*?onChanged=\{reloadAccounts\}/);
+  assert.match(page, /<AccountFormModal[\s\S]*?mode="add"[\s\S]*?onSaved=\{reloadAccounts\}/);
   // No invented commerce anywhere in the module.
   for (const f of [page, card, details, lifecycle, kpis]) {
     assert.ok(!/checkout|payment|razorpay|price|amount/i.test(code(f)), 'no purchase flow in this module');
   }
-  // ...and the entry point opens the existing modal rather than a new screen of its own.
-  assert.ok(!/Modal(?!s)/.test(code(page).replace(/AccountsModal/g, '')), 'no second modal invented here');
+  // ...and the entry point opens the existing form rather than a new screen of its own.
+  assert.ok(!/Modal(?!s)/.test(code(page).replace(/AccountFormModal/g, '')), 'no second modal invented here');
 });
 
 // ---------------------------------------------------------------------------
