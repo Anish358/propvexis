@@ -164,3 +164,18 @@ export function selectedLogin(accountId) {
   const parts = String(accountId).split(',').filter(Boolean);
   return parts.length === 1 ? parts[0] : null;
 }
+
+/**
+ * Only the accounts Prop OS is about — the client twin of propAccountsOnly in
+ * domain/accounts/accounts.js.
+ *
+ * There are two because the app-wide outlet context deliberately carries EVERY
+ * account: the account switcher must offer a live account, since you journal it
+ * like any other. It is only the prop surfaces that must not — a live account has
+ * no challenge, no drawdown floor and no target.
+ *
+ * A missing capital_kind counts as prop, matching the server, so an account list
+ * cached from before migration 0026 does not blank the module.
+ */
+export const onlyPropCapital = (accounts) =>
+  (Array.isArray(accounts) ? accounts : []).filter((a) => (a?.capital_kind ?? 'prop') === 'prop');

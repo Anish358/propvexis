@@ -8,6 +8,7 @@ import { fetchPropHistory, fetchPropPortfolio } from '../../lib/api.js';
 import ChallengeCard from './ChallengeCard.jsx';
 import ChallengeDetails from './ChallengeDetails.jsx';
 import { selectedLogin } from './propAccounts.js';
+import { onlyPropCapital } from './propAccounts.js';
 import {
   ALL_FIRMS, CHALLENGE_TABS, challengeCounts, challengeRows, firmOptions, groupByFirm,
 } from './challengesData.js';
@@ -53,8 +54,11 @@ import {
 
 export default function PropChallenges() {
   const {
-    connected, toggleSidebar, accounts = [], accountId = 'all', setAccountId, reloadAccounts,
+    connected, toggleSidebar, accounts: allAccounts = [], accountId = 'all', setAccountId, reloadAccounts,
   } = useOutletContext();
+  // The outlet context carries every account (the switcher needs live ones too),
+  // so Prop OS filters for itself — a live account has no challenge to report on.
+  const accounts = useMemo(() => onlyPropCapital(allAccounts), [allAccounts]);
 
   const [tab, setTab] = useState('challenges');
   const [firm, setFirm] = useState(ALL_FIRMS);

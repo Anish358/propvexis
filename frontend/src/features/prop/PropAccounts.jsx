@@ -6,7 +6,7 @@ import { fetchPropPortfolio } from '../../lib/api.js';
 import AccountPortfolioCard, { PassedAccountCard } from './AccountPortfolioCard.jsx';
 import AccountWorkspace from './AccountWorkspace.jsx';
 import {
-  ACCOUNT_TABS, PORTFOLIO_TABS, bucketAccounts, selectedLogin,
+  ACCOUNT_TABS, PORTFOLIO_TABS, bucketAccounts, onlyPropCapital, selectedLogin,
 } from './propAccounts.js';
 
 // ---------------------------------------------------------------------------
@@ -38,9 +38,12 @@ import {
 
 export default function PropAccounts() {
   const {
-    connected, toggleSidebar, accounts = [], accountId = 'all', setAccountId,
+    connected, toggleSidebar, accounts: allAccounts = [], accountId = 'all', setAccountId,
     trades = [], tradeSettings = {},
   } = useOutletContext();
+  // The outlet context carries every account (the switcher needs live ones too),
+  // so Prop OS filters for itself — a live account has no challenge to report on.
+  const accounts = useMemo(() => onlyPropCapital(allAccounts), [allAccounts]);
 
   const [tab, setTab] = useState('portfolio');
   const [slice, setSlice] = useState('evaluation');

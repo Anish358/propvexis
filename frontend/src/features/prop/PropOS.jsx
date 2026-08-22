@@ -11,6 +11,7 @@ import {
 } from './PropKpiCards.jsx';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
 import { FirmsCard, UpcomingPayoutsCard, TransactionsCard, AccountsCard } from './PropCards.jsx';
+import { onlyPropCapital } from './propAccounts.js';
 import {
   defaultPropLayout, visiblePropIds, visiblePropSections,
   propWidgetSpan, PROP_GRID_COLUMNS,
@@ -147,9 +148,12 @@ export function healthStatus(score, breached) {
 
 export default function PropOS() {
   const {
-    connected, toggleSidebar, accounts = [],
+    connected, toggleSidebar, accounts: allAccounts = [],
     propLayout, setPropVisible, resetPropLayout, briefPrefs,
   } = useOutletContext();
+  // The outlet context carries every account (the switcher needs live ones too),
+  // so Prop OS filters for itself — a live account has no challenge to report on.
+  const accounts = useMemo(() => onlyPropCapital(allAccounts), [allAccounts]);
   const layout = propLayout || defaultPropLayout();
 
   const [data, setData] = useState(null);

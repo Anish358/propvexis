@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { propAccountsOnly } from '../src/domain/accounts/accounts.js';
+import { onlyPropCapital } from '../frontend/src/features/prop/propAccounts.js';
+import { readSrc } from './helpers/src-files.js';
 
 // Route handlers cannot be exercised without an HTTP harness this repo does not
 // have, so what is asserted here is that the route file WIRES the tested pure
@@ -145,4 +147,63 @@ test('every prop route handler that calls listAccounts filters through propAccou
   // entirely) would silently escape the per-handler check above.
   assert.equal(coveredCalls, totalCalls,
     'a listAccounts(req.user.uid) call sits outside every handler slice — the anchor missed it');
+});
+
+test('onlyPropCapital matches the server helper exactly', () => {
+  // Two implementations of one rule, because the client filters the outlet
+  // context and the server filters its own query. They must agree, including on
+  // the missing-column case.
+  const rows = [{ id: 1, capital_kind: 'prop' }, { id: 2, capital_kind: 'live' }, { id: 3 }];
+  assert.deepEqual(onlyPropCapital(rows).map((a) => a.id), propAccountsOnly(rows).map((a) => a.id));
+  assert.deepEqual(onlyPropCapital(undefined), []);
+});
+
+test('every Prop OS page filters the SAME list it renders as `accounts`', () => {
+  // A bare `assert.match(src, /onlyPropCapital/)` proves only that the identifier
+  // appears somewhere in the file — it would still pass if onlyPropCapital filtered
+  // some unused local while the page went on rendering the raw outlet-context list.
+  // So this requires, per page: the outlet context's `accounts` was renamed on the
+  // way in (there is no unrenamed `accounts` left to leak through), and THAT SAME
+  // renamed identifier is the one argument to onlyPropCapital, assigned back to the
+  // `accounts` the rest of the component reads.
+  //
+  // What this still does not prove: that every render path actually uses the
+  // resulting `accounts` rather than reaching back into outlet context under some
+  // other alias, or that `useOutletContext()` was destructured only once. Given
+  // this repo's one-outlet-context-call-per-page convention (true of all four
+  // pages read here), that gap does not arise in practice.
+  for (const page of ['PropOS.jsx', 'PropAccounts.jsx', 'PropChallenges.jsx', 'Finance.jsx']) {
+    const src = readSrc(page);
+    const destructure = /accounts:\s*(\w+)\s*=\s*\[\]/.exec(src);
+    assert.ok(destructure, `${page} does not rename accounts out of the outlet context — it can still read the raw list as \`accounts\``);
+    const raw = destructure[1];
+    const filtered = new RegExp(`const accounts = useMemo\\(\\(\\) => onlyPropCapital\\(${raw}\\)`);
+    assert.match(src, filtered, `${page} must filter ${raw} into the \`accounts\` identifier the rest of the page renders`);
+  }
+});
+
+test('the account switcher does NOT filter — a live account is still journalable', () => {
+  // The inverse assertion, so a later "fix" cannot quietly hide live accounts from
+  // the picker and make their trades unreachable.
+  assert.equal(/onlyPropCapital/.test(readSrc('Layout.jsx')), false,
+    'the shell must not filter the switcher');
+});
+
+test('the Settings accounts table names the capital kind before the prop type', () => {
+  const src = readSrc('SettingsAccounts.jsx');
+  // TYPE_LABEL is defined once at module scope and used once, inside the Type
+  // cell. A plain `src.indexOf('TYPE_LABEL')` finds the DEFINITION, thousands of
+  // characters above the cell markup, so a fixed window from there would never
+  // reach `capital_kind` no matter how the cell is written. So this anchors on the
+  // usage (the second occurrence) and walks back to that JSX element's own opening
+  // `<td`, the same own-boundary principle this file already applies to route
+  // handlers — then requires capital_kind to appear before TYPE_LABEL inside that
+  // one cell, proving the capital-kind check actually gates the prop-type label
+  // rather than merely appearing somewhere else in the file.
+  const first = src.indexOf('TYPE_LABEL');
+  const second = src.indexOf('TYPE_LABEL', first + 1);
+  assert.ok(second > first, 'TYPE_LABEL is used only once — the Type cell markup moved or was removed');
+  const cellStart = src.lastIndexOf('<td', second);
+  assert.match(src.slice(cellStart, second), /capital_kind/,
+    'the Type cell keys off account_type alone, so a live account reads "Evaluation"');
 });

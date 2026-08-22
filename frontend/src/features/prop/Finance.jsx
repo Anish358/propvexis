@@ -11,6 +11,7 @@ import {
   FEE_CATEGORY, accountsInScope, categoryTotal, financeLedger, financeTotals,
   filterLedger, fundedCapital, roiSeries,
 } from './financeData.js';
+import { onlyPropCapital } from './propAccounts.js';
 
 // ---------------------------------------------------------------------------
 // Prop OS › Finance — the money view of the prop operation.
@@ -49,9 +50,12 @@ const emptyFilters = () => ({ search: '', categories: [], firms: [] });
 
 export default function Finance() {
   const {
-    accountId = 'all', accounts = [], payouts = [], fees = [],
+    accountId = 'all', accounts: allAccounts = [], payouts = [], fees = [],
     reloadPayouts, reloadFees, connected, toggleSidebar,
   } = useOutletContext();
+  // The outlet context carries every account (the switcher needs live ones too),
+  // so Prop OS filters for itself — a live account has no challenge to report on.
+  const accounts = useMemo(() => onlyPropCapital(allAccounts), [allAccounts]);
 
   const [tab, setTab] = useState('summary');
   const [view, setView] = useState('all');
