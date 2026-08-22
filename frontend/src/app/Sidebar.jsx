@@ -135,11 +135,15 @@ export default function Sidebar({ onToggle = () => {}, inDrawer = false }) {
       </div>
 
       {/* Sign-out lives in the top-bar avatar menu; the rail is nav-only. */}
+      {/* A module with `subnavInPage` gets ONE rail row, not an accordion: its page
+          draws its own section rail (Settings), so listing the same six children here
+          would be two sub-navs for one module. `to` falls back to `base` because such
+          an entry is a destination as well as a module — nav.js says why. */}
       <nav className="sb-nav" aria-label="Main">
         {NAV.map((item) =>
-          item.children
+          item.children && !item.subnavInPage
             ? <RailGroup key={item.base} item={item} />
-            : <RailLink key={item.to} {...item} />
+            : <RailLink key={item.to || item.base} {...item} to={item.to || item.base} />
         )}
       </nav>
     </aside>

@@ -1,14 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend,
-} from 'recharts';
 import PageHeader from '../../app/PageHeader.jsx';
 import { LoadingBlock } from '@/components/primitives';
-import { fetchPropOverview, fetchPropFinance, fetchPropInsights } from '../../lib/api.js';
-import { fmtMoney, fmtMoneyShort } from '../../lib/metrics.js';
-import { chartPalette } from '../../lib/theme.js';
-import FeesModal from './FeesModal.jsx';
+import { fetchPropOverview } from '../../lib/api.js';
 import PropBrief from './PropBrief.jsx';
 import PropKpiFilter from './PropKpiFilter.jsx';
 import {
@@ -22,38 +16,8 @@ import {
   propWidgetSpan, PROP_GRID_COLUMNS,
 } from './propLayout.js';
 
-// Chart theming from design tokens (matches the rest of the app).
-
-// Cumulative earned / spent / net over time (data from finance.roiProgression).
-// Line palette matches the app's equity-curve charts (Analytics/Reports).
-function RoiProgressionChart({ series }) {
-  if (!series || series.length < 2) return null;
-  return (
-    <div className="prop-roi">
-      <h4 className="prop-roi-title">ROI progression</h4>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={series} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
-          <CartesianGrid stroke={chartPalette().grid} />
-          <XAxis dataKey="date" stroke={chartPalette().axis} fontSize={11} tickFormatter={(d) => d.slice(5)} />
-          <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtMoneyShort(v)} />
-          <Tooltip
-            contentStyle={chartPalette().tip}
-            formatter={(v, n) => [fmtMoney(v), n]}
-            labelStyle={{ color: chartPalette().label }}
-          />
-          <ReferenceLine y={0} stroke={chartPalette().gridStrong} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Line type="monotone" dataKey="earned" name="Earned" stroke={chartPalette().profit} strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="spent" name="Spent" stroke={chartPalette().loss} strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="net" name="Net" stroke={chartPalette().accent} strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-// Finance band (Prop OS Overview): spend vs earnings → net + ROI, with a by-firm
-// breakdown. Data from GET /api/prop/finance (src/domain/finance/finance.js).
+// A plain label/value tile for the insight bands below. Not the locked KPI card —
+// these sit inside a panel, not in the page's headline row.
 function FinKpi({ label, value, tone }) {
   return (
     <div className="kpi">
@@ -62,46 +26,6 @@ function FinKpi({ label, value, tone }) {
     </div>
   );
 }
-const roiText = (r) => (r == null ? '—' : `${r}%`);
-const roiTone = (r) => (r == null ? '' : r >= 0 ? 'win' : 'loss');
-
-function FinanceBand({ fin, onLogFee }) {
-  if (!fin) return null;
-  return (
-    <div className="panel prop-finance">
-      <div className="prop-finance-head">
-        <h3>Finance</h3>
-        <button type="button" className="btn" onClick={onLogFee}>Log fee</button>
-      </div>
-      <div className="kpi-row">
-        <FinKpi label="Total spent" value={fmtMoney(fin.spent)} tone="loss" />
-        <FinKpi label="Total earned" value={fmtMoney(fin.earned)} tone="win" />
-        <FinKpi label="Net" value={fmtMoney(fin.net)} tone={fin.net >= 0 ? 'win' : 'loss'} />
-        <FinKpi label="ROI" value={roiText(fin.roiPct)} tone={roiTone(fin.roiPct)} />
-      </div>
-      {fin.byFirm.length > 1 && (
-        <div className="bd prop-finance-firms">
-          <table>
-            <thead><tr><th>Firm</th><th>Spent</th><th>Earned</th><th>Net</th><th>ROI</th></tr></thead>
-            <tbody>
-              {fin.byFirm.map((f) => (
-                <tr key={f.firmId || 'other'}>
-                  <td>{f.firmName}</td>
-                  <td className="num">{fmtMoney(f.spent)}</td>
-                  <td className="num">{fmtMoney(f.earned)}</td>
-                  <td className="num" style={{ color: f.net >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtMoney(f.net)}</td>
-                  <td className="num">{roiText(f.roiPct)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <RoiProgressionChart series={fin.progression} />
-    </div>
-  );
-}
-
 // Passing & breach insights — pass rates + breach patterns across firm/size/phase.
 // Data from GET /api/prop/insights (src/domain/prop/insights.js).
 const pct = (v) => (v == null ? '—' : `${v}%`);
@@ -130,7 +54,15 @@ function InsightDim({ title, rows }) {
   );
 }
 
-function InsightsBand({ ins }) {
+// EXPORTED BUT NOT MOUNTED, AS OF THE FINANCE REBUILD (2026-08-17). This band used
+// to sit under the old Finance page's totals. Finance's information architecture is
+// now locked to three tabs — Summary (KPI cards, ROI Progression, Finance Breakdown),
+// Transactions and Funded Accounts — and pass rates are not a money view, so it has
+// no place there. It is kept and exported rather than deleted because it works and
+// its data endpoint (GET /api/prop/insights) is live: Prop OS › Analytics already
+// promises "passing and breach insights" in its own nav blurb, and mounting it there
+// is one line plus a fetchPropInsights call when that page is built.
+export function InsightsBand({ ins }) {
   if (!ins) return null;
   const hasHistory = ins.attempts > 0;
   return (
@@ -191,50 +123,6 @@ export function healthStatus(score, breached) {
   if (score >= 67) return 'good';
   if (score >= 34) return 'warn';
   return 'bad';
-}
-
-
-// Prop OS › Finance — spend vs earnings → net/ROI + passing & breach insights.
-// Split out of the Overview into its own sub-nav page (data from the same
-// /api/prop/finance + /api/prop/insights endpoints).
-export function PropFinance() {
-  const { accountId, connected, toggleSidebar, accounts = [], fees = [], reloadFees } = useOutletContext();
-  const [fin, setFin] = useState(null);
-  const [ins, setIns] = useState(null);
-  const [err, setErr] = useState(null);
-  const [feesOpen, setFeesOpen] = useState(false);
-
-  function load() {
-    setErr(null);
-    fetchPropFinance(accountId).then(setFin).catch((e) => setErr(e.message));
-    fetchPropInsights(accountId).then(setIns).catch(() => {});
-  }
-  useEffect(() => { setFin(null); setIns(null); load(); /* eslint-disable-next-line */ }, [accountId]);
-
-  return (
-    <div className="page">
-      <PageHeader title="Finance" connected={connected} onMenu={toggleSidebar} />
-      {err ? (
-        <div className="banner error">Could not load finance: {err}</div>
-      ) : !fin ? (
-        <LoadingBlock label="Loading finance" />
-      ) : (
-        <>
-          <FinanceBand fin={fin} onLogFee={() => setFeesOpen(true)} />
-          <InsightsBand ins={ins} />
-        </>
-      )}
-      {feesOpen && (
-        <FeesModal
-          fees={fees}
-          accounts={accounts}
-          defaultLogin={accountId === 'all' ? undefined : accountId}
-          onClose={() => setFeesOpen(false)}
-          onChanged={() => { reloadFees?.(); load(); }}
-        />
-      )}
-    </div>
-  );
 }
 
 

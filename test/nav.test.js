@@ -74,7 +74,8 @@ test('navTitle: top-level routes name themselves, with no module', () => {
   assert.deepEqual(navTitle('/'), { module: null, page: 'Dashboard' });
   assert.deepEqual(navTitle('/strategies'), { module: null, page: 'Strategies' });
   assert.deepEqual(navTitle('/alerts'), { module: null, page: 'Alerts' });
-  assert.deepEqual(navTitle('/settings'), { module: null, page: 'Settings' });
+  // Settings is NOT in this list any more: it became a module with six sections, so
+  // `/settings` titles as "Settings › Profile". See settings-module.test.js.
 });
 
 test('navTitle: module routes carry the module name', () => {

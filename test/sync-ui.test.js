@@ -10,7 +10,12 @@ import { readSrc } from './helpers/src-files.js';
 // class in a feature file produces no CSS, no error and no failing test).
 
 const modal = readSrc('SyncModal.jsx');
-const account = readSrc('Account.jsx');
+// The entry point moved with the Settings rebuild: /account used to be a page of
+// cards with a Manage button, and is now a redirect to Settings › Accounts — THE
+// account-management table. Live sync is administration ("how does this account get
+// its trades"), so it belongs in that row menu next to EA setup, not on an analysis
+// surface like Prop OS › Accounts.
+const account = readSrc('SettingsAccounts.jsx');
 const api = readSrc('lib/api.js');
 
 test('the password is write-only in the UI as well as the API', () => {
@@ -41,7 +46,7 @@ test('a bound login cannot be repointed from the UI', () => {
 test('live sync is offered only where it can work', () => {
   // A manual bucket has no MT5 login to log into, and an archived account should
   // not be woken up by the scheduler.
-  assert.match(account, /a\.kind !== 'manual' && !archived/);
+  assert.match(account, /account\.kind !== 'manual' && !archived/);
   assert.match(account, /<SyncModal\b/);
 });
 
@@ -86,12 +91,17 @@ test('every class the sync UI uses actually exists in the stylesheet', () => {
   assert.deepEqual(missing, [], `classes with no CSS: ${missing.join(', ')}`);
 });
 
-test('the new account-card action row is styled', () => {
-  assert.match(appCss, /\.acct-card-actions/);
+test('the sync dialog is styled and its entry point needs no CSS of its own', () => {
   assert.match(appCss, /\.sync-modal/);
-  // Flex-wrap rather than shrink: at the 900px drawer breakpoint the card is too
-  // narrow for two buttons side by side and the labels would truncate.
-  assert.match(appCss, /\.acct-card-actions \{[^}]*flex-wrap: wrap/);
+  // The entry used to be a second button on an account card, which needed a
+  // wrapping flex row (`.acct-card-actions`) to survive the 900px breakpoint. That
+  // card is gone: it is a row in the Settings accounts table now, and the entry is
+  // a `MenuItem` in the existing row menu. A menu row is laid out by the Menu
+  // primitive, so bespoke CSS here would be a second opinion about a solved
+  // problem — assert there ISN'T any rather than leaving the old rule behind as
+  // dead weight nobody dares delete.
+  assert.doesNotMatch(appCss, /\.acct-card-actions/);
+  assert.match(account, /<MenuItem onClick=\{onSync\}>Live sync<\/MenuItem>/);
 });
 
 test('the sync UI hardcodes no colours', () => {

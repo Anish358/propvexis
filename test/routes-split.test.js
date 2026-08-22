@@ -32,6 +32,7 @@ const ROUTES = [
   ['get', '/api/fees'], ['post', '/api/fees'], ['delete', '/api/fees/:id'],
   ['post', '/api/payouts/ingest'],
   ['get', '/api/prop'], ['get', '/api/prop/finance'], ['get', '/api/prop/overview'],
+  ['get', '/api/prop/portfolio'],
   ['get', '/api/prop/insights'], ['get', '/api/prop/history'], ['post', '/api/prop/advance'],
   ['get', '/api/notifications'], ['post', '/api/notifications/read'],
   ['get', '/api/calendar'],

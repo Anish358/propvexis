@@ -335,6 +335,13 @@ export async function fetchPropOverview() {
   return getJson('/api/prop/overview');
 }
 
+// Prop OS → Accounts (Portfolio): every owned account's live rule state plus the
+// pass history. Takes NO account id for the same reason the Overview does not —
+// the Portfolio is the multi-account view. The Details tab reads fetchProp(login).
+export async function fetchPropPortfolio() {
+  return getJson('/api/prop/portfolio');
+}
+
 export async function fetchPropHistory(accountId) {
   return getJson(`/api/prop/history?account_id=${accountId}`);
 }

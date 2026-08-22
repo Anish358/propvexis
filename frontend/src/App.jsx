@@ -19,14 +19,20 @@ import Analytics from './features/analytics/Analytics.jsx';
 import Strategies from './features/strategies/Strategies.jsx';
 import Calendar from './features/calendar/Calendar.jsx';
 import Billing from './features/billing/Billing.jsx';
-import PropOS, { PropFinance } from './features/prop/PropOS.jsx';
+import PropOS from './features/prop/PropOS.jsx';
+import Finance from './features/prop/Finance.jsx';
+import PropAccounts from './features/prop/PropAccounts.jsx';
+import PropChallenges from './features/prop/PropChallenges.jsx';
 import Reports from './features/reports/Reports.jsx';
 import ComingSoon from './components/ComingSoon.jsx';
 import JournalOverview from './features/analytics/JournalOverview.jsx';
 import DayView from './features/calendar/DayView.jsx';
 import Alerts from './features/alerts/Alerts.jsx';
 import Settings from './features/settings/Settings.jsx';
-import Account from './features/accounts/Account.jsx';
+import SettingsAccounts from './features/settings/SettingsAccounts.jsx';
+import {
+  SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
+} from './features/settings/SettingsPanels.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login (per-device nav state)
@@ -484,9 +490,9 @@ export default function App() {
             {/* Prop OS module */}
             <Route path="prop">
               <Route index element={<PropOS />} />
-              <Route path="finance" element={<PropFinance />} />
-              <Route path="accounts" element={<ComingSoon title="Prop Accounts" blurb="Accounts grouped by stage — Evaluation, Funded and Breached." />} />
-              <Route path="challenges" element={<ComingSoon title="Challenges" blurb="Challenge history and phase timelines per account." />} />
+              <Route path="finance" element={<Finance />} />
+              <Route path="accounts" element={<PropAccounts />} />
+              <Route path="challenges" element={<PropChallenges />} />
               <Route path="analytics" element={<ComingSoon title="Prop Analytics" blurb="ROI progression, finance breakdown, passing and breach insights." />} />
             </Route>
 
@@ -501,8 +507,17 @@ export default function App() {
 
             <Route path="alerts" element={<Alerts />} />
             <Route path="reports" element={<Reports />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="account" element={<Account />} />
+            {/* Settings module. Six sections, six routes, one shell that draws the
+                section rail and forwards this Outlet's context down (Settings.jsx).
+                The rail is in the PAGE, not the sidebar — nav.js `subnavInPage`. */}
+            <Route path="settings" element={<Settings />}>
+              <Route index element={<SettingsProfile />} />
+              <Route path="plan" element={<SettingsPlan />} />
+              <Route path="accounts" element={<SettingsAccounts />} />
+              <Route path="trades" element={<SettingsTrades />} />
+              <Route path="appearance" element={<SettingsAppearance />} />
+              <Route path="session" element={<SettingsSession />} />
+            </Route>
             <Route path="billing" element={<Billing />} />
 
             {/* Legacy flat routes → module routes (kept in sync via nav.js LEGACY_REDIRECTS) */}

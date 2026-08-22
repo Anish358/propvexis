@@ -297,9 +297,32 @@ const FEE_LABEL = {
 // read rather than a status read.
 // ---------------------------------------------------------------------------
 
+// One row per PASS EVENT, newest first — a re-taken account legitimately appears
+// twice, because it passed twice. Exported because the Prop OS > Accounts portfolio
+// needs the same list for its "Passed" sub-tab, and a second derivation of what
+// counts as a pass is exactly how two surfaces start disagreeing.
+export function passedChallenges({ challenges = [], accounts = [] } = {}) {
+  const acctByLogin = new Map(accounts.map((a) => [Number(a.mt5_login), a]));
+  return challenges
+    .filter((c) => c.status === 'passed' && EVAL_PHASES.has(c.phase))
+    .map((c) => {
+      const login = Number(c.mt5_login);
+      const a = acctByLogin.get(login);
+      return {
+        accountId: login,
+        challengeId: c.id,
+        label: a?.label || c.label || `Account ${login}`,
+        firmName: a?.firm_name || c.firm_name || 'Other',
+        phase: c.phase,
+        startDate: dayOf(c.start_date),
+        passedDate: dayOf(c.passed_at),
+      };
+    })
+    .sort((a, b) => (a.passedDate < b.passedDate ? 1 : a.passedDate > b.passedDate ? -1 : 0));
+}
+
 export function accountsBreakdown({ accounts = [], states = [], challenges = [], payouts = [] } = {}) {
   const stateByLogin = new Map(states.map((s) => [Number(s.account_id), s]));
-  const acctByLogin = new Map(accounts.map((a) => [Number(a.mt5_login), a]));
 
   const paidByLogin = new Map();
   for (const p of payouts) {
@@ -339,24 +362,7 @@ export function accountsBreakdown({ accounts = [], states = [], challenges = [],
     }
   }
 
-  // One row per PASS EVENT, newest first — a re-taken account legitimately appears
-  // twice, because it passed twice.
-  const passed = challenges
-    .filter((c) => c.status === 'passed' && EVAL_PHASES.has(c.phase))
-    .map((c) => {
-      const login = Number(c.mt5_login);
-      const a = acctByLogin.get(login);
-      return {
-        accountId: login,
-        challengeId: c.id,
-        label: a?.label || c.label || `Account ${login}`,
-        firmName: a?.firm_name || c.firm_name || 'Other',
-        phase: c.phase,
-        startDate: dayOf(c.start_date),
-        passedDate: dayOf(c.passed_at),
-      };
-    })
-    .sort((a, b) => (a.passedDate < b.passedDate ? 1 : a.passedDate > b.passedDate ? -1 : 0));
+  const passed = passedChallenges({ challenges, accounts });
 
   const passedAccounts = new Set(passed.map((p) => p.accountId));
 

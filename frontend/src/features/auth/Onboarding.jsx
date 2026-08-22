@@ -5,12 +5,12 @@ import { createAccount, completeOnboarding } from '../../lib/api.js';
 import {
   TemplatePicker, PropFields, SetupCard,
   eaAllowed, toPayload, formFrom, applyTemplateToForm,
-} from '../accounts/AccountsModal.jsx';
+} from '../accounts/AccountForms.jsx';
 
 const STEPS = ['Welcome', 'First account', 'Done'];
 
 // First-run setup wizard. Shown once (gated on user.onboarded_at in App). Reuses
-// the account form pieces from AccountsModal so there's one source of truth for
+// the account form pieces from AccountForms so there's one source of truth for
 // adding an account. onDone(updatedUser) hands the onboarded user back to auth.
 export default function Onboarding({ onDone }) {
   const { user } = useAuth();

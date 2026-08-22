@@ -28,8 +28,8 @@ export const NAV = [
     children: [
       { to: '/prop', label: 'Overview', end: true },
       { to: '/prop/finance', label: 'Finance' },
-      { to: '/prop/accounts', label: 'Accounts', soon: true },
-      { to: '/prop/challenges', label: 'Challenges', soon: true },
+      { to: '/prop/accounts', label: 'Accounts' },
+      { to: '/prop/challenges', label: 'Challenges' },
       { to: '/prop/analytics', label: 'Analytics', soon: true },
     ],
   },
@@ -44,9 +44,36 @@ export const NAV = [
       { to: '/tools/news-calendar', label: 'News Calendar', soon: true },
     ],
   },
-  { to: '/account', label: 'Account', icon: 'account' },
-  { to: '/settings', label: 'Settings', icon: 'settings' },
+  // Settings is a MODULE (a base plus children), but its children are addressed by
+  // the page's OWN rail rather than by the app rail — see `subnavInPage` below.
+  {
+    label: 'Settings', icon: 'settings', base: '/settings', subnavInPage: true,
+    children: [
+      { to: '/settings', label: 'Profile', end: true },
+      { to: '/settings/plan', label: 'Plan & Billing' },
+      { to: '/settings/accounts', label: 'Accounts' },
+      { to: '/settings/trades', label: 'Trade Settings' },
+      { to: '/settings/appearance', label: 'Appearance' },
+      { to: '/settings/session', label: 'Session' },
+    ],
+  },
 ];
+
+// A module whose children the SIDEBAR does not list, because the page draws its own
+// section rail (Settings.jsx). It is declared here rather than checked inside the
+// sidebar for the same reason SINGLE_ACCOUNT_ROUTES is: where a module's sub-nav
+// lives is an information-architecture fact, and the rail, the router and the top
+// bar should all read it from one place.
+//
+// WHY SETTINGS IS THE ONE MODULE SHAPED THIS WAY. Trade Journal and Prop OS are
+// destinations a trader moves BETWEEN during a session, so their pages belong in the
+// rail where they are one click from anywhere. Settings is a place you go once, change
+// one thing and leave — six more rows in the app rail would push the pages you use
+// every day further down the list to serve the ones you touch monthly. The children
+// are still real routes, so a section is linkable, survives a reload, and the top bar
+// can read "Settings > Accounts" instead of a bare "Settings" on all six.
+export const isSubnavInPage = (label) =>
+  NAV.some((i) => i.label === label && i.subnavInPage === true);
 
 // Old flat routes → new module routes (bookmarks/muscle-memory keep working).
 // /analytics also carries the "top-level Analytics → Journal analytics" decision.
@@ -55,10 +82,40 @@ export const LEGACY_REDIRECTS = {
   '/analytics': '/journal/analytics',
   '/calendar': '/journal/calendar',
   '/prop/alerts': '/alerts',
+  // The Account page is gone: managing trading accounts is Settings > Accounts now,
+  // and Fees/Payouts (the other two things that page opened) live in Prop OS >
+  // Finance. One management surface, so a bookmark lands on the real one.
+  '/account': '/settings/accounts',
   // Strategies + Backtesting graduated out of the Journal module to top-level.
   '/journal/strategies': '/strategies',
   '/journal/backtesting': '/backtesting',
 };
+
+// Routes on which the top bar's universal account switcher is SINGLE-SELECT.
+//
+// The switcher is multi-select everywhere else on purpose: picking two or three
+// accounts gives an aggregate (R-based) view across them, which is what god view
+// is for. Prop OS > Accounts > Details is a single-account workspace — its
+// drawdown meters, profit target and equity curve all belong to one account's
+// challenge, and there is no such thing as the aggregate max drawdown of three
+// accounts at two firms. So on this route the switcher offers one account at a
+// time rather than a page having to explain why a valid selection shows nothing.
+//
+// Prop OS > Challenges > Details is the same kind of screen for the same reason: a
+// challenge IS one account plus the phase rows it has accumulated, so its lifecycle,
+// its stage tiles and its current-phase rules all belong to exactly one account, and
+// there is no aggregate Phase 1 of three accounts at two firms.
+//
+// Declared HERE, with the rest of the IA, rather than as a check inside the top
+// bar: which page behaves how is an information-architecture fact, and the bar
+// and the page both read it from one place. Kept as an exact-path list (no
+// subtree matching) because the behaviour is a property of a specific screen.
+export const SINGLE_ACCOUNT_ROUTES = ['/prop/accounts', '/prop/challenges'];
+
+export function isSingleAccountRoute(pathname = '/') {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  return SINGLE_ACCOUNT_ROUTES.includes(path);
+}
 
 // Routes that exist in the router but deliberately aren't in the sidebar (reached
 // from a menu instead), so the top bar can still name them.
