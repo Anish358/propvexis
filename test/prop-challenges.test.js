@@ -428,6 +428,22 @@ test('challengeStages: the lifecycle adapts to the firm, and never invents one',
   assert.deepEqual(STAGE_ORDER, ['p1', 'p2', 'funded']);
 });
 
+test('challengeStages: a resolved product overrides the firm-wide union', () => {
+  // GFT 1-Step has exactly one evaluation phase before funding — no Phase 2.
+  assert.deepEqual(challengeStages('gft', '1step'), ['p1', 'funded']);
+  // Instant Funding skips evaluation entirely.
+  assert.deepEqual(challengeStages('gft', 'instant'), ['funded']);
+});
+
+test('challengeStages: no product given falls back to the union across the firm\'s products, not a hardcoded default', () => {
+  // GFT's products are 2step (p1, p2, funded), 1step (p1, funded) and instant
+  // (funded) — their union is still all three stages, but derived from the
+  // catalog's products this time, not from the "unknown firm" fallback branch.
+  // A future edit that breaks the union (e.g. reads a `phases` field that no
+  // longer exists) must fail here rather than hide behind that fallback.
+  assert.deepEqual(challengeStages('gft'), STAGE_ORDER);
+});
+
 // ---- the lifecycle state machine -------------------------------------------
 
 const statuses = (opts) => challengeLifecycle(opts).map((s) => s.status);

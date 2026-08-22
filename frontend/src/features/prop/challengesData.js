@@ -21,7 +21,7 @@
 // A second copy of "which of these accounts matters most" is how two pages start
 // disagreeing about the same portfolio.
 
-import { findFirm } from './propFirms.js';
+import { findFirm, findProduct } from './propFirms.js';
 import {
   PHASE_LABEL, accountRow, byRisk, isBreached, isLive,
 } from './propAccounts.js';
@@ -56,21 +56,39 @@ export const STAGE_STATUS_LABEL = {
 };
 
 /**
- * Which stages does a challenge at this firm actually have?
+ * Which stages does a challenge at this firm — or this firm's product — actually
+ * have?
  *
- * Not every firm runs two evaluation phases, and the locked lifecycle must adapt to
- * the challenge rather than print a Phase 2 that will never exist. The answer comes
- * from the rule-template catalog (propFirms.js) — the same catalog that pre-fills an
- * account's rules — so supporting a one-step firm stays a data change there.
+ * Not every product runs two evaluation phases, and the locked lifecycle must adapt
+ * to the challenge rather than print a Phase 2 that will never exist. The answer
+ * comes from the rule-template catalog (propFirms.js) — the same catalog that
+ * pre-fills an account's rules — so supporting a one-step or instant-funding product
+ * stays a data change there. A firm in that catalog is a `products` array, not a
+ * flat `phases` list, because the rules differ per product (1-Step vs. 2-Step vs.
+ * Instant Funding), not just per phase.
+ *
+ * `productId` is optional: today's accounts do not carry one on the client (that
+ * lands in a later phase), so most callers only ever have a `firmId`. When it is
+ * given and resolves, the stages come from THAT product's phases alone — an Instant
+ * Funding challenge has no Phase 1 or Phase 2, and printing either would be
+ * inventing a stage that product does not run. Without a resolved product, the
+ * stages come from the UNION of phase ids across all of the firm's products, so a
+ * firm page that cannot yet tell which product an account is on still shows every
+ * stage any of its products might reach, rather than guessing one.
  *
  * An account whose firm was typed by hand carries no `firm_id` and so has no
  * catalog entry. It gets the full three, because "we don't know" is not the same
  * fact as "this firm has no Phase 2", and claiming the second would be inventing.
  */
-export function challengeStages(firmId) {
+export function challengeStages(firmId, productId) {
   const firm = findFirm(firmId);
   if (!firm) return [...STAGE_ORDER];
-  const ids = new Set((firm.phases || []).map((p) => p.id));
+  const product = findProduct(firmId, productId);
+  const ids = new Set(
+    product
+      ? product.phases.map((p) => p.id)
+      : firm.products.flatMap((p) => p.phases.map((ph) => ph.id)),
+  );
   const stages = STAGE_ORDER.filter((id) => ids.has(id));
   return stages.length ? stages : [...STAGE_ORDER];
 }
