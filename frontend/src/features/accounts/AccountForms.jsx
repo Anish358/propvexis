@@ -3,7 +3,7 @@ import { Modal } from '@/components/primitives';
 import { Link } from 'react-router-dom';
 import { createAccount, updateAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
-import { PROP_FIRMS, findFirm, templateToFields } from '../prop/propFirms.js';
+import { PROP_FIRMS, findFirm, findProduct, templateToFields } from '../prop/propFirms.js';
 
 // ---------------------------------------------------------------------------
 // The account FORMS — the shared field components plus the two dialogs that host
@@ -39,14 +39,22 @@ const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : String(n)
 // Exported so the onboarding wizard reuses the exact same picker.
 export function TemplatePicker({ onApply }) {
   const [firmId, setFirmId] = useState('');
+  const [productId, setProductId] = useState('');
   const [size, setSize] = useState('');
   const [phaseId, setPhaseId] = useState('');
   const firm = findFirm(firmId);
+  const product = findProduct(firmId, productId);
 
-  const pickFirm = (id) => { setFirmId(id); setSize(''); setPhaseId(''); };
-  const ready = firm && size !== '' && phaseId !== '';
+  // Each selection invalidates the ones that depend on it: products are per firm,
+  // and sizes and phases are per PRODUCT. Without this, picking 2-Step, then
+  // switching to Instant Funding, leaves "Phase 1" selected — a phase Instant
+  // Funding does not have — and templateToFields returns null on Apply.
+  const pickFirm = (id) => { setFirmId(id); setProductId(''); setSize(''); setPhaseId(''); };
+  const pickProduct = (id) => { setProductId(id); setSize(''); setPhaseId(''); };
+
+  const ready = Boolean(product) && size !== '' && phaseId !== '';
   const apply = () => {
-    const fields = templateToFields(firmId, Number(size), phaseId);
+    const fields = templateToFields(firmId, productId, Number(size), phaseId);
     if (fields) onApply(fields, `${firm.name} ${sizeLabel(size)}`);
   };
 
@@ -58,13 +66,17 @@ export function TemplatePicker({ onApply }) {
           <option value="">Firm…</option>
           {PROP_FIRMS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
         </select>
-        <select value={size} onChange={(e) => setSize(e.target.value)} disabled={!firm} aria-label="Account size">
-          <option value="">Size…</option>
-          {firm?.sizes.map((s) => <option key={s} value={s}>{sizeLabel(s)}</option>)}
+        <select value={productId} onChange={(e) => pickProduct(e.target.value)} disabled={!firm} aria-label="Account type">
+          <option value="">Account type…</option>
+          {firm?.products.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
-        <select value={phaseId} onChange={(e) => setPhaseId(e.target.value)} disabled={!firm} aria-label="Phase">
+        <select value={size} onChange={(e) => setSize(e.target.value)} disabled={!product} aria-label="Account size">
+          <option value="">Size…</option>
+          {product?.sizes.map((s) => <option key={s} value={s}>{sizeLabel(s)}</option>)}
+        </select>
+        <select value={phaseId} onChange={(e) => setPhaseId(e.target.value)} disabled={!product} aria-label="Phase">
           <option value="">Phase…</option>
-          {firm?.phases.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          {product?.phases.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <button type="button" className="acct-template-apply" onClick={apply} disabled={!ready}>Apply</button>
       </div>
@@ -209,6 +221,7 @@ export const toPayload = (v) => ({
   min_trading_days: numOrNull(v.min_trading_days),
   firm_id: v.firm_id || null,
   firm_name: v.firm_name || null,
+  product_id: v.product_id || null,
 });
 
 export const formFrom = (a) => ({
@@ -222,6 +235,7 @@ export const formFrom = (a) => ({
   min_trading_days: a?.min_trading_days ?? '',
   firm_id: a?.firm_id ?? null,
   firm_name: a?.firm_name ?? null,
+  product_id: a?.product_id ?? null,
 });
 
 // Merge a template's resolved fields (numbers/nulls from templateToFields) into
@@ -238,6 +252,7 @@ export const applyTemplateToForm = (prev, fields) => ({
   min_trading_days: fields.min_trading_days ?? '',
   firm_id: fields.firm_id ?? null,
   firm_name: fields.firm_name ?? null,
+  product_id: fields.product_id ?? null,
 });
 
 // ---------------------------------------------------------------------------
