@@ -21,6 +21,7 @@ const ROUTES = [
   ['get', '/api/candles/requests'], ['get', '/api/trades/:id/replay'],
   ['get', '/api/ea/download'],
   ['get', '/api/accounts'], ['post', '/api/accounts'],
+  ['get', '/api/accounts/login-available'], ['post', '/api/accounts/provision'],
   ['post', '/api/sync/lease'], ['post', '/api/sync/jobs/:id/result'],
   ['post', '/api/sync/heartbeat'],
   ['get', '/api/accounts/:id/sync'], ['post', '/api/accounts/:id/sync'],

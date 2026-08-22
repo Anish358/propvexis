@@ -84,16 +84,16 @@ const ACCT_COLS = ACCOUNT_COLUMNS;
 // fresh ingest token — the EA binds its real MT5 login on the first trade. A
 // 'manual' account carries NO token and is immediately given a synthetic negative
 // login (-id) so its trades can be scoped by account_id without any live sync.
-export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, kind }) {
+export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, kind }) {
   const manual = kind === 'manual';
   const { rows } = await query(
     `INSERT INTO mt5_accounts
-       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind, import_method)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15, $16, $17)
+       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, ingest_token, kind, import_method)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15, COALESCE($16, 'prop'), $17, $18, $19)
      RETURNING ${ACCT_COLS};`,
     [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null,
      account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, payout_split_pct ?? null,
-     dd_type || null, min_trading_days ?? null, firm_id || null, firm_name || null,
+     dd_type || null, min_trading_days ?? null, firm_id || null, firm_name || null, product_id || null, capital_kind || null,
      manual ? null : genToken(), manual ? 'manual' : 'synced', manual ? 'manual' : 'ea']
   );
   let acct = rows[0];

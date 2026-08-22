@@ -77,6 +77,12 @@ test('0026: createAccount writes import_method explicitly, or the CHECK rejects 
   // 500s. There is no test database, so this is a source-text assertion over
   // the function, the same pattern test/sync-queue.test.js uses for
   // ensureIngestToken.
+  //
+  // This asserts the PROPERTY (import_method is written, and derived rather than
+  // defaulted) rather than its position in the column list — createAccount also
+  // writes product_id/capital_kind (Task 9), and those legitimately share the
+  // list with firm_id/firm_name ahead of import_method, so pinning import_method
+  // to being the literal last column would fail on a correct implementation.
   const src = readFileSync(
     new URL('../src/domain/accounts/accounts.js', import.meta.url),
     'utf8',
@@ -85,6 +91,7 @@ test('0026: createAccount writes import_method explicitly, or the CHECK rejects 
     src.indexOf('export async function createAccount'),
     src.indexOf('export function stripNullProfitTarget'),
   );
-  assert.match(fn, /kind, import_method\)/, 'import_method missing from the INSERT column list');
+  const insert = fn.slice(fn.indexOf('INSERT INTO mt5_accounts'), fn.indexOf('VALUES'));
+  assert.match(insert, /\bimport_method\b/, 'import_method missing from the INSERT column list');
   assert.match(fn, /manual \? 'manual' : 'ea'/, 'import_method must be derived from kind/manual, not left to the column default');
 });
