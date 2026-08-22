@@ -107,15 +107,42 @@ test('propAccountsOnly is total — empty and absent input give an empty list', 
   assert.deepEqual(propAccountsOnly(null), []);
 });
 
-test('every prop route filters its accounts through propAccountsOnly', () => {
-  // propOverview.js computes "active accounts", "total funding" and the accounts
-  // ring from whatever list it is handed. A live account in that list is counted
-  // as an evaluation with an 8% target, so the filter must be applied at every
-  // call site, not most of them.
+test('every prop route handler that calls listAccounts filters through propAccountsOnly', () => {
+  // A file-wide COUNT of listAccounts(...) vs propAccountsOnly(...) proves nothing
+  // about co-location: it would pass if one handler filtered twice and a sibling
+  // handler with its own listAccounts call filtered zero times, and it is inflated
+  // by any unrelated propAccountsOnly( text elsewhere in the file (a comment, a
+  // future call in an unrelated route). So this walks each handler's OWN body —
+  // from its `app.<verb>(` registration to that SAME registration's closing
+  // `});` (the /^\s{2}\}\);/m anchor this file already uses for login-available,
+  // never a fixed byte window that could spill into a neighbour) — and requires
+  // any handler whose body calls listAccounts(req.user.uid) to also contain
+  // propAccountsOnly( inside that same slice. Miss one and a live account is
+  // silently counted as an evaluation account on a Prop OS surface — no error,
+  // no 500, just a wrong number on the Overview/Portfolio/Finance cards.
   const propRoute = readFileSync(new URL('../src/routes/prop.js', import.meta.url), 'utf8');
   assert.ok(propRoute.includes('propAccountsOnly'), 'the helper is not imported');
-  const calls = [...propRoute.matchAll(/listAccounts\(req\.user\.uid\)/g)].length;
-  const filtered = [...propRoute.matchAll(/propAccountsOnly\(/g)].length;
-  assert.ok(filtered >= calls,
-    `${calls} listAccounts call(s) but only ${filtered} filtered — an unfiltered one counts live accounts as evaluations`);
+
+  const starts = [...propRoute.matchAll(/^\s{2}app\.\w+\(/gm)].map((m) => m.index);
+  assert.ok(starts.length > 0, 'no route handlers found — the anchor regex is stale');
+
+  const totalCalls = [...propRoute.matchAll(/listAccounts\(req\.user\.uid\)/g)].length;
+  let coveredCalls = 0;
+  for (const start of starts) {
+    const rest = propRoute.slice(start);
+    const close = /^\s{2}\}\);/m.exec(rest);
+    assert.ok(close, 'could not find the end of a route handler');
+    const handler = rest.slice(0, close.index + close[0].length);
+    const callsHere = [...handler.matchAll(/listAccounts\(req\.user\.uid\)/g)].length;
+    coveredCalls += callsHere;
+    if (callsHere > 0) {
+      assert.ok(/propAccountsOnly\(/.test(handler),
+        `a handler calls listAccounts(req.user.uid) without filtering it through propAccountsOnly:\n${handler.slice(0, 300)}`);
+    }
+  }
+  // Every occurrence in the file must have been inside exactly one handler slice —
+  // otherwise a call sitting outside any slice (the anchor missing a handler
+  // entirely) would silently escape the per-handler check above.
+  assert.equal(coveredCalls, totalCalls,
+    'a listAccounts(req.user.uid) call sits outside every handler slice — the anchor missed it');
 });
