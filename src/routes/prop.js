@@ -1,7 +1,7 @@
 import { resolveScope, listAccounts, ownedLogins, ownedAccountByLogin, propAccountsOnly } from '../domain/accounts/accounts.js';
 import { listPayouts } from '../domain/finance/payouts.js';
 import { listFees } from '../domain/finance/fees.js';
-import { roiProgression } from '../domain/finance/finance.js';
+import { roiProgression, financeSummary } from '../domain/finance/finance.js';
 import { passBreachSummary } from '../domain/prop/insights.js';
 import { phasePassedAlert } from '../domain/alerts/alerts.js';
 import { insertNotifications } from '../domain/alerts/notifications.js';
