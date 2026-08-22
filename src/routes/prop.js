@@ -1,4 +1,4 @@
-import { resolveScope, listAccounts, ownedLogins, ownedAccountByLogin } from '../domain/accounts/accounts.js';
+import { resolveScope, listAccounts, ownedLogins, ownedAccountByLogin, propAccountsOnly } from '../domain/accounts/accounts.js';
 import { listPayouts } from '../domain/finance/payouts.js';
 import { listFees } from '../domain/finance/fees.js';
 import { roiProgression } from '../domain/finance/finance.js';
@@ -46,8 +46,9 @@ export default function propRoutes(app, ctx) {
       listFees(scope.logins),
       listAccounts(req.user.uid),
     ]);
-    // Restrict firm-attribution accounts to the scope's logins.
-    const inScope = accounts.filter((a) => scope.logins.includes(a.mt5_login));
+    // Restrict firm-attribution accounts to the scope's logins. Filtered to prop
+    // accounts first: a live account has no firm rules to attribute fees/payouts to.
+    const inScope = propAccountsOnly(accounts).filter((a) => scope.logins.includes(a.mt5_login));
     return { ...financeSummary({ payouts, fees, accounts: inScope }), progression: roiProgression({ payouts, fees }) };
   });
 
@@ -67,7 +68,7 @@ export default function propRoutes(app, ctx) {
     const scope = { god: true, userId: req.user.uid, logins, filterCol: 'user_id' };
     const asOf = new Date();
 
-    const [propStates, accounts, payouts, fees, challenges, lastTrade, days] = await Promise.all([
+    const [propStates, allAccounts, payouts, fees, challenges, lastTrade, days] = await Promise.all([
       propStatesForScope(scope, asOf),
       listAccounts(req.user.uid),
       listPayouts(logins),
@@ -76,6 +77,9 @@ export default function propRoutes(app, ctx) {
       lastTradeByLogin(logins),
       dailyTotalsForLogins(logins),
     ]);
+    // Filtered here, at the destructuring, so nothing downstream can see a live
+    // account: propOverview.js computes over whatever list it is handed.
+    const accounts = propAccountsOnly(allAccounts);
     // propStatesForScope returns { god: true, accounts: [...] } for a god scope, and
     // null when the user owns nothing at all.
     const states = propStates?.accounts ?? [];
@@ -114,11 +118,14 @@ export default function propRoutes(app, ctx) {
     const logins = await ownedLogins(req.user.uid);
     const scope = { god: true, userId: req.user.uid, logins, filterCol: 'user_id' };
 
-    const [propStates, accounts, challenges] = await Promise.all([
+    const [propStates, allAccounts, challenges] = await Promise.all([
       propStatesForScope(scope),
       listAccounts(req.user.uid),
       challengesForScope(logins),
     ]);
+    // Filtered here, at the destructuring, so nothing downstream can see a live
+    // account.
+    const accounts = propAccountsOnly(allAccounts);
 
     return {
       states: propStates?.accounts ?? [],

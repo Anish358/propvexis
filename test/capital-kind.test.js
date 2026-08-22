@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { propAccountsOnly } from '../src/domain/accounts/accounts.js';
 
 // Route handlers cannot be exercised without an HTTP harness this repo does not
 // have, so what is asserted here is that the route file WIRES the tested pure
@@ -83,4 +84,38 @@ test('no account creation path gives a live account a challenge', () => {
   assert.ok(call > -1, 'the legacy path still needs to create a challenge for prop accounts');
   assert.match(post.slice(Math.max(0, call - 200), call), /capital_kind/,
     'createChallengeForAccount must be guarded on capital_kind');
+});
+
+test('propAccountsOnly keeps prop accounts and drops live ones', () => {
+  const rows = [
+    { id: 1, capital_kind: 'prop' },
+    { id: 2, capital_kind: 'live' },
+    { id: 3, capital_kind: 'prop' },
+  ];
+  assert.deepEqual(propAccountsOnly(rows).map((a) => a.id), [1, 3]);
+});
+
+test('propAccountsOnly treats a missing capital_kind as prop', () => {
+  // Belt and braces for a row read before migration 0026 lands, or a fixture that
+  // predates the column. Dropping such a row would empty a real trader's Prop OS.
+  assert.deepEqual(propAccountsOnly([{ id: 1 }, { id: 2, capital_kind: null }]).map((a) => a.id), [1, 2]);
+});
+
+test('propAccountsOnly is total — empty and absent input give an empty list', () => {
+  assert.deepEqual(propAccountsOnly([]), []);
+  assert.deepEqual(propAccountsOnly(undefined), []);
+  assert.deepEqual(propAccountsOnly(null), []);
+});
+
+test('every prop route filters its accounts through propAccountsOnly', () => {
+  // propOverview.js computes "active accounts", "total funding" and the accounts
+  // ring from whatever list it is handed. A live account in that list is counted
+  // as an evaluation with an 8% target, so the filter must be applied at every
+  // call site, not most of them.
+  const propRoute = readFileSync(new URL('../src/routes/prop.js', import.meta.url), 'utf8');
+  assert.ok(propRoute.includes('propAccountsOnly'), 'the helper is not imported');
+  const calls = [...propRoute.matchAll(/listAccounts\(req\.user\.uid\)/g)].length;
+  const filtered = [...propRoute.matchAll(/propAccountsOnly\(/g)].length;
+  assert.ok(filtered >= calls,
+    `${calls} listAccounts call(s) but only ${filtered} filtered — an unfiltered one counts live accounts as evaluations`);
 });

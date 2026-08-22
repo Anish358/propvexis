@@ -255,3 +255,20 @@ export async function tradeOwnerUserId(tradeId) {
   const { rows } = await query('SELECT user_id FROM trades WHERE id = $1', [tradeId]);
   return rows.length && rows[0].user_id != null ? Number(rows[0].user_id) : null;
 }
+
+/**
+ * Only the accounts Prop OS is about.
+ *
+ * A live-capital account has no firm rules, no challenge row and no profit
+ * target, so counting it in "active accounts", "total funding" or the accounts
+ * ring reports a number about money the firm never staked. The prop aggregators
+ * (domain/prop/propOverview.js) deliberately know nothing about this distinction —
+ * they compute over whatever list they are handed — so the filter lives here and is
+ * applied where accounts are fetched.
+ *
+ * A missing or null capital_kind counts as PROP: that is what every account
+ * created before migration 0026 is, and treating it as live would empty a real
+ * trader's Prop OS.
+ */
+export const propAccountsOnly = (accounts) =>
+  (Array.isArray(accounts) ? accounts : []).filter((a) => (a?.capital_kind ?? 'prop') === 'prop');
