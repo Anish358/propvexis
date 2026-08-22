@@ -12,8 +12,8 @@ import { query } from '../platform/db.js';
  * the single-account summary the header reads.
  *
  * Registered by calling this function on the ROOT app instance rather than through
- * Fastify's plugin register() call. A registered plugin gets its own encapsulated
- * context, and a route defined there cannot see decorators or hooks added to the parent
+ * app.register(). A registered plugin gets its own encapsulated context, and a
+ * route defined there cannot see decorators or hooks added to the parent
  * afterwards — app.requireAuth would be undefined and the global rate-limit hook
  * would not apply. A plain call keeps every route on the same instance, in the
  * same order, with the same guards it had when these handlers lived in app.js.
@@ -79,6 +79,10 @@ export default function accountRoutes(app, ctx) {
    * still means one of them gets the 409.
    */
   app.get('/api/accounts/login-available', { preHandler: app.requireAuth }, async (req, reply) => {
+    // `platform` is part of the query contract but deliberately UNREAD here.
+    // mt5_accounts.mt5_login is globally UNIQUE (not unique per platform), so a
+    // per-platform lookup would be answering a question the schema does not ask —
+    // do not "fix" this into a scoped query without changing that constraint first.
     const login = Number(req.query?.login);
     if (!Number.isInteger(login) || login <= 0) {
       return reply.code(400).send({ error: 'a positive login is required' });
@@ -136,6 +140,13 @@ export default function accountRoutes(app, ctx) {
         return reply.code(409).send({ error: err.message, conflict: err.conflict });
       }
       if (err.conflict === PROVISION_CONFLICT.KEY) {
+        // Two simultaneous requests carrying the same provision_key: the winner
+        // commits, the loser trips this unique violation instead of the
+        // in-transaction replay read (that SELECT ran before the winner's row
+        // existed), so the loser gets a 409 here rather than the 200 replay. That
+        // is correct, not a bug — the loser's own transaction was rolled back, so
+        // it has nothing to re-read; a client retry after the 409 lands on the
+        // committed row and gets the 200 replay.
         return reply.code(409).send({ error: err.message, conflict: err.conflict });
       }
       throw err;

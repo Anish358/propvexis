@@ -12,8 +12,13 @@ test('provision is registered on the root app with requireAuth', () => {
   assert.match(accountsRoute, /app\.post\(\s*'\/api\/accounts\/provision'/);
   const handler = accountsRoute.slice(accountsRoute.indexOf("'/api/accounts/provision'"));
   assert.match(handler.slice(0, 200), /preHandler:\s*app\.requireAuth/);
-  assert.equal(/app\.register\(/.test(accountsRoute), false,
-    'a registered plugin cannot see app.requireAuth or the rate-limit hook');
+  // Whether route modules are actually called rather than app.register()-ed is a
+  // structural invariant enforced across every route file by
+  // test/routes-split.test.js ("route modules are called, never registered as
+  // plugins"). A file-wide text scan for the literal `app.register(` here would
+  // add no coverage that test doesn't already give, and it is a false-positive
+  // magnet: the module's own explanatory comment above has every reason to name
+  // that exact API when describing what NOT to do.
 });
 
 test('provision delegates to the tested pure functions rather than re-deciding', () => {
@@ -37,7 +42,15 @@ test('provision maps a login collision to 409, not 500', () => {
 test('login-available never reveals another tenant account', () => {
   const idx = accountsRoute.indexOf("'/api/accounts/login-available'");
   assert.ok(idx > -1, 'the route is missing');
-  const handler = accountsRoute.slice(idx, idx + 1200);
+  // Anchor on the HANDLER'S OWN boundary — its route registration's closing
+  // `});` — rather than a fixed byte count. A fixed window necessarily spills
+  // into whatever sits next in the file (a neighbouring route's comment, say),
+  // so a negative assertion over it is really testing that neighbour, not this
+  // handler; it also couples the result to route order, which is incidental.
+  const rest = accountsRoute.slice(idx);
+  const close = /^\s{2}\}\);/m.exec(rest);
+  assert.ok(close, 'could not find the end of the login-available handler');
+  const handler = rest.slice(0, close.index + close[0].length);
   // It answers "can you use this login" and, only for the caller's own account,
   // "it is yours". Anything more is an enumeration oracle for other users' logins.
   assert.match(handler, /available/);
