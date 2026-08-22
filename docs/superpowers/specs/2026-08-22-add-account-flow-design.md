@@ -196,7 +196,19 @@ a fourth copy is the smell that justifies the extraction):
 
 1. Plan and cap check by resulting `kind`; `platform` against
    `src/domain/sync/platforms.js`; `import_method`↔`kind` consistency; when prop,
-   `firm_id`/`product_id`/`phase` against the catalog.
+   `firm_id`/`product_id` present and `phase` one of `p1`/`p2`/`funded`.
+
+   > **Correction (self-review):** an earlier draft said firm and product are
+   > validated *against the catalog*. They cannot be. The firm catalog carries every
+   > firm's drawdown percentages and lives in `frontend/src`, which §7.1 establishes
+   > the backend cannot import — and duplicating those numbers into `src/` is a far
+   > worse drift risk than the platform id list, because a stale percentage silently
+   > mis-scores a live challenge. So the backend validates **shape, not membership**:
+   > firm and product are stored as given, and the rule percentages arrive from the
+   > client exactly as they already do through `toPayload` today. The trust level is
+   > unchanged — a user can only distort their own analytics — and the catalog stays
+   > single-source. `phase` IS validated, because its three values are a schema fact
+   > (`challenges.phase`), not catalog data.
 2. `INSERT mt5_accounts`. `auto_sync` sets `mt5_login` **at insert** — the wizard
    already collected it, so the `bindOrCheckLogin` dance is unnecessary and the
    global-unique collision becomes a clean pre-commit failure. `ea` leaves it
