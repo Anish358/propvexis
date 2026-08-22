@@ -436,11 +436,21 @@ test('challengeStages: a resolved product overrides the firm-wide union', () => 
 });
 
 test('challengeStages: no product given falls back to the union across the firm\'s products, not a hardcoded default', () => {
-  // GFT's products are 2step (p1, p2, funded), 1step (p1, funded) and instant
-  // (funded) — their union is still all three stages, but derived from the
-  // catalog's products this time, not from the "unknown firm" fallback branch.
-  // A future edit that breaks the union (e.g. reads a `phases` field that no
-  // longer exists) must fail here rather than hide behind that fallback.
+  // What this pins: a no-product call for a firm whose products span all three
+  // stages (GFT: 2step p1/p2/funded, 1step p1/funded, instant funded) still
+  // yields the full lifecycle -- so challengeRows' existing single-argument
+  // call site (challengeStages(account?.firm_id), no product) keeps its
+  // current behaviour unchanged by this fix.
+  //
+  // What this does NOT pin, and why: with today's two-firm catalog, EVERY
+  // firm's products union to the full STAGE_ORDER, and the "unknown firm /
+  // empty ids" fallback also returns STAGE_ORDER. So a union silently broken
+  // back to empty (the original bug) would produce the identical result here
+  // and this assertion would not catch it -- that discrimination is what the
+  // two product-resolved assertions above this one guard instead. Closing
+  // this gap would need a firm whose products union to a strict SUBSET of
+  // STAGE_ORDER, which the catalog does not currently contain (and is not
+  // worth adding a fixture firm to create).
   assert.deepEqual(challengeStages('gft'), STAGE_ORDER);
 });
 
