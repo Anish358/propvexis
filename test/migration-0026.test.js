@@ -67,3 +67,24 @@ test('0026: every statement is idempotent, because migrate.js reruns nothing but
     assert.match(m[0], /IF NOT EXISTS/, `not idempotent: ${m[0].slice(0, 70)}`);
   }
 });
+
+test('0026: createAccount writes import_method explicitly, or the CHECK rejects every synced insert', () => {
+  // mt5_accounts.kind already defaults to 'synced' (0015) and this migration
+  // makes import_method NOT NULL DEFAULT 'manual'. If createAccount's INSERT
+  // ever again omits import_method, the live POST /api/accounts endpoint
+  // inserts kind='synced' + import_method='manual' by default, which
+  // mt5_accounts_import_method_kind_ck rejects — every synced account creation
+  // 500s. There is no test database, so this is a source-text assertion over
+  // the function, the same pattern test/sync-queue.test.js uses for
+  // ensureIngestToken.
+  const src = readFileSync(
+    new URL('../src/domain/accounts/accounts.js', import.meta.url),
+    'utf8',
+  );
+  const fn = src.slice(
+    src.indexOf('export async function createAccount'),
+    src.indexOf('export function stripNullProfitTarget'),
+  );
+  assert.match(fn, /kind, import_method\)/, 'import_method missing from the INSERT column list');
+  assert.match(fn, /manual \? 'manual' : 'ea'/, 'import_method must be derived from kind/manual, not left to the column default');
+});
