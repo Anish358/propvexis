@@ -59,6 +59,7 @@ export async function listAccounts(userId) {
             a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
             a.payout_cycle_days, a.payout_anchor_date,
             a.firm_id, a.firm_name,
+            a.product_id, a.capital_kind, a.platform, a.import_method,
             a.ingest_token, a.kind, a.is_active, a.created_at,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
@@ -73,8 +74,11 @@ export async function listAccounts(userId) {
 }
 
 // Columns selected/returned for an account (kept in sync across queries).
-const ACCT_COLS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind, is_active, created_at';
+// Exported so provisionQueries.js returns the same shape and test/provision-tx
+// can assert the new columns are actually reachable through the API.
+export const ACCOUNT_COLUMNS =
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at';
+const ACCT_COLS = ACCOUNT_COLUMNS;
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a
 // fresh ingest token — the EA binds its real MT5 login on the first trade. A

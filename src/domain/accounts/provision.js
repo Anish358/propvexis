@@ -170,3 +170,103 @@ export function provisionGate({ plan, kind, syncedCount = 0, manualCount = 0 }) 
   }
   return { ok: true };
 }
+
+import crypto from 'node:crypto';
+import { withTransaction } from '../../platform/db.js';
+import { sealPassword, saveCredentialQuery } from '../sync/credentials.js';
+import { enqueueQuery } from '../sync/queue.js';
+import {
+  findByProvisionKeyQuery, insertAccountQuery, assignSyntheticLoginQuery, insertChallengeQuery,
+} from './provisionQueries.js';
+
+/** Typed conflicts, so the route can pick a status code without parsing pg text. */
+export const PROVISION_CONFLICT = { LOGIN: 'login_taken', KEY: 'key_replayed' };
+
+const genToken = () => crypto.randomBytes(24).toString('hex');
+const shape = (row) => ({
+  ...row,
+  mt5_login: row.mt5_login == null ? null : Number(row.mt5_login),
+  pending: row.mt5_login == null,
+});
+
+/**
+ * Create an account and everything that must exist with it, in ONE transaction.
+ *
+ * The ordering is not incidental:
+ *   1. the account, because the credential is sealed under its id (credAad) and
+ *      the challenge references it;
+ *   2. the challenge — ONLY for a prop account. A live account getting one is the
+ *      bug this whole change exists to fix;
+ *   3. the credential, then the job. A job leased before its credential exists is
+ *      handed no payload, so the agent reports nothing, the lease expires, and
+ *      reclaimExpired re-queues it forever with no error anywhere.
+ *
+ * Every failure rolls back to nothing written, which is what makes retry safe with
+ * no cleanup path. `connect`, `credential` and `seal` are injected so all of the
+ * above is testable without a database (test/provision-tx.test.js).
+ */
+export async function provisionAccount(userId, v, opts = {}) {
+  const { connect, credential = null, seal = sealPassword } = opts;
+
+  return withTransaction(async (client) => {
+    // Idempotency first: a network drop after COMMIT is exactly when a user
+    // presses the button again, and this is a nine-step flow to repeat.
+    if (v.provision_key) {
+      const found = findByProvisionKeyQuery(userId, v.provision_key);
+      const { rows } = await client.query(found.text, found.values);
+      if (rows.length) return { account: shape(rows[0]), replayed: true };
+    }
+
+    const synced = v.kind === 'synced';
+    const login = v.import_method === 'auto_sync' && credential ? credential.login : null;
+    const insert = insertAccountQuery(
+      userId,
+      { ...v, ingest_token: synced ? genToken() : null },
+      login,
+    );
+
+    let row;
+    try {
+      ({ rows: [row] } = await client.query(insert.text, insert.values));
+    } catch (err) {
+      if (err.code === '23505') {
+        const conflict = /provision_key/.test(err.constraint ?? '')
+          ? PROVISION_CONFLICT.KEY
+          : PROVISION_CONFLICT.LOGIN;
+        const wrapped = new Error(
+          conflict === PROVISION_CONFLICT.LOGIN
+            ? 'That MT5 login is already registered to an account'
+            : 'This account was already created',
+        );
+        wrapped.conflict = conflict;
+        throw wrapped;
+      }
+      throw err;
+    }
+
+    if (!synced) {
+      const assign = assignSyntheticLoginQuery(row.id);
+      ({ rows: [row] } = await client.query(assign.text, assign.values));
+    }
+
+    if (v.capital_kind === 'prop') {
+      const challenge = insertChallengeQuery(row.id, v);
+      await client.query(challenge.text, challenge.values);
+    }
+
+    if (v.import_method === 'auto_sync' && credential) {
+      const cred = saveCredentialQuery({
+        accountId: row.id,
+        server: credential.server,
+        firmKey: v.firm_id ?? null,
+        passwordCt: seal(row.id, credential.password),
+      });
+      await client.query(cred.text, cred.values);
+
+      const job = enqueueQuery(row.id, 'first_sync');
+      await client.query(job.text, job.values);
+    }
+
+    return { account: shape(row), replayed: false };
+  }, connect);
+}
