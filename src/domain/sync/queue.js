@@ -1,4 +1,5 @@
 import { query } from '../../platform/db.js';
+import { PLATFORM_IDS } from './platforms.js';
 
 // The sync queue: which account gets a server-side terminal next, and what
 // happens when that goes wrong.
@@ -56,16 +57,20 @@ export function isMarketOpen(at = new Date()) {
 // ---------------------------------------------------------------------------
 
 /**
- * Queue one job. ON CONFLICT targets the partial unique index, so a second
- * request while a job is already queued or leased inserts nothing and returns no
- * row — the caller reports "already queued" rather than building a backlog.
+ * Queue one account. The platform is READ OFF THE ACCOUNT rather than passed in:
+ * mt5_accounts is the only authority for it, and a caller that guessed wrong would
+ * file the job on a fleet that cannot run it.
+ *
+ * The ON CONFLICT clause is the entire anti-pileup mechanism (the partial unique
+ * index from 0025) — pressing "Sync now" twice must insert nothing, not build a
+ * backlog the worker then grinds through serially.
  */
 export function enqueueQuery(accountId, reason = 'manual') {
   return {
-    text: `INSERT INTO sync_jobs (account_id, reason)
-           VALUES ($1, $2)
+    text: `INSERT INTO sync_jobs (account_id, reason, platform)
+           SELECT a.id, $2, a.platform FROM mt5_accounts a WHERE a.id = $1
            ON CONFLICT (account_id) WHERE status IN ('queued', 'leased') DO NOTHING
-           RETURNING id, account_id, status, reason, run_after;`,
+           RETURNING id, account_id, status, reason, run_after, platform;`,
     values: [accountId, reason],
   };
 }
@@ -81,9 +86,10 @@ export function enqueueQuery(accountId, reason = 'manual') {
  */
 export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS) {
   return {
-    text: `INSERT INTO sync_jobs (account_id, reason)
+    text: `INSERT INTO sync_jobs (account_id, reason, platform)
            SELECT a.id,
-                  CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule' END
+                  CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule' END,
+                  a.platform
              FROM mt5_accounts a
              JOIN mt5_credentials c ON c.account_id = a.id
             WHERE a.is_active
@@ -98,7 +104,7 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS) {
                     'epoch'::timestamptz
                   ) < now() - make_interval(secs => $1)
            ON CONFLICT (account_id) WHERE status IN ('queued', 'leased') DO NOTHING
-           RETURNING id, account_id, reason;`,
+           RETURNING id, account_id, reason, platform;`,
     values: [Math.round(intervalMs / 1000)],
   };
 }
@@ -111,11 +117,11 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS) {
  * `attempts` increments on lease, not on failure — an agent that dies without
  * reporting anything has still consumed a try, so a crash loop still backs off.
  */
-export function leaseQuery(workerId, limit = 1, leaseMs = LEASE_MS) {
+export function leaseQuery(workerId, limit = 1, leaseMs = LEASE_MS, platforms = ['mt5']) {
   return {
     text: `WITH picked AS (
              SELECT id FROM sync_jobs
-              WHERE status = 'queued' AND run_after <= now()
+              WHERE status = 'queued' AND run_after <= now() AND platform = ANY($4)
               ORDER BY run_after, id
               FOR UPDATE SKIP LOCKED
               LIMIT $2
@@ -128,9 +134,27 @@ export function leaseQuery(workerId, limit = 1, leaseMs = LEASE_MS) {
                   attempts = j.attempts + 1
              FROM picked
             WHERE j.id = picked.id
-          RETURNING j.id, j.account_id, j.reason, j.attempts;`,
-    values: [workerId, limit, Math.round(leaseMs / 1000)],
+          RETURNING j.id, j.account_id, j.reason, j.attempts, j.platform;`,
+    values: [workerId, limit, Math.round(leaseMs / 1000), platforms],
   };
+}
+
+/**
+ * Which platforms is this worker claiming it can run?
+ *
+ * ABSENT MEANS MT5, deliberately. The Windows agent will not send this field when
+ * the change deploys, and that box is stopped most of the time — so it may be weeks
+ * before it is updated. Defaulting to MT5 keeps the only worker we have working
+ * untouched.
+ *
+ * An all-unknown list also falls back to MT5 rather than returning []: `= ANY('{}')`
+ * matches no rows, so an empty list would leave the worker polling forever with no
+ * error anywhere — the exact silent-stop failure mode the heartbeat exists to catch.
+ */
+export function requestedPlatforms(body) {
+  const raw = Array.isArray(body?.platforms) ? body.platforms : [];
+  const known = [...new Set(raw.map(String).filter((p) => PLATFORM_IDS.includes(p)))].slice(0, 10);
+  return known.length ? known : ['mt5'];
 }
 
 /**
@@ -292,7 +316,8 @@ const run = async (q) => (await query(q.text, q.values)).rows;
 
 export const enqueue = async (accountId, reason) => (await run(enqueueQuery(accountId, reason)))[0] ?? null;
 export const enqueueDue = (intervalMs) => run(dueAccountsQuery(intervalMs));
-export const leaseJobs = (workerId, limit, leaseMs) => run(leaseQuery(workerId, limit, leaseMs));
+export const leaseJobs = (workerId, limit, leaseMs, platforms) =>
+  run(leaseQuery(workerId, limit, leaseMs, platforms));
 export const leasedPayloads = (jobIds, lookbackMs) =>
   jobIds.length ? run(leasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
 export const completeJob = async (jobId, stats) => (await run(completeQuery(jobId, stats)))[0] ?? null;

@@ -14,6 +14,7 @@ import {
   lastJob,
   jobForWorker,
   isMarketOpen,
+  requestedPlatforms,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
 import {
@@ -109,7 +110,7 @@ export default function syncRoutes(app) {
     // Scheduled syncs pause over the weekend; a manual "Sync now" is already in
     // the queue by the time we get here, so it is unaffected.
     const queued = isMarketOpen() ? await enqueueDue() : [];
-    const leased = await leaseJobs(workerId, limit);
+    const leased = await leaseJobs(workerId, limit, undefined, requestedPlatforms(body));
     const rows = await leasedPayloads(leased.map((j) => j.id));
 
     const jobs = [];
