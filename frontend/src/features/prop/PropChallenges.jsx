@@ -7,8 +7,7 @@ import { AccountFormModal } from '../accounts/AccountForms.jsx';
 import { fetchPropHistory, fetchPropPortfolio } from '../../lib/api.js';
 import ChallengeCard from './ChallengeCard.jsx';
 import ChallengeDetails from './ChallengeDetails.jsx';
-import { selectedLogin } from './propAccounts.js';
-import { onlyPropCapital } from './propAccounts.js';
+import { onlyPropCapital, selectedLogin } from './propAccounts.js';
 import {
   ALL_FIRMS, CHALLENGE_TABS, challengeCounts, challengeRows, firmOptions, groupByFirm,
 } from './challengesData.js';

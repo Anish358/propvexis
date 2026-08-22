@@ -123,7 +123,10 @@ test('selecting a challenge writes the app-wide selection, then flips to Details
   // No local selected-challenge state — that would be a second source of truth.
   assert.ok(!/useState\([^)]*selectedChallenge/i.test(page));
   // The selection is read back through the SAME resolver the Accounts page uses.
-  assert.match(page, /import \{ selectedLogin \} from '[^']*propAccounts\.js'/);
+  // The regex deliberately does not pin the import's brace contents -- what matters
+  // is that selectedLogin comes from the shared module, not how many other symbols
+  // travel alongside it in the same import statement.
+  assert.match(page, /import \{[^}]*\bselectedLogin\b[^}]*\}\s*from\s*'[^']*propAccounts\.js'/);
   assert.match(page, /const login = selectedLogin\(accountId\)/);
 });
 
