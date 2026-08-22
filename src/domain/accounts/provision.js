@@ -250,7 +250,12 @@ export async function provisionAccount(userId, v, opts = {}) {
     }
 
     if (v.capital_kind === 'prop') {
-      const challenge = insertChallengeQuery(row.id, v);
+      // Built from the account ROW the INSERT just returned, not from `v` — the
+      // row is already coalesced to mt5_accounts' defaults and NOT NULL, so this
+      // is the only way the challenge's rules cannot silently drift from what
+      // Settings displays for the account. `phase` is layered on top because the
+      // account row does not carry it (see insertChallengeQuery's doc comment).
+      const challenge = insertChallengeQuery(row.id, { ...row, phase: v.phase });
       await client.query(challenge.text, challenge.values);
     }
 

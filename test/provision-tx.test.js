@@ -55,6 +55,21 @@ test('insertAccountQuery sets the login for auto_sync and leaves it null for ea'
   assert.ok(ea.values.includes(null));
 });
 
+test('insertAccountQuery: the values array is pinned position-for-position', () => {
+  // `q.values.includes(x)` (used above) is position-blind — it cannot tell a
+  // correctly-placed value from one swapped with its neighbour (e.g.
+  // capital_kind and platform, both strings). This snapshot is what makes the
+  // 22-column placeholder/values audit permanent rather than a one-time count.
+  const q = insertAccountQuery(7, propValue(), 314943467);
+  assert.deepEqual(q.values, [
+    7, 'GFT 50K', null, 'USD', 50000, 'eval',
+    5, 10, 8, null,
+    'static', 3, 'gft', 'GoatFundedTrader', '2step',
+    'prop', 'mt5', 'auto_sync', 'synced', 314943467,
+    null, null,
+  ]);
+});
+
 test('assignSyntheticLoginQuery keeps manual accounts in the negative space', () => {
   const q = assignSyntheticLoginQuery(42);
   assert.match(q.text, /mt5_login = -id/);
@@ -81,6 +96,39 @@ test('insertChallengeQuery clears the profit target on a funded phase', () => {
   // ...and an eval phase must still carry its target through.
   const evalPhase = insertChallengeQuery(42, propValue({ phase: 'p1', profit_target_pct: 8 }));
   assert.ok(evalPhase.values.includes(8));
+});
+
+test('insertChallengeQuery: the values array is pinned position-for-position', () => {
+  // Same rationale as the insertAccountQuery snapshot above: `includes()` alone
+  // cannot catch two neighbouring values swapped. Shaped like the account row
+  // insertAccountQuery's RETURNING gives back, plus `phase` layered on top by
+  // the caller — not the raw provision payload, per Finding 1.
+  const row = {
+    dd_type: 'static', start_balance: 50000, daily_dd_pct: 5, max_dd_pct: 10,
+    profit_target_pct: 8, min_trading_days: 3, phase: 'p1',
+  };
+  const q = insertChallengeQuery(42, row);
+  assert.deepEqual(q.values, [42, 'p1', 'static', 50000, 5, 10, 8, 3]);
+});
+
+test('provisionAccount: a prop account that omits every percentage does not let the challenge diverge from the account row', async () => {
+  // The bug this closes: insertChallengeQuery used to apply its OWN defaults
+  // (4/10/no-target) to a v with nulled-out percentages, while insertAccountQuery
+  // applied mt5_accounts' defaults (5/10/8) to the same nulls — two different
+  // rule sets for one account. Now the challenge is built from the account row
+  // insertAccountQuery's RETURNING produced, so whatever that row coalesced to
+  // is exactly what the challenge carries.
+  const accountRow = {
+    id: 42, mt5_login: null, dd_type: 'static', start_balance: 50000,
+    daily_dd_pct: 5, max_dd_pct: 10, profit_target_pct: 8, min_trading_days: 0,
+  };
+  const c = fakeClient([accountRow]);
+  await provisionAccount(1, propValue({
+    daily_dd_pct: null, max_dd_pct: null, profit_target_pct: null, min_trading_days: null,
+  }), { connect: async () => c });
+  const challenge = c.sql.find((q) => q.text.includes('INSERT INTO challenges'));
+  // accountId, phase, dd_type, start_balance, daily_dd_pct, max_dd_pct, profit_target_pct, min_trading_days
+  assert.deepEqual(challenge.values, [42, 'p1', 'static', 50000, 5, 10, 8, 0]);
 });
 
 test('provisionAccount: prop + auto_sync writes account, challenge, credential, job — in that order', async () => {
@@ -120,6 +168,22 @@ test('provisionAccount: an EA account gets a challenge but no credential and no 
   assert.equal(ran(c, 'mt5_credentials'), false);
   assert.equal(ran(c, 'sync_jobs'), false, 'nothing to sync until the EA sends a trade');
   assert.equal(ran(c, 'mt5_login = -id'), false, 'a synced account is not in the negative space');
+});
+
+test('provisionAccount: a credential handed to an EA import_method is still never written', async () => {
+  // The credential/job write is gated on `v.import_method === 'auto_sync' &&
+  // credential`. The other EA test omits `credential` entirely and so only ever
+  // exercises the `&& credential` half; this exercises the `import_method`
+  // half by supplying a credential anyway, to prove EA is not merely "usually"
+  // credential-less but that the guard actively refuses to write one.
+  const c = fakeClient();
+  await provisionAccount(1, propValue({ import_method: 'ea' }), {
+    connect: async () => c,
+    credential: { server: 'S', login: 5, password: 'pw' },
+    seal: () => 'v1.sealed',
+  });
+  assert.equal(ran(c, 'mt5_credentials'), false);
+  assert.equal(ran(c, 'sync_jobs'), false);
 });
 
 test('provisionAccount: replaying a provision_key returns the existing account and writes nothing', async () => {
