@@ -45,3 +45,39 @@ pool.on('error', (err) => {
 });
 
 export const query = (text, params) => pool.query(text, params);
+
+/**
+ * Run `fn` inside a transaction on one pooled client.
+ *
+ * Three modules used to hand-roll this (auth.js, challenges.js, strategies.js);
+ * account provisioning would have been the fourth. Two properties are worth
+ * stating because getting either wrong is silent:
+ *
+ *  - the client is released in `finally`, so a throw anywhere cannot leak it.
+ *    A leaked client is invisible until the pool is exhausted, which then looks
+ *    like the database being slow rather than like a bug.
+ *  - a failing ROLLBACK is swallowed. On a dead connection ROLLBACK throws too,
+ *    and letting that propagate would replace the real cause with
+ *    "connection terminated" in every log.
+ *
+ * `connect` is injectable so the contract above is testable without a database
+ * (test/db-transaction.test.js) — this repo has no test DB.
+ */
+export async function withTransaction(fn, connect = () => pool.connect()) {
+  const client = await connect();
+  try {
+    await client.query('BEGIN');
+    const out = await fn(client);
+    await client.query('COMMIT');
+    return out;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* see above — never mask the original error */
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
