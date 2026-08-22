@@ -40,6 +40,15 @@ updates:
       frontend-minor-patch:
         patterns: ['*']
         update-types: [minor, patch]
+      # react and react-dom MUST move together: react-dom declares a peer
+      # dependency on the matching react major, so a major for one alone is not a
+      # PR that can be merged — it is an `npm ci` that fails with ERESOLVE. The
+      # "majors individually" rule above is right for everything else and wrong
+      # here, which is what this group corrects. (Learned the hard way: #87
+      # bumped react-dom to 19 alone, passed CI, and would have broken the deploy.)
+      react:
+        patterns: ['react', 'react-dom']
+        update-types: [major]
 
   # Pin-drift on the actions themselves is a real supply-chain surface too.
   - package-ecosystem: github-actions
