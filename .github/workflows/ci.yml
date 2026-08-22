@@ -29,6 +29,24 @@ jobs:
       - run: npm ci
       - run: npm test
 
+      # THE FRONTEND HAS ITS OWN LOCKFILE AND WAS NEVER CHECKED HERE. `npm ci`
+      # above installs the backend only, so a broken frontend dependency passed
+      # every check on the PR and failed later in deploy-env.yml, which is the
+      # only place the SPA was ever installed or built — i.e. on a deploy from
+      # main, after the merge. That is exactly the shape of the `dev`-trigger bug
+      # described at the top of this file: a check that never ran looks identical
+      # to one that passed.
+      #
+      # `npm ci` (not `install`) on purpose: it fails on a lockfile that does not
+      # satisfy package.json, which is the actual bug class here — PR #87 bumped
+      # react-dom to 19 while react stayed at 18, and react-dom@19 peers on
+      # react@^19. The build is the second half: `ci` proves the tree resolves,
+      # `build` proves the code still compiles against it.
+      - name: Frontend install + build
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
       # The sync agent is Python (the MT5 API is a Windows Python package), so its
       # unit tests cannot run under node:test. history.py deliberately imports
       # nothing from MetaTrader5 precisely so this step needs no Windows runner and
