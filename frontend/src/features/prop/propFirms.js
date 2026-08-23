@@ -36,7 +36,8 @@ export const SHORT_PRODUCT_LABEL = {
 };
 
 /** Human size label: 50000 -> "50K". Moved here from AccountForms.jsx — it
- *  formats catalog data and three surfaces now need it. */
+ *  formats catalog data, so it belongs with the catalog; AccountForms.jsx
+ *  imports it back, and test/propFirms.test.js exercises it directly. */
 export const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : String(n));
 
 export const PROP_FIRMS = [
