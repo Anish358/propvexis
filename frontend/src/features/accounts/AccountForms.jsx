@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { createAccount, updateAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { PROP_FIRMS, findFirm, findProduct, templateToFields } from '../prop/propFirms.js';
+import { eaAllowed } from './accountGating.js';
 
 // ---------------------------------------------------------------------------
 // The account FORMS — the shared field components plus the two dialogs that host
@@ -86,8 +87,14 @@ export function TemplatePicker({ onApply }) {
 
 // The plan gate moved to accountGating.js — a JSX file cannot be imported by
 // node:test, and the wizard's `import` step needs the cap NUMBER as well as this
-// predicate. Re-exported so existing import sites keep working.
-export { eaAllowed } from './accountGating.js';
+// predicate.
+//
+// IMPORT **AND** RE-EXPORT, not `export … from`. This file calls eaAllowed itself
+// (AccountFormModal below), and `export { x } from './y'` adds an indirect export
+// entry for external importers WITHOUT creating a local binding — so the bare call
+// site throws ReferenceError at render. Nothing catches that here: no bundler
+// scope-checks it, and this repo cannot render JSX in a test.
+export { eaAllowed };
 
 // EA setup card shown for an account. The downloaded EA is pre-filled with this
 // account's ingest endpoint + token (injected client-side), so the user just
