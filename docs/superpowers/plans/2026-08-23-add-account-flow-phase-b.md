@@ -318,8 +318,16 @@ In `frontend/src/features/accounts/AccountForms.jsx`, delete the inline definiti
 ```js
 // The plan gate moved to accountGating.js — a JSX file cannot be imported by
 // node:test, and the wizard's `import` step needs the cap NUMBER as well as this
-// predicate. Re-exported so existing import sites keep working.
-export { eaAllowed } from './accountGating.js';
+// predicate.
+//
+// IMPORT **AND** RE-EXPORT, not `export … from`. This file calls eaAllowed itself
+// (AccountFormModal), and `export { x } from './y'` adds an indirect export entry
+// for external importers WITHOUT creating a local binding — so the bare call site
+// throws ReferenceError at render. Nothing catches that here: no bundler
+// scope-checks it, and this repo cannot render JSX in a test. Found by review on
+// 2026-08-23 after the first version of this plan mandated the broken form.
+import { eaAllowed } from './accountGating.js';
+export { eaAllowed };
 ```
 
 In `frontend/src/features/settings/SettingsPanels.jsx`, change line 9 to import from the new module directly:
