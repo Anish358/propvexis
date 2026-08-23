@@ -218,6 +218,41 @@ test('the phase step is not done until the phase-dependent number is in', () => 
   assert.equal(isStepComplete({ ...fundedDraft, payout_split_pct: 80 }, 'phase'), true);
 });
 
+test('account_type is derived from the phase, never trusted from a page', () => {
+  // One fact under two names. Eleven pages each remembering to set both is how a
+  // funded challenge gets filed as an evaluation, and the prop engine then scores
+  // it against a profit target it does not have.
+  const base = propUpToImport({ phase: null, account_type: 'eval', payout_split_pct: null });
+
+  const funded = patchDraft(base, { phase: 'funded', payout_split_pct: 80 });
+  assert.equal(funded.account_type, 'funded', 'the phase alone settles it — no second control');
+  assert.equal(isStepComplete(funded, 'phase'), true);
+
+  const evaluation = patchDraft(base, { phase: 'p1', profit_target_pct: 8 });
+  assert.equal(evaluation.account_type, 'eval');
+
+  // The half that actually mattered: a page CANNOT contradict the phase. Before
+  // this was derived, {phase:'funded', account_type:'eval'} was a complete step
+  // and produced a payload carrying both.
+  const lied = patchDraft(base, { phase: 'funded', account_type: 'eval', profit_target_pct: 8 });
+  assert.equal(lied.account_type, 'funded', 'the phase wins');
+  assert.equal(toProvisionPayload(lied).account_type, 'funded');
+  assert.equal(isStepComplete(lied, 'phase'), false, 'and it now asks for the split it needs');
+});
+
+test('a platform badged Soon is not a complete answer', () => {
+  // mt4, cTrader and TradeLocker are listed so the catalog reads as the real
+  // roadmap, and the backend refuses all three. Accepting one here would pass the
+  // step and then 400 at the commit, two steps later.
+  for (const soon of ['mt4', 'ctrader', 'tradelocker']) {
+    assert.equal(isStepComplete({ ...fresh(), platform: soon }, 'platform'), false, soon);
+  }
+  for (const live of ['mt5', 'other']) {
+    assert.equal(isStepComplete({ ...fresh(), platform: live }, 'platform'), true, live);
+  }
+  assert.equal(isStepComplete({ ...fresh(), platform: 'zzz' }, 'platform'), false, 'unknown platform');
+});
+
 test('the phase step rejects a phase the challenges table does not accept', () => {
   assert.deepEqual(PHASES, ['p1', 'p2', 'funded']);
   assert.equal(isStepComplete(propUpToImport({ phase: 'p3' }), 'phase'), false);

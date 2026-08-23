@@ -174,7 +174,14 @@ const COMPLETE = {
   phase: (d) => PHASES.includes(d.phase)
     && (d.account_type === 'funded' ? has(d.payout_split_pct) : has(d.profit_target_pct)),
   name: (d) => String(d.label ?? '').trim() !== '',
-  platform: (d) => Boolean(d.platform),
+  // Not merely "a platform was chosen": three of the five cards are badged `soon`
+  // and the backend refuses exactly those (platforms.js `enabled: false`), so a
+  // chosen-but-unavailable platform would pass this step and then 400 at the
+  // commit two steps later. patchDraft already withdraws an import method the
+  // platform cannot serve, for precisely this class of mismatch — leaving the
+  // platform itself unchecked was the asymmetry. `status: 'live'` <=> `enabled:
+  // true` is pinned by test/platform-catalog.test.js.
+  platform: (d) => findPlatformCard(d.platform)?.status === 'live',
   // On the Manual and File branches `import` IS the commit step, so choosing a
   // card is not enough — a failed provision must leave the user on the step that
   // failed rather than one past it.
@@ -294,6 +301,19 @@ export function patchDraft(draft, patch = {}) {
   if (changed('product_id')) next = { ...next, phase: null, ...RULES_CLEARED };
 
   next = { ...next, ...patch };
+
+  // account_type is DERIVED from the phase, never trusted from a page. It is one
+  // fact under two names, and eleven page components each remembering to set both
+  // is how a funded challenge gets filed as an evaluation — not a cosmetic error:
+  // challenges.phase would say funded while account_type says eval, and the prop
+  // engine would score it against a profit target it does not have. Deriving it
+  // here also removes the dead end on the custom path, where templateToFields
+  // returns null and the page would otherwise have to set the pair by hand.
+  //
+  // Sound because accountType === 'funded' <=> phase.id === 'funded' holds for
+  // every phase of every product in the catalog; a product that broke it would
+  // also break propFirms.test.js's shape assertions, so it cannot land silently.
+  if ('phase' in patch) next.account_type = patch.phase === 'funded' ? 'funded' : 'eval';
 
   // A platform can withdraw an import method: `other` and MT4 offer only file and
   // manual, and the EA is a .mq5 file so it is MT5-only. Read AFTER the merge,
