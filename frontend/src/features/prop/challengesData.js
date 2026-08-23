@@ -67,14 +67,15 @@ export const STAGE_STATUS_LABEL = {
  * flat `phases` list, because the rules differ per product (1-Step vs. 2-Step vs.
  * Instant Funding), not just per phase.
  *
- * `productId` is optional: today's accounts do not carry one on the client (that
- * lands in a later phase), so most callers only ever have a `firmId`. When it is
- * given and resolves, the stages come from THAT product's phases alone — an Instant
- * Funding challenge has no Phase 1 or Phase 2, and printing either would be
- * inventing a stage that product does not run. Without a resolved product, the
- * stages come from the UNION of phase ids across all of the firm's products, so a
- * firm page that cannot yet tell which product an account is on still shows every
- * stage any of its products might reach, rather than guessing one.
+ * `productId` is optional: an account created before the products layer (or one
+ * whose firm was typed by hand) carries no `product_id`, so a caller may only
+ * ever have a `firmId`. When it is given and resolves, the stages come from
+ * THAT product's phases alone — an Instant Funding challenge has no Phase 1 or
+ * Phase 2, and printing either would be inventing a stage that product does not
+ * run. Without a resolved product, the stages come from the UNION of phase ids
+ * across all of the firm's products, so a firm page that cannot yet tell which
+ * product an account is on still shows every stage any of its products might
+ * reach, rather than guessing one.
  *
  * An account whose firm was typed by hand carries no `firm_id` and so has no
  * catalog entry. It gets the full three, because "we don't know" is not the same
@@ -128,7 +129,12 @@ export function challengeRows({ states = [], accounts = [] } = {}) {
         ...accountRow(s, account),
         firmId: account?.firm_id ?? null,
         firmKey: firmKeyOf(account),
-        stages: challengeStages(account?.firm_id),
+        // listAccounts() selects product_id (migration 0026), so it rides the
+        // outlet context onto `account` — pass it through so an Instant Funding
+        // or 1-Step challenge does not render a Phase 2 it does not run. NULL on
+        // an older row falls back to challengeStages' own union-across-products
+        // behaviour, unchanged.
+        stages: challengeStages(account?.firm_id, account?.product_id),
       };
     })
     .sort(byRisk);

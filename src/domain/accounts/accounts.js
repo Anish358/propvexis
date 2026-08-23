@@ -133,7 +133,13 @@ export async function updateAccount(userId, id, fields) {
   // payout_cycle_days / payout_anchor_date are edited from the Overview's
   // "Upcoming payouts" card (the small edit-cycle popup), not the accounts modal —
   // same PATCH route, so no second write path.
-  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'payout_cycle_days', 'payout_anchor_date', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'is_active'];
+  // product_id MUST stay in this list: TemplatePicker renders unconditionally on
+  // the edit form too (AccountForms.jsx), so applying a template while editing
+  // sends product_id alongside the rule percentages it pre-fills. Omitting it
+  // here would save the new percentages while leaving product_id at its old
+  // value (normally NULL) — the account then reads as hand-configured, which is
+  // exactly the drift the products layer exists to prevent.
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'payout_cycle_days', 'payout_anchor_date', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'product_id', 'is_active'];
   const sets = [];
   const params = [];
   for (const f of allowed) {
