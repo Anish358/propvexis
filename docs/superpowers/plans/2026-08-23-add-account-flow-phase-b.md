@@ -2526,7 +2526,46 @@ MSG
 ```
 
 ---
-# ⛔ Tasks 6–13 are GATED on `docs/design-system/DESIGN-LANGUAGE.md`
+# ⚠️ Tasks 6–13: the design gate is LIFTED, but their styling approach is SUPERSEDED
+
+`docs/design-system/DESIGN-LANGUAGE.md` now exists and is tracked (`767f44a`), so
+the gate below is lifted. **But the doc changes how these eight tasks must be
+built, and they have not been revised for it yet.**
+
+Every task from 6 onward assumes the pages are styled with **hand-written `.naf-*`
+rules** in `styles/legacy/app.css`, on the reasoning that Tailwind utilities do not
+compile outside `components/{ui,primitives}`. That reasoning is still true, but it
+led to the wrong conclusion. The design language mandates a build order:
+
+> existing `@/components/primitives` → a component from the **`@coss`** registry,
+> then `@shadcn` → a composition of those → hand-written, **last**.
+
+Writing a page's chrome from scratch when a registry ships it is off-foundation by
+construction, because the preset's styling arrives *through* those components. And
+`@coss` ships nearly everything these eleven pages need — `field`, `radio-group`
+(including a **card** variant, which is the choice-card pattern for `capital`,
+`product`, `phase` and `import`), `progress` (the step indicator), `empty`,
+`combobox`/`command` (the platform search), `number-field` (the rule percentages),
+`input-group`, `alert` (the disabled-with-a-reason and 503 states), `badge` (the
+"Soon" badges) and `spinner`.
+
+**So before running Task 6, revise Tasks 6–13** to generate the needed `@coss`
+components into `components/ui/`, wrap them under `components/primitives/` where
+PropVexis needs a difference, and compose the pages from those — with hand-written
+CSS only for genuine layout gaps. Search the registry with the shadcn MCP
+(`.mcp.json`, pointed at `frontend`) rather than guessing component names.
+
+What survives unchanged from the tasks below: every structural requirement, the
+routing, the guard, the a11y assertions, the source-text tests, and the four
+`§`-rules that are test-enforced (§6 radius, §7 elevation, §14 hover, plus the
+no-raw-hex rule). What needs rewriting is only the "write `.naf-*` CSS" half.
+
+This note is deliberately not a rewrite: the owner has not been asked how much of
+the component-first migration belongs in this feature versus its own PR.
+
+---
+
+# ⛔ (superseded) Tasks 6–13 were GATED on `docs/design-system/DESIGN-LANGUAGE.md`
 
 Do not begin Task 6 until the owner has supplied that file. Everything below assumes it is present and readable at that path.
 
