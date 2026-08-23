@@ -152,6 +152,59 @@ export async function deleteAccount(id) {
   return res.json();
 }
 
+/**
+ * Create an account and everything that must exist with it, atomically
+ * (POST /api/accounts/provision). This is what the Add Account wizard calls.
+ *
+ * Surfaces the SERVER's message rather than a status code, like syncCall below and
+ * for the same reason: every failure here is something the user has to act on —
+ * a login already registered, a plan cap, Auto Sync not configured on this server.
+ *
+ * The status and the typed conflict ride on the error because the connect step
+ * needs them: a 409 must keep the values the user typed, name the collision and
+ * link to the account when it is their own, and none of that can be recovered
+ * from a message string.
+ */
+export async function provisionAccount(payload) {
+  const res = await apiFetch('/api/accounts/provision', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `could not create the account (${res.status})`);
+    err.status = res.status;
+    err.conflict = data.conflict;
+    throw err;
+  }
+  // The route replies { account } — and on a provision_key replay it is the
+  // EXISTING account with a 200 rather than a 201, which is a success either way.
+  return data.account;
+}
+
+/**
+ * Is this platform login free? (GET /api/accounts/login-available.)
+ *
+ * Called while the user types, so it NEVER rejects: a failed pre-check resolves
+ * to "we do not know" and the step stays usable. The unique index at commit is
+ * the real guard — this only spares the user a 409 at the end of a nine-step flow.
+ */
+export async function checkLoginAvailable(login, platform) {
+  try {
+    // Held in its own single-quoted const rather than inlined in the template
+    // below — a source-text test guards the set of /api/accounts paths this
+    // module hits, and a backtick literal wouldn't be visible to it.
+    const path = '/api/accounts/login-available';
+    const q = new URLSearchParams({ login: String(login), platform: String(platform ?? '') });
+    const res = await apiFetch(`${path}?${q}`);
+    if (!res.ok) return { available: null, mine: false };
+    return await res.json();
+  } catch {
+    return { available: null, mine: false };
+  }
+}
+
 // ---- Server-side MT5 sync (the self-hosted terminal farm) ----
 // Unlike the calls above, these surface the SERVER's message rather than a
 // generic "name 404". Every failure here is something the user must act on —
