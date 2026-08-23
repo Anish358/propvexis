@@ -1154,16 +1154,34 @@ test('one patch may set a product AND its resolved rules — invalidation runs f
   // single patch. If the cascade cleared the rules AFTER merging the patch, the
   // numbers the step just resolved would be wiped and the step could never
   // complete.
+  //
+  // The patch has to be a real product CHANGE, because a change is the only thing
+  // that fires invalidation at all — re-selecting the product already chosen must
+  // invalidate nothing (asserted directly below). So this switches the 2-Step
+  // fixture to 1-Step and carries 1-Step's own resolved numbers. Patching the
+  // fixture's existing product would make this test vacuous: no cascade would run,
+  // and the ordering it exists to pin would go unexercised.
   const d = patchDraft(propUpToImport(), {
-    product_id: '2step', start_balance: 100000,
-    daily_dd_pct: 5, max_dd_pct: 10, profit_target_pct: 8, min_trading_days: 3,
+    product_id: '1step', start_balance: 100000,
+    daily_dd_pct: 4, max_dd_pct: 6, profit_target_pct: 10, min_trading_days: 3,
     account_type: 'eval',
   });
+  assert.equal(d.product_id, '1step');
   assert.equal(d.start_balance, 100000);
-  assert.equal(d.daily_dd_pct, 5);
-  assert.equal(d.max_dd_pct, 10);
-  assert.equal(d.profit_target_pct, 8);
+  assert.equal(d.daily_dd_pct, 4);
+  assert.equal(d.max_dd_pct, 6);
+  assert.equal(d.profit_target_pct, 10);
   assert.equal(d.phase, null, 'the phase still had to be dropped');
+});
+
+test('re-choosing the SAME product invalidates nothing', () => {
+  // The symmetric half of the capital_kind rule, and it is a real hazard: clicking
+  // the already-selected product card must not wipe the phase and the rules the
+  // user has already answered. Invalidation keys off a value CHANGE, uniformly,
+  // for every identity field.
+  const before = propUpToImport();
+  const after = patchDraft(before, { product_id: '2step' });
+  assert.deepEqual(after, before);
 });
 
 test('a platform that cannot Auto Sync drops a chosen Auto Sync', () => {
