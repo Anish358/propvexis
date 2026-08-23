@@ -1,7 +1,11 @@
-import { resolveScope, listAccounts, createAccount, updateAccount, deleteAccount, stripNullProfitTarget } from '../domain/accounts/accounts.js';
+import { resolveScope, listAccounts, createAccount, updateAccount, deleteAccount, stripNullProfitTarget, ownedAccountByLogin } from '../domain/accounts/accounts.js';
 import { createChallengeForAccount, syncActiveChallengeRules } from '../domain/prop/challenges.js';
 import { planForUser, syncedAccountCount, manualAccountCount } from '../domain/billing/entitlements.js';
 import { accountLimit, manualAccountLimit } from '../domain/billing/plans.js';
+import { validateProvision, provisionGate, provisionAccount, PROVISION_CONFLICT } from '../domain/accounts/provision.js';
+import { getConnector } from '../domain/sync/connectors/index.js';
+import { credentialsEnabled } from '../domain/sync/credentials.js';
+import { query } from '../platform/db.js';
 
 /**
  * The user's MT5 accounts — CRUD for the switcher and the account box, plus
@@ -46,14 +50,113 @@ export default function accountRoutes(app, ctx) {
         return reply.code(402).send({ error: `Your plan allows up to ${limit} manual accounts` });
       }
     }
-    const { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days } = req.body ?? {};
+    const { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, product_id } = req.body ?? {};
+    // Absent means prop, which is what every account created before capital_kind
+    // existed is — so an old client keeps its current behaviour exactly.
+    const capital_kind = req.body?.capital_kind === 'live' ? 'live' : 'prop';
     const acct = await createAccount(req.user.uid, {
-      label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, kind,
+      label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct,
+      profit_target_pct, payout_split_pct, dd_type, min_trading_days,
+      firm_id, firm_name, product_id, capital_kind, kind,
     });
-    // Every account tracks an active challenge from the moment it exists, so the
-    // Prop OS module has state to show (seeded from the account's rule template).
-    await createChallengeForAccount(acct.id);
+    // Every PROP account tracks an active challenge from the moment it exists, so
+    // Prop OS has state to show. A live account must NOT get one: it has no firm
+    // rules, and an invented 5/10/8 challenge is what made own-capital accounts
+    // read as evaluations with a profit target they do not have.
+    if (capital_kind === 'prop') await createChallengeForAccount(acct.id);
     return reply.code(201).send(acct);
+  });
+
+  /**
+   * Is this platform login free to use? The credential step calls this while the
+   * user types, so a collision is reported before they have typed a password
+   * rather than as a 409 at the end of a nine-step flow.
+   *
+   * DELIBERATELY BLUNT: it answers "available" and, only when the login belongs to
+   * the CALLER, "mine". Because mt5_login is GLOBALLY unique (not per-tenant), the
+   * response necessarily reveals that a given login belongs to *some* tenant when
+   * `available` comes back false — that disclosure is inherent to the uniqueness
+   * constraint and is arguably the endpoint's whole purpose (this is what stops a
+   * trader from configuring an account that will 409 at the end of a nine-step
+   * flow). What is deliberately withheld is everything else: no label, no token,
+   * no user id, no way to tell WHICH other tenant holds it — `mine` is the one bit
+   * that ever answers anything about a specific account, and only for the
+   * caller's own. The unique index at commit remains the real guard — this is UX,
+   * and two users racing one login still means one of them gets the 409.
+   */
+  app.get('/api/accounts/login-available', { preHandler: app.requireAuth }, async (req, reply) => {
+    // `platform` is part of the query contract but deliberately UNREAD here.
+    // mt5_accounts.mt5_login is globally UNIQUE (not unique per platform), so a
+    // per-platform lookup would be answering a question the schema does not ask —
+    // do not "fix" this into a scoped query without changing that constraint first.
+    const login = Number(req.query?.login);
+    if (!Number.isInteger(login) || login <= 0) {
+      return reply.code(400).send({ error: 'a positive login is required' });
+    }
+    const mine = await ownedAccountByLogin(req.user.uid, login);
+    if (mine) return reply.send({ available: false, mine: true, account_id: mine.id });
+    const { rows } = await query('SELECT 1 FROM mt5_accounts WHERE mt5_login = $1', [login]);
+    return reply.send({ available: rows.length === 0, mine: false });
+  });
+
+  /**
+   * Create an account and everything that must exist with it, atomically.
+   *
+   * This is what the Add Account flow calls. The older POST /api/accounts stays
+   * for the edit/legacy path, but it cannot express this one: a wizard collects a
+   * credential BEFORE the account exists, and writing the account first would
+   * leave a half-configured row behind on every abandoned or failed attempt.
+   *
+   * Every branch below returns before anything is written, so a rejected request
+   * leaves no trace and the client can safely retry the same payload.
+   */
+  app.post('/api/accounts/provision', { preHandler: app.requireAuth }, async (req, reply) => {
+    const parsed = validateProvision(req.body ?? {});
+    if (!parsed.ok) return reply.code(400).send({ error: parsed.error });
+    const v = parsed.value;
+
+    const plan = await planForUser(req.user.uid);
+    const gate = provisionGate({
+      plan,
+      kind: v.kind,
+      syncedCount: await syncedAccountCount(req.user.uid),
+      manualCount: await manualAccountCount(req.user.uid),
+    });
+    if (!gate.ok) return reply.code(gate.code).send({ error: gate.error });
+
+    // Auto Sync: the connector decides whether the credential is usable, and the
+    // key must exist before we promise to keep a broker password.
+    let credential = null;
+    if (v.import_method === 'auto_sync') {
+      const connector = getConnector(v.platform);
+      if (!connector) return reply.code(400).send({ error: 'Auto Sync is not available for that platform' });
+      if (!credentialsEnabled()) {
+        return reply.code(503).send({ error: 'Auto Sync is not configured on this server yet' });
+      }
+      const checked = connector.validateCredential(req.body?.credential ?? {});
+      if (!checked.ok) return reply.code(400).send({ error: checked.error });
+      credential = checked.value;
+    }
+
+    try {
+      const { account, replayed } = await provisionAccount(req.user.uid, v, { credential });
+      return reply.code(replayed ? 200 : 201).send({ account });
+    } catch (err) {
+      if (err.conflict === PROVISION_CONFLICT.LOGIN) {
+        return reply.code(409).send({ error: err.message, conflict: err.conflict });
+      }
+      if (err.conflict === PROVISION_CONFLICT.KEY) {
+        // Two simultaneous requests carrying the same provision_key: the winner
+        // commits, the loser trips this unique violation instead of the
+        // in-transaction replay read (that SELECT ran before the winner's row
+        // existed), so the loser gets a 409 here rather than the 200 replay. That
+        // is correct, not a bug — the loser's own transaction was rolled back, so
+        // it has nothing to re-read; a client retry after the 409 lands on the
+        // committed row and gets the 200 replay.
+        return reply.code(409).send({ error: err.message, conflict: err.conflict });
+      }
+      throw err;
+    }
   });
 
   // Edit account metadata (label / broker / currency / start_balance).

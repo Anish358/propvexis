@@ -52,8 +52,8 @@ async function main() {
     const broker = isImport ? 'import' : 'GoatFundedTrader';
     const token = genToken();
     await query(
-      `INSERT INTO mt5_accounts (user_id, mt5_login, label, broker, currency, start_balance, ingest_token)
-       VALUES ($1, $2, $3, $4, 'USD', 50000, $5)
+      `INSERT INTO mt5_accounts (user_id, mt5_login, label, broker, currency, start_balance, ingest_token, import_method)
+       VALUES ($1, $2, $3, $4, 'USD', 50000, $5, 'ea')
        ON CONFLICT (mt5_login) DO NOTHING;`,
       [owner.id, login, label, broker, token]
     );

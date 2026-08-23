@@ -96,7 +96,7 @@ test('leasing uses FOR UPDATE SKIP LOCKED and counts the attempt', () => {
   // Incrementing on lease (not on failure) means a worker that dies silently
   // still burns an attempt, so a crash loop backs off instead of spinning.
   assert.match(text, /attempts = j\.attempts \+ 1/);
-  assert.deepEqual(values, ['worker-1', 2, 600]);
+  assert.deepEqual(values, ['worker-1', 2, 600, ['mt5']]);
 });
 
 test('the lease payload decides the sync window server-side', () => {

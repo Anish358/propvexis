@@ -57,8 +57,9 @@ export async function listAccounts(userId) {
   const { rows } = await query(
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
             a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
-            a.payout_cycle_days, a.payout_anchor_date,
+            a.payout_cycle_days, a.payout_anchor_date, a.dd_type, a.min_trading_days,
             a.firm_id, a.firm_name,
+            a.product_id, a.capital_kind, a.platform, a.import_method,
             a.ingest_token, a.kind, a.is_active, a.created_at,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
@@ -73,24 +74,35 @@ export async function listAccounts(userId) {
 }
 
 // Columns selected/returned for an account (kept in sync across queries).
-const ACCT_COLS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind, is_active, created_at';
+// Exported so provisionQueries.js returns the same shape and test/provision-tx
+// can assert the new columns are actually reachable through the API.
+export const ACCOUNT_COLUMNS =
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at';
+const ACCT_COLS = ACCOUNT_COLUMNS;
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a
 // fresh ingest token — the EA binds its real MT5 login on the first trade. A
 // 'manual' account carries NO token and is immediately given a synthetic negative
 // login (-id) so its trades can be scoped by account_id without any live sync.
-export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, kind }) {
+export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, kind }) {
   const manual = kind === 'manual';
   const { rows } = await query(
+    // The four percentage columns are NUMERIC and a caller may send a fractional
+    // rule (e.g. daily_dd_pct: 4.5 — plenty of real prop firms use half-percent
+    // drawdowns, and AccountForms.jsx's inputs are step="0.1"). Without the
+    // `::numeric` cast, Postgres resolves an untyped COALESCE($n, <bare integer
+    // literal>) to integer, and the insert 500s the moment a caller supplies a
+    // fractional value — this default never even runs in that case, it's the
+    // parameter's inferred TYPE that's wrong. Mirrors insertAccountQuery's own
+    // comment in provisionQueries.js, where this was fixed first.
     `INSERT INTO mt5_accounts
-       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, ingest_token, kind)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15, $16)
+       (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, ingest_token, kind, import_method)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5::numeric), COALESCE($8, 10::numeric), COALESCE($9, 8::numeric), COALESCE($10, 80::numeric), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15, COALESCE($16, 'prop'), $17, $18, $19)
      RETURNING ${ACCT_COLS};`,
     [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null,
      account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, payout_split_pct ?? null,
-     dd_type || null, min_trading_days ?? null, firm_id || null, firm_name || null,
-     manual ? null : genToken(), manual ? 'manual' : 'synced']
+     dd_type || null, min_trading_days ?? null, firm_id || null, firm_name || null, product_id || null, capital_kind || null,
+     manual ? null : genToken(), manual ? 'manual' : 'synced', manual ? 'manual' : 'ea']
   );
   let acct = rows[0];
   if (manual) {
@@ -129,7 +141,13 @@ export async function updateAccount(userId, id, fields) {
   // payout_cycle_days / payout_anchor_date are edited from the Overview's
   // "Upcoming payouts" card (the small edit-cycle popup), not the accounts modal —
   // same PATCH route, so no second write path.
-  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'payout_cycle_days', 'payout_anchor_date', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'is_active'];
+  // product_id MUST stay in this list: TemplatePicker renders unconditionally on
+  // the edit form too (AccountForms.jsx), so applying a template while editing
+  // sends product_id alongside the rule percentages it pre-fills. Omitting it
+  // here would save the new percentages while leaving product_id at its old
+  // value (normally NULL) — the account then reads as hand-configured, which is
+  // exactly the drift the products layer exists to prevent.
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'payout_cycle_days', 'payout_anchor_date', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'product_id', 'is_active'];
   const sets = [];
   const params = [];
   for (const f of allowed) {
@@ -251,3 +269,20 @@ export async function tradeOwnerUserId(tradeId) {
   const { rows } = await query('SELECT user_id FROM trades WHERE id = $1', [tradeId]);
   return rows.length && rows[0].user_id != null ? Number(rows[0].user_id) : null;
 }
+
+/**
+ * Only the accounts Prop OS is about.
+ *
+ * A live-capital account has no firm rules, no challenge row and no profit
+ * target, so counting it in "active accounts", "total funding" or the accounts
+ * ring reports a number about money the firm never staked. The prop aggregators
+ * (domain/prop/propOverview.js) deliberately know nothing about this distinction —
+ * they compute over whatever list they are handed — so the filter lives here and is
+ * applied where accounts are fetched.
+ *
+ * A missing or null capital_kind counts as PROP: that is what every account
+ * created before migration 0026 is, and treating it as live would empty a real
+ * trader's Prop OS.
+ */
+export const propAccountsOnly = (accounts) =>
+  (Array.isArray(accounts) ? accounts : []).filter((a) => (a?.capital_kind ?? 'prop') === 'prop');

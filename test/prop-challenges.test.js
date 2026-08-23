@@ -123,7 +123,10 @@ test('selecting a challenge writes the app-wide selection, then flips to Details
   // No local selected-challenge state — that would be a second source of truth.
   assert.ok(!/useState\([^)]*selectedChallenge/i.test(page));
   // The selection is read back through the SAME resolver the Accounts page uses.
-  assert.match(page, /import \{ selectedLogin \} from '[^']*propAccounts\.js'/);
+  // The regex deliberately does not pin the import's brace contents -- what matters
+  // is that selectedLogin comes from the shared module, not how many other symbols
+  // travel alongside it in the same import statement.
+  assert.match(page, /import \{[^}]*\bselectedLogin\b[^}]*\}\s*from\s*'[^']*propAccounts\.js'/);
   assert.match(page, /const login = selectedLogin\(accountId\)/);
 });
 
@@ -347,6 +350,18 @@ test('challengeRows: one row per LIVE challenge, joined to its firm', () => {
   assert.equal(rows[0].pnl, 4000);
 });
 
+test('challengeRows: passes the account\'s product_id through, so a 1-Step account does not grow a Phase 2', () => {
+  // GFT 1-Step has exactly one evaluation phase before funding (see the
+  // 'challengeStages: a resolved product overrides the firm-wide union' test
+  // above) — this proves challengeRows' OWN call site resolves it, not just
+  // challengeStages in isolation.
+  const rows = challengeRows({
+    states: [state(1)],
+    accounts: [acct(1, { firm_id: 'gft', firm_name: 'GoatFundedTrader', product_id: '1step' })],
+  });
+  assert.deepEqual(rows[0].stages, ['p1', 'funded']);
+});
+
 test('challengeRows: a breached challenge is still one of your challenges', () => {
   const rows = challengeRows({
     states: [state(1, { breach: { breached: true, reason: 'max_dd' }, health: { score: 0 } })],
@@ -426,6 +441,35 @@ test('challengeStages: the lifecycle adapts to the firm, and never invents one',
   const s = challengeStages(null);
   s.pop();
   assert.deepEqual(STAGE_ORDER, ['p1', 'p2', 'funded']);
+});
+
+test('challengeStages: a resolved product overrides the firm-wide union', () => {
+  // GFT 1-Step has exactly one evaluation phase before funding — no Phase 2.
+  assert.deepEqual(challengeStages('gft', '1step'), ['p1', 'funded']);
+  // Instant Funding skips evaluation entirely.
+  assert.deepEqual(challengeStages('gft', 'instant'), ['funded']);
+});
+
+test('challengeStages: no product given falls back to the union across the firm\'s products, not a hardcoded default', () => {
+  // What this pins: a no-product call for a firm whose products span all three
+  // stages (GFT: 2step p1/p2/funded, 1step p1/funded, instant funded) still
+  // yields the full lifecycle -- this is challengeRows' behaviour for an
+  // account whose product_id is NULL (an older row, or a hand-typed firm),
+  // since challengeStages(undefined) and challengeStages(firmId) with no
+  // resolvable product take the same branch. See the dedicated test below for
+  // proof that challengeRows' call site actually PASSES a resolved product_id
+  // through when the account has one.
+  //
+  // What this does NOT pin, and why: with today's two-firm catalog, EVERY
+  // firm's products union to the full STAGE_ORDER, and the "unknown firm /
+  // empty ids" fallback also returns STAGE_ORDER. So a union silently broken
+  // back to empty (the original bug) would produce the identical result here
+  // and this assertion would not catch it -- that discrimination is what the
+  // two product-resolved assertions above this one guard instead. Closing
+  // this gap would need a firm whose products union to a strict SUBSET of
+  // STAGE_ORDER, which the catalog does not currently contain (and is not
+  // worth adding a fixture firm to create).
+  assert.deepEqual(challengeStages('gft'), STAGE_ORDER);
 });
 
 // ---- the lifecycle state machine -------------------------------------------

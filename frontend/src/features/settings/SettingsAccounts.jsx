@@ -172,9 +172,17 @@ function AccountsTable({ rows, onEdit, onSetup, onSync, onArchive, onDelete }) {
                 </td>
                 <td title={firmOf(a)}>{firmOf(a)}</td>
                 <td className="set-col-tight set-col-badge">
-                  <Badge tone={a.account_type === 'funded' ? 'profit' : 'neutral'}>
-                    {TYPE_LABEL[a.account_type] || 'Evaluation'}
-                  </Badge>
+                  {/* Capital kind first. A live account has no evaluation and no
+                      funding: labelling it "Evaluation" — which keying off
+                      account_type alone does, since that column keeps its NOT NULL
+                      default — states a firm relationship that does not exist. */}
+                  {a.capital_kind === 'live' ? (
+                    <Badge tone="neutral">Live capital</Badge>
+                  ) : (
+                    <Badge tone={a.account_type === 'funded' ? 'profit' : 'neutral'}>
+                      {TYPE_LABEL[a.account_type] || 'Evaluation'}
+                    </Badge>
+                  )}
                 </td>
                 <td className="set-col-tight num set-col-figure">{money(a.start_balance)}</td>
                 <td className="set-col-tight num set-col-figure">{money(a.balance)}</td>
