@@ -20,9 +20,12 @@ function body(name) {
   assert.ok(decl, `api.js has no exported ${name}`);
   const from = decl.index;
   const rest = api.slice(from + decl[0].length);
-  // The next top-level construct: an export, a bare declaration, or a
-  // column-0 comment banner. Whichever comes first ends this body.
-  const end = /^(?:export |async function |function |const |\/\/ ----)/m.exec(rest);
+  // The next top-level construct: an export, a bare declaration, a column-0
+  // comment banner, or a column-0 JSDoc opener. Whichever comes first ends this
+  // body. The `/**` alternative is load-bearing and was missing at first: without
+  // it a documented neighbour's whole doc comment bleeds into this slice, and the
+  // negative assertion below would then be testing that neighbour's text.
+  const end = /^(?:export |async function |function |const |\/\/ ----|\/\*\*)/m.exec(rest);
   return rest.slice(0, end ? end.index : rest.length);
 }
 
@@ -86,8 +89,15 @@ test('checkLoginAvailable never throws — it is a typing-time hint', () => {
   // offline would either spam an error banner or need a try/catch at each call
   // site; the unique index at commit is the real guard, so an unknown answer is
   // reported as "we do not know" instead.
+  //
+  // Asserting that the word `catch` appears is not enough: `catch (e) { throw e }`
+  // contains it and rethrows, which is the exact regression this test exists to
+  // stop. So the catch must be shown to RETURN the unknown-answer shape, and to
+  // contain no throw at all.
   const fn = body('checkLoginAvailable');
-  assert.match(fn, /catch/, 'a failed pre-check must resolve, not reject');
+  assert.match(fn, /catch[\s\S]*?return\s*\{[^}]*available:\s*null/,
+    'the catch must resolve to an unknown answer');
+  assert.equal(/catch[\s\S]*\bthrow\b/.test(fn), false, 'and must not rethrow');
 });
 
 test('the two new calls are the only account endpoints Phase B adds', () => {
