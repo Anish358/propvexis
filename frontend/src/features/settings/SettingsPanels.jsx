@@ -6,7 +6,7 @@ import {
 } from '@/components/primitives';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { titleCase } from '../../lib/constants.js';
-import { eaAllowed } from '../accounts/AccountForms.jsx';
+import { eaAllowed } from '../accounts/accountGating.js';
 import TradeSettingsPanel from '../trades/TradeSettingsPanel.jsx';
 
 // ---------------------------------------------------------------------------

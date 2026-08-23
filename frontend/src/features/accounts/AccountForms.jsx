@@ -84,10 +84,10 @@ export function TemplatePicker({ onApply }) {
   );
 }
 
-// EA attach (a synced MT5 account) is a Pro+ feature. Free users see an upgrade
-// prompt instead of the add-account form. The backend enforces the real cap;
-// this is just the UI gate. (Only 'free' lacks EA — pro & premium both have it.)
-export const eaAllowed = (plan) => plan === 'pro' || plan === 'premium';
+// The plan gate moved to accountGating.js — a JSX file cannot be imported by
+// node:test, and the wizard's `import` step needs the cap NUMBER as well as this
+// predicate. Re-exported so existing import sites keep working.
+export { eaAllowed } from './accountGating.js';
 
 // EA setup card shown for an account. The downloaded EA is pre-filled with this
 // account's ingest endpoint + token (injected client-side), so the user just
