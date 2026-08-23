@@ -95,3 +95,31 @@ test('0026: createAccount writes import_method explicitly, or the CHECK rejects 
   assert.match(insert, /\bimport_method\b/, 'import_method missing from the INSERT column list');
   assert.match(fn, /manual \? 'manual' : 'ea'/, 'import_method must be derived from kind/manual, not left to the column default');
 });
+
+test('0026: createAccount casts its percentage defaults to numeric, or a fractional rule 500s', () => {
+  // PRE-EXISTING gap: daily_dd_pct/max_dd_pct/profit_target_pct/payout_split_pct
+  // are NUMERIC, and AccountForms.jsx's inputs are step="0.1" — plenty of real
+  // prop firms use half-percent drawdowns (daily_dd_pct: 4.5). Without an
+  // explicit `::numeric` cast, Postgres resolves an untyped
+  // COALESCE($n, <bare integer literal>) to integer, and the insert fails with
+  // "invalid input syntax for type integer" the moment a caller supplies a
+  // fractional value. insertAccountQuery (provisionQueries.js, this branch's own
+  // code) already fixed exactly this on the sibling builder, with a comment
+  // explaining why — this pins the same fix on the legacy createAccount path
+  // the sibling left uncast.
+  const src = readFileSync(
+    new URL('../src/domain/accounts/accounts.js', import.meta.url),
+    'utf8',
+  );
+  const fn = src.slice(
+    src.indexOf('export async function createAccount'),
+    src.indexOf('export function stripNullProfitTarget'),
+  );
+  for (const [param, fallback] of [['$7', '5'], ['$8', '10'], ['$9', '8'], ['$10', '80']]) {
+    assert.match(
+      fn,
+      new RegExp(`COALESCE\\(\\${param}, ${fallback}::numeric\\)`),
+      `COALESCE(${param}, ${fallback}) must cast its literal to ::numeric`,
+    );
+  }
+});

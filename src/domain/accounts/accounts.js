@@ -57,7 +57,7 @@ export async function listAccounts(userId) {
   const { rows } = await query(
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
             a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
-            a.payout_cycle_days, a.payout_anchor_date,
+            a.payout_cycle_days, a.payout_anchor_date, a.dd_type, a.min_trading_days,
             a.firm_id, a.firm_name,
             a.product_id, a.capital_kind, a.platform, a.import_method,
             a.ingest_token, a.kind, a.is_active, a.created_at,
@@ -87,9 +87,17 @@ const ACCT_COLS = ACCOUNT_COLUMNS;
 export async function createAccount(userId, { label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, kind }) {
   const manual = kind === 'manual';
   const { rows } = await query(
+    // The four percentage columns are NUMERIC and a caller may send a fractional
+    // rule (e.g. daily_dd_pct: 4.5 — plenty of real prop firms use half-percent
+    // drawdowns, and AccountForms.jsx's inputs are step="0.1"). Without the
+    // `::numeric` cast, Postgres resolves an untyped COALESCE($n, <bare integer
+    // literal>) to integer, and the insert 500s the moment a caller supplies a
+    // fractional value — this default never even runs in that case, it's the
+    // parameter's inferred TYPE that's wrong. Mirrors insertAccountQuery's own
+    // comment in provisionQueries.js, where this was fixed first.
     `INSERT INTO mt5_accounts
        (user_id, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, ingest_token, kind, import_method)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5), COALESCE($8, 10), COALESCE($9, 8), COALESCE($10, 80), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15, COALESCE($16, 'prop'), $17, $18, $19)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'), COALESCE($7, 5::numeric), COALESCE($8, 10::numeric), COALESCE($9, 8::numeric), COALESCE($10, 80::numeric), COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15, COALESCE($16, 'prop'), $17, $18, $19)
      RETURNING ${ACCT_COLS};`,
     [userId, label || 'New account', broker || null, currency || 'USD', start_balance ?? null,
      account_type || null, daily_dd_pct ?? null, max_dd_pct ?? null, profit_target_pct ?? null, payout_split_pct ?? null,

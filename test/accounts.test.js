@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { stripNullProfitTarget } from '../src/domain/accounts/accounts.js';
+import { stripNullProfitTarget, ACCOUNT_COLUMNS } from '../src/domain/accounts/accounts.js';
 
 // mt5_accounts.profit_target_pct is NOT NULL (the eval-template default);
 // challenges.profit_target_pct is nullable (NULL = no target). Clearing a
@@ -49,4 +49,37 @@ test('updateAccount: product_id is in the PATCH allowlist, or editing a prop acc
   assert.ok(allowedMatch, 'could not find the allowed-fields array in updateAccount');
   const allowed = allowedMatch[1].split(',').map((s) => s.trim().replace(/^'|'$/g, ''));
   assert.ok(allowed.includes('product_id'), 'product_id must be PATCHable');
+});
+
+// PRE-EXISTING gap, surfaced by this branch's own drift test above: listAccounts'
+// SELECT omitted dd_type/min_trading_days even though ACCOUNT_COLUMNS (and
+// updateAccount) both know about them. The full chain this breaks: an account
+// loaded from listAccounts() has no min_trading_days -> formFrom (AccountForms.jsx)
+// defaults it to '' -> toPayload sends min_trading_days: null -> updateAccount
+// writes NULL into a column that is INT NOT NULL (0016_challenges_equity.sql) ->
+// every account edit from Settings > Accounts 500s. It also silently resets a
+// trailing-drawdown account's dd_type back to 'static', because toPayload
+// defaults that field too.
+//
+// What this proves: every column named in ACCOUNT_COLUMNS (the column set
+// createAccount/updateAccount/provisioning all read and write) is present in
+// listAccounts' own SELECT, as `a.<column>` — the alias listAccounts' query
+// uses for mt5_accounts. What this does NOT prove: column order, that
+// listAccounts selects nothing EXTRA it shouldn't, or that ACCOUNT_COLUMNS
+// itself is complete — a column missing from BOTH lists would pass this test
+// silently. It only catches the two lists drifting apart from each other, which
+// is exactly the failure mode above.
+test('listAccounts: its SELECT never drifts behind ACCOUNT_COLUMNS', () => {
+  const listAccountsSrc = accountsSrc.slice(
+    accountsSrc.indexOf('export async function listAccounts'),
+    accountsSrc.indexOf('export const ACCOUNT_COLUMNS'),
+  );
+  const columns = ACCOUNT_COLUMNS.split(',').map((s) => s.trim());
+  for (const col of columns) {
+    assert.match(
+      listAccountsSrc,
+      new RegExp(`\\ba\\.${col}\\b`),
+      `listAccounts' SELECT is missing a.${col} (present in ACCOUNT_COLUMNS)`,
+    );
+  }
 });
