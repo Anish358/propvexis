@@ -474,6 +474,12 @@ test('wizardProducts hides unverified rules and keeps the custom escape', () => 
 test('wizardProducts never returns a product with unverified rules', () => {
   for (const f of PROP_FIRMS) {
     for (const p of wizardProducts(f.id)) {
+      // The custom product's verified: false means "nothing to verify", not a
+      // hidden real rule set — it is the one product this guarantee does not
+      // apply to. The exemption cannot be abused: 'the custom product is the ONLY
+      // product that carries no rules' fails the moment a real product is marked
+      // custom to escape a percentage assertion.
+      if (p.custom) continue;
       assert.notEqual(p.verified, false, `${f.id}/${p.id} is unverified and must not reach a user`);
     }
   }
