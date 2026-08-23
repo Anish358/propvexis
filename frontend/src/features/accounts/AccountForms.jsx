@@ -3,7 +3,7 @@ import { Modal } from '@/components/primitives';
 import { Link } from 'react-router-dom';
 import { createAccount, updateAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
-import { PROP_FIRMS, findFirm, findProduct, templateToFields } from '../prop/propFirms.js';
+import { PROP_FIRMS, findFirm, findProduct, templateToFields, sizeLabel } from '../prop/propFirms.js';
 import { eaAllowed } from './accountGating.js';
 
 // ---------------------------------------------------------------------------
@@ -30,9 +30,6 @@ import { eaAllowed } from './accountGating.js';
 // (Onboarding.jsx) and a second copy of a drawdown field is how a rule ends up
 // meaning one thing on first run and another afterwards.
 // ---------------------------------------------------------------------------
-
-// Human size label: 50000 -> "50K".
-const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : String(n));
 
 // Prop-firm template picker: choose firm → size → phase, then Apply to pre-fill
 // the rule fields below (all still editable). Catalog lives in propFirms.js.
@@ -69,7 +66,10 @@ export function TemplatePicker({ onApply }) {
         </select>
         <select value={productId} onChange={(e) => pickProduct(e.target.value)} disabled={!firm} aria-label="Account type">
           <option value="">Account type…</option>
-          {firm?.products.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          {/* The custom product has no sizes and no phases by design — the Add
+              Account wizard collects those by hand. In this picker it would be a
+              choice that leaves Size and Phase empty and Apply disabled forever. */}
+          {firm?.products.filter((p) => !p.custom).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <select value={size} onChange={(e) => setSize(e.target.value)} disabled={!product} aria-label="Account size">
           <option value="">Size…</option>
