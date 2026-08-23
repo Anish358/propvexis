@@ -1975,8 +1975,17 @@ test('provisionAccount returns the account, not the envelope', () => {
 test('checkLoginAvailable asks the pre-check endpoint with both query fields', () => {
   const fn = body('checkLoginAvailable');
   assert.match(fn, /\/api\/accounts\/login-available/);
-  assert.match(fn, /login=/);
-  assert.match(fn, /platform=/);
+  // The fields are asserted as OBJECT KEYS, not as `login=`. The query is built
+  // with URLSearchParams, which emits `login=…` only at runtime — a source-text
+  // test cannot see that, and hand-rolling the encoding so a literal `=` appeared
+  // would be reinventing a standard API for a test's benefit, with user input
+  // going through hand-written escaping.
+  assert.match(fn, /URLSearchParams\(/, 'build the query, do not concatenate it');
+  assert.match(fn, /\blogin:/, 'the login rides in the query');
+  // `platform` is deliberately UNREAD by the endpoint — mt5_login is globally
+  // unique, so a per-platform lookup would answer a question the schema does not
+  // ask — but it is part of the query contract, so the client still sends it.
+  assert.match(fn, /\bplatform:/);
 });
 
 test('checkLoginAvailable never throws — it is a typing-time hint', () => {
@@ -2053,8 +2062,12 @@ export async function provisionAccount(payload) {
  */
 export async function checkLoginAvailable(login, platform) {
   try {
+    // The path is held in its own single-quoted const rather than inlined in the
+    // template below: a source-text test guards the SET of /api/accounts paths
+    // this module reaches, and a backtick literal is invisible to it.
+    const path = '/api/accounts/login-available';
     const q = new URLSearchParams({ login: String(login), platform: String(platform ?? '') });
-    const res = await apiFetch(`/api/accounts/login-available?${q}`);
+    const res = await apiFetch(`${path}?${q}`);
     if (!res.ok) return { available: null, mine: false };
     return await res.json();
   } catch {
