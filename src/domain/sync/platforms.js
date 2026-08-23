@@ -20,6 +20,10 @@
 /** The four values the 0026 CHECK constraint admits for mt5_accounts.import_method. */
 export const IMPORT_METHODS = ['auto_sync', 'ea', 'file', 'manual'];
 
+// Deep-frozen below (deepFreeze) once the array is built: four modules import
+// this as THE authority, and a consumer pushing onto a nested credentialFields
+// or importMethods array would corrupt it for every other importer in the
+// process, silently and at a distance.
 export const PLATFORMS = [
   {
     id: 'mt5',
@@ -86,6 +90,19 @@ export const PLATFORMS = [
     credentialNote: null,
   },
 ];
+
+// Recursively Object.freeze an object/array and everything it references, so
+// neither the top-level array, a platform object, nor a nested
+// credentialFields/importMethods/assetTypes array can be mutated by a consumer.
+// Freeze is shallow by default — this closes that gap.
+function deepFreeze(value) {
+  if (value !== null && (typeof value === 'object' || typeof value === 'function') && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.getOwnPropertyNames(value)) deepFreeze(value[key]);
+  }
+  return value;
+}
+deepFreeze(PLATFORMS);
 
 export const PLATFORM_IDS = PLATFORMS.map((p) => p.id);
 

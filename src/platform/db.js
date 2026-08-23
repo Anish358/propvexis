@@ -49,9 +49,14 @@ export const query = (text, params) => pool.query(text, params);
 /**
  * Run `fn` inside a transaction on one pooled client.
  *
- * Three modules used to hand-roll this (auth.js, challenges.js, strategies.js);
- * account provisioning would have been the fourth. Two properties are worth
- * stating because getting either wrong is silent:
+ * Four call sites still hand-roll their own BEGIN/COMMIT/ROLLBACK instead of
+ * using this: src/platform/auth/auth.js, src/domain/prop/challenges.js,
+ * src/domain/trades/strategies.js, and src/routes/trades.js. Account
+ * provisioning (src/domain/accounts/provision.js) is the first caller of this
+ * helper — it is for NEW code, plus an eventual migration of those four that
+ * nobody has done yet. Do not read the four as migrated; they are not. Two
+ * properties are worth stating about the helper itself, because getting either
+ * wrong is silent:
  *
  *  - the client is released in `finally`, so a throw anywhere cannot leak it.
  *    A leaked client is invisible until the pool is exhausted, which then looks

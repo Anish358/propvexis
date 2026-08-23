@@ -83,3 +83,12 @@ test('search is case-insensitive, matches substrings, and returns all on empty',
 test('search also matches the platform id, so typing "mt5" works', () => {
   assert.deepEqual(searchPlatforms('mt5').map((c) => c.id), ['mt5']);
 });
+
+test('an empty-query result is a copy, not the live PLATFORM_CARDS reference', () => {
+  // A Phase B caller doing `searchPlatforms(q).sort(...)` must not be able to
+  // reorder the catalog for the whole session just because q happened to be ''.
+  const result = searchPlatforms('');
+  assert.notEqual(result, PLATFORM_CARDS, 'must be a fresh array, not the same reference');
+  result.reverse();
+  assert.notDeepEqual(PLATFORM_CARDS.map((c) => c.id), result.map((c) => c.id));
+});

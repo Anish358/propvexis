@@ -101,6 +101,24 @@ test('a platform with no credential fields carries no credential note', () => {
   }
 });
 
+test('PLATFORMS is frozen deep enough that a consumer cannot mutate the authority', () => {
+  // Four modules import PLATFORMS as THE authority (see the file's own header
+  // comment); a push onto a nested array would corrupt it for every other
+  // importer in the process, silently and at a distance.
+  assert.ok(Object.isFrozen(PLATFORMS), 'the top-level array must be frozen');
+  assert.throws(() => PLATFORMS.push({ id: 'nope' }), TypeError);
+  for (const p of PLATFORMS) {
+    assert.ok(Object.isFrozen(p), `${p.id} object must be frozen`);
+    assert.ok(Object.isFrozen(p.importMethods), `${p.id}.importMethods must be frozen`);
+    assert.ok(Object.isFrozen(p.assetTypes), `${p.id}.assetTypes must be frozen`);
+    assert.ok(Object.isFrozen(p.credentialFields), `${p.id}.credentialFields must be frozen`);
+    for (const f of p.credentialFields) {
+      assert.ok(Object.isFrozen(f), `${p.id} credentialFields entries must be frozen too`);
+    }
+    assert.throws(() => p.importMethods.push('x'), TypeError, `${p.id}.importMethods must reject a push`);
+  }
+});
+
 test('findPlatform and platformSupports fail safe on unknown input', () => {
   assert.equal(findPlatform('nope'), null);
   assert.equal(findPlatform(undefined), null);

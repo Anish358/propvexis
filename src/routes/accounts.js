@@ -73,10 +73,16 @@ export default function accountRoutes(app, ctx) {
    * rather than as a 409 at the end of a nine-step flow.
    *
    * DELIBERATELY BLUNT: it answers "available" and, only when the login belongs to
-   * the CALLER, "mine". Saying anything about another tenant's account would make
-   * this an oracle for enumerating other traders' MT5 logins. The unique index at
-   * commit remains the real guard — this is UX, and two users racing one login
-   * still means one of them gets the 409.
+   * the CALLER, "mine". Because mt5_login is GLOBALLY unique (not per-tenant), the
+   * response necessarily reveals that a given login belongs to *some* tenant when
+   * `available` comes back false — that disclosure is inherent to the uniqueness
+   * constraint and is arguably the endpoint's whole purpose (this is what stops a
+   * trader from configuring an account that will 409 at the end of a nine-step
+   * flow). What is deliberately withheld is everything else: no label, no token,
+   * no user id, no way to tell WHICH other tenant holds it — `mine` is the one bit
+   * that ever answers anything about a specific account, and only for the
+   * caller's own. The unique index at commit remains the real guard — this is UX,
+   * and two users racing one login still means one of them gets the 409.
    */
   app.get('/api/accounts/login-available', { preHandler: app.requireAuth }, async (req, reply) => {
     // `platform` is part of the query contract but deliberately UNREAD here.

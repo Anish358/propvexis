@@ -166,7 +166,18 @@ export function computeMetrics(trades, unit = 'R', beRounding = false) {
 // Prop-firm account metrics in account currency ($), derived from realized
 // pnl_money + the account's starting balance. Used by the single-account
 // dashboard (drawdown / profit-target trackers + a balance-based equity curve).
+//
+// Currently has NO callers — kept for Phase B to wire up, not dead weight to
+// delete. The guard below exists because of that: a live (own-capital) account
+// still carries daily_dd_pct/max_dd_pct/profit_target_pct with meaningless
+// NOT NULL defaults (there is no rule to enforce), so a future caller handed a
+// live account here would silently render a drawdown/target it does not have.
+// `capital_kind ?? 'prop'` mirrors the same default-to-prop fallback used
+// everywhere else this distinction is made (see propAccounts.js's
+// onlyPropCapital and accounts.js's propAccountsOnly): a row from before
+// migration 0026 has no capital_kind at all and must still read as prop.
 export function computeProp(trades, account, payouts = []) {
+  if ((account?.capital_kind ?? 'prop') !== 'prop') return null;
   const start = Number(account?.start_balance) || ACCOUNT_START;
   const dailyPct = Number(account?.daily_dd_pct) || 0;
   const maxPct = Number(account?.max_dd_pct) || 0;

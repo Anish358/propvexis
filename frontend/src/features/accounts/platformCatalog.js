@@ -65,7 +65,10 @@ export const findPlatformCard = (id) => PLATFORM_CARDS.find((c) => c.id === id) 
  */
 export function searchPlatforms(query) {
   const q = String(query ?? '').trim().toLowerCase();
-  if (!q) return PLATFORM_CARDS;
+  // A copy, not the live reference: every non-empty query already returns a
+  // fresh filtered array, and a caller doing `searchPlatforms(q).sort(...)` on
+  // an empty query would otherwise reorder PLATFORM_CARDS for the whole session.
+  if (!q) return [...PLATFORM_CARDS];
   return PLATFORM_CARDS.filter(
     (c) => c.name.toLowerCase().includes(q) || c.id.includes(q),
   );
