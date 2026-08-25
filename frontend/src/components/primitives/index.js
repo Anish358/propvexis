@@ -74,6 +74,9 @@ export {
 // TradePreview drawer is the candidate). Exported because the barrel is the only door.
 export { OverlayContainerContext, useOverlayContainer } from './overlay-container.js';
 export { Popover, PopoverContent, PopoverTrigger } from './popover.jsx';
+export {
+  Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue,
+} from './progress.jsx';
 export { Separator } from './separator.js';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
@@ -82,3 +85,10 @@ export { Textarea } from './textarea.js';
 export {
   ToggleGroup, ToggleGroupExclusive, ToggleGroupItem, ToggleGroupSeparator,
 } from './toggle-group.jsx';
+// The Add Account wizard's layout. App-specific like EmptyState and Tabs, and here
+// for the same reason: this directory is where application code imports from, and it
+// is the only place besides components/ui where a Tailwind utility compiles at all.
+export {
+  ChoiceCard, ChoiceGrid, WizardBody, WizardBrand, WizardFooter, WizardHeader,
+  WizardHeading, WizardPage, WizardProgress,
+} from './wizard.jsx';

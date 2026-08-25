@@ -33,7 +33,52 @@ import SettingsAccounts from './features/settings/SettingsAccounts.jsx';
 import {
   SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
 } from './features/settings/SettingsPanels.jsx';
+import NewAccountFlow, {
+  FlowIndex, WelcomeStep, FirmStep, ProductStep, PhaseStep, NameStep, PlatformStep,
+  ImportStep, ConnectStep, UploadStep, DoneStep,
+} from './features/accounts/NewAccountFlow.jsx';
+import CapitalStep from './features/accounts/steps/CapitalStep.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';
+
+// The Add Account wizard. A SIBLING of <Layout> on purpose (spec §8.1): eleven
+// full-bleed pages with no sidebar and no filter bar, so it cannot nest inside the
+// shell — and therefore has no outlet context, which is why accounts, reloadAccounts
+// and setAccountId are passed as props.
+//
+// Returns an ARRAY, not a fragment: both branches spread it into <Routes>, and an
+// array of keyed <Route> elements is the shape this file already relies on (see the
+// LEGACY_REDIRECTS map). Declared once so the first-run branch (Task 12) cannot
+// drift from the onboarded one.
+function wizardRoutes({ accounts, reloadAccounts, setAccountId, firstRun, onOnboarded }) {
+  return [
+    <Route
+      key="new-account"
+      path="/accounts/new"
+      element={
+        <NewAccountFlow
+          accounts={accounts}
+          reloadAccounts={reloadAccounts}
+          setAccountId={setAccountId}
+          firstRun={firstRun}
+          onOnboarded={onOnboarded}
+        />
+      }
+    >
+      <Route index element={<FlowIndex />} />
+      <Route path="welcome" element={<WelcomeStep />} />
+      <Route path="capital" element={<CapitalStep />} />
+      <Route path="firm" element={<FirmStep />} />
+      <Route path="product" element={<ProductStep />} />
+      <Route path="phase" element={<PhaseStep />} />
+      <Route path="name" element={<NameStep />} />
+      <Route path="platform" element={<PlatformStep />} />
+      <Route path="import" element={<ImportStep />} />
+      <Route path="connect" element={<ConnectStep />} />
+      <Route path="upload" element={<UploadStep />} />
+      <Route path="done" element={<DoneStep />} />
+    </Route>,
+  ];
+}
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login (per-device nav state)
 const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
@@ -420,8 +465,13 @@ export default function App() {
           // it's completed; completing it sets onboarded_at and re-renders here.
           <Route path="*" element={<Onboarding onDone={setUser} />} />
         ) : user ? (
-          <Route
-            element={
+          [
+            ...wizardRoutes({
+              accounts, reloadAccounts, setAccountId, firstRun: false, onOnboarded: setUser,
+            }),
+            <Route
+              key="app-shell"
+              element={
               <Layout
                 trades={filteredTrades}
                 account={account}
@@ -524,7 +574,8 @@ export default function App() {
             {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
               <Route key={from} path={from.slice(1)} element={<Navigate to={to} replace />} />
             ))}
-          </Route>
+            </Route>,
+          ]
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />
         )}
