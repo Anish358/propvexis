@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  eaAllowed, syncedAccountLimit, manualAccountLimit, autoSyncGate, KNOWN_PLANS,
+  eaAllowed, syncedAccountLimit, manualAccountLimit, autoSyncGate, syncedUsage, KNOWN_PLANS,
 } from '../frontend/src/features/accounts/accountGating.js';
 import { PLANS, DEFAULT_PLAN } from '../src/domain/billing/plans.js';
 
@@ -37,11 +37,16 @@ test('an unknown, absent or malformed plan fails closed to free', () => {
   }
 });
 
-test('autoSyncGate: free is refused with an upgrade route', () => {
-  const g = autoSyncGate({ plan: 'free', accounts: [] });
-  assert.equal(g.allowed, false);
-  assert.equal(g.upgrade, true);
-  assert.match(g.reason, /Pro/, 'the reason must name the plan that lifts it');
+test('autoSyncGate: while gating is off, every plan may start an Auto Sync account', () => {
+  // PLAN GATING IS CURRENTLY OFF (owner decision, 2026-08-25) — see the pin in
+  // plans.test.js. Before it was lifted this test asserted that FREE was refused
+  // with reason /Pro/ and upgrade true; that is what comes back with the caps.
+  for (const plan of KNOWN_PLANS) {
+    const g = autoSyncGate({ plan, accounts: [] });
+    assert.equal(g.allowed, true, `${plan}: allowed`);
+    assert.equal(g.reason, null, `${plan}: reason`);
+    assert.equal(g.upgrade, false, `${plan}: upgrade`);
+  }
 });
 
 test('autoSyncGate: pro under the cap is allowed and says nothing', () => {
@@ -51,14 +56,14 @@ test('autoSyncGate: pro under the cap is allowed and says nothing', () => {
   assert.equal(g.upgrade, false);
 });
 
-test('autoSyncGate: pro AT the cap is refused and names the number', () => {
-  // Spec §7.5: "3 of 3 synced accounts used" on the card, not a 402 after the
-  // user has typed a broker password.
-  const accounts = [{ kind: 'synced' }, { kind: 'synced' }, { kind: 'synced' }];
-  const g = autoSyncGate({ plan: 'pro', accounts });
-  assert.equal(g.allowed, false);
-  assert.equal(g.upgrade, true);
-  assert.match(g.reason, /3 of 3/, 'the reason must carry the count, not a bare "upgrade"');
+test('autoSyncGate: no number of existing accounts trips the gate while it is off', () => {
+  // The refusal machinery is kept, not deleted — spec §7.5 wants "3 of 3 synced
+  // accounts used" on the card rather than a 402 after the user has typed a broker
+  // password, and that is what returns with the caps. What is asserted now is that
+  // nothing reaches it: an uncapped plan must not refuse at some large count.
+  const many = Array.from({ length: 50 }, () => ({ kind: 'synced' }));
+  assert.equal(autoSyncGate({ plan: 'free', accounts: many }).allowed, true);
+  assert.equal(autoSyncGate({ plan: 'pro', accounts: many }).allowed, true);
 });
 
 test('autoSyncGate: only synced accounts count toward the synced cap', () => {
@@ -66,16 +71,23 @@ test('autoSyncGate: only synced accounts count toward the synced cap', () => {
   assert.equal(autoSyncGate({ plan: 'pro', accounts: manualOnly }).allowed, true);
 });
 
-test('autoSyncGate: an archived synced account still occupies its slot', () => {
+test('syncedUsage: an archived synced account still occupies its slot', () => {
   // is_active is a soft archive — the row, its ingest token and its MT5 login all
-  // still exist, and syncedAccountCount on the server does not filter it. A UI
-  // that discounted archived accounts would offer a slot provision then 402s on.
-  const accounts = [
+  // still exist, and syncedAccountCount on the server does not filter it. A UI that
+  // discounted archived accounts would offer a slot provision then 402s on.
+  //
+  // Asserted against the COUNT rather than the gate's refusal: with the caps lifted
+  // the refusal is unreachable, and this rule is the half of the gate that has an
+  // actual landmine in it. It must not go untested for as long as gating is off.
+  assert.equal(syncedUsage([
     { kind: 'synced', is_active: false },
     { kind: 'synced', is_active: false },
     { kind: 'synced', is_active: true },
-  ];
-  assert.equal(autoSyncGate({ plan: 'pro', accounts }).allowed, false);
+  ]), 3);
+  assert.equal(syncedUsage([{ kind: 'manual' }, { kind: 'synced' }]), 1, 'manual buckets take no slot');
+  assert.equal(syncedUsage(undefined), 0, 'a missing list is no accounts');
+  assert.equal(syncedUsage(null), 0);
+  assert.equal(syncedUsage([null, {}, { kind: 'synced' }]), 1, 'a malformed row is not a synced account');
 });
 
 test('autoSyncGate is total — a missing accounts list is treated as none', () => {

@@ -17,19 +17,26 @@
 // JSX-free and dependency-free so node:test can import it: CI installs backend
 // dependencies only.
 
-/** Mirrors src/domain/billing/plans.js PLANS. Values are drift-tested. */
+/** Mirrors src/domain/billing/plans.js PLANS. Values are drift-tested.
+ *
+ *  PLAN GATING IS CURRENTLY OFF (owner decision, 2026-08-25) — every plan grants
+ *  everything while the feature base is still being built, so autoSyncGate below
+ *  currently allows every plan. The gate itself is kept, not deleted: the reasons,
+ *  the counting rule and the upgrade route are what tiers need when they return,
+ *  and the drift test means the server cannot re-cap without this file following.
+ *  plans.js holds the full note and the pre-decision numbers. */
 const ENTITLEMENTS = {
-  free:    { ea: false, syncedAccounts: 0, manualAccounts: 5 },
-  pro:     { ea: true,  syncedAccounts: 3, manualAccounts: 20 },
-  premium: { ea: true,  syncedAccounts: 1, manualAccounts: 20 },
+  free:    { ea: true, syncedAccounts: Infinity, manualAccounts: Infinity },
+  pro:     { ea: true, syncedAccounts: Infinity, manualAccounts: Infinity },
+  premium: { ea: true, syncedAccounts: Infinity, manualAccounts: Infinity },
 };
 
 export const KNOWN_PLANS = Object.keys(ENTITLEMENTS);
 const DEFAULT_PLAN = 'free';
 
-// Fail closed: an unknown, absent or malformed plan gets the free entitlements.
-// A bad plan slug must never unlock a paid capability, and this mirrors
-// entitlements() on the server exactly.
+// An unknown, absent or malformed plan gets the free entitlements, mirroring
+// entitlements() on the server exactly. That is the mechanism that fails CLOSED
+// once tiers return; while gating is off, free restricts nothing.
 const of = (plan) =>
   (typeof plan === 'string' && Object.prototype.hasOwnProperty.call(ENTITLEMENTS, plan)
     ? ENTITLEMENTS[plan]
@@ -40,13 +47,22 @@ export const syncedAccountLimit = (plan) => of(plan).syncedAccounts;
 export const manualAccountLimit = (plan) => of(plan).manualAccounts;
 
 /**
- * May this user start an Auto Sync (or EA) account right now, and if not, why?
+ * How many of the user's accounts occupy a synced slot.
  *
- * Counts EVERY synced account the user owns, archived included: is_active is a
- * soft archive, so the row, its ingest token and its MT5 login all still exist
- * and the server's syncedAccountCount does not filter it. Discounting archived
- * accounts here would offer a slot that provision then refuses with a 402.
+ * EVERY synced account counts, archived included: is_active is a soft archive, so
+ * the row, its ingest token and its MT5 login all still exist, and the server's
+ * syncedAccountCount does not filter it either. Discounting archived accounts here
+ * would offer a slot that provision then refuses with a 402.
+ *
+ * Exported so that rule stays under test while the caps are lifted — through the
+ * gate alone it is only observable in a refusal that Infinity makes unreachable.
  */
+
+/** May this user start an Auto Sync (or EA) account right now, and if not, why?
+ *  Currently always yes: see the gating note on ENTITLEMENTS above. */
+export const syncedUsage = (accounts) =>
+  (Array.isArray(accounts) ? accounts : []).filter((a) => a?.kind === 'synced').length;
+
 export function autoSyncGate({ plan, accounts } = {}) {
   const limit = syncedAccountLimit(plan);
   if (!eaAllowed(plan) || limit === 0) {
@@ -56,7 +72,7 @@ export function autoSyncGate({ plan, accounts } = {}) {
       upgrade: true,
     };
   }
-  const used = (Array.isArray(accounts) ? accounts : []).filter((a) => a?.kind === 'synced').length;
+  const used = syncedUsage(accounts);
   if (used >= limit) {
     return {
       allowed: false,

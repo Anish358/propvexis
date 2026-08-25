@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { toCsv, reportCsvRows } from '../src/domain/analytics/reports.js';
 import { canUseReports } from '../src/domain/billing/plans.js';
 
-// --- Gating (Pro+). Fail-closed on unknown/missing plan. ---
-test('canUseReports: Pro and Premium only; free/unknown fail-closed', () => {
-  assert.equal(canUseReports('pro'), true);
-  assert.equal(canUseReports('premium'), true);
-  assert.equal(canUseReports('free'), false);
-  assert.equal(canUseReports('nonsense'), false);
-  assert.equal(canUseReports(undefined), false);
+// --- Gating. PLAN GATING IS CURRENTLY OFF (owner decision, 2026-08-25) — see the
+// pin in plans.test.js. Before it was lifted this asserted Pro+ only, with free and
+// an unknown plan failing closed; that is what returns with the caps. ---
+test('canUseReports: every plan may export a report while gating is off', () => {
+  for (const plan of ['free', 'pro', 'premium', 'nonsense', undefined]) {
+    assert.equal(canUseReports(plan), true, String(plan));
+  }
 });
 
 // --- CSV escaping (RFC-4180-ish). ---
