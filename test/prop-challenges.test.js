@@ -659,3 +659,25 @@ test('currentStageMetrics: a zero-limit rule does not divide by zero', () => {
   });
   for (const m of ms) assert.ok(Number.isFinite(m.frac), `${m.key} produced ${m.frac}`);
 });
+
+test('firmKeyOf: two unlisted firms are two firms, not one "Other" bucket', () => {
+  // The wizard's escape hatch gives EVERY unlisted firm firm_id 'other', so keying
+  // on firm_id alone collapses FundedNext and Alpha Capital into one tab — merging
+  // their equity, fees and ROI, which is the misclassification the escape hatch was
+  // added to END. Safe to key these by name because the wizard's firm step is not
+  // complete until an unlisted firm HAS one (newAccountFlow COMPLETE.firm).
+  const fundedNext = firmKeyOf({ firm_id: 'other', firm_name: 'FundedNext' });
+  const alpha = firmKeyOf({ firm_id: 'other', firm_name: 'Alpha Capital' });
+  assert.notEqual(fundedNext, alpha, 'two unlisted firms collapsed into one bucket');
+  assert.equal(fundedNext, 'name:fundednext');
+
+  // ...and a hand-typed account from BEFORE the wizard (firm_id null) still lands in
+  // the same bucket as the wizard's, or one firm shows as two tabs.
+  assert.equal(firmKeyOf({ firm_name: 'FundedNext' }), fundedNext);
+
+  // A catalog firm is still keyed by id, which is what survives a rename.
+  assert.equal(firmKeyOf({ firm_id: 'gft', firm_name: 'GoatFundedTrader' }), 'id:gft');
+
+  // An unlisted firm with no name at all still lands somewhere nameable.
+  assert.equal(firmKeyOf({ firm_id: 'other' }), 'name:other');
+});

@@ -11,10 +11,45 @@
 // user-made buckets for manual/CSV trades, so even Free users can SEGREGATE their
 // journal per account (god view vs per-account) without any live sync.
 // `reports` = the exportable Journal+Prop report (V1). Paid differentiator: Pro+.
+// ---------------------------------------------------------------------------
+// PLAN GATING IS CURRENTLY OFF (owner decision, 2026-08-25).
+//
+// Which features belong to which tier is not decided yet, so every plan grants
+// everything while the feature base is still being built. Segregation comes back
+// as ONE EDIT to the literal below, once the base is stable: the shape, every
+// consumer, the 402 paths and the drift test against the UI's mirror all stay in
+// place, so restoring tiers is a change of values and not a rebuild.
+//
+// What the split was before it was lifted, kept here so the intent is not lost:
+//   free:    ea false, metaapi false, reports false, synced 0,  manual 5
+//   pro:     ea true,  metaapi false, reports true,  synced 3,  manual 20
+//   premium: ea true,  metaapi true,  reports true,  synced 1,  manual 20
+// Do not restore premium's `synced: 1` verbatim — it sat BELOW pro's 3 while
+// every other premium entitlement was >= pro's, and it was almost certainly a
+// typo. It would have rendered "1 of 1 synced accounts used" to a premium user.
+//
+// TWO CONSEQUENCES, both accepted deliberately rather than overlooked:
+//  - entitlements() still falls back to `free`, but free is no longer a floor, so
+//    an unknown/absent plan currently grants everything instead of failing closed.
+//    Nothing is sold yet (Razorpay is blocked on KYC) and every existing user is
+//    grandfathered to `pro`, so nothing is given away that was being charged for.
+//  - `syncedAccounts: Infinity` removes the only per-account COGS cap we have: the
+//    self-hosted MT5 farm is one Windows box per synced account's terminal. This is
+//    the abuse vector to re-cap FIRST when tiers return.
+//
+// Infinity is deliberate over a large integer so no comparison is ever "nearly at
+// the cap". It never reaches JSON: no route serialises these values today, and one
+// that starts to must send a real number, because JSON.stringify(Infinity) is null.
+// ---------------------------------------------------------------------------
+const UNRESTRICTED = {
+  ea: true, metaapi: true, csvImport: true, manual: true, reports: true,
+  syncedAccounts: Infinity, manualAccounts: Infinity,
+};
+
 export const PLANS = {
-  free:    { ea: false, metaapi: false, csvImport: true, manual: true, reports: false, syncedAccounts: 0, manualAccounts: 5 },
-  pro:     { ea: true,  metaapi: false, csvImport: true, manual: true, reports: true,  syncedAccounts: 3, manualAccounts: 20 },
-  premium: { ea: true,  metaapi: true,  csvImport: true, manual: true, reports: true,  syncedAccounts: 1, manualAccounts: 20 },
+  free:    { ...UNRESTRICTED },
+  pro:     { ...UNRESTRICTED },
+  premium: { ...UNRESTRICTED },
 };
 
 export const DEFAULT_PLAN = 'free';
@@ -23,8 +58,9 @@ export function isValidPlan(plan) {
   return typeof plan === 'string' && Object.prototype.hasOwnProperty.call(PLANS, plan);
 }
 
-// Entitlements for a plan slug. Unknown/missing/invalid → free (fail-closed):
-// a bad or absent plan must never unlock a paid capability.
+// Entitlements for a plan slug. Unknown/missing/invalid → free, which is the
+// mechanism that fails CLOSED once tiers return. While gating is off `free` grants
+// everything, so this fallback currently restricts nothing — see the note above.
 export function entitlements(plan) {
   return isValidPlan(plan) ? PLANS[plan] : PLANS[DEFAULT_PLAN];
 }

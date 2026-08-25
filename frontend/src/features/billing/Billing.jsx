@@ -7,6 +7,13 @@ import { fetchMe, fetchBillingConfig, fetchSubscription, startSubscription, canc
 // real recurring-subscription checkout; otherwise it stays a "coming soon"
 // placeholder. Plan slugs + entitlements are the source of truth in the backend
 // (src/domain/billing/plans.js); this is display + purchase flow.
+//
+// THIS COPY IS NOT ENFORCED RIGHT NOW. Plan gating was lifted by owner decision on
+// 2026-08-25 while the feature base is still being built, so every plan currently
+// grants everything — "Up to 3 trading accounts" and Free's lack of EA are both
+// untrue in the code today. The copy is left as written on purpose: which features
+// land in which tier is the undecided question, and rewriting the pricing to match
+// a temporary state would be deciding it. Revisit both together.
 const TIERS = [
   {
     id: 'free', name: 'Free', price: '₹0',

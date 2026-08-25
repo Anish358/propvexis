@@ -27,9 +27,10 @@ https://journal.anishdevlops.xyz still served during migration).
 - Frontend build: `cd frontend && npm run build`
 
 ## Visual design system (governs ALL UI work)
-- **Source of truth:** `docs/design-system/DESIGN-LANGUAGE.md` (untracked). Every
-  UI decision — human or AI — must trace to a rule in it. *"It looks better"* is
-  not a justification.
+- **Source of truth:** `docs/design-system/DESIGN-LANGUAGE.md` (tracked as of
+  2026-08-23). Every UI decision — human or AI — must trace to a rule in it.
+  *"It looks better"* is not a justification. It holds RULES only; values live in
+  `frontend/src/styles/tokens.css`.
 - **Visual foundation:** the shadcn **Build Your Own** preset **`b2qKmlY80`** —
   🔒 LOCKED 2026-08-04. Applied with
   `pnpm dlx shadcn@latest apply --preset b2qKmlY80` (Existing Project → Full
@@ -46,7 +47,23 @@ https://journal.anishdevlops.xyz still served during migration).
   visual work. Only the visual implementation follows the design language.
 - Changing a foundation value requires owner approval + a new preset ID +
   a matching DESIGN-LANGUAGE.md amendment, committed together.
+- **Components before CSS, registries before components.** Build UI in this
+  order and stop at the first that works: (1) an existing
+  `@/components/primitives`; (2) a component from the **`@coss`** registry
+  (`frontend/components.json`), then `@shadcn` — search/view them with the
+  **shadcn MCP** (`.mcp.json`, pointed at `frontend`); (3) a composition of those;
+  (4) hand-written, last. Writing a component from scratch when a registry ships
+  one is off-foundation by construction, because the preset's styling arrives
+  THROUGH those components.
+- Generated components land in `components/ui/` and are **not edited in place** —
+  differences go in a thin wrapper under `components/primitives/`, which is what
+  application code imports.
+- **Tailwind utilities compile ONLY under `components/{ui,primitives}`**
+  (`tailwind.css` `@source`). A utility class written in a page emits nothing,
+  silently — so pages are built by composing components, not by writing utilities.
 - Migration sequencing: `docs/architecture/UI-MIGRATION-PLAN.md` (untracked).
+  It numbers its own sections: a `§9`/`§19`/`§22` citation in
+  `components/primitives/` refers to THAT file, not to DESIGN-LANGUAGE.md.
 
 ## Workflow rules (important)
 - Work on **`dev`**; ship via **PR `dev` → `main`**. Merge to `main` auto-deploys (GitHub Actions → EC2).

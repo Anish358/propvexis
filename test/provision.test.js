@@ -164,30 +164,29 @@ test('provision_key is passed through when present and null otherwise', () => {
     'an unbounded key would be an unbounded unique index entry');
 });
 
-test('provisionGate: free cannot create a synced account at all', () => {
-  const r = provisionGate({ plan: 'free', kind: 'synced', syncedCount: 0, manualCount: 0 });
-  assert.equal(r.ok, false);
-  assert.equal(r.code, 402);
-  assert.match(r.error, /Pro/);
+// PLAN GATING IS CURRENTLY OFF (owner decision, 2026-08-25) — see the pin in
+// plans.test.js, which lists what comes back here with the caps: free refused a
+// synced account entirely (402, /Pro/), free capped at 5 manual accounts, pro at 3
+// synced with the cap named in the message, and an unknown plan inheriting the
+// free refusal. What is asserted while it is off is that NOTHING refuses, at any
+// count and on any plan — a cap left behind at one call site is a 402 the UI has
+// no gate for and cannot explain.
+test('provisionGate: no plan and no count is refused while gating is off', () => {
+  for (const plan of ['free', 'pro', 'premium', undefined, 'enterprise']) {
+    for (const kind of ['synced', 'manual']) {
+      for (const n of [0, 5, 250]) {
+        const r = provisionGate({ plan, kind, syncedCount: n, manualCount: n });
+        assert.equal(r.ok, true, `${String(plan)}/${kind} at ${n}: ${r.error}`);
+      }
+    }
+  }
 });
 
-test('provisionGate: free can create manual accounts up to its cap', () => {
-  assert.equal(provisionGate({ plan: 'free', kind: 'manual', syncedCount: 0, manualCount: 4 }).ok, true);
-  const full = provisionGate({ plan: 'free', kind: 'manual', syncedCount: 0, manualCount: 5 });
-  assert.equal(full.ok, false);
-  assert.equal(full.code, 402);
-});
-
-test('provisionGate: pro is capped at three synced accounts', () => {
-  assert.equal(provisionGate({ plan: 'pro', kind: 'synced', syncedCount: 2, manualCount: 0 }).ok, true);
-  const full = provisionGate({ plan: 'pro', kind: 'synced', syncedCount: 3, manualCount: 0 });
-  assert.equal(full.ok, false);
-  assert.match(full.error, /3/, 'the message must name the cap, or the user cannot tell what to do');
-});
-
-test('provisionGate: an unknown plan fails closed to free', () => {
-  // plans.js entitlements() already fails closed; this asserts the gate inherits it
-  // rather than defaulting a missing plan to something permissive.
-  assert.equal(provisionGate({ plan: undefined, kind: 'synced', syncedCount: 0, manualCount: 0 }).ok, false);
-  assert.equal(provisionGate({ plan: 'enterprise', kind: 'synced', syncedCount: 0, manualCount: 0 }).ok, false);
+test('provisionGate still routes by kind, so restoring a cap needs no rewiring', () => {
+  // The two branches are what the caps hang off. An unknown kind must take the
+  // manual branch rather than the synced one, or restoring the synced cap would
+  // silently leave a way past it.
+  assert.equal(provisionGate({ plan: 'free', kind: 'synced', syncedCount: 0, manualCount: 0 }).ok, true);
+  assert.equal(provisionGate({ plan: 'free', kind: 'nonsense', syncedCount: 0, manualCount: 0 }).ok, true);
+  assert.equal(provisionGate({ plan: 'free', kind: undefined, syncedCount: 0, manualCount: 0 }).ok, true);
 });
