@@ -666,3 +666,71 @@ test('emptyDraft holds no password field of any kind', () => {
       `emptyDraft has a '${k}' field — nothing secret may be mirrored to sessionStorage`);
   }
 });
+
+// ---- firm_name is DERIVED from firm_id, never carried (final review, Imp. 2) --
+
+test('switching from the unlisted firm to a catalog firm does not carry the typed name', () => {
+  // REPRODUCED by the final reviewer: pick "Other / not listed", type FundedNext,
+  // go back, pick GoatFundedTrader -> firm_id gft carrying firm_name FundedNext.
+  // That pair reaches the account row and every Prop OS display of it. The same
+  // "eleven pages each remembering to set both" shape Ruling 7 rejected for
+  // account_type, so it is fixed the same way: derived in one place.
+  const unlisted = patchDraft(propUpToImport(), { firm_id: 'other', firm_name: 'FundedNext' });
+  assert.equal(unlisted.firm_name, 'FundedNext', 'the typed name must survive being typed');
+  const gft = patchDraft(unlisted, { firm_id: 'gft' });
+  assert.equal(gft.firm_id, 'gft');
+  assert.equal(gft.firm_name, 'GoatFundedTrader',
+    'a catalog firm names itself; a stale typed name here mislabels the account row');
+});
+
+test('a page patching firm_id alone still gets the catalog name, not null', () => {
+  // The minimal fix (clearing firm_name in the cascade) has its own bug in this
+  // direction: Prop OS renders `firm_name || 'Other'`, so a cleared name would
+  // display a GoatFundedTrader account as "Other".
+  const d = patchDraft(propUpToImport(), { firm_id: 'ftmo' });
+  assert.equal(d.firm_name, 'FTMO');
+});
+
+test('a page cannot override a catalog firm name', () => {
+  // One fact under two names: the catalog is the authority for a listed firm.
+  const d = patchDraft(propUpToImport(), { firm_id: 'ftmo', firm_name: 'Not FTMO' });
+  assert.equal(d.firm_name, 'FTMO');
+});
+
+test('choosing the unlisted firm clears the previous name, leaving the user to type', () => {
+  // 'Other / not listed' is a catalog LABEL, not a firm name — storing it would
+  // put a name no firm published on the account row.
+  const d = patchDraft(propUpToImport(), { firm_id: 'other' });
+  assert.equal(d.firm_id, 'other');
+  assert.equal(d.firm_name, null);
+});
+
+test('typing the unlisted firm name does not re-trigger the derivation', () => {
+  const chose = patchDraft(propUpToImport(), { firm_id: 'other' });
+  const typed = patchDraft(chose, { firm_name: 'Alpha Capital' });
+  assert.equal(typed.firm_name, 'Alpha Capital');
+  // ...and re-picking the same card must not wipe what was typed under it.
+  assert.equal(patchDraft(typed, { firm_id: 'other' }).firm_name, 'Alpha Capital');
+});
+
+// ---- the firm step is not complete without an identity (final review, Imp. 3) --
+
+test('the firm step is incomplete while the unlisted firm has no typed name', () => {
+  // Identical in shape to Ruling 8, upheld: a step that exists to collect an
+  // identity must not pass without one. Boolean(firm_id) alone let 'other' through
+  // with no name, and validateProvision accepts it.
+  const chose = patchDraft(propUpToImport(), { firm_id: 'other', firm_name: null });
+  assert.equal(firstIncomplete({ ...chose, product_id: null }), 'firm');
+  const named = patchDraft(chose, { firm_name: 'FundedNext' });
+  assert.notEqual(firstIncomplete({ ...named, product_id: null }), 'firm');
+});
+
+test('a whitespace-only unlisted firm name is not a name', () => {
+  const blank = patchDraft(propUpToImport(), { firm_id: 'other', firm_name: '   ' });
+  assert.equal(firstIncomplete({ ...blank, product_id: null }), 'firm');
+});
+
+test('a catalog firm needs no typed name to complete the firm step', () => {
+  const gft = patchDraft(propUpToImport(), { firm_id: 'gft' });
+  assert.notEqual(firstIncomplete({ ...gft, product_id: null }), 'firm');
+});

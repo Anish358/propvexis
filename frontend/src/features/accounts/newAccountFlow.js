@@ -18,7 +18,7 @@
 // which is readable by any script on the origin; the credentials step holds the
 // password in component state and hands it straight to the provision call.
 import {
-  findFirm, isCustomProduct, SHORT_PRODUCT_LABEL, sizeLabel,
+  findFirm, isCustomProduct, SHORT_PRODUCT_LABEL, sizeLabel, UNLISTED_FIRM_ID,
 } from '../prop/propFirms.js';
 import { findPlatformCard } from './platformCatalog.js';
 
@@ -163,7 +163,11 @@ const has = (v) => v != null && v !== '' && Number.isFinite(Number(v));
 const COMPLETE = {
   welcome: (d) => d.welcomed === true,
   capital: (d) => d.capital_kind === 'prop' || d.capital_kind === 'live',
-  firm: (d) => Boolean(d.firm_id),
+  // The unlisted firm additionally needs the name the user types: firm_id 'other'
+  // is not an identity, and validateProvision accepts it, so a step that exists to
+  // collect an identity would pass without one (same shape as Ruling 8).
+  firm: (d) => Boolean(d.firm_id)
+    && (d.firm_id !== UNLISTED_FIRM_ID || String(d.firm_name ?? '').trim() !== ''),
   // The balance and BOTH drawdowns, because of the custom-rules path: a missing
   // percentage is numOrNull'd by validateProvision and then COALESCEd by
   // mt5_accounts to 5/10/8, so an unlisted firm's account would silently be
@@ -314,6 +318,24 @@ export function patchDraft(draft, patch = {}) {
   // every phase of every product in the catalog; a product that broke it would
   // also break propFirms.test.js's shape assertions, so it cannot land silently.
   if ('phase' in patch) next.account_type = patch.phase === 'funded' ? 'funded' : 'eval';
+
+  // firm_name is DERIVED from firm_id for every firm the catalog names, for the
+  // same reason account_type is derived from the phase: it is one fact under two
+  // names, and a page that patches only one leaves the pair disagreeing. Carrying
+  // a stale name was reproduced (type FundedNext under "Other", then pick GFT ->
+  // gft/FundedNext on the account row). Merely CLEARING it in the cascade has the
+  // opposite bug: Prop OS renders `firm_name || 'Other'`, so a page patching
+  // firm_id alone would display a GoatFundedTrader account as "Other".
+  //
+  // The escape hatch is the exception by construction — 'Other / not listed' is a
+  // catalog label, not a firm — so there the name is the user's to type. A CHANGE
+  // to it clears whatever was there; re-picking the same card does not, or the
+  // name step wipes itself.
+  if ('firm_id' in patch) {
+    const firm = findFirm(patch.firm_id);
+    if (firm && firm.id !== UNLISTED_FIRM_ID) next.firm_name = firm.name;
+    else if (changed('firm_id') && !('firm_name' in patch)) next.firm_name = null;
+  }
 
   // A platform can withdraw an import method: `other` and MT4 offer only file and
   // manual, and the EA is a .mq5 file so it is MT5-only. Read AFTER the merge,

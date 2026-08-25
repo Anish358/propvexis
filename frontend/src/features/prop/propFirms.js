@@ -40,6 +40,14 @@ export const SHORT_PRODUCT_LABEL = {
  *  imports it back, and test/propFirms.test.js exercises it directly. */
 export const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : String(n));
 
+/**
+ * The escape hatch's firm id. Named because it is the one firm whose NAME the user
+ * types: everywhere else firm_name is derived from this catalog, and code that has
+ * to ask "is this the unlisted one?" should not be matching a bare string that also
+ * happens to be a platform id.
+ */
+export const UNLISTED_FIRM_ID = 'other';
+
 export const PROP_FIRMS = [
   {
     id: 'gft',
@@ -112,7 +120,7 @@ export const PROP_FIRMS = [
     // steps collect them by hand; inventing a "typical" drawdown here would put
     // a number in front of a trader that no firm published, which is the same
     // failure mode the verified: false flags are guarding against.
-    id: 'other',
+    id: UNLISTED_FIRM_ID,
     name: 'Other / not listed',
     // Every platform: we cannot know which one an unlisted firm runs, and the
     // platform step filters its grid to the firm's platforms.
