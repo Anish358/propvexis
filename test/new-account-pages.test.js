@@ -606,3 +606,89 @@ test('the server-run branch is hidden when the server cannot store a credential'
   assert.match(src, /autoSyncConfigured === false/,
     'an unknown answer (null) must not hide the branch — only a definite false');
 });
+
+// ---- Task 11: upload and done ----------------------------------------------
+
+test('the upload step drives the shared CSV flow rather than its own', () => {
+  // Spec §8.3: extracted and shared, not copied. A second copy is how the two
+  // surfaces come to disagree about what a duplicate count means.
+  const src = readCode('UploadStep.jsx');
+  assert.match(src, /csvImportFlow/);
+  assert.match(src, /importReducer|csvSizeVerdict/);
+});
+
+test('the upload step checks the file size before uploading it', () => {
+  // The CSV rides inside a JSON body at a 12 MB limit and escaping inflates it. A 413
+  // after a long upload at the LAST step of a nine-step flow is the worst possible
+  // place to discover it.
+  assert.match(readCode('UploadStep.jsx'), /csvSizeVerdict\(/);
+});
+
+test('the upload step clears the previous preview BEFORE reading a new file', () => {
+  // The same bug the modal shipped and had to be fixed for: during `await file.text()`
+  // the component stays mounted, so a stale preview leaves the confirm button live and
+  // a click imports the PREVIOUS csv. Asserted here too, because this is a second
+  // surface driving the same reducer and the reducer cannot express ordering.
+  const src = readCode('UploadStep.jsx');
+  const readAt = /const \w+ = await file\.text\(\)/.exec(src);
+  assert.ok(readAt, 'the upload step no longer reads the file into a local');
+  assert.match(src.slice(0, readAt.index), /dispatch\(\{\s*type:\s*'file'[^}]*csv:\s*''/,
+    'the clearing dispatch must precede the read');
+});
+
+test('the upload step imports into the account that was just created', () => {
+  // Not into the god view. The account exists by now (the commit was at `import`), and
+  // rows filed account-less would not show in the per-account view the user is about
+  // to be dropped into.
+  const src = readCode('UploadStep.jsx');
+  assert.match(src, /draft\.account/);
+  assert.match(src, /mt5_login/, 'importTrades scopes by mt5_login, not by the row id');
+});
+
+test('the upload step is skippable, and skipping records that it was', () => {
+  // The account is already real, so skipping costs nothing — but the guard needs to
+  // know, or a refresh sends the user back to a step they chose to leave.
+  const src = readCode('UploadStep.jsx');
+  assert.match(src, /uploadDone/);
+});
+
+test('done selects the new account before leaving', () => {
+  // Spec §8.1: "Home page" must land on a dashboard already scoped to what was just
+  // created, not on the god view.
+  //
+  // Asserted as "the primary action is WIRED to finish", not as the text `finish(`:
+  // `onClick={finish}` passes the reference, which is ordinary React and contains no
+  // call. Demanding the call would have forced a pointless arrow wrapper.
+  assert.match(readCode('DoneStep.jsx'), /onClick=\{(?:\(\)\s*=>\s*)?finish/,
+    'the primary action must call finish() — selecting the account is what scopes the dashboard');
+});
+
+test('done says something branch-specific, not one generic sentence', () => {
+  // Four branches end here and what happens next differs in each: a queued first sync,
+  // an EA waiting for its first trade, an imported statement, or an empty journal. One
+  // sentence covering all four tells the user nothing about their own account.
+  //
+  // Read off the page's own NEXT table rather than grepping for quoted literals — the
+  // table is data, and object keys are written bare.
+  const src = readCode('DoneStep.jsx');
+  const table = /const NEXT = \{([\s\S]*?)\n\};/.exec(src);
+  assert.ok(table, 'DoneStep must map the branches in a NEXT table');
+  const branches = [...table[1].matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
+  assert.deepEqual(branches.sort(), ['auto_sync', 'ea', 'file', 'manual'],
+    `the table covers ${branches.join(', ')} — every branch that ends here needs its own line`);
+});
+
+test('done does not call completeOnboarding — the shell did that at the commit', () => {
+  // Decision B9. A second call would be a redundant request whose failure has no
+  // meaning, and the stamp has to survive a tab closed before this page.
+  assert.equal(/completeOnboarding/.test(readCode('DoneStep.jsx')), false);
+});
+
+test('neither terminal step offers a way back', () => {
+  // Spec §6.2. canVisit already refuses it and prevStep returns null, but a Back
+  // control rendered here would be a visible dead control.
+  for (const page of ['UploadStep.jsx', 'DoneStep.jsx']) {
+    assert.equal(/back\(\)/.test(readCode(page)), false,
+      `${page} renders a Back control after the account has been created`);
+  }
+});

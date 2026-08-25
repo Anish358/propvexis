@@ -178,6 +178,22 @@ export function WizardForm({ className, children, ...rest }) {
   );
 }
 
+/* A wrapping row — the import step's three counts, the detected-column chips. Its own
+ * component for the same reason as WizardGroup: a page cannot space its own children,
+ * and `flex-wrap` matters here because a statement with eight detected columns must
+ * wrap rather than overflow the step. */
+export function WizardRow({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="wizard-row"
+      className={cn('flex flex-wrap items-center gap-2', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* A two-up field grid, for the one step that collects more than a couple of numbers
  * (the custom-rules editor: balance, two drawdowns, DD type, minimum days). It
  * collapses to one column on a narrow viewport without a breakpoint, same auto-fit

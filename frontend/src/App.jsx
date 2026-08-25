@@ -33,9 +33,9 @@ import SettingsAccounts from './features/settings/SettingsAccounts.jsx';
 import {
   SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
 } from './features/settings/SettingsPanels.jsx';
-import NewAccountFlow, {
-  FlowIndex, WelcomeStep, UploadStep, DoneStep,
-} from './features/accounts/NewAccountFlow.jsx';
+import NewAccountFlow, { FlowIndex, WelcomeStep } from './features/accounts/NewAccountFlow.jsx';
+import UploadStep from './features/accounts/steps/UploadStep.jsx';
+import DoneStep from './features/accounts/steps/DoneStep.jsx';
 import ConnectStep from './features/accounts/steps/ConnectStep.jsx';
 import ImportStep from './features/accounts/steps/ImportStep.jsx';
 import CapitalStep from './features/accounts/steps/CapitalStep.jsx';
