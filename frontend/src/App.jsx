@@ -40,9 +40,7 @@ import ConnectStep from './features/accounts/steps/ConnectStep.jsx';
 import ImportStep from './features/accounts/steps/ImportStep.jsx';
 import CapitalStep from './features/accounts/steps/CapitalStep.jsx';
 import FirmStep from './features/accounts/steps/FirmStep.jsx';
-import ProductStep from './features/accounts/steps/ProductStep.jsx';
-import PhaseStep from './features/accounts/steps/PhaseStep.jsx';
-import NameStep from './features/accounts/steps/NameStep.jsx';
+import AccountStep from './features/accounts/steps/AccountStep.jsx';
 import PlatformStep from './features/accounts/steps/PlatformStep.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';
 
@@ -74,9 +72,7 @@ function wizardRoutes({ accounts, reloadAccounts, setAccountId, firstRun, onOnbo
       <Route path="welcome" element={<WelcomeStep />} />
       <Route path="capital" element={<CapitalStep />} />
       <Route path="firm" element={<FirmStep />} />
-      <Route path="product" element={<ProductStep />} />
-      <Route path="phase" element={<PhaseStep />} />
-      <Route path="name" element={<NameStep />} />
+      <Route path="account" element={<AccountStep />} />
       <Route path="platform" element={<PlatformStep />} />
       <Route path="import" element={<ImportStep />} />
       <Route path="connect" element={<ConnectStep />} />

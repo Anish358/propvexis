@@ -182,18 +182,23 @@ test('wizard files import components only through the primitives barrel', () => 
 // readCode throughout: every claim below is about what the page DOES, and these are
 // exactly the files whose comments explain the rules being asserted.
 
-test('the name step offers the suggested label rather than inventing one', () => {
-  const src = readCode('NameStep.jsx');
+test('the merged page offers the suggested label rather than inventing one', () => {
+  const src = readCode('AccountStep.jsx');
   assert.match(src, /suggestedLabel\(/);
   assert.equal(/firm_name\s*\+|`\$\{.*firm/.test(src), false,
     'the page must not compose its own label — suggestedLabel is tested, a template string is not');
 });
 
-test('the name step never overwrites what the user typed', () => {
-  // The suggestion seeds the input; it is not re-applied. Overwriting a typed label
-  // because a later step changed is how a user loses their own text.
-  const src = readCode('NameStep.jsx');
-  assert.match(src, /useState\(/, 'the input is local state seeded once, not derived every render');
+test('the merged page stops suggesting a label the moment the user types', () => {
+  // On the old separate `name` step the suggestion was seeded ONCE, because everything
+  // it derived from was already answered on earlier pages. Here it is not: the size and
+  // the account type are chosen on this same page, so the suggestion has to keep up
+  // with them — and must stop dead as soon as the user edits the field, or choosing a
+  // different size would silently discard their own text.
+  const src = readCode('AccountStep.jsx');
+  assert.match(src, /labelTouched/, 'the page must track that the label was edited');
+  assert.match(src, /!labelTouched && suggestion/,
+    'the suggestion may only be applied while the field is untouched');
 });
 
 test('the platform step reads the presentation catalog, not the backend registry', () => {
@@ -253,25 +258,48 @@ test('the firm step renders only firms the wizard can complete', () => {
     'the firm step must not read the raw catalog — it would offer unverified-only firms');
 });
 
-test('the product step renders only verified or custom products', () => {
+test('the merged page renders only verified or custom products', () => {
   // THE ONE THAT MATTERS. GFT 1-Step and Instant Funding carry verified: false with
   // drawdown percentages nobody has checked against the firm, and a wrong drawdown
   // does not fail loudly — it mis-scores a real trader's account for the length of a
   // challenge.
-  const src = readCode('ProductStep.jsx');
+  const src = readCode('AccountStep.jsx');
   assert.match(src, /wizardProducts\(/);
   assert.equal(/\.products\b/.test(src), false,
-    'the product step must not read firm.products directly — that includes unverified rules');
+    'it must not read firm.products directly — that includes unverified rules');
 });
 
-test('the product step resolves its rules through templateToFields', () => {
-  // Not by reading phase objects itself. templateToFields enforces size membership
-  // and the eval/funded target-vs-split split, and it is tested.
-  assert.match(readCode('PhaseStep.jsx'), /templateToFields\(/);
+test('the merged page resolves its rules through templateToFields', () => {
+  // Not by reading phase objects itself. templateToFields enforces size membership and
+  // the eval/funded target-vs-split split, and it is tested. It is now called on the one
+  // page that has all four of its arguments at once, which is what the merge bought.
+  assert.match(readCode('AccountStep.jsx'), /templateToFields\(/);
+});
+
+test('the prefill is a starting point, not a lock', () => {
+  // The owner's requirement: show the preset AND let the trader change it. So the
+  // resolved rules go into editable state rather than being read straight into the
+  // patch, and a field the user has edited is never overwritten by a later prefill.
+  const src = readCode('AccountStep.jsx');
+  assert.match(src, /rulesTouched/, 'an edited rule must survive a later phase change');
+  assert.match(src, /if \(!resolved \|\| rulesTouched\) return/,
+    'the prefill effect must bail out once the user has edited anything');
+  // What is submitted is what is in the fields — not the resolved object.
+  assert.match(src, /start_balance: num\(rules\.start_balance\)/,
+    'the patch must read the FIELDS, or an edit would be silently dropped');
+});
+
+test('the size row offers every size the firm sells, and names an impossible pair', () => {
+  // Size is asked before account type (the owner's order) while sizes are a property OF
+  // the type, so the row is the union and the mismatch is called out rather than
+  // silently resolving to no preset.
+  const src = readCode('AccountStep.jsx');
+  assert.match(src, /firmSizes/);
+  assert.match(src, /sizeMismatch/, 'a size the chosen type does not sell must be named');
 });
 
 test('the custom product gets inputs, not defaults', () => {
-  const src = readCode('ProductStep.jsx');
+  const src = readCode('AccountStep.jsx');
   assert.match(src, /isCustomProduct\(/, 'the step must branch on the custom product');
   for (const field of ['daily_dd_pct', 'max_dd_pct', 'start_balance']) {
     assert.ok(src.includes(field), `the custom editor does not collect ${field}`);
@@ -289,8 +317,8 @@ test('no wizard step hardcodes a drawdown percentage', () => {
   }
 });
 
-test('the phase step offers only the three values challenges.phase accepts', () => {
-  const src = readCode('PhaseStep.jsx');
+test('the merged page offers only the three values challenges.phase accepts', () => {
+  const src = readCode('AccountStep.jsx');
   assert.match(src, /PHASES/, 'the phase list must come from the flow module, not be retyped');
   const literals = [...src.matchAll(/phase:\s*'(\w+)'/g)].map((m) => m[1]);
   for (const p of literals) {
@@ -298,13 +326,18 @@ test('the phase step offers only the three values challenges.phase accepts', () 
   }
 });
 
-test('the phase step derives account_type from the phase rather than asking twice', () => {
-  // Two controls naming one fact drift. The phase decides it: p1/p2 are eval, funded
-  // is funded, and that is what templateToFields already returns.
-  const src = readCode('PhaseStep.jsx');
-  assert.match(src, /account_type/);
+test('the merged page never writes account_type itself', () => {
+  // Stronger than the old assertion, and it has to be: this page sets the phase AND
+  // reads account_type back to decide which number to ask for. patchDraft derives it,
+  // so the page patching its own would be a second writer for one fact — and the
+  // failure is a funded challenge filed as an evaluation, scored against a target it
+  // does not have.
+  const src = readCode('AccountStep.jsx');
   assert.equal(/<select[^>]*account_type|name="account_type"/.test(src), false,
     'account_type must not be a control — the phase decides it');
+  for (const m of src.matchAll(/patch\(\{([\s\S]*?)\}\)/g)) {
+    assert.equal(/account_type/.test(m[1]), false, 'the page must not patch account_type');
+  }
 });
 
 test('the unlisted firm cannot advance without a typed name', () => {
@@ -358,8 +391,9 @@ test('GFT 2-Step 25K Phase 1 resolves to 5 / 10 / 8 and 3 trading days', () => {
     dd_type: findFirm('gft').ddType,
     min_trading_days: first.minTradingDays,
   });
-  assert.equal(isStepComplete(d, 'product'), true, 'the provisional rules are what let this step complete');
-  assert.equal(firstIncomplete(d), 'phase');
+  // Still incomplete: the merged page also wants the phase and the label, so partial
+  // rules are not an answer.
+  assert.equal(firstIncomplete(d), 'account');
 
   // PhaseStep's single authoritative resolution.
   const fields = templateToFields('gft', '2step', d.start_balance, 'p1');
@@ -399,14 +433,15 @@ test('the unlisted firm reaches a valid payload on typed rules alone', () => {
   assert.equal(firstIncomplete(d), 'firm', 'an unlisted firm with no typed name is not an identity');
 
   d = patchDraft(d, { firm_name: 'FundedNext' });
-  assert.equal(firstIncomplete(d), 'product');
+  assert.equal(firstIncomplete(d), 'account');
 
   // ProductStep's custom submit.
   d = patchDraft(d, {
     product_id: 'custom', start_balance: 20000,
     daily_dd_pct: 4.5, max_dd_pct: 8.5, dd_type: 'trailing', min_trading_days: 0,
   });
-  assert.equal(firstIncomplete(d), 'phase');
+  // Still `account`: the merged page also wants the phase, its number and the label.
+  assert.equal(firstIncomplete(d), 'account');
 
   // PhaseStep's custom submit.
   d = patchDraft(d, {
@@ -439,9 +474,9 @@ test('the import step shows the reason and the upgrade route, not a bare disable
   assert.match(src, /\/billing/, 'the refusal must offer the route that lifts it');
 });
 
-test('only Auto Sync is gated — Manual and File upload never are', () => {
+test('only the synced methods are gated — Manual and File upload never are', () => {
   // Free users journal by hand and by CSV; that is the whole free tier. A gate that
-  // caught all three cards would make the flow uncompletable for them.
+  // caught all four cards would make the flow uncompletable for them.
   //
   // Asserted against the step's own METHODS table rather than by regexing for
   // `gate.allowed` near `'manual'`: the table is data, so this reads which methods
@@ -455,8 +490,14 @@ test('only Auto Sync is gated — Manual and File upload never are', () => {
     const id = /id:\s*'(\w+)'/.exec(e);
     if (id && /gated:\s*true/.test(e)) gatedIds.push(id[1]);
   }
-  assert.deepEqual(gatedIds, ['auto_sync'],
-    `these methods are gated: ${gatedIds.join(', ')} — only auto_sync may be`);
+  // The EA joined Auto Sync when it became a card: an EA account is kind 'synced' and
+  // occupies a synced slot exactly as a hosted one does, so the same cap applies. What
+  // must never be gated is the pair that IS the free tier.
+  assert.deepEqual(gatedIds.sort(), ['auto_sync', 'ea'],
+    `these methods are gated: ${gatedIds.join(', ')} — only the synced ones may be`);
+  for (const free of ['manual', 'file']) {
+    assert.equal(gatedIds.includes(free), false, `${free} must never be gated`);
+  }
 });
 
 test('the import step offers only methods this platform supports', () => {
@@ -485,13 +526,22 @@ test('no step calls provisionAccount directly — the shell owns the commit', ()
   }
 });
 
-test('the EA is not a fourth card', () => {
-  // Spec §2 decision 5 and §7.4: the EA is a sub-choice UNDER Auto Sync, decided on
-  // connect. A card here would put two doors on one route and make `connect`
-  // unreachable for the EA.
+test('the EA IS a fourth card, and connect no longer asks how', () => {
+  // THIS ASSERTION IS INVERTED FROM WHAT IT WAS, deliberately. Spec §2 decision 5 and
+  // §7.4 made the EA a sub-choice under Auto Sync; the owner reversed that on
+  // 2026-08-25, because the two are not one answer to the trader — one needs a broker
+  // password and the other needs a file on their PC, and burying that behind a card
+  // they have already clicked hides the choice that costs them something.
   const src = readCode('ImportStep.jsx');
   const table = /const METHODS = \[([\s\S]*?)\n\];/.exec(src);
-  assert.equal(/id:\s*'ea'/.test(table[1]), false, 'the EA must not be an import card');
+  assert.match(table[1], /id:\s*'ea'/, 'the EA must be an import card');
+  // The four the flow admits, and no fifth.
+  const ids = [...table[1].matchAll(/id:\s*'(\w+)'/g)].map((m) => m[1]);
+  assert.deepEqual(ids.sort(), ['auto_sync', 'ea', 'file', 'manual']);
+  // ...and the sub-choice is GONE from connect, not merely duplicated onto import.
+  const connect = readCode('ConnectStep.jsx');
+  assert.equal(/setMode\(|mode === 'ea'|mode === 'auto_sync'/.test(connect), false,
+    'connect must not still offer the how-do-we-connect choice');
 });
 
 test('GATING IS CURRENTLY OFF, so every method is offered on every plan', () => {
@@ -522,13 +572,29 @@ test('no page uses an Alert variant that resolves to nothing', () => {
 
 // ---- Task 10: the connect step ---------------------------------------------
 
-test('the connect step asks HOW before it asks for anything secret', () => {
-  // Spec §7.4: the sub-choice comes first. A page that renders a password field
-  // before the user has chosen to give us one is asking for a broker credential by
-  // default.
+test('the connect step is reached only after the user chose to give a credential', () => {
+  // The old form of this asserted the sub-choice came before the password field. The
+  // choice moved to `import`, so what protects the same property now is that this page
+  // branches on the ALREADY-MADE decision rather than asking again: the EA branch shows
+  // a setup card and never renders a password field at all.
   const src = readCode('ConnectStep.jsx');
-  assert.match(src, /'auto_sync'/);
-  assert.match(src, /'ea'/);
+  assert.match(src, /draft\.import_method === 'ea'/, 'the branch must read the decision, not re-ask it');
+  const ea = src.slice(src.indexOf('if (isEa)'), src.indexOf('return (\n    <>\n      <WizardHeading\n        title="Connect'));
+  assert.equal(/type="password"/.test(ea), false, 'the EA branch must render no password field');
+});
+
+test('nothing in the credential form is prefilled, including by the browser', () => {
+  // Every field starts empty in our code, but Chrome and Safari ignore
+  // `autoComplete="off"` on anything they read as a login/password pair and offer
+  // whatever is saved for the origin — which is how a broker credential from a
+  // DIFFERENT account appeared prefilled. `new-password` is the value they honour.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /autoComplete="new-password"/,
+    'the password field must suppress autofill with new-password, not off');
+  for (const f of ['server', 'login', 'password']) {
+    assert.match(src, new RegExp(`const \\[${f}, set\\w+\\] = useState\\(''\\)`),
+      `${f} must start empty — nothing may seed it from the draft`);
+  }
 });
 
 test('the connect step keeps the password out of the draft entirely', () => {

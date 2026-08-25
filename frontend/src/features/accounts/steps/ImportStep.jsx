@@ -32,15 +32,21 @@ import { autoSyncGate } from '../accountGating.js';
  * That is why `gated` is a property of the METHODS table rather than a branch — the
  * set of gated methods is data, and a test reads it.
  *
- * THE EA IS NOT A FOURTH CARD, and a future reader will want to add one. Spec §2
- * decision 5 and §7.4 make it a sub-choice UNDER Auto Sync, decided on `connect`,
- * because "attach our EA to your own terminal" and "we run the terminal" are the same
- * answer to this question with different plumbing. A card here would put two doors on
- * one route and leave `connect` unreachable for the EA.
+ * THE EA IS A FOURTH CARD, as of the owner restructure on 2026-08-25, and that
+ * REVERSES spec §2 decision 5 and §7.4. Those made it a sub-choice under Auto Sync on
+ * the reasoning that "we run the terminal" and "attach our EA to yours" are one answer
+ * with different plumbing. The owner's reading is that they are not one answer to the
+ * trader: one needs a broker password and the other needs a file installed on their
+ * PC, and burying that behind a card they have already clicked hides the choice that
+ * actually costs them something. So `connect` no longer asks it, and this page does.
  *
- * THIS STEP IS ALSO THE COMMIT POINT for Manual and File upload (spec §6.2) — they
- * have nothing left to ask. Auto Sync and the EA collect a credential first and commit
- * on `connect`. `commitStep()` decides which, so the branch comes from the tested
+ * The EA is offered only where the platform supports it — mt5 lists it in
+ * importMethods and nothing else does, because the EA is a .mq5 file.
+ *
+ * THIS STEP IS THE COMMIT POINT for every branch but one (spec §6.2): Manual, File
+ * upload and now the EA all have nothing left to ask once the card is clicked. Only
+ * Auto Sync still collects something afterwards — a credential — so only Auto Sync
+ * commits on `connect`. `commitStep()` decides, so the branch comes from the tested
  * function rather than from a condition repeated here.
  */
 const METHODS = [
@@ -49,6 +55,14 @@ const METHODS = [
     gated: true,
     title: 'Auto Sync',
     description: 'We connect to your account and keep it in sync. Nothing to install, nothing left running.',
+  },
+  {
+    id: 'ea',
+    // Gated with Auto Sync, not separately: an EA account is `kind: 'synced'` and
+    // occupies a synced slot exactly as a hosted one does, so the same cap applies.
+    gated: true,
+    title: 'Run our EA on your PC',
+    description: 'Attach our Expert Advisor to your own MetaTrader 5. No password needed — it syncs while your terminal is open.',
   },
   {
     id: 'manual',

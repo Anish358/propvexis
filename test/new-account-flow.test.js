@@ -49,10 +49,14 @@ const liveUpToImport = (over = {}) => fresh({
 
 // ---- the step lists (spec §3, decision B1) ---------------------------------
 
-test('the route list is exactly the eleven ids in spec §8.1', () => {
+test('the route list is exactly the nine ids the flow has after the merges', () => {
+  // Was eleven, per spec §8.1. The owner restructure of 2026-08-25 merged `product`,
+  // `phase` and `name` into `account`, and folded `connect`'s sub-choice into `import`.
+  // `connect` itself stays: it is where Auto Sync gives its credential and where the EA
+  // is shown its setup card.
   assert.deepEqual(STEP_IDS, [
-    'welcome', 'capital', 'firm', 'product', 'phase',
-    'name', 'platform', 'import', 'connect', 'upload', 'done',
+    'welcome', 'capital', 'firm', 'account',
+    'platform', 'import', 'connect', 'upload', 'done',
   ]);
 });
 
@@ -73,24 +77,32 @@ test('every step a branch can produce is one of the eleven routes', () => {
   }
 });
 
-test('spec §3: Live + Manual is five steps', () => {
+test('Live + Manual is five steps', () => {
   assert.deepEqual(
     stepsFor(liveUpToImport({ import_method: 'manual' })),
-    ['capital', 'name', 'platform', 'import', 'done'],
+    ['capital', 'account', 'platform', 'import', 'done'],
   );
 });
 
-test('spec §3: Prop + Auto Sync is nine steps', () => {
+test('Prop + Auto Sync is seven steps, down from nine', () => {
+  // Spec §3 said nine. The two merges took two pages out of the longest branch, which
+  // was the point of the restructure.
   assert.deepEqual(
     stepsFor(propUpToImport({ import_method: 'auto_sync' })),
-    ['capital', 'firm', 'product', 'phase', 'name', 'platform', 'import', 'connect', 'done'],
+    ['capital', 'firm', 'account', 'platform', 'import', 'connect', 'done'],
   );
 });
 
-test('decision B1: name comes after phase on the prop path, so the label can name the product', () => {
+test('decision B1 survives the merge: the label is asked with the product, not before it', () => {
+  // B1 wanted `name` AFTER `product` and `phase`, so the label could name what was
+  // chosen. Merging the three satisfies that more directly than ordering them did —
+  // there is no longer a page boundary for the order to be wrong across. What has to
+  // stay true is that nothing asks for the label before the firm is known.
   const steps = stepsFor(propUpToImport({ import_method: 'auto_sync' }));
-  assert.ok(steps.indexOf('name') > steps.indexOf('phase'));
-  assert.ok(steps.indexOf('name') > steps.indexOf('product'));
+  assert.ok(steps.indexOf('account') > steps.indexOf('firm'));
+  for (const gone of ['product', 'phase', 'name']) {
+    assert.equal(steps.includes(gone), false, `${gone} is merged into account`);
+  }
 });
 
 test('the live path never asks about a firm, a product or a phase', () => {
@@ -121,7 +133,7 @@ test('only the file route gets an upload step, and it never also gets connect', 
 test('before a branch is chosen the flow is the shortest honest path', () => {
   // Decision B2: the total is computed from the CURRENT draft, so it grows as the
   // branch resolves rather than overstating the work up front.
-  assert.deepEqual(stepsFor(fresh()), ['capital', 'name', 'platform', 'import', 'done']);
+  assert.deepEqual(stepsFor(fresh()), ['capital', 'account', 'platform', 'import', 'done']);
 });
 
 test('first run adds welcome to the front of whatever branch follows', () => {
@@ -140,16 +152,16 @@ test('stepsFor is total — no draft shape throws', () => {
 
 test('progress counts within the resolved branch, one-based', () => {
   assert.deepEqual(progress(liveUpToImport({ import_method: 'manual' }), 'platform'), { index: 3, total: 5 });
-  assert.deepEqual(progress(propUpToImport({ import_method: 'auto_sync' }), 'connect'), { index: 8, total: 9 });
+  assert.deepEqual(progress(propUpToImport({ import_method: 'auto_sync' }), 'connect'), { index: 6, total: 7 });
 });
 
 test('progress grows honestly as the branch resolves', () => {
   const atCapital = fresh();
   assert.equal(progress(atCapital, 'capital').total, 5);
   const chosePropFirm = patchDraft(atCapital, { capital_kind: 'prop' });
-  assert.equal(progress(chosePropFirm, 'capital').total, 8);
+  assert.equal(progress(chosePropFirm, 'capital').total, 6);
   const choseAutoSync = patchDraft(propUpToImport(), { import_method: 'auto_sync' });
-  assert.equal(progress(choseAutoSync, 'capital').total, 9);
+  assert.equal(progress(choseAutoSync, 'capital').total, 7);
 });
 
 test('progress on a step this branch does not have reports index 0, not a wrong number', () => {
@@ -172,11 +184,14 @@ test('the guard walks the branch in order, one answer at a time', () => {
   d = patchDraft(d, { capital_kind: 'prop' });
   assert.equal(firstIncomplete(d), 'firm');
   d = patchDraft(d, { firm_id: 'gft', firm_name: 'GoatFundedTrader' });
-  assert.equal(firstIncomplete(d), 'product');
+  // One `account` answer where there were three. It stays incomplete through every
+  // partial state, which is what the merge must not lose: the page collects four things
+  // and any one of them missing is still an unanswered step.
+  assert.equal(firstIncomplete(d), 'account');
   d = patchDraft(d, { product_id: '2step', start_balance: 25000, daily_dd_pct: 5, max_dd_pct: 10 });
-  assert.equal(firstIncomplete(d), 'phase');
+  assert.equal(firstIncomplete(d), 'account', 'rules without a phase is not an answer');
   d = patchDraft(d, { phase: 'p1', account_type: 'eval', profit_target_pct: 8, min_trading_days: 3 });
-  assert.equal(firstIncomplete(d), 'name');
+  assert.equal(firstIncomplete(d), 'account', 'and neither is a phase without a label');
   d = patchDraft(d, { label: 'GFT 2-Step 25K' });
   assert.equal(firstIncomplete(d), 'platform');
   d = patchDraft(d, { platform: 'mt5' });
@@ -187,15 +202,25 @@ test('the guard walks the branch in order, one answer at a time', () => {
   assert.equal(firstIncomplete(d), 'done');
 });
 
-test('the product step is not done until it has a balance AND both drawdowns', () => {
-  // The custom-rules path is why. validateProvision numOrNulls a missing
-  // percentage and mt5_accounts COALESCEs it to 5/10/8 — so an unlisted firm's
-  // account would silently be judged against GoatFundedTrader's rules.
-  const base = fresh({ capital_kind: 'prop', firm_id: 'other', firm_name: 'FundedNext', product_id: 'custom' });
-  assert.equal(isStepComplete(base, 'product'), false, 'no balance, no drawdowns');
-  assert.equal(isStepComplete({ ...base, start_balance: 50000 }, 'product'), false, 'no drawdowns');
-  assert.equal(isStepComplete({ ...base, start_balance: 50000, daily_dd_pct: 4 }, 'product'), false, 'no max DD');
-  assert.equal(isStepComplete({ ...base, start_balance: 50000, daily_dd_pct: 4, max_dd_pct: 8 }, 'product'), true);
+test('the account step is not done until it has a balance AND both drawdowns', () => {
+  // The custom-rules path is why, and it is unchanged by the merge. validateProvision
+  // numOrNulls a missing percentage and mt5_accounts COALESCEs it to 5/10/8 — so an
+  // unlisted firm's account would silently be judged against GoatFundedTrader's rules.
+  const base = fresh({
+    capital_kind: 'prop', firm_id: 'other', firm_name: 'FundedNext', product_id: 'custom',
+    phase: 'p1', account_type: 'eval', profit_target_pct: 9, label: 'FundedNext 50K',
+  });
+  assert.equal(isStepComplete(base, 'account'), false, 'no balance, no drawdowns');
+  assert.equal(isStepComplete({ ...base, start_balance: 50000 }, 'account'), false, 'no drawdowns');
+  assert.equal(isStepComplete({ ...base, start_balance: 50000, daily_dd_pct: 4 }, 'account'), false, 'no max DD');
+  assert.equal(isStepComplete({ ...base, start_balance: 50000, daily_dd_pct: 4, max_dd_pct: 8 }, 'account'), true);
+});
+
+test('a LIVE account needs only its label on that page', () => {
+  // It has no firm, product or phase, and asking it for a drawdown would be asking for
+  // a rule nothing scores.
+  assert.equal(isStepComplete(fresh({ capital_kind: 'live' }), 'account'), false, 'a label is still required');
+  assert.equal(isStepComplete(fresh({ capital_kind: 'live', label: 'IC Live' }), 'account'), true);
 });
 
 test('a zero drawdown is an answer, not a blank', () => {
@@ -204,29 +229,34 @@ test('a zero drawdown is an answer, not a blank', () => {
   const d = fresh({
     capital_kind: 'prop', firm_id: 'other', firm_name: 'X', product_id: 'custom',
     start_balance: 50000, daily_dd_pct: 0, max_dd_pct: 0, min_trading_days: 0,
+    phase: 'p1', account_type: 'eval', profit_target_pct: 0, label: 'X 50K',
   });
-  assert.equal(isStepComplete(d, 'product'), true);
+  assert.equal(isStepComplete(d, 'account'), true);
 });
 
-test('the phase step is not done until the phase-dependent number is in', () => {
+test('the account step is not done until the phase-dependent number is in', () => {
+  // The phase decides WHICH number is required: a target for an evaluation, a split for
+  // a funded account. Merging the pages did not merge that rule away.
   const evalDraft = propUpToImport({ phase: 'p1', account_type: 'eval', profit_target_pct: null });
-  assert.equal(isStepComplete(evalDraft, 'phase'), false, 'an eval phase needs a profit target');
-  assert.equal(isStepComplete({ ...evalDraft, profit_target_pct: 8 }, 'phase'), true);
+  assert.equal(isStepComplete(evalDraft, 'account'), false, 'an eval phase needs a profit target');
+  assert.equal(isStepComplete({ ...evalDraft, profit_target_pct: 8 }, 'account'), true);
 
   const fundedDraft = propUpToImport({ phase: 'funded', account_type: 'funded', payout_split_pct: null });
-  assert.equal(isStepComplete(fundedDraft, 'phase'), false, 'a funded phase needs a split');
-  assert.equal(isStepComplete({ ...fundedDraft, payout_split_pct: 80 }, 'phase'), true);
+  assert.equal(isStepComplete(fundedDraft, 'account'), false, 'a funded phase needs a split');
+  assert.equal(isStepComplete({ ...fundedDraft, payout_split_pct: 80 }, 'account'), true);
 });
 
 test('account_type is derived from the phase, never trusted from a page', () => {
-  // One fact under two names. Eleven pages each remembering to set both is how a
-  // funded challenge gets filed as an evaluation, and the prop engine then scores
-  // it against a profit target it does not have.
+  // One fact under two names. A page remembering to set only one is how a funded
+  // challenge gets filed as an evaluation, and the prop engine then scores it against a
+  // profit target it does not have. The merge makes this MORE load-bearing, not less:
+  // one page now sets the phase and reads account_type back to decide which number to
+  // ask for, so a wrong derivation shows up as the wrong field on screen.
   const base = propUpToImport({ phase: null, account_type: 'eval', payout_split_pct: null });
 
   const funded = patchDraft(base, { phase: 'funded', payout_split_pct: 80 });
   assert.equal(funded.account_type, 'funded', 'the phase alone settles it — no second control');
-  assert.equal(isStepComplete(funded, 'phase'), true);
+  assert.equal(isStepComplete(funded, 'account'), true);
 
   const evaluation = patchDraft(base, { phase: 'p1', profit_target_pct: 8 });
   assert.equal(evaluation.account_type, 'eval');
@@ -237,7 +267,7 @@ test('account_type is derived from the phase, never trusted from a page', () => 
   const lied = patchDraft(base, { phase: 'funded', account_type: 'eval', profit_target_pct: 8 });
   assert.equal(lied.account_type, 'funded', 'the phase wins');
   assert.equal(toProvisionPayload(lied).account_type, 'funded');
-  assert.equal(isStepComplete(lied, 'phase'), false, 'and it now asks for the split it needs');
+  assert.equal(isStepComplete(lied, 'account'), false, 'and it now asks for the split it needs');
 });
 
 test('a platform badged Soon is not a complete answer', () => {
@@ -259,12 +289,14 @@ test('the phase step rejects a phase the challenges table does not accept', () =
   // the one duplication in the branch pinned by a literal instead of a drift test,
   // while this file already imported from that very module.
   assert.deepEqual(PHASES, SERVER_PHASES);
-  assert.equal(isStepComplete(propUpToImport({ phase: 'p3' }), 'phase'), false);
+  assert.equal(isStepComplete(propUpToImport({ phase: 'p3' }), 'account'), false);
 });
 
 test('a whitespace-only label is not a name', () => {
-  assert.equal(isStepComplete(fresh({ label: '   ' }), 'name'), false);
-  assert.equal(isStepComplete(fresh({ label: ' GFT ' }), 'name'), true);
+  // Asserted on the live path, where the label is the ONLY thing that page collects, so
+  // the label rule is what the result turns on.
+  assert.equal(isStepComplete(fresh({ capital_kind: 'live', label: '   ' }), 'account'), false);
+  assert.equal(isStepComplete(fresh({ capital_kind: 'live', label: ' GFT ' }), 'account'), true);
 });
 
 test('the commit step is not complete until the account exists', () => {
@@ -303,7 +335,7 @@ test('canVisit allows every answered step and the first unanswered one', () => {
   // is the predicate it uses, so the rule is a tested fact rather than a
   // component's arithmetic.
   const d = propUpToImport({ import_method: 'auto_sync' });   // everything up to connect
-  for (const s of ['capital', 'firm', 'product', 'phase', 'name', 'platform', 'import', 'connect']) {
+  for (const s of ['capital', 'firm', 'account', 'platform', 'import', 'connect']) {
     assert.equal(canVisit(d, s), true, `${s} is answered or next — it must be reachable`);
   }
   assert.equal(canVisit(d, 'done'), false, 'the account does not exist yet');
@@ -313,8 +345,11 @@ test('canVisit refuses a step this branch does not have', () => {
   // Deep-linking /accounts/new/phase on a live draft must not render an empty
   // page: the step is not in the branch at all.
   const live = liveUpToImport({ import_method: 'manual' });
-  assert.equal(canVisit(live, 'phase'), false);
   assert.equal(canVisit(live, 'firm'), false);
+  // `phase` is not even a route any more — it merged into `account` — so a stale link
+  // to it must be refused rather than resolving to a page that no longer exists.
+  assert.equal(canVisit(live, 'phase'), false);
+  assert.equal(canVisit(propUpToImport(), 'phase'), false);
   assert.equal(canVisit(live, 'upload'), false, 'manual has no upload step');
   assert.equal(canVisit(live, 'welcome'), false, 'not a first-run draft');
 });
@@ -322,7 +357,7 @@ test('canVisit refuses a step this branch does not have', () => {
 test('canVisit refuses a step nothing has answered up to yet', () => {
   const cold = fresh();
   assert.equal(canVisit(cold, 'capital'), true);
-  assert.equal(canVisit(cold, 'name'), false);
+  assert.equal(canVisit(cold, 'account'), false);
   assert.equal(canVisit(cold, 'import'), false);
 });
 
@@ -349,8 +384,9 @@ test('canVisit is total and never throws', () => {
 
 test('next and prev walk the resolved branch', () => {
   const d = propUpToImport({ import_method: 'auto_sync' });
-  assert.equal(nextStep(d, 'phase'), 'name');
-  assert.equal(prevStep(d, 'name'), 'phase');
+  assert.equal(nextStep(d, 'firm'), 'account');
+  assert.equal(prevStep(d, 'account'), 'firm');
+  assert.equal(nextStep(d, 'account'), 'platform');
   assert.equal(nextStep(d, 'import'), 'connect');
   assert.equal(nextStep(d, 'done'), null, 'nothing follows done');
   assert.equal(prevStep(d, 'capital'), null, 'nothing precedes the first step');
@@ -358,7 +394,7 @@ test('next and prev walk the resolved branch', () => {
 
 test('prev skips the steps this branch does not have', () => {
   const live = liveUpToImport({ import_method: 'manual' });
-  assert.equal(prevStep(live, 'name'), 'capital', 'the live path has no phase to go back to');
+  assert.equal(prevStep(live, 'account'), 'capital', 'the live path has no firm to go back to');
 });
 
 test('spec §6.2: after commit there is NO way back', () => {
@@ -508,7 +544,11 @@ test('the commit step is the last step that collects data, per branch', () => {
   assert.equal(commitStep(liveUpToImport({ import_method: 'manual' })), 'import');
   assert.equal(commitStep(propUpToImport({ import_method: 'file' })), 'import');
   assert.equal(commitStep(propUpToImport({ import_method: 'auto_sync' })), 'connect');
-  assert.equal(commitStep(propUpToImport({ import_method: 'ea' })), 'connect');
+  // The EA moved. It used to commit at `connect`, because `connect` was where you chose
+  // it; since the restructure it is picked on `import` and has nothing further to
+  // answer, so it commits there and `connect` shows it the setup card for an account
+  // that already exists. Only Auto Sync still collects something on that page.
+  assert.equal(commitStep(propUpToImport({ import_method: 'ea' })), 'import');
   assert.equal(commitStep(fresh()), null, 'no method chosen yet');
 });
 
@@ -747,20 +787,20 @@ test('a whitespace-only percentage does not complete the product step', () => {
   // makes any loss at all a breach — the prop engine would score the account
   // against a rule no firm published.
   const blank = propUpToImport({ start_balance: 25000, daily_dd_pct: '  ', max_dd_pct: 10 });
-  assert.equal(isStepComplete(blank, 'product'), false);
+  assert.equal(isStepComplete(blank, 'account'), false);
 });
 
 test('has() accepts the strings a text input actually produces, and 0', () => {
   // A typed '5' must pass or the custom path is unusable, and 0 is a legitimate
   // answer for min_trading_days and for a percentage.
-  assert.equal(isStepComplete(propUpToImport({ start_balance: '25000', daily_dd_pct: '5', max_dd_pct: '10' }), 'product'), true);
-  assert.equal(isStepComplete(propUpToImport({ start_balance: 25000, daily_dd_pct: 0, max_dd_pct: 0 }), 'product'), true);
+  assert.equal(isStepComplete(propUpToImport({ start_balance: '25000', daily_dd_pct: '5', max_dd_pct: '10' }), 'account'), true);
+  assert.equal(isStepComplete(propUpToImport({ start_balance: 25000, daily_dd_pct: 0, max_dd_pct: 0 }), 'account'), true);
 });
 
 test('a non-numeric answer is not a number, whatever Number() coerces it to', () => {
   for (const junk of [false, [], 'abc', {}]) {
     const d = propUpToImport({ start_balance: 25000, daily_dd_pct: junk, max_dd_pct: 10 });
-    assert.equal(isStepComplete(d, 'product'), false, `${JSON.stringify(junk)} passed as a percentage`);
+    assert.equal(isStepComplete(d, 'account'), false, `${JSON.stringify(junk)} passed as a percentage`);
   }
 });
 

@@ -28,10 +28,23 @@ import { findPlatformCard } from './platformCatalog.js';
 export const FLOW_VERSION = 1;
 export const DRAFT_KEY = `propvexis.newAccount.v${FLOW_VERSION}`;
 
-/** The eleven routes of spec §8.1, in route order. */
+/**
+ * The wizard's routes, in route order.
+ *
+ * OWNER RESTRUCTURE 2026-08-25, which supersedes spec §8.1's eleven pages. Two
+ * merges, on the owner's reading that the original split asked one question per
+ * page where the questions belonged together:
+ *   · `product`, `phase` and `name` became ONE `account` page — size, phase,
+ *     account type, name, then the rules, prefilled from the catalog where we have
+ *     them and editable either way.
+ *   · `connect`'s sub-choice ("do we run the terminal, or do you?") moved onto
+ *     `import`, so the EA is a fourth sync card rather than a hidden sub-option.
+ *     That reverses spec §2 decision 5 and §7.4 deliberately.
+ * Nine routes now, and a prop account is seven pages rather than nine.
+ */
 export const STEP_IDS = [
-  'welcome', 'capital', 'firm', 'product', 'phase',
-  'name', 'platform', 'import', 'connect', 'upload', 'done',
+  'welcome', 'capital', 'firm', 'account',
+  'platform', 'import', 'connect', 'upload', 'done',
 ];
 
 /** The three values challenges.phase accepts (migration 0016). Mirrors PHASES in
@@ -131,8 +144,8 @@ export function stepsFor(draft) {
   const steps = [];
   if (d.firstRun === true) steps.push('welcome');
   steps.push('capital');
-  if (d.capital_kind === 'prop') steps.push('firm', 'product', 'phase');
-  steps.push('name', 'platform', 'import');
+  if (d.capital_kind === 'prop') steps.push('firm');
+  steps.push('account', 'platform', 'import');
   if (AUTO_SYNC_METHODS.includes(d.import_method)) steps.push('connect');
   else if (d.import_method === 'file') steps.push('upload');
   steps.push('done');
@@ -140,14 +153,18 @@ export function stepsFor(draft) {
 }
 
 /**
- * Which step writes the account (spec §6.2): the last one that collects data.
- * Auto Sync and the EA both collect on `connect`; Manual and File upload have
- * nothing left to ask after `import`.
+ * Which step writes the account (spec §6.2): the last one that COLLECTS data.
+ *
+ * Only Auto Sync commits at `connect`, because only Auto Sync has something left to
+ * ask there — a credential. The EA used to commit there too, when `connect` was
+ * where you chose it; since the 2026-08-25 restructure the EA is picked on `import`
+ * and has nothing further to answer, so it commits with Manual and File upload and
+ * `connect` shows it the setup card for an account that already exists.
  */
 export function commitStep(draft) {
   const method = draft?.import_method;
   if (!method) return null;
-  return AUTO_SYNC_METHODS.includes(method) ? 'connect' : 'import';
+  return method === 'auto_sync' ? 'connect' : 'import';
 }
 
 export const isCommitted = (draft) => draft?.account != null;
@@ -173,16 +190,29 @@ const COMPLETE = {
   // collect an identity would pass without one (same shape as Ruling 8).
   firm: (d) => Boolean(d.firm_id)
     && (d.firm_id !== UNLISTED_FIRM_ID || String(d.firm_name ?? '').trim() !== ''),
-  // The balance and BOTH drawdowns, because of the custom-rules path: a missing
-  // percentage is numOrNull'd by validateProvision and then COALESCEd by
-  // mt5_accounts to 5/10/8, so an unlisted firm's account would silently be
-  // judged against GoatFundedTrader's rules.
-  product: (d) => Boolean(d.product_id) && has(d.start_balance) && has(d.daily_dd_pct) && has(d.max_dd_pct),
-  // Plus the one number the phase decides: a target for an evaluation, a split
-  // for a funded account.
-  phase: (d) => PHASES.includes(d.phase)
-    && (d.account_type === 'funded' ? has(d.payout_split_pct) : has(d.profit_target_pct)),
-  name: (d) => String(d.label ?? '').trim() !== '',
+  /* The merged page (owner restructure 2026-08-25) — everything the three separate
+   * `product`, `phase` and `name` steps each demanded, now demanded together. The
+   * three old rules are unchanged in substance, and each is still here for the reason
+   * it was written:
+   *
+   *  · The balance and BOTH drawdowns, because of the custom-rules path: a missing
+   *    percentage is numOrNull'd by validateProvision and then COALESCEd by
+   *    mt5_accounts to 5/10/8, so an unlisted firm's account would silently be judged
+   *    against GoatFundedTrader's rules.
+   *  · The phase, plus the ONE number the phase decides — a target for an evaluation,
+   *    a split for a funded account.
+   *  · A non-blank label.
+   *
+   * A LIVE account needs only the label. It has no firm, no product and no phase, and
+   * asking it for a drawdown would be asking for a rule nothing scores. */
+  account: (d) => {
+    if (String(d.label ?? '').trim() === '') return false;
+    if (d.capital_kind !== 'prop') return true;
+    if (!d.product_id) return false;
+    if (!has(d.start_balance) || !has(d.daily_dd_pct) || !has(d.max_dd_pct)) return false;
+    if (!PHASES.includes(d.phase)) return false;
+    return d.account_type === 'funded' ? has(d.payout_split_pct) : has(d.profit_target_pct);
+  },
   // Not merely "a platform was chosen": three of the five cards are badged `soon`
   // and the backend refuses exactly those (platforms.js `enabled: false`), so a
   // chosen-but-unavailable platform would pass this step and then 400 at the

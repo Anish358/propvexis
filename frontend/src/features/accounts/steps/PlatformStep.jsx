@@ -85,7 +85,7 @@ export default function PlatformStep() {
   return (
     <>
       <WizardHeading
-        title="Where do you trade it?"
+        title="Which broker or platform?"
         description={isProp
           ? 'This decides how we can import your trades. We have narrowed it to what this firm runs.'
           : 'This decides how we can import your trades.'}
