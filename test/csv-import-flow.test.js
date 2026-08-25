@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readSrc } from './helpers/src-files.js';
 import {
   IMPORT_BODY_LIMIT, csvSizeVerdict, initialImportState, importReducer, previewSummary,
 } from '../frontend/src/features/trades/csvImportFlow.js';
@@ -129,4 +130,49 @@ test('previewSummary defaults every count and refuses an empty import', () => {
     { willImport: 0, duplicates: 9, skipped: 0, canImport: false });
   assert.deepEqual(previewSummary({}), { willImport: 0, duplicates: 0, skipped: 0, canImport: false });
   assert.deepEqual(previewSummary(null), { willImport: 0, duplicates: 0, skipped: 0, canImport: false });
+});
+
+// ---------------------------------------------------------------------------
+// The one fact the reducer cannot express: ORDERING around the file read.
+// ImportTradesModal drives this sequence but cannot be rendered here (no jsdom,
+// by decision), so this is asserted over the component's source — as every other
+// frontend test in this repo does.
+const modalSrc = readSrc('features/trades/ImportTradesModal.jsx');
+
+/** One handler's OWN body inside the component, bounded by the next sibling
+ *  declaration at the same two-space indentation. A fixed window would spill into
+ *  onAccountChange, which also dispatches around an await and would satisfy an
+ *  ordering assertion this file means to make about onFile alone. */
+function handlerBody(name) {
+  const decl = new RegExp(`^  (?:async )?function ${name}\\b`, 'm').exec(modalSrc);
+  assert.ok(decl, `ImportTradesModal has no ${name} handler`);
+  const rest = modalSrc.slice(decl.index + decl[0].length);
+  const end = /^  (?:async )?function |^  return /m.exec(rest);
+  return rest.slice(0, end ? end.index : rest.length);
+}
+
+test("choosing a file clears the previous preview BEFORE the read, not after", () => {
+  // While `await file.text()` is in flight the component stays mounted with the
+  // PREVIOUS file's preview and busy===false — so "Import N trades" is still
+  // clickable, and a click there imports the PREVIOUS csv while the user believes
+  // they imported the new one. Silently wrong data in a trading journal.
+  const fn = handlerBody('onFile');
+  // Anchored on the ASSIGNMENT, not on the bare call: a comment explaining the
+  // ordering mentions `await file.text()` too, and indexOf would find the comment
+  // first and slice the very dispatch this test exists to demand out of range.
+  const readAt = /const \w+ = await file\.text\(\)/.exec(fn);
+  assert.ok(readAt, 'onFile no longer reads the file into a local — has this moved?');
+  const read = readAt.index;
+
+  // The size-refusal branch also dispatches a clearing 'file' and already sits
+  // before the read, so a plain indexOf would pass without the fix. Anchor on the
+  // text between that branch's own `return` and the read.
+  const guardEnd = fn.lastIndexOf('return;', read);
+  assert.ok(guardEnd > 0, 'the over-size guard no longer returns before the read');
+  assert.match(fn.slice(guardEnd, read), /dispatch\(\{\s*type:\s*'file'[^}]*csv:\s*''/,
+    'the clearing dispatch must precede `await file.text()`');
+
+  // ...and clearing first must not lose the text the read returns.
+  assert.match(fn.slice(read), /dispatch\(\{\s*type:\s*'file'[^}]*csv:\s*text/,
+    'the loaded csv must still reach the state after the read');
 });

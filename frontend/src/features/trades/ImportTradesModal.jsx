@@ -29,6 +29,11 @@ export default function ImportTradesModal({ onClose, onImported, manualAccounts 
       dispatch({ type: 'error', error: verdict.error });
       return;
     }
+    // Cleared BEFORE the read, not after. During `await file.text()` the component
+    // stays mounted, so leaving the previous file's preview in place leaves
+    // "Import N trades" live — and a click there would import the PREVIOUS csv
+    // while the user believes they imported the one they just chose.
+    dispatch({ type: 'file', fileName: file.name, csv: '' });
     const text = await file.text();
     dispatch({ type: 'file', fileName: file.name, csv: text });
     dispatch({ type: 'busy' });
