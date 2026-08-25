@@ -156,6 +156,42 @@ export function WizardHeading({ title, description, className, ...rest }) {
   );
 }
 
+/* A step's form: the field(s) and the action that leaves the step.
+ *
+ * It exists because a page cannot space its own children — a `gap-6` written on a
+ * <form> in a step file emits no CSS. That is the constraint doing its job rather
+ * than getting in the way: the spacing between a field and its Continue button is a
+ * layout decision, and layout decisions belong where they can be stated once.
+ *
+ * `items-start` so the action sizes to its label instead of stretching the width of
+ * the page, which is what a stretched primary button on a one-field step looks like. */
+export function WizardForm({ className, children, ...rest }) {
+  return (
+    <form
+      data-slot="wizard-form"
+      noValidate
+      className={cn('flex flex-col items-start gap-6', className)}
+      {...rest}
+    >
+      {children}
+    </form>
+  );
+}
+
+/* A group of controls inside a step — the platform grid's search box above its cards,
+ * or the live path's broker field beside them. Same reason as WizardForm. */
+export function WizardGroup({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="wizard-group"
+      className={cn('flex flex-col gap-4', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* The action row. Back sits left and the primary action right, so the primary
  * action lands under the thumb on a narrow viewport and at the end of the reading
  * order on a wide one. Back is rendered by the caller only when it can go back —
@@ -207,22 +243,51 @@ export function ChoiceGrid({ className, children, ...rest }) {
  * rather than filling the surface with a colour it was not already wearing. It gets a
  * keyboard twin for free by being a real button.
  */
-export function ChoiceCard({ title, description, icon, className, ...rest }) {
+export function ChoiceCard({
+  title, description, icon, badge, selected, disabled, className, ...rest
+}) {
   return (
     <Button
       variant="secondary"
       data-slot="choice-card"
+      data-selected={selected ? '' : undefined}
+      disabled={disabled}
+      // A DISABLED CARD STAYS REACHABLE BY KEYBOARD, and that is the point of the
+      // state. Its description is the REASON it is unavailable — every platform card
+      // carries a mandatory blurb for exactly that (platformCatalog.js's header). A
+      // natively-disabled button is removed from the tab order, so a keyboard or
+      // screen-reader user could never reach the one sentence that explains why the
+      // option is greyed out; they would find a gap in the grid instead of an answer.
+      // Base UI keeps it focusable and swaps the native attribute for aria-disabled,
+      // which is why the styles below target both.
+      focusableWhenDisabled={disabled || undefined}
       className={cn(
         // §6: a card surface takes the card radius, not the button step.
         'h-auto items-start rounded-2xl border-border bg-card p-6 text-left shadow-sm',
         'flex flex-col gap-2 whitespace-normal',
         // §14: it wears an edge, so the edge is what intensifies.
         'hover:border-ring hover:bg-card',
+        // A chosen card reads through the NEUTRAL ring, never a brand tint — §4:
+        // "selection chrome is grayscale, never tinted."
+        'data-selected:border-ring data-selected:bg-muted',
+        // A disabled card still has to be READ: the blurb is the reason it is
+        // disabled, so dimming it to the point of illegibility would remove the
+        // only thing that explains the state. The generated Button's
+        // disabled:opacity is loosened rather than accepted.
+        'disabled:opacity-100 disabled:text-muted-foreground disabled:cursor-not-allowed',
+        'disabled:hover:border-border disabled:hover:bg-card',
+        // The aria-disabled twin, because focusableWhenDisabled means the native
+        // attribute is not what carries the state.
+        'aria-disabled:opacity-100 aria-disabled:text-muted-foreground aria-disabled:cursor-not-allowed',
+        'aria-disabled:hover:border-border aria-disabled:hover:bg-card',
         className,
       )}
       {...rest}
     >
-      {icon ? <span className="text-muted-foreground [&_svg]:size-5">{icon}</span> : null}
+      <span className="flex w-full items-start justify-between gap-2">
+        {icon ? <span className="text-muted-foreground [&_svg]:size-5">{icon}</span> : <span />}
+        {badge}
+      </span>
       <span className="text-base font-medium">{title}</span>
       {description ? (
         <span className="text-sm font-normal text-pretty text-muted-foreground">{description}</span>

@@ -34,10 +34,12 @@ import {
   SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
 } from './features/settings/SettingsPanels.jsx';
 import NewAccountFlow, {
-  FlowIndex, WelcomeStep, FirmStep, ProductStep, PhaseStep, NameStep, PlatformStep,
+  FlowIndex, WelcomeStep, FirmStep, ProductStep, PhaseStep,
   ImportStep, ConnectStep, UploadStep, DoneStep,
 } from './features/accounts/NewAccountFlow.jsx';
 import CapitalStep from './features/accounts/steps/CapitalStep.jsx';
+import NameStep from './features/accounts/steps/NameStep.jsx';
+import PlatformStep from './features/accounts/steps/PlatformStep.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';
 
 // The Add Account wizard. A SIBLING of <Layout> on purpose (spec §8.1): eleven

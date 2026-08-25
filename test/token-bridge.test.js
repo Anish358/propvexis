@@ -24,6 +24,25 @@ test('tokens.css is the only file that declares values', () => {
   assert.match(tokensCss, /--bg:\s*#/, 'tokens.css holds the actual values');
 });
 
+test('tailwind.css stays a wiring file — no tokens, no values', () => {
+  // It holds imports, the layer order and @source. Values belong to tokens.css and
+  // the mapping to bridge.css; index.css documents that split as the whole point of
+  // having four files.
+  //
+  // THIS IS AN INJECTION GUARD, not hygiene. `shadcn add` WRITES TO THIS FILE: adding
+  // @coss/field appended a `--destructive-foreground` pair built from Tailwind's raw
+  // palette (`var(--color-red-700)` / `var(--color-red-400)`) plus a `.dark` block —
+  // duplicating what bridge.css already maps to `--on-accent`, and violating §4's "no
+  // raw colour anywhere". The `.dark` half was caught by the next test; the values
+  // half was not caught by anything, which is why this exists.
+  const code = strip(tailwind);
+  const literals = code.match(/:\s*(#[0-9a-fA-F]{3,8}|rgba?\(|oklch\(|hsla?\()/g) || [];
+  assert.deepEqual(literals, [], 'tailwind.css must not contain literal colour values');
+  const declared = [...code.matchAll(/^\s*(--[\w-]+)\s*:/gm)].map((m) => m[1]);
+  assert.deepEqual(declared, [],
+    'tailwind.css declared a custom property — a `shadcn add` probably injected it; move it to tokens.css or bridge.css');
+});
+
 test('the bridge never redeclares one of our tokens', () => {
   const ours = [...strip(tokensCss).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]);
   const redeclared = [...new Set(ours)].filter((t) =>

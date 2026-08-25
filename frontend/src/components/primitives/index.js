@@ -59,6 +59,7 @@ export {
   DialogPopup, DialogPortal, DialogTitle, DialogTrigger,
 } from './dialog.jsx';
 export { EmptyState } from './empty-state.jsx';
+export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './field.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { LoadingBlock } from './loading-block.jsx';
@@ -89,6 +90,6 @@ export {
 // for the same reason: this directory is where application code imports from, and it
 // is the only place besides components/ui where a Tailwind utility compiles at all.
 export {
-  ChoiceCard, ChoiceGrid, WizardBody, WizardBrand, WizardFooter, WizardHeader,
-  WizardHeading, WizardPage, WizardProgress,
+  ChoiceCard, ChoiceGrid, WizardBody, WizardBrand, WizardFooter, WizardForm,
+  WizardGroup, WizardHeader, WizardHeading, WizardPage, WizardProgress,
 } from './wizard.jsx';

@@ -40,7 +40,7 @@ export function FlowIndex() {
   return <Navigate to={`/accounts/new/${firstIncomplete(draft)}`} replace />;
 }
 
-/* The ten steps this task does not build yet. They ship as named stubs so the route
+/* The steps not built yet (Task 6 shipped ten of these; 8 filled name and platform). They ship as named stubs so the route
  * table is complete and the guard is exercisable from the first commit — a missing
  * route would redirect to a blank page, which reads as a guard bug. Each carries the
  * task that fills it, so a half-finished stub cannot ship unnoticed. */
@@ -51,8 +51,6 @@ export const WelcomeStep = () => <Stub name="Welcome" task="TASK 12" />;
 export const FirmStep = () => <Stub name="Firm" task="TASK 7" />;
 export const ProductStep = () => <Stub name="Product" task="TASK 7" />;
 export const PhaseStep = () => <Stub name="Phase" task="TASK 7" />;
-export const NameStep = () => <Stub name="Name" task="TASK 8" />;
-export const PlatformStep = () => <Stub name="Platform" task="TASK 8" />;
 export const ImportStep = () => <Stub name="Import" task="TASK 9" />;
 export const ConnectStep = () => <Stub name="Connect" task="TASK 10" />;
 export const UploadStep = () => <Stub name="Upload" task="TASK 11" />;

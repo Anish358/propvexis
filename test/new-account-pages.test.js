@@ -170,3 +170,66 @@ test('wizard files import components only through the primitives barrel', () => 
   assert.deepEqual(offenders, [],
     'these import generated components directly — go through @/components/primitives');
 });
+
+// ---- Task 8: name and platform ---------------------------------------------
+// readCode throughout: every claim below is about what the page DOES, and these are
+// exactly the files whose comments explain the rules being asserted.
+
+test('the name step offers the suggested label rather than inventing one', () => {
+  const src = readCode('NameStep.jsx');
+  assert.match(src, /suggestedLabel\(/);
+  assert.equal(/firm_name\s*\+|`\$\{.*firm/.test(src), false,
+    'the page must not compose its own label — suggestedLabel is tested, a template string is not');
+});
+
+test('the name step never overwrites what the user typed', () => {
+  // The suggestion seeds the input; it is not re-applied. Overwriting a typed label
+  // because a later step changed is how a user loses their own text.
+  const src = readCode('NameStep.jsx');
+  assert.match(src, /useState\(/, 'the input is local state seeded once, not derived every render');
+});
+
+test('the platform step reads the presentation catalog, not the backend registry', () => {
+  // src/domain/sync/platforms.js is the authority and the frontend cannot import it
+  // (the deploy ships the two trees separately). platformCatalog.js is the
+  // presentation half and platform-catalog.test.js keeps them in step.
+  const src = readCode('PlatformStep.jsx');
+  assert.match(src, /platformCatalog/);
+  assert.equal(/domain\/sync\/platforms/.test(src), false,
+    'the page must never import backend source — it works locally and crashes on the box');
+});
+
+test('the platform step cannot select a Soon platform', () => {
+  // provision 400s on any platform whose `enabled` is false, so an enabled card would
+  // be a dead end after the user answered six questions.
+  const src = readCode('PlatformStep.jsx');
+  assert.match(src, /status/, "the card's status must gate selection");
+  assert.match(src, /'soon'/);
+});
+
+test('the platform step narrows to the firm on the prop path', () => {
+  // Spec §7.2: for a prop account the firm implies the platform, with the rest behind
+  // "show all".
+  const src = readCode('PlatformStep.jsx');
+  assert.match(src, /findFirm\(/);
+  assert.match(src, /platforms/);
+});
+
+test('only the live path collects a broker, and it is free text', () => {
+  // Spec §7.2 and §4: `broker` is free text on the Live path. toProvisionPayload nulls
+  // it for prop, so collecting it there would be discarded input.
+  const src = readCode('PlatformStep.jsx');
+  assert.match(src, /broker/);
+  assert.match(src, /capital_kind/, 'the broker field must be gated on the capital kind');
+});
+
+test('a Soon platform stays FINDABLE even though it cannot be chosen', () => {
+  // platformCatalog.js's own header: the catalog reads as a roadmap. Filtering the
+  // soon cards out of search would turn "when is cTrader coming" into "cTrader does
+  // not exist", which is a worse answer than a disabled card with its blurb.
+  const src = readCode('PlatformStep.jsx');
+  const searchCall = /searchPlatforms\([^)]*\)/.exec(src);
+  assert.ok(searchCall, 'the step must search through searchPlatforms');
+  assert.equal(/searchPlatforms\([^)]*\)\s*\.filter\([^)]*status/.test(src), false,
+    'the search result must not be filtered by status — soon cards stay findable');
+});
