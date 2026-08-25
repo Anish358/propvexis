@@ -87,3 +87,15 @@ test('the build still fails on a missing named export', () => {
   const hook = cfg.slice(cfg.indexOf('onwarn'), cfg.indexOf('output:', cfg.indexOf('onwarn')));
   assert.match(hook, /throw new Error/, 'MISSING_EXPORT must THROW, not just log — a warning exits 0');
 });
+
+test('the wizard is declarative routing like everything else', () => {
+  // The v7 upgrade rested on this app using only the declarative router. Eleven new
+  // routes are the largest addition since, so the assumption is re-checked where it
+  // can be named rather than only in the app-wide sweep above.
+  const shell = read('../frontend/src/features/accounts/NewAccountFlow.jsx');
+  assert.equal(/createBrowserRouter|RouterProvider|useLoaderData|useFetcher/.test(shell), false,
+    'the wizard must not adopt the data router — the v7 migration reasoning stops holding');
+  // It navigates by <Navigate> and useNavigate, and every target is absolute, which the
+  // app-wide relative-`to` test already enforces.
+  assert.match(shell, /useNavigate|<Navigate/);
+});

@@ -126,12 +126,29 @@ export function WizardProgress({ index, total, className, ...rest }) {
  * `starting:opacity-0` with a transition needs no library and no keyframes, and lands
  * inside §10's stated rule rather than inventing one. Verified to emit real
  * `@starting-style` CSS. */
-export function WizardBody({ className, children, ...rest }) {
+export const WizardBody = React.forwardRef(function WizardBody(
+  { className, children, ...rest }, ref,
+) {
   return (
     <main
+      ref={ref}
       data-slot="wizard-body"
+      // FOCUSABLE ONLY PROGRAMMATICALLY. The shell focuses this on every step change:
+      // a wizard swaps its content under a fixed header, so without it a screen-reader
+      // user is left wherever they were with no signal that the question changed, and a
+      // URL change announces nothing by itself. Focusing the container reads the new
+      // <h1> AND repositions the cursor, so the next Tab lands inside the new step
+      // instead of back in the old one.
+      //
+      // `-1` keeps it out of the tab order, so it is not a stop a keyboard user has to
+      // pass through — which is also why there is no focus ring on it. §9 requires a
+      // visible focus state on INTERACTIVE elements; a container that cannot be reached
+      // by Tab is not one, and drawing a ring around the whole step on every advance
+      // would read as an error state.
+      tabIndex={-1}
       className={cn(
         'mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-8 px-6 py-12',
+        'outline-none',
         'transition-opacity duration-[var(--dur)] starting:opacity-0 motion-reduce:duration-0',
         className,
       )}
@@ -140,7 +157,7 @@ export function WizardBody({ className, children, ...rest }) {
       {children}
     </main>
   );
-}
+});
 
 /* One question per step, so the heading is the question and the description is
  * whatever the user needs to answer it honestly. Weight caps at 600 per §3, and

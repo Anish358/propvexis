@@ -757,3 +757,195 @@ test('the account label is still asked in exactly one place per surface', () => 
     .filter((f) => /placeholder="[^"]*(?:Challenge #1|Account label)/.test(readSrc(f)));
   assert.equal(label.length <= 2, true, `the account-label input appears in ${label.length} files: ${label}`);
 });
+
+// ---- Task 13: accessibility, and the stylesheet -----------------------------
+
+test('every step is announced — the page changes without a page load', () => {
+  // design-b-a11y.test.js establishes ONE polite live region for the app, and it lives
+  // in Layout — which the wizard is a SIBLING of, so the wizard does not get it. A
+  // wizard swaps its content under a fixed header, so without moved focus a
+  // screen-reader user is left wherever they were with no signal that the question
+  // changed; a URL change announces nothing by itself.
+  //
+  // Focus management rather than a second live region: moving focus to the step
+  // container both announces the new heading AND repositions the reader's cursor, so
+  // the next Tab lands in the new step rather than back in the old one.
+  const shell = readCode('NewAccountFlow.jsx');
+  assert.match(shell, /\.focus\(\)/, 'the shell must move focus when the step changes');
+  assert.match(shell, /\[step\]|\[\s*step\s*\]/,
+    'and it must do it ON the step change, not once on mount');
+
+  // The target has to be able to receive focus, and the heading has to be a real h1 —
+  // both live in the primitive, because that is where the markup is.
+  const wizard = readCode('wizard.jsx');
+  assert.match(wizard, /tabIndex=\{-1\}/, 'the step container must be programmatically focusable');
+  assert.match(wizard, /<h1/, 'the step question must be the page heading');
+});
+
+test('the progress indicator is readable, not just visible', () => {
+  // A bar with no text is silent. Asserted in wizard.jsx rather than the shell: the
+  // shell passes index/total, the primitive renders them, and the accessible name
+  // belongs with the markup.
+  const wizard = readCode('wizard.jsx');
+  assert.match(wizard, /aria-label=\{`Step \$\{/, 'the bar needs an accessible name naming the position');
+  assert.match(wizard, /\{safeIndex\} of \{safeTotal\}/, 'and the count is visible text too');
+});
+
+// The plan's last two assertions here fenced a `.naf-*` block in legacy/app.css and
+// checked it for raw hex. There is no such block: DESIGN-LANGUAGE §1 superseded that
+// approach and this feature added ZERO lines to that stylesheet (held by its own test
+// above). The INVARIANTS both were protecting still matter, so they are asserted where
+// the styling actually lives.
+
+test('the wizard writes no raw colour, anywhere in its components', () => {
+  // §4, verbatim: "No raw colour anywhere. Components reference tokens; tokens.css is
+  // the rebrand surface. A hex literal in a component is a bug." Arbitrary Tailwind
+  // values are the same bug in a different costume — `bg-[#0af]` and `text-[rgb(...)]`
+  // bypass the token layer exactly as a hex literal in CSS would.
+  const files = [...stepFiles(), 'features/accounts/NewAccountFlow.jsx',
+    'components/primitives/wizard.jsx'];
+  for (const f of files) {
+    const src = readCode(f);
+    assert.deepEqual(src.match(/#[0-9a-fA-F]{3,8}\b/g) || [], [], `${f} carries a hex literal`);
+    assert.deepEqual(src.match(/\b(?:bg|text|border|ring|fill|stroke)-\[(?:#|rgb|hsl|oklch)[^\]]*\]/g) || [], [],
+      `${f} uses an arbitrary colour value, which bypasses the token layer`);
+  }
+});
+
+test('the wizard adds no selector to any shared namespace', () => {
+  // The convention every module in legacy/app.css follows (prop-challenges.test.js
+  // asserts the same for `pc-`): a rule outside your namespace either duplicates a
+  // shared system or leaks into one. The wizard's version of that is stronger — it owns
+  // no namespace at all, because it writes no CSS. What it must not do is reach into
+  // someone else's, which is the shape a "just this one class" fix would take.
+  const files = [...stepFiles(), 'features/accounts/NewAccountFlow.jsx'];
+  for (const f of files) {
+    for (const m of readCode(f).matchAll(/className="([^"]*)"/g)) {
+      assert.equal(m[1].trim(), '',
+        `${f} sets className="${m[1]}" — a page cannot style itself here, so this either emits nothing or borrows another module's rule`);
+    }
+  }
+});
+
+test("the sweep, as a test: no stub marker and no removed export survive in CODE", () => {
+  // The plan ran these as one-off shell greps. They are worth keeping, because the
+  // failure they catch is silent: a route still rendering the stub would ship the word
+  // "Phase — not built yet (TASK 7)" to a user, and nothing else would complain.
+  //
+  // Comment-stripped, and that is not incidental. Run as raw greps these produce false
+  // positives on the prose that EXPLAINS the removals — WelcomeStep says its markup
+  // replaced the `.onb-*` rules, and PropChallenges says its button used to open
+  // AccountFormModal. Both sentences are worth keeping and neither is a reference.
+  const jsx = allSrcFiles().filter((f) => /\.jsx?$/.test(f));
+  for (const [what, re] of [
+    ['a TASK stub marker', /TASK \d/],
+    ['the removed AccountFormModal export', /AccountFormModal/],
+    ['an orphaned .onb-* class', /onb-/],
+  ]) {
+    const hits = jsx.filter((f) => re.test(readCode(f)));
+    assert.deepEqual(hits, [], `${what} survives in: ${hits.join(', ')}`);
+  }
+});
+
+// ---- all four branches, as far as pure functions can carry them -------------
+// The plan's last step walks each branch against a real database. The half that does
+// not need one is the PAYLOAD: toProvisionPayload is pure, and it is what decides every
+// column the walk then inspects. So the shapes are asserted here and the walk is left
+// to confirm what the server does with them.
+
+const walk0 = (from, patches) => patches.reduce((d, p) => patchDraft(d, p), from);
+const walk = (patches) => walk0(emptyDraft(), patches);
+
+test('branch 1 — Live Capital + Manual carries no prop rule at all', () => {
+  const d = walk([
+    { capital_kind: 'live' },
+    { label: 'IC Markets Live' },
+    { platform: 'mt5', broker: 'IC Markets' },
+    { import_method: 'manual' },
+  ]);
+  assert.equal(firstIncomplete(d), 'import', 'manual commits AT import, so it is the first incomplete step');
+  const p = toProvisionPayload(d);
+  assert.equal(p.capital_kind, 'live');
+  assert.equal(p.import_method, 'manual');
+  assert.equal(p.broker, 'IC Markets', 'the broker is live-path only, and this is the live path');
+  // validateProvision REJECTS a live payload naming a firm, product or phase — silently
+  // dropping them would create an account the user believes tracks firm rules.
+  for (const f of ['firm_id', 'firm_name', 'product_id', 'phase']) {
+    assert.equal(p[f], null, `a live account must carry no ${f}`);
+  }
+});
+
+test('branch 2 — Prop GFT 2-Step 25K Phase 1 + File carries the catalog rules', () => {
+  const first = findProduct('gft', '2step').phases[0];
+  let d = walk([
+    { capital_kind: 'prop' },
+    { firm_id: 'gft' },
+    {
+      product_id: '2step', start_balance: 25000,
+      daily_dd_pct: first.dailyDdPct, max_dd_pct: first.maxDdPct,
+      dd_type: findFirm('gft').ddType, min_trading_days: first.minTradingDays,
+    },
+  ]);
+  d = patchDraft(d, { phase: 'p1', ...templateToFields('gft', '2step', 25000, 'p1') });
+  d = walk0(d, [{ label: 'GFT 2-Step 25K' }, { platform: 'mt5' }, { import_method: 'file' }]);
+  const p = toProvisionPayload(d);
+  assert.equal(p.capital_kind, 'prop');
+  assert.equal(p.product_id, '2step');
+  assert.equal(p.import_method, 'file');
+  assert.deepEqual(
+    [p.daily_dd_pct, p.max_dd_pct, p.profit_target_pct, p.min_trading_days],
+    [5, 10, 8, 3],
+  );
+  assert.equal(p.broker, null, 'a prop account carries no broker even if one was typed');
+});
+
+test('branch 3 — Prop unlisted firm keeps the TYPED rules, not GFT defaults', () => {
+  // The failure this guards is invisible: a missing percentage is numOrNull'd by the
+  // validator and then COALESCEd by mt5_accounts to 5/10/8, so an unlisted firm's
+  // account would be judged against GoatFundedTrader's rules with nothing to show it.
+  const d = walk([
+    { capital_kind: 'prop' },
+    { firm_id: 'other' },
+    { firm_name: 'FundedNext' },
+    {
+      product_id: 'custom', start_balance: 20000,
+      daily_dd_pct: 4.5, max_dd_pct: 8.5, dd_type: 'trailing', min_trading_days: 2,
+    },
+    { phase: 'p1', account_type: 'eval', profit_target_pct: 9, payout_split_pct: null },
+    { label: 'FundedNext 20K' },
+    { platform: 'mt5' },
+    { import_method: 'manual' },
+  ]);
+  const p = toProvisionPayload(d);
+  assert.equal(p.firm_id, 'other');
+  assert.equal(p.firm_name, 'FundedNext');
+  assert.equal(p.product_id, 'custom');
+  assert.deepEqual([p.daily_dd_pct, p.max_dd_pct, p.profit_target_pct], [4.5, 8.5, 9]);
+  assert.equal(p.dd_type, 'trailing');
+  assert.notEqual(p.daily_dd_pct, 5, 'the GFT default must not have leaked in');
+});
+
+test('branch 4 — Prop + Auto Sync asks for the login and never the password', () => {
+  const first = findProduct('gft', '2step').phases[0];
+  let d = walk([
+    { capital_kind: 'prop' },
+    { firm_id: 'gft' },
+    {
+      product_id: '2step', start_balance: 50000,
+      daily_dd_pct: first.dailyDdPct, max_dd_pct: first.maxDdPct,
+      dd_type: findFirm('gft').ddType, min_trading_days: first.minTradingDays,
+    },
+  ]);
+  d = patchDraft(d, { phase: 'funded', ...templateToFields('gft', '2step', 50000, 'funded') });
+  d = walk0(d, [{ label: 'GFT Funded 50K' }, { platform: 'mt5' }, { import_method: 'auto_sync' }]);
+  assert.equal(firstIncomplete(d), 'connect', 'auto_sync commits at connect, not at import');
+  const p = toProvisionPayload(d);
+  assert.equal(p.import_method, 'auto_sync');
+  assert.equal(p.account_type, 'funded');
+  assert.equal(p.payout_split_pct, 80, 'a funded account is scored on its split');
+  assert.equal(p.profit_target_pct, null);
+  // The credential is NOT in the payload at all — the connect step adds it at call
+  // time, so it never enters the draft and never reaches sessionStorage (spec §6.1).
+  assert.equal('credential' in p, false, 'the payload must never carry a credential');
+  assert.equal('password' in p, false);
+});

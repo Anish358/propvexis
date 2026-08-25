@@ -52,7 +52,7 @@ import {
 
 export default function PropChallenges() {
   const {
-    connected, toggleSidebar, accounts: allAccounts = [], accountId = 'all', setAccountId, reloadAccounts,
+    connected, toggleSidebar, accounts: allAccounts = [], accountId = 'all', setAccountId,
   } = useOutletContext();
   // The outlet context carries every account (the switcher needs live ones too),
   // so Prop OS filters for itself — a live account has no challenge to report on.

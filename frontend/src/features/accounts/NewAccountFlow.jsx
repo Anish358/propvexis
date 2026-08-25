@@ -72,6 +72,16 @@ export default function NewAccountFlow({
    * draft keeps its own stored key over this one (reviveDraft's job). */
   const keyRef = useRef(crypto.randomUUID());
 
+  /* The step container, focused on every step change. See WizardBody for why focus
+   * rather than a second live region: the app's one polite live region lives in Layout,
+   * and this wizard is a SIBLING of Layout, so it does not get it.
+   *
+   * forwardRef rather than ref-as-prop, deliberately: React 19 passes `ref` as an
+   * ordinary prop, but primitives/index.js documents this project as React 18.3 where
+   * it does not, and a ref silently dropped here would fail exactly the way this fixes
+   * — no error, no announcement, and nothing in a test to see it. */
+  const bodyRef = useRef(null);
+
   const [draft, setDraft] = useState(() => reviveDraft(readStoredDraft(), {
     provisionKey: keyRef.current,
     firstRun,
@@ -88,6 +98,11 @@ export default function NewAccountFlow({
    * over one stateful page: the browser's Back button, a refresh and a pasted link
    * all mean the same thing. */
   const step = location.pathname.split('/').filter(Boolean).pop();
+
+  // On the step, not on mount: the whole point is announcing the CHANGE.
+  useEffect(() => {
+    bodyRef.current?.focus();
+  }, [step]);
   const { index, total } = progress(draft, step);
   const canGoBack = prevStep(draft, step) !== null;
 
@@ -171,7 +186,7 @@ export default function NewAccountFlow({
 
       {/* key={step} remounts the body per step: it is both the transition trigger and
           the reason a step's local state cannot leak into the next one. */}
-      <WizardBody key={step}>
+      <WizardBody key={step} ref={bodyRef}>
         {allowed ? <Outlet context={ctx} /> : (
           <Navigate to={`/accounts/new/${firstIncomplete(draft)}`} replace />
         )}
