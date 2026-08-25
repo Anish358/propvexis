@@ -34,10 +34,12 @@ import {
   SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
 } from './features/settings/SettingsPanels.jsx';
 import NewAccountFlow, {
-  FlowIndex, WelcomeStep, FirmStep, ProductStep, PhaseStep,
-  ImportStep, ConnectStep, UploadStep, DoneStep,
+  FlowIndex, WelcomeStep, ImportStep, ConnectStep, UploadStep, DoneStep,
 } from './features/accounts/NewAccountFlow.jsx';
 import CapitalStep from './features/accounts/steps/CapitalStep.jsx';
+import FirmStep from './features/accounts/steps/FirmStep.jsx';
+import ProductStep from './features/accounts/steps/ProductStep.jsx';
+import PhaseStep from './features/accounts/steps/PhaseStep.jsx';
 import NameStep from './features/accounts/steps/NameStep.jsx';
 import PlatformStep from './features/accounts/steps/PlatformStep.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';

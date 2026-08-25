@@ -178,6 +178,23 @@ export function WizardForm({ className, children, ...rest }) {
   );
 }
 
+/* A two-up field grid, for the one step that collects more than a couple of numbers
+ * (the custom-rules editor: balance, two drawdowns, DD type, minimum days). It
+ * collapses to one column on a narrow viewport without a breakpoint, same auto-fit
+ * reasoning as ChoiceGrid. Stacking five fields vertically instead would make the
+ * step scroll for no reason. */
+export function WizardFields({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="wizard-fields"
+      className={cn('grid w-full gap-4 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* A group of controls inside a step — the platform grid's search box above its cards,
  * or the live path's broker field beside them. Same reason as WizardForm. */
 export function WizardGroup({ className, children, ...rest }) {

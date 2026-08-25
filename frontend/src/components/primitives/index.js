@@ -90,6 +90,6 @@ export {
 // for the same reason: this directory is where application code imports from, and it
 // is the only place besides components/ui where a Tailwind utility compiles at all.
 export {
-  ChoiceCard, ChoiceGrid, WizardBody, WizardBrand, WizardFooter, WizardForm,
-  WizardGroup, WizardHeader, WizardHeading, WizardPage, WizardProgress,
+  ChoiceCard, ChoiceGrid, WizardBody, WizardBrand, WizardFields, WizardFooter,
+  WizardForm, WizardGroup, WizardHeader, WizardHeading, WizardPage, WizardProgress,
 } from './wizard.jsx';

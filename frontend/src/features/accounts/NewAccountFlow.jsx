@@ -48,9 +48,6 @@ const Stub = ({ name, task }) => (
   <p data-slot="wizard-stub" data-task={task}>{name} — not built yet ({task})</p>
 );
 export const WelcomeStep = () => <Stub name="Welcome" task="TASK 12" />;
-export const FirmStep = () => <Stub name="Firm" task="TASK 7" />;
-export const ProductStep = () => <Stub name="Product" task="TASK 7" />;
-export const PhaseStep = () => <Stub name="Phase" task="TASK 7" />;
 export const ImportStep = () => <Stub name="Import" task="TASK 9" />;
 export const ConnectStep = () => <Stub name="Connect" task="TASK 10" />;
 export const UploadStep = () => <Stub name="Upload" task="TASK 11" />;

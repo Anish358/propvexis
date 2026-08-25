@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STEP_IDS } from '../frontend/src/features/accounts/newAccountFlow.js';
+import {
+  STEP_IDS, emptyDraft, firstIncomplete, isStepComplete, patchDraft, suggestedLabel,
+  toProvisionPayload,
+} from '../frontend/src/features/accounts/newAccountFlow.js';
+import {
+  findFirm, findProduct, templateToFields, wizardProducts,
+} from '../frontend/src/features/prop/propFirms.js';
 import { readCode, readSrc, allSrcFiles } from './helpers/src-files.js';
 
 // The eleven wizard pages cannot be rendered here — no jsdom, no React Testing
@@ -232,4 +238,186 @@ test('a Soon platform stays FINDABLE even though it cannot be chosen', () => {
   assert.ok(searchCall, 'the step must search through searchPlatforms');
   assert.equal(/searchPlatforms\([^)]*\)\s*\.filter\([^)]*status/.test(src), false,
     'the search result must not be filtered by status — soon cards stay findable');
+});
+
+// ---- Task 7: the prop branch -----------------------------------------------
+
+test('the firm step renders only firms the wizard can complete', () => {
+  // A firm whose every product is unverified would be a card leading to an empty
+  // product page. wizardFirms() already drops those; this is what stops the page
+  // reaching past it to the raw catalog.
+  const src = readCode('FirmStep.jsx');
+  assert.match(src, /wizardFirms\(/);
+  assert.equal(/\bPROP_FIRMS\b/.test(src), false,
+    'the firm step must not read the raw catalog — it would offer unverified-only firms');
+});
+
+test('the product step renders only verified or custom products', () => {
+  // THE ONE THAT MATTERS. GFT 1-Step and Instant Funding carry verified: false with
+  // drawdown percentages nobody has checked against the firm, and a wrong drawdown
+  // does not fail loudly — it mis-scores a real trader's account for the length of a
+  // challenge.
+  const src = readCode('ProductStep.jsx');
+  assert.match(src, /wizardProducts\(/);
+  assert.equal(/\.products\b/.test(src), false,
+    'the product step must not read firm.products directly — that includes unverified rules');
+});
+
+test('the product step resolves its rules through templateToFields', () => {
+  // Not by reading phase objects itself. templateToFields enforces size membership
+  // and the eval/funded target-vs-split split, and it is tested.
+  assert.match(readCode('PhaseStep.jsx'), /templateToFields\(/);
+});
+
+test('the custom product gets inputs, not defaults', () => {
+  const src = readCode('ProductStep.jsx');
+  assert.match(src, /isCustomProduct\(/, 'the step must branch on the custom product');
+  for (const field of ['daily_dd_pct', 'max_dd_pct', 'start_balance']) {
+    assert.ok(src.includes(field), `the custom editor does not collect ${field}`);
+  }
+});
+
+test('no wizard step hardcodes a drawdown percentage', () => {
+  // Every number a challenge is judged against comes from the catalog or from the
+  // user. A literal here is an invented rule with nothing pinning it.
+  for (const f of stepFiles()) {
+    const src = readCode(f);
+    for (const m of src.matchAll(/(daily_dd_pct|max_dd_pct|profit_target_pct):\s*([0-9.]+)/g)) {
+      assert.fail(`${f} hardcodes ${m[1]}: ${m[2]} — rules come from the catalog or the user`);
+    }
+  }
+});
+
+test('the phase step offers only the three values challenges.phase accepts', () => {
+  const src = readCode('PhaseStep.jsx');
+  assert.match(src, /PHASES/, 'the phase list must come from the flow module, not be retyped');
+  const literals = [...src.matchAll(/phase:\s*'(\w+)'/g)].map((m) => m[1]);
+  for (const p of literals) {
+    assert.ok(['p1', 'p2', 'funded'].includes(p), `${p} is not a phase the schema accepts`);
+  }
+});
+
+test('the phase step derives account_type from the phase rather than asking twice', () => {
+  // Two controls naming one fact drift. The phase decides it: p1/p2 are eval, funded
+  // is funded, and that is what templateToFields already returns.
+  const src = readCode('PhaseStep.jsx');
+  assert.match(src, /account_type/);
+  assert.equal(/<select[^>]*account_type|name="account_type"/.test(src), false,
+    'account_type must not be a control — the phase decides it');
+});
+
+test('the unlisted firm cannot advance without a typed name', () => {
+  // firm_name feeds suggestedLabel and every Prop OS display, and "Other / not
+  // listed" is useless in both. COMPLETE.firm enforces it; the page must agree rather
+  // than being optimistic and having the guard bounce the user back.
+  const src = readCode('FirmStep.jsx');
+  assert.match(src, /UNLISTED_FIRM_ID|'other'/, 'the step must know which firm is the escape hatch');
+  assert.match(src, /firm_name/);
+});
+
+test('no step patches firm_name for a CATALOG firm — it is derived', () => {
+  // patchDraft derives firm_name from the catalog for every firm it names, so a page
+  // sending its own is a second writer for one fact. The escape hatch is the one
+  // exception, because its name is the user's to type.
+  const src = readCode('FirmStep.jsx');
+  for (const m of src.matchAll(/patch\(\{([^}]*)\}/g)) {
+    if (!/firm_name/.test(m[1])) continue;
+    assert.match(m[1], /UNLISTED_FIRM_ID|'other'|typed|name\b/,
+      `firm_name is patched outside the unlisted-firm branch: patch({${m[1]}})`);
+  }
+});
+
+// ---- the prop path END TO END, through the calls the pages actually make ----
+// The plan asks a human to walk this and confirm the resolved rules are 5/10/8/3. That
+// is pure-function logic, so it is asserted here instead: the existing walk in
+// new-account-flow.test.js hand-feeds `daily_dd_pct: 5`, which proves the guard
+// sequence but proves nothing about what the CATALOG resolves to. These replicate the
+// two patches ProductStep and PhaseStep issue, verbatim.
+
+test('GFT offers only its verified product — no 1-Step, no Instant Funding', () => {
+  // The unverified two carry drawdowns nobody checked against the firm. If they ever
+  // reach the product grid, a trader's challenge is scored against invented rules.
+  const ids = wizardProducts('gft').map((p) => p.id);
+  assert.deepEqual(ids, ['2step'], `the wizard would offer ${ids.join(', ')}`);
+});
+
+test('GFT 2-Step 25K Phase 1 resolves to 5 / 10 / 8 and 3 trading days', () => {
+  let d = patchDraft(emptyDraft(), { capital_kind: 'prop' });
+  d = patchDraft(d, { firm_id: 'gft' });
+  assert.equal(d.firm_name, 'GoatFundedTrader', 'the name is derived, not typed');
+
+  // ProductStep.chooseSize's provisional patch, off the product's FIRST phase.
+  const product = findProduct('gft', '2step');
+  const first = product.phases[0];
+  d = patchDraft(d, {
+    product_id: '2step',
+    start_balance: 25000,
+    daily_dd_pct: first.dailyDdPct,
+    max_dd_pct: first.maxDdPct,
+    dd_type: findFirm('gft').ddType,
+    min_trading_days: first.minTradingDays,
+  });
+  assert.equal(isStepComplete(d, 'product'), true, 'the provisional rules are what let this step complete');
+  assert.equal(firstIncomplete(d), 'phase');
+
+  // PhaseStep's single authoritative resolution.
+  const fields = templateToFields('gft', '2step', d.start_balance, 'p1');
+  assert.ok(fields, 'templateToFields refused a combination the pages can produce');
+  d = patchDraft(d, { phase: 'p1', ...fields });
+
+  assert.equal(d.daily_dd_pct, 5);
+  assert.equal(d.max_dd_pct, 10);
+  assert.equal(d.profit_target_pct, 8);
+  assert.equal(d.min_trading_days, 3);
+  assert.equal(d.account_type, 'eval', 'derived from the phase, never asked');
+  assert.equal(d.payout_split_pct, null, 'an evaluation has a target, not a split');
+  assert.equal(d.dd_type, 'static');
+  assert.equal(suggestedLabel(d), 'GoatFundedTrader 2-Step 25K');
+});
+
+test('the funded phase swaps the target for a split, both ways', () => {
+  const fields = templateToFields('gft', '2step', 25000, 'funded');
+  assert.equal(fields.account_type, 'funded');
+  assert.equal(fields.profit_target_pct, null, 'a funded account is not scored against a target');
+  assert.equal(fields.payout_split_pct, 80);
+});
+
+test('a size the product does not sell is refused, not rounded', () => {
+  // The wizard's product step can only emit a real size, but a revived draft can
+  // carry a stale one — and an accepted 37000 writes a start_balance the firm never
+  // sold, then scores every drawdown against it.
+  assert.equal(templateToFields('gft', '2step', 37000, 'p1'), null);
+});
+
+test('the unlisted firm reaches a valid payload on typed rules alone', () => {
+  // The whole point of the escape hatch: nothing is COALESCEd from
+  // GoatFundedTrader's defaults, because the trader supplied every number.
+  let d = patchDraft(emptyDraft(), { capital_kind: 'prop' });
+  d = patchDraft(d, { firm_id: 'other' });
+  assert.equal(d.firm_name, null, 'the catalog label is not a firm name');
+  assert.equal(firstIncomplete(d), 'firm', 'an unlisted firm with no typed name is not an identity');
+
+  d = patchDraft(d, { firm_name: 'FundedNext' });
+  assert.equal(firstIncomplete(d), 'product');
+
+  // ProductStep's custom submit.
+  d = patchDraft(d, {
+    product_id: 'custom', start_balance: 20000,
+    daily_dd_pct: 4.5, max_dd_pct: 8.5, dd_type: 'trailing', min_trading_days: 0,
+  });
+  assert.equal(firstIncomplete(d), 'phase');
+
+  // PhaseStep's custom submit.
+  d = patchDraft(d, {
+    phase: 'p1', account_type: 'eval', profit_target_pct: 9, payout_split_pct: null,
+  });
+  d = patchDraft(d, { label: 'FundedNext 20K', platform: 'mt5' });
+
+  const payload = toProvisionPayload(d);
+  assert.equal(payload.firm_name, 'FundedNext');
+  assert.equal(payload.daily_dd_pct, 4.5, 'a half-percent drawdown survives — hence step="0.1"');
+  assert.equal(payload.max_dd_pct, 8.5);
+  assert.equal(payload.dd_type, 'trailing');
+  assert.equal(payload.profit_target_pct, 9);
+  assert.equal(payload.broker, null, 'a prop account carries no broker');
 });
