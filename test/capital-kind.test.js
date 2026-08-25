@@ -62,6 +62,27 @@ test('login-available never reveals another tenant account', () => {
     'no other-tenant detail may leave this endpoint');
 });
 
+test('login-available also reports whether Auto Sync is configured at all', () => {
+  // Owner decision 2026-08-25. Spec §7.5 wants the connect step to say up-front when
+  // the server-run route is unavailable (SYNC_CRED_KEY unset), and the client had no
+  // way to know: credentialsEnabled() was exposed only on GET /api/accounts/:id/sync,
+  // which needs an account that does not exist yet.
+  //
+  // It rides on THIS endpoint because the connect step already calls it while the user
+  // types the LOGIN, which is before the password field is rendered. Without it the
+  // step must attempt the provision and read the 503 — and the 503 fires BEFORE
+  // validateCredential, so a broker password would leave the browser for a server that
+  // is guaranteed to refuse it. Not collecting a secret we cannot store is the point.
+  const idx = accountsRoute.indexOf("'/api/accounts/login-available'");
+  const rest = accountsRoute.slice(idx);
+  const close = /^\s{2}\}\);/m.exec(rest);
+  const handler = rest.slice(0, close.index + close[0].length);
+  assert.match(handler, /autoSyncConfigured/,
+    'the connect step cannot hide the server-run branch without this');
+  assert.match(handler, /credentialsEnabled\(\)/,
+    'the answer must come from the same predicate provision gates on, not a second copy');
+});
+
 test('the legacy POST /api/accounts forwards firm_id and product_id', () => {
   // This was a live bug: the handler never destructured firm_id, so the firm
   // picked in the template picker was dropped on create while PATCH saved it.

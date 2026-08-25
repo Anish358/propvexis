@@ -519,3 +519,90 @@ test('no page uses an Alert variant that resolves to nothing', () => {
       `${f} uses an Alert variant with no tokens behind it`);
   }
 });
+
+// ---- Task 10: the connect step ---------------------------------------------
+
+test('the connect step asks HOW before it asks for anything secret', () => {
+  // Spec §7.4: the sub-choice comes first. A page that renders a password field
+  // before the user has chosen to give us one is asking for a broker credential by
+  // default.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /'auto_sync'/);
+  assert.match(src, /'ea'/);
+});
+
+test('the connect step keeps the password out of the draft entirely', () => {
+  // Spec §6.1. Local state, straight into commit()'s `extra`. The draft is mirrored
+  // to sessionStorage, which any script on the origin can read.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /useState/);
+  for (const m of src.matchAll(/patch\(\{([^}]*)\}/g)) {
+    assert.equal(/password/i.test(m[1]), false, `patch({${m[1]}}) carries a password`);
+  }
+  assert.match(src, /commit\(\s*\{\s*credential/,
+    'the credential must go to commit() as extra, never through the draft');
+});
+
+test('the password never even reaches sessionStorage-adjacent state', () => {
+  // Stronger than the patch() check: nothing may put the password anywhere but the
+  // one useState and the one commit() call. A `console.log`, a URL or an analytics
+  // call would all be a leak the patch() assertion cannot see.
+  const src = readCode('ConnectStep.jsx');
+  assert.equal(/sessionStorage|localStorage/.test(src), false,
+    'the connect step must not touch web storage at all');
+  assert.equal(/console\.\w+\([^)]*password/i.test(src), false, 'the password must not be logged');
+});
+
+test('the connect step names the read-only guarantee as a checked fact', () => {
+  // The worker reads account_info().trade_allowed on every login and DELETES a
+  // credential that can trade. That is a checked fact, not a promise, and the copy
+  // must say the tradeable password is rejected — spec §7.6.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /investor/i);
+  assert.match(src, /reject|delete/i);
+});
+
+test('the read-only copy stays MT5-specific, so P2 cannot inherit it', () => {
+  // Spec §7.6 and §10 risk 1: TradeLocker has no investor-password concept, so this
+  // promise becomes false the moment TradeLocker ships. It must be reachable only for
+  // the platform that keeps it.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /'mt5'/,
+    'the read-only note must be gated on the platform, not printed unconditionally');
+});
+
+test('the connect step pre-checks the login while the user types', () => {
+  // Spec §6.3: a collision reported before the password is typed beats a 409 at the
+  // end of a nine-step flow.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /checkLoginAvailable\(/);
+  assert.match(src, /setTimeout|debounce/i, 'the pre-check fires on every keystroke without one');
+});
+
+test('a 409 keeps what the user typed', () => {
+  // Spec §6.3. Clearing the form on a collision makes the user retype a server name
+  // and a login to change one digit.
+  const src = readCode('ConnectStep.jsx');
+  const afterCatch = src.slice(src.indexOf('catch'));
+  assert.equal(/setServer\(''\)|setLogin\(''\)|setPassword\(''\)/.test(afterCatch), false,
+    'the catch path must not clear the typed values');
+});
+
+test('the EA branch reuses SetupCard rather than restating the three steps', () => {
+  // Spec §7.4: "how do I attach the EA" keeps exactly one answer, whether it is asked
+  // at creation or a month later from the accounts table.
+  assert.match(readCode('ConnectStep.jsx'), /SetupCard/);
+});
+
+test('the server-run branch is hidden when the server cannot store a credential', () => {
+  // OWNER DECISION 2026-08-25: rather than attempting the provision and reading the
+  // 503, the step reads autoSyncConfigured off the login pre-check it already makes.
+  // The 503 fires BEFORE validateCredential, so the alternative sends a broker
+  // password to a server guaranteed to refuse it.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /autoSyncConfigured/);
+  // `false` specifically, never falsy: `null` means the pre-check could not answer,
+  // and hiding the branch on an unknown would strand a user whose network blipped.
+  assert.match(src, /autoSyncConfigured === false/,
+    'an unknown answer (null) must not hide the branch — only a definite false');
+});
