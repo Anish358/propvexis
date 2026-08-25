@@ -1488,61 +1488,6 @@ label.full { margin-bottom: 16px; }
   .auth-foot { justify-content: center; }
 }
 
-/* ===== Onboarding wizard (first-run setup) ===== */
-.onb-screen {
-  display: flex; align-items: flex-start; justify-content: center; min-height: 100vh;
-  padding: 48px 16px;
-  background: radial-gradient(1200px 600px at 50% -10%, var(--surface-hover) 0%, var(--bg) 60%);
-}
-.onb-card {
-  width: 100%; max-width: 620px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl);
-  /* Tokenized on merge: a literal here can't be themed, and the light theme
-     would have kept a near-black drop shadow (see test/theme-tokens.test.js). */
-  padding: 28px 32px; box-shadow: var(--sh-3);
-}
-.onb-top { display: flex; flex-direction: column; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
-.onb-brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; color: var(--text); }
-.onb-steps { list-style: none; display: flex; gap: 20px; padding: 0; margin: 0; }
-.onb-steps li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-3); }
-.onb-steps li.cur { color: var(--text); }
-.onb-steps li.done { color: var(--text-2); }
-.onb-dot { width: 8px; height: 8px; border-radius: var(--r-full); background: var(--line-strong); flex: none; }
-.onb-steps li.cur .onb-dot { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-bg); }
-.onb-steps li.done .onb-dot { background: var(--profit); }
-
-.onb-body { padding-top: 24px; }
-.onb-h { font-size: 22px; letter-spacing: -0.02em; color: var(--text); }
-.onb-sub { color: var(--text-2); font-size: 14px; margin-top: 8px; }
-
-.onb-pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px; }
-.onb-pillar { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; background: var(--surface); }
-.onb-pillar-t { font-weight: 600; color: var(--accent-on-surface); font-size: 14px; }
-.onb-pillar-d { color: var(--text-2); font-size: 12px; margin-top: 6px; line-height: 1.5; }
-
-.onb-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 28px; }
-.onb-actions-end { justify-content: flex-end; }
-.onb-primary {
-  height: 42px; padding: 0 22px; border: 0; border-radius: var(--r-md); cursor: pointer;
-  background: var(--accent-strong); color: var(--on-accent); font-size: 14px; font-weight: 500;
-}
-.onb-primary:disabled { opacity: 0.55; cursor: default; }
-.onb-ghost {
-  height: 42px; padding: 0 18px; border: 1px solid var(--line-strong); border-radius: var(--r-md);
-  cursor: pointer; background: transparent; color: var(--text-2); font-size: 14px;
-}
-.onb-done { text-align: center; }
-.onb-check {
-  width: 56px; height: 56px; margin: 8px auto 0; border-radius: var(--r-full);
-  display: grid; place-items: center; font-size: 26px; color: var(--profit);
-  background: var(--profit-bg); border: 1px solid var(--profit-border);
-}
-
-@media (max-width: 560px) {
-  .onb-pillars { grid-template-columns: 1fr; }
-  .onb-card { padding: 20px; }
-}
-
 .placeholder-panel { color: var(--muted); text-align: center; padding: 48px 24px; }
 
 /* ============================================================

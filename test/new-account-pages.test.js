@@ -7,7 +7,7 @@ import {
 import {
   findFirm, findProduct, templateToFields, wizardProducts,
 } from '../frontend/src/features/prop/propFirms.js';
-import { readCode, readSrc, allSrcFiles, appJsx } from './helpers/src-files.js';
+import { readCode, readSrc, allSrcFiles, appJsx, srcExists } from './helpers/src-files.js';
 import { autoSyncGate, KNOWN_PLANS } from '../frontend/src/features/accounts/accountGating.js';
 
 // The eleven wizard pages cannot be rendered here — no jsdom, no React Testing
@@ -691,4 +691,69 @@ test('neither terminal step offers a way back', () => {
     assert.equal(/back\(\)/.test(readCode(page)), false,
       `${page} renders a Back control after the account has been created`);
   }
+});
+
+// ---- Task 12: one creation UI (spec §2 decision 7, §8.2) --------------------
+
+test('the duplicate account form is gone for good', () => {
+  // srcExists, not a path check: a `!existsSync('features/auth/Onboarding.jsx')`
+  // starts passing for the wrong reason the moment the tree is reorganised, because it
+  // points at a location the file would never be re-created in.
+  assert.equal(srcExists('Onboarding.jsx'), false,
+    "Onboarding.jsx's own copy of the account form is the duplication this change removes");
+});
+
+test('first run renders the same wizard routes, plus a catch-all to welcome', () => {
+  // Spec §8.2: ONE route table, one component. The old branch mounted
+  // <Route path="*"> and swallowed every URL, which would fight per-step routing.
+  assert.match(app, /wizardRoutes\(/, 'the route table must be declared once and reused');
+  assert.equal((app.match(/wizardRoutes\(/g) || []).length, 3,
+    'declared once, called once per branch (first-run and onboarded)');
+  assert.match(app, /to="\/accounts\/new\/welcome"/);
+  assert.equal(/from '\.\/features\/auth\/Onboarding\.jsx'/.test(app), false,
+    'the Onboarding import must go with the file');
+});
+
+test('welcome exists only on first run', () => {
+  // stepsFor already enforces it; this checks the page does not also render a second
+  // escape for a returning user, who reaches the wizard from Settings and must not be
+  // offered "skip onboarding".
+  assert.match(readCode('WelcomeStep.jsx'), /firstRun/);
+});
+
+test('the first-run escape completes onboarding with no account', () => {
+  // The current "Skip for now" survives as a FIRST-RUN-ONLY escape (spec §8.2).
+  // Without it a new user with no trading account yet cannot reach the app at all.
+  assert.match(readCode('WelcomeStep.jsx'), /completeOnboarding\(/);
+});
+
+test('every Add Account affordance in the app navigates to the wizard', () => {
+  // Three surfaces used to open a dialog: Settings > Accounts (two buttons), Prop OS >
+  // Challenges (two buttons), and the onboarding wizard's own form.
+  for (const page of ['SettingsAccounts.jsx', 'PropChallenges.jsx']) {
+    const src = readCode(page);
+    assert.match(src, /\/accounts\/new\/capital/, `${page} does not route to the wizard`);
+    assert.equal(/mode="add"|mode='add'/.test(src), false, `${page} still opens an add dialog`);
+  }
+});
+
+test('the edit dialog can no longer add', () => {
+  const forms = readCode('AccountForms.jsx');
+  assert.match(forms, /export function AccountEditModal\(/);
+  assert.equal(/AccountFormModal/.test(forms), false, 'the add-capable name must go with the branch');
+  assert.equal(/mode\s*===\s*'edit'|mode\s*=\s*'add'/.test(forms), false,
+    'there is one mode now, so there is no mode');
+  assert.equal(/acct-kind/.test(forms), false, 'the kind radios were an add-time question only');
+  assert.equal(/eaAllowed\(/.test(forms), false, 'the add-time plan gate went with the add branch');
+  assert.equal(/createAccount\(/.test(forms), false, 'the create call went with it too');
+});
+
+test('the account label is still asked in exactly one place per surface', () => {
+  // The point of the whole change: two copies of a drawdown field is how a rule means
+  // one thing on first run and another afterwards. The wizard collects them now; the
+  // edit dialog corrects them. Nothing collects them twice.
+  const label = allSrcFiles()
+    .filter((f) => /\.jsx$/.test(f))
+    .filter((f) => /placeholder="[^"]*(?:Challenge #1|Account label)/.test(readSrc(f)));
+  assert.equal(label.length <= 2, true, `the account-label input appears in ${label.length} files: ${label}`);
 });

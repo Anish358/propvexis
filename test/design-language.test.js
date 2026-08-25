@@ -80,7 +80,13 @@ test('§6 — every floating overlay takes the card radius', () => {
   const overlays = [
     '.fp', '.fp-menu',
     '.bulk-menu', '.bs-pop', '.wcz-menu', '.explain-pop', '.toast',
-    '.modal', '.rp-modal', '.onb-card', '.dle-panel',
+    '.modal', '.rp-modal', '.dle-panel',
+    // `.onb-card` left this list with the rule, when the first-run onboarding screen
+    // became the Add Account wizard. Nothing replaces it, and that is not the rule
+    // being relaxed: the wizard is a full-bleed PAGE, not a floating surface, so §6's
+    // overlay assignment simply does not apply to it. Its own surfaces — the choice
+    // cards — take --r-2xl through components/primitives/wizard.jsx, where §6 is cited
+    // and tailwind-merge resolves it.
   ];
   for (const sel of overlays) {
     const start = css.indexOf(`${sel} {`);

@@ -40,14 +40,6 @@ export function FlowIndex() {
   return <Navigate to={`/accounts/new/${firstIncomplete(draft)}`} replace />;
 }
 
-/* The steps not built yet (Task 6 shipped ten of these; 8 filled name and platform). They ship as named stubs so the route
- * table is complete and the guard is exercisable from the first commit — a missing
- * route would redirect to a blank page, which reads as a guard bug. Each carries the
- * task that fills it, so a half-finished stub cannot ship unnoticed. */
-const Stub = ({ name, task }) => (
-  <p data-slot="wizard-stub" data-task={task}>{name} — not built yet ({task})</p>
-);
-export const WelcomeStep = () => <Stub name="Welcome" task="TASK 12" />;
 
 /* sessionStorage, not localStorage: the draft should die with the tab rather than
  * greet the user days later. Both directions are wrapped, because sessionStorage

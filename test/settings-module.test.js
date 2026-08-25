@@ -266,27 +266,37 @@ test('the manage-everything accounts modal split into two focused dialogs', () =
   assert.equal(srcExists('AccountsModal.jsx'), false, 'renamed to AccountForms.jsx');
   // No default export: this file is the account FORMS, and nothing here lists accounts.
   assert.ok(!/export default/.test(forms), 'AccountForms must not have a default export');
-  assert.match(forms, /export function AccountFormModal\(/);
+  assert.match(forms, /export function AccountEditModal\(/);
   assert.match(forms, /export function EaSetupModal\(/);
   // The list is gone from the dialog — that was the duplication being removed.
   const src = code(forms);
   assert.ok(!/\.map\(\(a\) =>/.test(src), 'the dialog must not render a list of accounts');
   assert.ok(!/acct-list|acct-row/.test(src), 'and none of the old list markup survives');
-  // One form for add and edit: they are the same fields minus the kind picker, which is
-  // an add-time decision because `kind` is not editable after provisioning.
-  assert.match(forms, /const editing = mode === 'edit'/);
-  assert.match(forms, /\{!editing && \(/);
+  // ONE FORM, ONE JOB. This dialog used to do add AND edit, switched by a `mode` prop,
+  // and the add half is gone: creating an account is the Add Account wizard at
+  // /accounts/new (spec §2 decision 7), because firm, product, size and phase are four
+  // decisions with dependencies between them. `kind` is immutable after provisioning,
+  // so there is nothing add-time left for this dialog to ask.
+  assert.equal(/acct-kind|createAccount\(|mode\s*===\s*'edit'/.test(forms), false,
+    'the edit dialog must not create');
 });
 
-test('the account FIELDS still have one source of truth across three callers', () => {
-  // The onboarding wizard, the add dialog and the edit dialog all render these. A second
-  // copy of a drawdown field is how a rule means one thing on first run and another after.
+test('the account FIELDS still have one source of truth across their remaining callers', () => {
+  // Three callers became two. A second copy of a drawdown field is still how a rule means
+  // one thing where an account is created and another where it is corrected.
   for (const piece of ['TemplatePicker', 'PropFields', 'SetupCard', 'toPayload', 'formFrom']) {
     assert.match(forms, new RegExp(`export (function|const) ${piece}\\b`), `${piece} is exported`);
   }
-  assert.match(readSrc('Onboarding.jsx'), /from '\.\.\/accounts\/AccountForms\.jsx'/);
-  // The EA steps are the same component at creation and a month later.
-  assert.equal((forms.match(/<SetupCard account=/g) || []).length, 2);
+  // The onboarding wizard's own copy of these fields is GONE (spec §8.2): first run
+  // renders the same Add Account wizard everyone else does.
+  assert.equal(srcExists('Onboarding.jsx'), false);
+  // The EA steps are the same component at creation and a month later — but the
+  // creation-time copy moved OUT of this file with the add branch. Only EaSetupModal
+  // renders it here; the wizard's connect step renders the other.
+  assert.equal((forms.match(/<SetupCard account=/g) || []).length, 1,
+    'only EaSetupModal renders it here');
+  assert.match(readSrc('ConnectStep.jsx'), /<SetupCard account=/,
+    'the creation-time copy moved to the wizard');
 });
 
 test('the trade settings have one implementation and two frames', () => {
@@ -306,7 +316,10 @@ test('the trade settings have one implementation and two frames', () => {
 
 test('the top bar sends "Manage accounts" to the page instead of opening a modal', () => {
   const src = code(topbar);
-  assert.ok(!/AccountsModal|AccountFormModal/.test(src), 'the bar opens no account dialog now');
+  // Both the current name and the two it has had, so the assertion keeps guarding
+  // rather than checking for a symbol that no longer exists anywhere.
+  assert.ok(!/AccountsModal|AccountFormModal|AccountEditModal/.test(src),
+    'the bar opens no account dialog now');
   assert.match(topbar, /<MenuItem render=\{<Link to="\/settings\/accounts" \/>\}>/);
   // ...and the dead plumbing went with it, rather than being left wired to nothing.
   assert.ok(!/manageOpen|setManageOpen|onManage/.test(src), 'no orphaned manage state');

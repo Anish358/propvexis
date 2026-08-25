@@ -178,6 +178,21 @@ export function WizardForm({ className, children, ...rest }) {
   );
 }
 
+/* The welcome step's three pillars. Same auto-fit grid as ChoiceGrid and separate
+ * from it on purpose: these cards are not choices, and a reader finding <ChoiceGrid>
+ * wrapped around three non-interactive cards would reasonably read it as a bug. */
+export function WizardPillars({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="wizard-pillars"
+      className={cn('grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* A wrapping row — the import step's three counts, the detected-column chips. Its own
  * component for the same reason as WizardGroup: a page cannot space its own children,
  * and `flex-wrap` matters here because a statement with eight detected columns must

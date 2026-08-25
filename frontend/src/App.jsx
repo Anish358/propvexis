@@ -12,7 +12,6 @@ import Login from './features/auth/Login.jsx';
 import ForgotPassword from './features/auth/ForgotPassword.jsx';
 import ResetPassword from './features/auth/ResetPassword.jsx';
 import VerifyEmail from './features/auth/VerifyEmail.jsx';
-import Onboarding from './features/auth/Onboarding.jsx';
 import Dashboard from './features/dashboard/Dashboard.jsx';
 import TradeLog from './features/trades/TradeLog.jsx';
 import Analytics from './features/analytics/Analytics.jsx';
@@ -33,7 +32,8 @@ import SettingsAccounts from './features/settings/SettingsAccounts.jsx';
 import {
   SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
 } from './features/settings/SettingsPanels.jsx';
-import NewAccountFlow, { FlowIndex, WelcomeStep } from './features/accounts/NewAccountFlow.jsx';
+import NewAccountFlow, { FlowIndex } from './features/accounts/NewAccountFlow.jsx';
+import WelcomeStep from './features/accounts/steps/WelcomeStep.jsx';
 import UploadStep from './features/accounts/steps/UploadStep.jsx';
 import DoneStep from './features/accounts/steps/DoneStep.jsx';
 import ConnectStep from './features/accounts/steps/ConnectStep.jsx';
@@ -467,9 +467,23 @@ export default function App() {
         <Route path="/reset" element={<ResetPassword />} />
         <Route path="/verify" element={<VerifyEmail />} />
         {user && !user.onboarded_at ? (
-          // First-run users are routed to the setup wizard for every path until
-          // it's completed; completing it sets onboarded_at and re-renders here.
-          <Route path="*" element={<Onboarding onDone={setUser} />} />
+          // First run renders the SAME wizard routes as everyone else (spec §8.2): one
+          // route table, one component. It differs in exactly two ways — the `welcome`
+          // step exists, and the commit stamps onboarded_at. The old branch mounted a
+          // single <Route path="*"> over a self-contained Onboarding page, which
+          // swallowed every URL and would fight per-step routing; the catch-all now
+          // REDIRECTS into the wizard instead of standing in for it, so a first-run
+          // user still cannot escape setup by typing a URL.
+          [
+            ...wizardRoutes({
+              accounts, reloadAccounts, setAccountId, firstRun: true, onOnboarded: setUser,
+            }),
+            <Route
+              key="first-run-catchall"
+              path="*"
+              element={<Navigate to="/accounts/new/welcome" replace />}
+            />,
+          ]
         ) : user ? (
           [
             ...wizardRoutes({

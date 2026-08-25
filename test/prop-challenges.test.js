@@ -247,20 +247,26 @@ test('history resets to null (not []) on an account change, because they differ'
 });
 
 test('Start New Challenge is an entry point to the EXISTING flow, not a fake purchase', () => {
-  // It opens the app's own add-account form. That form used to be one section of
-  // `AccountsModal`, which also listed every account; the list is Settings > Accounts
-  // now, so what this button opens is the add HALF of it — same fields, same template
-  // catalog, no list of existing accounts inside a "start new" dialog.
-  assert.match(page, /import \{ AccountFormModal \} from '[^']*AccountForms\.jsx'/);
+  // THE POINT OF THIS TEST STILL HOLDS; only the destination changed. It goes to the
+  // app's own Add Account wizard. It used to open AccountFormModal in add mode —
+  // creating an account is one route now (spec §2 decision 7), and a challenge IS an
+  // account, so this is the same entry point at a new address.
   assert.match(page, /<span>Start New Challenge<\/span>/);
-  assert.match(page, /onClick=\{\(\) => setAddOpen\(true\)\}/);
-  assert.match(page, /<AccountFormModal[\s\S]*?mode="add"[\s\S]*?onSaved=\{reloadAccounts\}/);
+  assert.match(page, /to="\/accounts\/new\/capital"/);
+  // code(), not page: the button's own comment EXPLAINS that it used to open
+  // AccountFormModal, and a raw scan reads that explanation as the thing it rules out.
+  // This file's header already says why the negative assertions read the code — the
+  // plan's version of this test regressed it.
+  assert.equal(/AccountFormModal|setAddOpen/.test(code(page)), false,
+    'the dialog and its state must go together — a button wired to nothing is worse');
   // No invented commerce anywhere in the module.
   for (const f of [page, card, details, lifecycle, kpis]) {
     assert.ok(!/checkout|payment|razorpay|price|amount/i.test(code(f)), 'no purchase flow in this module');
   }
-  // ...and the entry point opens the existing form rather than a new screen of its own.
-  assert.ok(!/Modal(?!s)/.test(code(page).replace(/AccountFormModal/g, '')), 'no second modal invented here');
+  // ...and the entry point goes to the existing flow rather than a new screen of its
+  // own. The `.replace(/AccountFormModal/g, '')` that used to exempt the dialog being
+  // rendered here is gone with the dialog.
+  assert.ok(!/Modal(?!s)/.test(code(page)), 'no second dialog invented here');
 });
 
 // ---------------------------------------------------------------------------
