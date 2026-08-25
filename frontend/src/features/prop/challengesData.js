@@ -21,7 +21,7 @@
 // A second copy of "which of these accounts matters most" is how two pages start
 // disagreeing about the same portfolio.
 
-import { findFirm, findProduct } from './propFirms.js';
+import { findFirm, findProduct, UNLISTED_FIRM_ID } from './propFirms.js';
 import {
   PHASE_LABEL, accountRow, byRisk, isBreached, isLive,
 } from './propAccounts.js';
@@ -102,8 +102,16 @@ export function challengeStages(firmId, productId) {
  * template on another still has two accounts at one firm, and the selector must not
  * show two tabs for it. Keys are namespaced so a firm whose id happens to match
  * another's name cannot collide.
+ *
+ * The wizard's escape hatch is deliberately keyed by NAME too, even though it does
+ * carry a firm_id: that id is 'other' for EVERY unlisted firm, so keying on it would
+ * merge FundedNext with Alpha Capital — their equity, fees and ROI under one tab,
+ * which is the misclassification the escape hatch exists to end. It also keeps a
+ * wizard-created unlisted account in the same bucket as a pre-wizard hand-typed one
+ * at the same firm. Sound because the firm step is not complete until an unlisted
+ * firm has a typed name (newAccountFlow COMPLETE.firm).
  */
-export const firmKeyOf = (account) => (account?.firm_id
+export const firmKeyOf = (account) => (account?.firm_id && account.firm_id !== UNLISTED_FIRM_ID
   ? `id:${account.firm_id}`
   : `name:${String(account?.firm_name || 'Other').toLowerCase()}`);
 
