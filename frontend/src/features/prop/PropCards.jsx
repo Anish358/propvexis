@@ -5,13 +5,15 @@ import { fmtMoney } from '../../lib/metrics.js';
 import { chartPalette } from '../../lib/theme.js';
 import { advanceChallenge } from '../../lib/api.js';
 import PayoutCycleModal from './PayoutCycleModal.jsx';
+import { PHASE_LABEL } from './propAccounts.js';
+import { phasesFor } from './propFirms.js';
 
 // The Prop OS Overview's content cards. All data comes server-computed from
 // GET /api/prop/overview (src/domain/prop/propOverview.js) — these components format and
 // arrange, they don't decide anything. The rules for "overdue", "ineligible",
 // "remaining to pass" and so on live in one tested module rather than in JSX.
 
-const PHASE_LABEL = { p1: 'Phase 1', p2: 'Phase 2', funded: 'Funded' };
+// PHASE_LABEL comes from propAccounts.js — one map, or p3 gets added to one of two.
 const money = (n) => (n == null ? '—' : fmtMoney(n));
 const signTone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 
@@ -216,7 +218,14 @@ function AccountsRing({ ring }) {
 // owned. It belongs on the row for the account it acts on, which is here.
 function AdvanceButton({ row, onChanged }) {
   const [busy, setBusy] = useState(false);
-  const next = row.phase === 'p1' ? 'p2' : 'funded';
+  // FROM THE ACCOUNT TYPE, not from a two-step assumption. `p1 ? 'p2' : 'funded'` was
+  // right while 2-Step was the only type the wizard could produce; a 3-Step account
+  // passing Phase 2 would have skipped Phase 3 and been marked funded. Falls back to the
+  // old rule when the type is unknown (accounts created before the fixed taxonomy).
+  const stages = phasesFor(row.productId);
+  const next = stages.length
+    ? stages[Math.min(stages.indexOf(row.phase) + 1, stages.length - 1)]
+    : (row.phase === 'p1' ? 'p2' : 'funded');
   return (
     <button
       type="button"

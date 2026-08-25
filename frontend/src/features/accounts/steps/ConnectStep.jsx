@@ -105,10 +105,7 @@ export default function ConnectStep() {
     const created = (accounts || []).find((a) => a.id === draft.account?.id) || null;
     return (
       <>
-        <WizardHeading
-          title="Attach the EA"
-          description="Your account is created. These three steps point the EA at it — the same three you would see from your accounts list later."
-        />
+        <WizardHeading align="center" eyebrow="Add Account" title="Attach the EA" />
         <WizardGroup>
           {created ? <SetupCard account={created} /> : (
             <Alert variant="warning">
@@ -119,7 +116,10 @@ export default function ConnectStep() {
               </AlertDescription>
             </Alert>
           )}
-          <Button variant="primary" onClick={advance}>Continue</Button>
+          {/* `() => advance()`, not `onClick={advance}`: advance now takes an optional
+              draft, and handing it the click event would resolve the next step from a
+              MouseEvent. */}
+          <Button variant="primary" onClick={() => advance()}>Continue</Button>
         </WizardGroup>
       </>
     );
@@ -127,10 +127,7 @@ export default function ConnectStep() {
 
   return (
     <>
-      <WizardHeading
-        title="Connect your account"
-        description="We keep a terminal logged in for you and sync in the background. This is the only step that needs a password."
-      />
+      <WizardHeading align="center" eyebrow="Add Account" title="Connect your account" />
 
       <WizardGroup>
         {err ? (

@@ -48,6 +48,72 @@ export const sizeLabel = (n) => (Number(n) >= 1000 ? `${Number(n) / 1000}K` : St
  */
 export const UNLISTED_FIRM_ID = 'other';
 
+/**
+ * THE ACCOUNT TYPES, and the phases each one HAS. Owner decision 2026-08-25: a fixed
+ * list of four, offered for every firm.
+ *
+ * WHAT THIS REPLACED, because it is a real loss of information and not just a different
+ * control. The wizard used to take the type from the CATALOG below —
+ * `wizardProducts(firm_id)` — so GoatFundedTrader offered its verified 2-Step and
+ * nothing else, and an unlisted firm offered one `custom` product. The catalog knows
+ * which products a firm actually sells; this list does not, so the wizard now offers a
+ * 3-Step account for a firm that sells no such thing. That follows from the presets
+ * being dropped: with no rules resolved from the catalog, `product_id` no longer selects
+ * anything — it records what the trader says they bought.
+ *
+ * THE PHASE LIST IS THE POINT OF THE TABLE. A 2-Step account has two evaluations and a
+ * funded stage; an Instant account is funded from the start and has no evaluation at
+ * all. Offering "Phase 2" for an Instant account would let a trader file a challenge
+ * that cannot exist — and the phase decides which number the account is scored against
+ * (a target for an evaluation, a split for a funded account). So the phase dropdown is
+ * DERIVED from this, never a second list to keep in step.
+ *
+ * `custom` is not here on purpose: accounts created before this change carry it, and
+ * `isCustomProduct` still reads it, but it is not something to offer any more.
+ */
+export const ACCOUNT_TYPES = [
+  { id: '1step', label: '1 Step', phases: ['p1', 'funded'] },
+  { id: '2step', label: '2 Step', phases: ['p1', 'p2', 'funded'] },
+  { id: '3step', label: '3 Step', phases: ['p1', 'p2', 'p3', 'funded'] },
+  { id: 'instant', label: 'Instant', phases: ['funded'] },
+];
+
+/** The phases this account type has — `[]` for an id the table does not name, so an
+ *  unrecognised type offers no phase rather than all of them. */
+export const phasesFor = (productId) => ACCOUNT_TYPES.find((t) => t.id === productId)?.phases ?? [];
+
+/**
+ * The account sizes the picker offers. The owner's list.
+ *
+ * A CHOICE **AND** A FREE FIELD, which the old catalog-driven size row could not be:
+ * these eight cover what firms sell, and the free field exists because they also sell
+ * 8K, 12.5K and 1M. It is not a fallback for an empty list — it is the answer to "more
+ * or custom", so it stays reachable even when one of the eight is right.
+ */
+export const ACCOUNT_SIZES = [5000, 10000, 15000, 25000, 50000, 100000, 200000, 300000];
+/**
+ * Initials for a firm's mark — the two-letter monogram the wizard's firm rows draw in
+ * place of a logo, because we carry no logo assets and inventing artwork for a real
+ * firm is not a thing to do in a component.
+ *
+ * The capitals of the name, capped at two, because that is what fits legibly in a 40px
+ * square at label size: "GoatFundedTrader" -> GF, "FTMO" -> FT. A name with fewer than
+ * two capitals falls back to its first two characters, so a lower-cased firm still gets
+ * a mark rather than an empty tile.
+ *
+ * HERE RATHER THAN IN THE STEP because it is a rule about the catalog's data with three
+ * branches, and this module is JSX-free — so node:test can reach it. A copy of it inside
+ * FirmStep.jsx could only ever be pinned by grepping the source.
+ */
+export function firmInitials(name) {
+  const text = String(name ?? '').trim();
+  if (!text) return '';
+  const capitals = text.match(/[A-Z]/g);
+  const letters = capitals && capitals.length >= 2 ? capitals : text.toUpperCase().split('');
+  return letters.slice(0, 2).join('');
+}
+
+
 export const PROP_FIRMS = [
   {
     id: 'gft',

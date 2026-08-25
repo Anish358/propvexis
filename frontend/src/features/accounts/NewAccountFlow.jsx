@@ -5,11 +5,12 @@ import { BRAND } from '../../lib/theme.js';
 import { completeOnboarding, provisionAccount } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import {
-  Button, WizardBody, WizardBrand, WizardFooter, WizardHeader, WizardPage, WizardProgress,
+  Button, WizardBody, WizardBrand, WizardExit, WizardFooter, WizardHeader, WizardPage,
+  WizardProgress,
 } from '@/components/primitives';
 import {
-  DRAFT_KEY, canVisit, emptyDraft, firstIncomplete, isSpentDraft, nextStep, patchDraft,
-  prevStep, progress, reviveDraft, toProvisionPayload,
+  DRAFT_KEY, FLOW_VERSION, canVisit, emptyDraft, firstIncomplete, isSpentDraft, nextStep,
+  patchDraft, prevStep, progress, reviveDraft, toProvisionPayload,
 } from './newAccountFlow.js';
 
 /* The Add Account wizard's shell — eleven routed steps, one draft, one guard.
@@ -29,6 +30,11 @@ import {
  * wizard primitives, because tailwind.css scopes @source to components/{ui,primitives}
  * and a utility written here would emit no CSS at all — silently. DESIGN-LANGUAGE §1.
  */
+
+/** The body measure per step, for the steps that are not the default width. Data
+ *  rather than a conditional expression in the JSX, so adding the next one is a line
+ *  here instead of another ternary in the tree. */
+const BODY_SIZE = { account: 'wide', firm: 'narrow' };
 
 /** The outlet context, read in one place so a step never repeats the hook and a
  *  future context change touches one line. */
@@ -130,8 +136,26 @@ export default function NewAccountFlow({
     return next;
   }, []);
 
-  const advance = useCallback(() => {
-    navigate(`/accounts/new/${nextStep(draft, step)}`);
+  /* `draftOverride` for the same reason commit() takes one: a step that patches and
+   * leaves in ONE handler has not re-rendered yet, so `draft` here is still the answer
+   * before the patch — and on the capital step that answer decides the BRANCH. Choosing
+   * Prop Firm and pressing Continue asked the pre-patch draft for the next step, got
+   * `account` (the live branch's), navigated there, and was bounced back to `firm` by
+   * the guard. It landed in the right place, which is why nothing caught it. patch()
+   * returns the new draft; handing it back closes the gap instead of relying on the
+   * redirect to paper over it.
+   *
+   * THE OVERRIDE IS CHECKED FOR BEING A DRAFT, and that is not defensive noise: this
+   * function is handed to steps that write `onClick={advance}`, which would pass a
+   * MouseEvent as the override. `stepsFor()` reads whatever it is given, so an event
+   * would resolve to the live branch, `indexOf` would miss the current step and the
+   * wizard would navigate to `/accounts/new/null`. `v` is the draft's schema version and
+   * nothing else in the app carries it, so it is the one property that tells the two
+   * apart. The call sites pass `advance()` explicitly (pinned by a test) — this is the
+   * second line of defence, not the first. */
+  const advance = useCallback((draftOverride) => {
+    const from = draftOverride?.v === FLOW_VERSION ? draftOverride : draft;
+    navigate(`/accounts/new/${nextStep(from, step)}`);
   }, [navigate, draft, step]);
 
   const back = useCallback(() => {
@@ -202,16 +226,18 @@ export default function NewAccountFlow({
             out but the browser button. On first run it does not render — that escape
             is welcome's "Skip for now" (Task 12), which also stamps onboarding. */}
         {firstRun ? <span data-slot="wizard-exit-spacer" /> : (
-          <Button variant="chrome" size="sm" as={Link} to="/settings/accounts">Exit</Button>
+          <WizardExit as={Link} to="/settings/accounts" />
         )}
       </WizardHeader>
 
       {/* key={step} remounts the body per step: it is both the transition trigger and
           the reason a step's local state cannot leak into the next one. */}
-      {/* `wide` for the merged account page only: it lays its controls out in a grid
-          rather than asking one question, and two columns of card grids inside the
-          usual measure leaves each one too narrow to read. */}
-      <WizardBody key={step} ref={bodyRef} wide={step === 'account'}>
+      {/* THE MEASURE IS A PROPERTY OF THE STEP, and only the shell knows which step is
+          rendering — the step itself is inside the body it would be sizing. `wide` for
+          the merged account page, which lays its controls out in a grid rather than
+          asking one question; `narrow` for the firm picker, whose answers are list rows
+          rather than cards. Everything else takes the default measure. */}
+      <WizardBody key={step} ref={bodyRef} size={BODY_SIZE[step] || 'default'}>
         {allowed ? <Outlet context={ctx} /> : (
           <Navigate to={`/accounts/new/${firstIncomplete(draft)}`} replace />
         )}

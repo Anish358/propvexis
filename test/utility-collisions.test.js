@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { legacyCss } from './helpers/app-css.js';
-import { appFiles, readSrc } from './helpers/src-files.js';
+import { appFiles, readSrc, stripComments } from './helpers/src-files.js';
 
 /* Tailwind utility names and this app's 862 legacy class names share one global
  * namespace. When a generated component uses `grid` and a legacy <table> also has
@@ -30,10 +30,18 @@ const appDir = at('../frontend/src');
 // without a mitigation is not a fix — it is hiding a bug.
 const ACCOUNTED_FOR = new Set(['grid']);
 
+/* COMMENTS ARE STRIPPED BEFORE SCANNING, and that is a fix rather than tidiness.
+ * `utilitiesUsed` reads STRING LITERALS inside cn(...)/cva(...), and a component's
+ * explanation of its own classes usually lives inside that same call — where an
+ * apostrophe opens a string literal that runs to the next apostrophe. "the reference's
+ * own inset ... the row's edge" parses as a literal containing `the`, `row`, `on`,
+ * `page`, and each of those is then reported as a utility the library ships. That is how
+ * this test started failing on prose: `wide` and `page` are real legacy class names, so
+ * the collision it reported was real-looking and entirely imaginary. */
 const readDir = (dir) =>
   !existsSync(dir) ? '' : readdirSync(dir)
     .filter((f) => f.endsWith('.jsx') || f.endsWith('.js'))
-    .map((f) => readFileSync(`${dir}/${f}`, 'utf8'))
+    .map((f) => stripComments(readFileSync(`${dir}/${f}`, 'utf8')))
     .join('\n');
 
 /** Utility class names the component library ships, minus variants and arbitrary

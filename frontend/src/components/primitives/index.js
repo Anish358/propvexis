@@ -77,6 +77,9 @@ export {
 // TradePreview drawer is the candidate). Exported because the barrel is the only door.
 export { OverlayContainerContext, useOverlayContainer } from './overlay-container.js';
 export { Popover, PopoverContent, PopoverTrigger } from './popover.jsx';
+// The @coss select, with its trigger matched to our Input and its popup rendered from
+// the Base UI parts so it takes §6's overlay radius and §7's elevation — see select.jsx.
+export { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './select.jsx';
 export {
   Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue,
 } from './progress.jsx';
@@ -92,7 +95,8 @@ export {
 // for the same reason: this directory is where application code imports from, and it
 // is the only place besides components/ui where a Tailwind utility compiles at all.
 export {
-  ChoiceCard, ChoiceGrid, WizardBody, WizardBrand, WizardFields, WizardFooter,
-  WizardForm, WizardGroup, WizardHeader, WizardHeading, WizardPage, WizardProgress,
-  WizardPair, WizardPillars, WizardRow,
+  ChoiceCard, ChoiceGrid, ChoiceMark, ChoiceRow, WizardActions, WizardBody, WizardBrand,
+  WizardExit, WizardFields, WizardFooter, WizardForm, WizardGroup, WizardHeader,
+  WizardHeading, WizardNote, WizardPage, WizardPillars, WizardProgress, WizardRow,
+  WizardSearch, WizardSectionTitle,
 } from './wizard.jsx';

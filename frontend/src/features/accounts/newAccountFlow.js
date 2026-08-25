@@ -47,10 +47,26 @@ export const STEP_IDS = [
   'platform', 'import', 'connect', 'upload', 'done',
 ];
 
-/** The three values challenges.phase accepts (migration 0016). Mirrors PHASES in
+/** The phase values challenges.phase accepts. Mirrors PHASES in
  *  src/domain/accounts/provision.js — the validator is what enforces it; this is
- *  what stops the UI offering a fourth. */
-export const PHASES = ['p1', 'p2', 'funded'];
+ *  what stops the UI offering a fifth.
+ *
+ *  'p3' WAS ADDED 2026-08-25 for the owner's 3-Step account type. There is no CHECK
+ *  constraint to widen — migration 0016 declares `phase TEXT NOT NULL DEFAULT 'p1'`
+ *  with the three values in a COMMENT only — so the enforcement really is these two
+ *  arrays plus the /api/prop advance whitelist. Everything that partitions phases had
+ *  to learn about it in the same change: EVAL_PHASES in src/domain/prop/propOverview.js
+ *  and in features/prop/propAccounts.js (a p3 challenge is an evaluation, and a phase
+ *  missing from that set is counted as neither eval nor funded), STAGE_ORDER in
+ *  features/prop/challengesData.js, the to_phase whitelist in src/routes/prop.js, and
+ *  the phase label in src/domain/alerts/alerts.js. */
+export const PHASES = ['p1', 'p2', 'p3', 'funded'];
+
+/* ACCOUNT_TYPES, phasesFor and ACCOUNT_SIZES live in features/prop/propFirms.js, not
+ * here: the account-type taxonomy is prop-domain knowledge, and Prop OS needs it too —
+ * `challengeStages` builds an account's stage list from it and PropCards decides which
+ * phase to advance INTO from it. A copy in the wizard's own module would be a second
+ * answer to "how many phases does a 3-Step have". */
 
 const AUTO_SYNC_METHODS = ['auto_sync', 'ea'];
 

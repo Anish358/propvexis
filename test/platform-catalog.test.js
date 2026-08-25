@@ -53,8 +53,13 @@ test('both catalogs agree, per platform, on which import methods are offered', (
 test('every card is fully described and uses only the four known methods', () => {
   for (const c of PLATFORM_CARDS) {
     assert.ok(c.name, `${c.id} needs a name`);
-    assert.ok(c.blurb, `${c.id} needs a blurb — a bare name does not say why it is greyed out`);
-    assert.ok(['live', 'soon'].includes(c.status), `${c.id} status`);
+    // A BLURB IS NO LONGER REQUIRED (2026-08-25): the explanation text came out of the
+    // wizard, cards included. `status` is what has to be right instead, because it is
+    // what tells a user why a card cannot be chosen — rendered as a Soon badge inside
+    // the card's own button, so it reaches the accessible name rather than sitting in a
+    // sentence beside it. A card with neither a blurb nor a status IS a bare name.
+    assert.ok(['live', 'soon'].includes(c.status), `${c.id} needs a status — it is the only thing left that says why a card is greyed out`);
+    assert.equal(typeof c.blurb, 'string', `${c.id}: blurb stays a string, even when empty`);
     for (const m of c.importMethods) assert.ok(IMPORT_METHODS.includes(m), `${c.id}: ${m}`);
   }
 });

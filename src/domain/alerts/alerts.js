@@ -7,6 +7,12 @@
 // The caller (server ingest paths) inserts these ON CONFLICT (user_id, dedup_key)
 // DO NOTHING and emits only genuinely-new rows. No DB access here — fully testable.
 
+// The phase names a user reads. A LOCAL COPY on purpose: the backend cannot import
+// frontend/src (deploy rsyncs `src db scripts ea` plus `frontend/dist`), which is the
+// same reason PHASES is mirrored in domain/accounts/provision.js. `?? toPhase` so a
+// phase this map has not learned about degrades to its id instead of "undefined".
+const PHASE_LABEL = { p1: 'Phase 1', p2: 'Phase 2', p3: 'Phase 3', funded: 'Funded' };
+
 const money = (n) => `$${Number(n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
 // Proximity warning bands, highest first: warn at 80% of a limit used, critical at
@@ -98,7 +104,7 @@ export function phasePassedAlert({ accountId, label, fromPhase, toPhase, challen
     type: 'phase_passed',
     severity: 'info',
     title: `${acct}: ${fromPhase === 'funded' ? 'challenge reset' : 'phase passed'}`,
-    body: `Advanced to ${toPhase === 'funded' ? 'Funded' : toPhase === 'p2' ? 'Phase 2' : 'Phase 1'}.`,
+    body: `Advanced to ${PHASE_LABEL[toPhase] ?? toPhase}.`,
     dedupKey: `${accountId}:phase_passed:${challengeId}`,
     data: { account_id: accountId, fromPhase, toPhase },
   };

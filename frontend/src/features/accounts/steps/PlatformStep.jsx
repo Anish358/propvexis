@@ -84,12 +84,7 @@ export default function PlatformStep() {
 
   return (
     <>
-      <WizardHeading
-        title="Which broker or platform?"
-        description={isProp
-          ? 'This decides how we can import your trades. We have narrowed it to what this firm runs.'
-          : 'This decides how we can import your trades.'}
-      />
+      <WizardHeading align="center" eyebrow="Add Account" title="Which broker or platform?" />
 
       <WizardGroup>
         <Field>
@@ -140,7 +135,6 @@ export default function PlatformStep() {
               autoComplete="off"
               maxLength={80}
             />
-            <FieldDescription>Free text — it is only a label on the account.</FieldDescription>
           </Field>
         ) : null}
       </WizardGroup>

@@ -112,10 +112,7 @@ export default function ImportStep() {
 
   return (
     <>
-      <WizardHeading
-        title="How should we get your trades?"
-        description="You can change this later, and you are not locked out of the others — this is just where we start."
-      />
+      <WizardHeading align="center" eyebrow="Add Account" title="How should we get your trades?" />
 
       <WizardGroup>
         {err ? (

@@ -89,10 +89,7 @@ export default function UploadStep() {
 
   return (
     <>
-      <WizardHeading
-        title="Import your history?"
-        description="Upload a CSV export from your platform and we will detect the columns and skip anything already in the journal. You can do this later instead."
-      />
+      <WizardHeading align="center" eyebrow="Add Account" title="Import your history?" />
 
       <WizardGroup>
         <Field>

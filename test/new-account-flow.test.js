@@ -309,7 +309,10 @@ test('the phase step rejects a phase the challenges table does not accept', () =
   // the one duplication in the branch pinned by a literal instead of a drift test,
   // while this file already imported from that very module.
   assert.deepEqual(PHASES, SERVER_PHASES);
-  assert.equal(isStepComplete(propUpToImport({ phase: 'p3' }), 'account'), false);
+  // 'p3' is a phase now (the 3-Step type), so the rejected value has to be one that is
+  // still not: a fourth evaluation.
+  assert.equal(isStepComplete(propUpToImport({ phase: 'p4' }), 'account'), false);
+  assert.equal(isStepComplete(propUpToImport({ phase: 'p3' }), 'account'), true);
 });
 
 test('a whitespace-only label is not a name', () => {

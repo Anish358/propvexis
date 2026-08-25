@@ -21,7 +21,7 @@
 // A second copy of "which of these accounts matters most" is how two pages start
 // disagreeing about the same portfolio.
 
-import { findFirm, findProduct, UNLISTED_FIRM_ID } from './propFirms.js';
+import { findFirm, findProduct, phasesFor, UNLISTED_FIRM_ID } from './propFirms.js';
 import {
   PHASE_LABEL, accountRow, byRisk, isBreached, isLive,
 } from './propAccounts.js';
@@ -43,7 +43,16 @@ export const ALL_FIRMS = 'all';
 
 // The lifecycle, in the only order it happens. LOCKED — Phase 1 → Phase 2 → Funded
 // is the product's spine, and `phase` on a challenge row is one of exactly these.
-export const STAGE_ORDER = ['p1', 'p2', 'funded'];
+// 'p3' added 2026-08-25 with the 3-Step account type. This is the ORDER, not the set an
+// account has — challengeStages() below picks which of these a given account shows.
+export const STAGE_ORDER = ['p1', 'p2', 'p3', 'funded'];
+
+/* WHAT "WE DO NOT KNOW" MEANS: the two-evaluation lifecycle, which is what almost every
+ * prop account is. It is deliberately NOT `STAGE_ORDER`, and that distinction arrived
+ * with p3 — falling back to the whole order would have drawn a Phase 3 stage on every
+ * account whose type we cannot resolve, which is every account created before the fixed
+ * taxonomy. A stage nobody has to pass, shown as pending, is worse than a missing one. */
+export const DEFAULT_STAGES = ['p1', 'p2', 'funded'];
 
 // A stage's position in the journey, as a word. Colour reinforces it and never
 // replaces it — the rule the whole Prop OS surface follows.
@@ -82,8 +91,17 @@ export const STAGE_STATUS_LABEL = {
  * fact as "this firm has no Phase 2", and claiming the second would be inventing.
  */
 export function challengeStages(firmId, productId) {
+  // THE ACCOUNT TYPE ANSWERS THIS DIRECTLY when it is one of the four the wizard offers:
+  // a 2-Step has p1/p2/funded and a 3-Step has p1/p2/p3/funded, whatever the firm's
+  // catalog entry says. Checked FIRST because the catalog no longer decides the type —
+  // an account created since 2026-08-25 carries '3step' against a firm whose catalog
+  // entry lists two phases, and the catalog branch below would show it three stages
+  // instead of four. Older accounts carry 'custom' or a catalog id and fall through.
+  const fixed = phasesFor(productId);
+  if (fixed.length) return STAGE_ORDER.filter((id) => fixed.includes(id));
+
   const firm = findFirm(firmId);
-  if (!firm) return [...STAGE_ORDER];
+  if (!firm) return [...DEFAULT_STAGES];
   const product = findProduct(firmId, productId);
   const ids = new Set(
     product
@@ -91,7 +109,7 @@ export function challengeStages(firmId, productId) {
       : firm.products.flatMap((p) => p.phases.map((ph) => ph.id)),
   );
   const stages = STAGE_ORDER.filter((id) => ids.has(id));
-  return stages.length ? stages : [...STAGE_ORDER];
+  return stages.length ? stages : [...DEFAULT_STAGES];
 }
 
 /**
@@ -212,7 +230,7 @@ export function challengeCounts(rows = []) {
  * every card would come out "skipped".
  */
 export function challengeLifecycle({
-  phase = null, stages = STAGE_ORDER, breached = false, history = null,
+  phase = null, stages = DEFAULT_STAGES, breached = false, history = null,
 } = {}) {
   const known = Array.isArray(history);
   const idx = stages.indexOf(phase);

@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  STEP_IDS, emptyDraft, firstIncomplete, isStepComplete, patchDraft, suggestedLabel,
-  toProvisionPayload,
+  PHASES, STEP_IDS, emptyDraft, firstIncomplete, isStepComplete, patchDraft,
+  suggestedLabel, toProvisionPayload,
 } from '../frontend/src/features/accounts/newAccountFlow.js';
 import {
-  findFirm, findProduct, templateToFields, wizardProducts,
+  ACCOUNT_SIZES, ACCOUNT_TYPES, UNLISTED_FIRM_ID, findFirm, findProduct, firmInitials,
+  phasesFor, templateToFields, wizardFirms, wizardProducts,
 } from '../frontend/src/features/prop/propFirms.js';
 import { readCode, readSrc, allSrcFiles, appJsx, srcExists } from './helpers/src-files.js';
 import { autoSyncGate, KNOWN_PLANS } from '../frontend/src/features/accounts/accountGating.js';
@@ -150,6 +151,128 @@ test('the capital step offers exactly the two kinds the column admits', () => {
   assert.deepEqual([...new Set(kinds)].sort(), ['live', 'prop']);
 });
 
+// ---- the capital step's redesign (owner reference layout, 2026-08-25) --------
+
+test('the capital step selects, then continues — a card no longer advances', () => {
+  // Owner decision, reversing this step's original "choosing advances in one action".
+  // The answer is not a preference, it is the BRANCH: prop adds two pages and puts the
+  // account under a firm's drawdown rules, and it is only re-choosable until the commit.
+  // So the card records the choice and a separate action leaves the step.
+  const src = readCode('CapitalStep.jsx');
+  const cardClick = src.match(/onClick=\{\(\)\s*=>\s*setChosen\([^)]*\)\}/);
+  assert.ok(cardClick, 'the card must record the choice, not navigate');
+  // The card's own handler cannot be what leaves the step.
+  assert.equal(/onClick=\{\(\)\s*=>\s*\{[^}]*advance\(\)/.test(src), false,
+    'a card that patches and advances in its own handler is the pattern this replaced');
+  assert.match(src, /disabled=\{!chosen\}/,
+    'and Continue must be unavailable until something is chosen');
+});
+
+test('the capital step resolves the next step from the PATCHED draft', () => {
+  // The trap the memory calls out: ordering around state is invisible to a structural
+  // check. `advance()` reads the draft captured at render, so a step that patches and
+  // leaves in one handler asks the PRE-patch draft where to go — and on this step the
+  // pre-patch draft has no capital_kind, so its next step is the live branch's
+  // `account`. It navigated there and was bounced back to `firm` by the guard: the right
+  // destination by way of a wrong one, which is why nothing caught it.
+  const src = readCode('CapitalStep.jsx');
+  assert.match(src, /advance\(patch\(/,
+    'hand patch()\'s return value to advance() — the branch depends on it');
+
+  // And the shell has to accept it.
+  assert.match(shell, /const advance = useCallback\(\(draftOverride\)/,
+    'the shell\'s advance must take the draft the caller just computed');
+});
+
+test('advance() cannot be fooled by an event object', () => {
+  // `onClick={advance}` passes a MouseEvent as the override. stepsFor() reads whatever
+  // it is handed, so an event resolves to the live branch, indexOf misses the current
+  // step and the wizard navigates to `/accounts/new/null`. Both halves are asserted:
+  // no call site does it, and the shell would survive it if one did.
+  for (const f of stepFiles()) {
+    assert.equal(/onClick=\{advance\}/.test(readCode(f)), false,
+      `${f}: pass advance as () => advance(), or the click event becomes the draft`);
+  }
+  assert.match(shell, /draftOverride\?\.v === FLOW_VERSION/,
+    'the shell must check the override is a draft — `v` is the one property only a draft has');
+});
+
+test('a chosen card is announced, not only drawn', () => {
+  // `data-selected` is a styling hook and reads as nothing to a screen reader, so before
+  // this a chosen card was indistinguishable from the one beside it — and on a
+  // select-then-Continue step that is the entire state of the page.
+  const wizard = readCode('wizard.jsx');
+  assert.match(wizard, /aria-pressed=\{typeof selected === 'boolean' \? selected : undefined\}/,
+    'ChoiceCard must expose its selected state as aria-pressed');
+  // Only when the caller actually passes `selected`: a card that is a plain action has
+  // no state to hold and must not claim to be a toggle.
+  assert.equal(/aria-pressed=\{!!selected\}|aria-pressed=\{selected\}/.test(wizard), false,
+    'a card with nothing to hold must not report aria-pressed="false"');
+});
+
+test('the wizard grids do not write the `grid` utility, which legacy CSS owns', () => {
+  // THIS SHIPPED. legacy/app.css declares `.grid { display: table; min-width:
+  // calc(var(--grid-cols, 11) * 92px); table-layout: fixed }` for the Trade Log, and it
+  // is UNLAYERED — index.css's whole cascade argument is that unlayered rules beat
+  // anything Tailwind emits ("the library can only ever add; it cannot outrank"). The
+  // legacy rule's own comment says it declares `display` deliberately to win exactly
+  // this collision. So every ChoiceGrid rendered as a 1012px-wide TABLE: the cards
+  // stacked in one column, each sized to its own text, overflowing the step, with no
+  // gutter because `gap` does nothing on a table.
+  //
+  // `[display:grid]` is the same declaration under a class name no legacy selector can
+  // claim. The editor's Tailwind plugin actively suggests rewriting it back to `grid`,
+  // which is why this is a test and not a comment.
+  const wizard = readSrc('components/primitives/wizard.jsx');
+  for (const m of wizard.matchAll(/cn\('([^']*)'/g)) {
+    assert.equal(m[1].split(/\s+/).includes('grid'), false,
+      `wizard.jsx writes the bare \`grid\` utility in cn('${m[1]}') — legacy .grid makes it a table`);
+  }
+  assert.match(wizard, /\[display:grid\]/, 'the grids must still be grids');
+
+  // And the reason has to still be true: if the legacy rule is ever renamed, this
+  // workaround should be revisited rather than cargo-culted.
+  const legacy = readSrc('styles/legacy/app.css');
+  assert.match(legacy, /^\.grid\s*\{[^}]*display:\s*table/m,
+    'legacy .grid no longer claims the name — re-check whether [display:grid] is still needed');
+});
+
+test('hovering a chosen card does not undo the choice', () => {
+  // Third instance of the same silent-CSS failure this component keeps hitting. The
+  // selected fill compiles to `.data-selected\:bg-muted:where([data-selected=true])`,
+  // and `:where()` contributes NOTHING to specificity — so a plain `hover:bg-card`
+  // (one class plus `:hover`) outranked it, and hovering the card you had just chosen
+  // returned it to the unchosen fill. Scoping the hover means the two rules cannot both
+  // match, so neither source order nor specificity decides it.
+  const wizard = readCode('wizard.jsx');
+  assert.match(wizard, /not-data-selected:hover:bg-card/,
+    'the hover fill must exclude the selected card rather than race it');
+  assert.equal(/'hover:border-ring hover:bg-card'/.test(wizard), false,
+    'the unscoped hover fill is what overrode the selection');
+});
+
+test('the icon size is set ON the icon, because an ancestor utility loses', () => {
+  // A finding about the generated Button, verified in the built stylesheet: its cva base
+  // ends with `[&_svg:not([class*='size-'])]:size-4`, compiling to `svg:not([class*=size-])`
+  // — one attribute selector MORE specific than the `[&_svg]:size-N svg` a wrapper emits.
+  // So a size written on an ancestor loses in silence and the glyph renders at 16px.
+  // Cloning with a `size-*` class is the mechanism that `:not()` guard exists for.
+  const wizard = readCode('wizard.jsx');
+  assert.match(wizard, /React\.cloneElement\(icon, \{ className: cn\('size-6'/,
+    'the centred card must put the size on the icon element itself');
+});
+
+test('the way out is an icon with a name, not a bare glyph', () => {
+  // Reference layout: an X in the top right rather than the word "Exit". An icon-only
+  // control with no accessible name is a listed accessibility anti-pattern, and this one
+  // leaves a flow with answers in it — so it says "Exit setup", not "Close".
+  const wizard = readCode('wizard.jsx');
+  assert.match(wizard, /export function WizardExit/);
+  assert.match(wizard, /aria-label=\{label\}/, 'the icon button needs an accessible name');
+  assert.match(wizard, /title=\{label\}/, 'and a mouse user needs the same answer on hover');
+  assert.match(shell, /<WizardExit/, 'the shell must use it rather than hand-rolling one');
+});
+
 // ---------------------------------------------------------------------------
 // The two assertions that hold the COMPONENT-FIRST build order. The plan for this
 // task originally styled these pages with hand-written `.naf-*` rules in
@@ -258,15 +381,137 @@ test('the firm step renders only firms the wizard can complete', () => {
     'the firm step must not read the raw catalog — it would offer unverified-only firms');
 });
 
-test('the merged page renders only verified or custom products', () => {
-  // THE ONE THAT MATTERS. GFT 1-Step and Instant Funding carry verified: false with
-  // drawdown percentages nobody has checked against the firm, and a wrong drawdown
-  // does not fail loudly — it mis-scores a real trader's account for the length of a
-  // challenge.
+// ---- the firm step's redesign (owner reference layout, 2026-08-25) ----------
+
+test('the firm step lists rows, not cards', () => {
+  // The label IS the whole answer on this step — someone looking for FTMO is looking for
+  // the word FTMO — and the sentence the old cards carried under each firm said the same
+  // thing three times. Rows put eight firms in the space four cards would take, which is
+  // the whole point once the catalog grows past three.
+  const src = readCode('FirmStep.jsx');
+  assert.match(src, /<ChoiceRow/, 'the firm options are rows');
+  assert.equal(/<ChoiceCard/.test(src), false, 'and no longer cards');
+  assert.match(src, /layout="rows"/, 'the grid has to know too — the gutter and the column floor differ');
+});
+
+test('the firm step searches on the NAME, never the id', () => {
+  // The ids are internal ('gft', 'ftmo'). Matching them would make a query find a row
+  // whose visible text does not contain what was typed.
+  const src = readCode('FirmStep.jsx');
+  assert.match(src, /<WizardSearch/, 'the owner asked for the search field');
+  assert.match(src, /f\.name\.toLowerCase\(\)\.includes\(q\)/,
+    'the filter must read the name');
+  assert.equal(/\bf\.id\b[^\n]*includes\(q\)/.test(src), false,
+    'matching the id would find rows whose text does not contain the query');
+});
+
+test('a search that finds nothing still offers the way forward', () => {
+  // Three firms and a free-text box: a miss is the COMMON case, not the edge one. A bare
+  // "no results" would leave the user with a working answer on screen (enter the rules
+  // yourself) and no way to know it.
+  const src = readCode('FirmStep.jsx');
+  const note = src.match(/<WizardNote>([\s\S]*?)<\/WizardNote>/);
+  assert.ok(note, 'an empty result needs to say something');
+  assert.match(note[1], /UNLISTED_FIRM_ID/,
+    'and it must name the row that can still help, from the catalog rather than retyped');
+});
+
+test('the firm step selects, then continues', () => {
+  const src = readCode('FirmStep.jsx');
+  assert.match(src, /onClick=\{\(\) => setChosenId\(firm\.id\)\}/, 'a row records the choice');
+  assert.equal(/onClick=\{\(\) => \{[^}]*advance\(/.test(src), false,
+    'a row must not navigate — Continue does');
+  // The unlisted firm needs its name before Continue is available, which is what
+  // COMPLETE.firm enforces one step later. The page agrees rather than being optimistic.
+  assert.match(src, /canContinue = Boolean\(chosenId\) && \(!unlisted \|\| typedName\.trim\(\) !== ''\)/);
+});
+
+test('the firm step patches the id and the typed name in ONE call', () => {
+  const src = readCode('FirmStep.jsx');
+  // patchDraft only preserves a typed firm_name when it arrives WITH the firm_id — a
+  // firm_id change on its own clears the name by design. Two patches would store the name
+  // and then wipe it.
+  assert.match(src, /patch\(\{ firm_id: UNLISTED_FIRM_ID, firm_name: typedName\.trim\(\) \}\)/);
+
+  // AND EVERY patch() ON THIS PAGE TAKES AN OBJECT LITERAL, because two older tests read
+  // this file for `patch({`: 'the unlisted firm cannot advance without a typed name' and
+  // 'no step patches firm_name for a CATALOG firm'. A `patch(cond ? {…} : {…})` reads as
+  // perfectly fine and makes BOTH of them pass vacuously — which is what the first draft
+  // of this redesign did.
+  for (const m of src.matchAll(/\bpatch\(/g)) {
+    assert.equal(src[m.index + m[0].length], '{',
+      'patch() must be called with an object literal here, or the older pins go vacuous');
+  }
+});
+
+test('the firm mark is a monogram, and the rule is testable', () => {
+  // We carry no logo assets and inventing artwork for a real firm is not a thing to do in
+  // a component. The geometry is the reference's; the content is initials.
+  //
+  // In propFirms.js rather than in the step, because it is a rule with three branches and
+  // that module is JSX-free — so this can call it instead of grepping for it.
+  assert.equal(firmInitials('GoatFundedTrader'), 'GF');
+  assert.equal(firmInitials('FTMO'), 'FT');
+  // Fewer than two capitals falls back to the first two characters, so a lower-cased firm
+  // still gets a mark rather than an empty tile.
+  assert.equal(firmInitials('funded next'), 'FU');
+  assert.equal(firmInitials('The5ers'), 'TH');
+  assert.equal(firmInitials(''), '');
+  assert.equal(firmInitials(null), '');
+  // Every firm the wizard offers gets a non-empty mark — an empty tile beside a name is
+  // a rendering hole, not a design.
+  for (const firm of wizardFirms()) {
+    if (firm.id === UNLISTED_FIRM_ID) continue;   // the escape hatch draws a glyph
+    assert.notEqual(firmInitials(firm.name), '', `${firm.name} has no mark`);
+  }
+});
+
+test('the measure is a property of the step, and the firm step is narrow', () => {
+  // At the default 42rem a two-column list of 40px marks and short labels is mostly empty
+  // space between the mark and the next column. The reference draws its picker in about
+  // 27rem and its card row in twice that, and the shell is the only place that knows
+  // which step is rendering — the step itself is inside the body it would be sizing.
+  assert.match(shell, /const BODY_SIZE = \{[^}]*firm: 'narrow'/);
+  assert.match(shell, /size=\{BODY_SIZE\[step\]/);
+  // The three measures live in a table rather than a ternary inside cn(), because
+  // utility-collisions.test.js reads every literal inside a cn() call as a class the
+  // library ships — `size === 'wide'` was indexed as a utility named `wide`, which legacy
+  // CSS has a real rule for. Variant values in a table, classes inside cn().
+  const wizard = readCode('wizard.jsx');
+  assert.match(wizard, /const BODY_MEASURE = \{ wide: 'max-w-3xl', narrow: 'max-w-md', default: 'max-w-2xl' \}/);
+  assert.match(wizard, /BODY_MEASURE\[size\] \|\| BODY_MEASURE\.default/);
+});
+
+test('the step heading keeps ONE h1, and the eyebrow is not a heading', () => {
+  // The eyebrow labels the question below it. An <h2> above an <h1>, or a second <h1>,
+  // inverts the outline a screen-reader user navigates by.
+  const wizard = readCode('wizard.jsx');
+  assert.equal((wizard.match(/<h1/g) || []).length, 1, 'exactly one h1 in the wizard');
+  // Sliced between two exports, NOT matched with `[\s\S]*?\n}` — comment-stripped source
+  // leaves the JSX comments behind as bare `{\n}` blocks, and the lazy match stopped at
+  // the first one, three lines short of the element being asserted. Same class of trap as
+  // the `await file.text()` anchor: pin on a form only code can produce.
+  const from = wizard.indexOf('export function WizardHeading');
+  const heading = wizard.slice(from, wizard.indexOf('export function', from + 1));
+  assert.match(heading, /\{eyebrow \? \(\s*<p/, 'the eyebrow is a paragraph, not a heading');
+  assert.match(heading, /<h1/, 'and the slice really does reach the heading it is about');
+  // The section label IS a heading — it names a group of options under the question.
+  assert.match(wizard, /export function WizardSectionTitle[\s\S]*?<h2/);
+});
+
+test('the account type is a FIXED list of four, not the firm catalog', () => {
+  // WHAT THIS REPLACED, and what it costs. The type used to come from
+  // `wizardProducts(firm_id)`, so GFT offered its verified 2-Step and nothing else and
+  // the unverified 1-Step and Instant Funding rules could never reach a trader. Owner
+  // decision 2026-08-25: four types, offered for every firm. That is only safe BECAUSE
+  // the presets are gone — nothing is resolved from the catalog any more, so an
+  // unverified drawdown cannot be prefilled from one. If presets ever come back, this
+  // pairing has to be revisited together.
   const src = readCode('AccountStep.jsx');
-  assert.match(src, /wizardProducts\(/);
-  assert.equal(/\.products\b/.test(src), false,
-    'it must not read firm.products directly — that includes unverified rules');
+  assert.match(src, /ACCOUNT_TYPES/, 'the four types come from the shared table');
+  assert.equal(/wizardProducts\(/.test(src), false, 'the catalog no longer decides the type');
+  assert.equal(/\.products\b/.test(src), false, 'and it must not read firm.products either');
+  assert.deepEqual(ACCOUNT_TYPES.map((t) => t.id), ['1step', '2step', '3step', 'instant']);
 });
 
 test('NO PRESETS: the page resolves nothing from the catalog', () => {
@@ -293,32 +538,107 @@ test('templateToFields survives untouched, for when presets return', () => {
   assert.equal(templateToFields('gft', '2step', 37000, 'p1'), null, 'still refuses a size not sold');
 });
 
-test('the size row offers every size the firm sells', () => {
-  // Still a choice rather than a free number input: a typed 37000 is a balance no firm
-  // sold, and every drawdown would then be scored against it. The union across the
-  // firm's types, because size is asked before type (the owner's order).
+test('the account size is the owner list plus a free field', () => {
+  // The eight cover what firms usually sell; they also sell 8K, 12.5K and 1M. The free
+  // field is not a fallback for an empty list — it is the answer to "more or custom", so
+  // it stays reachable when one of the eight is right.
+  assert.deepEqual(ACCOUNT_SIZES, [5000, 10000, 15000, 25000, 50000, 100000, 200000, 300000]);
   const src = readCode('AccountStep.jsx');
-  assert.match(src, /firmSizes/);
-  assert.match(src, /products\.flatMap/, 'the union comes from the firm\'s own products');
+  assert.match(src, /ACCOUNT_SIZES\.map/, 'one option per size');
+  assert.match(src, /CUSTOM_SIZE/, 'and a row for anything else');
+  // A SENTINEL, not "a size that is not in the list": without it the page cannot tell
+  // "typing 8000" from "nothing chosen yet", because both are a value the list lacks.
+  assert.match(src, /sizeChoice === CUSTOM_SIZE \? customSize : sizeChoice/);
+  assert.equal(/firmSizes/.test(src), false, 'the sizes no longer come from the firm');
 });
 
-test('the account type row is always rendered, even for a single-type firm', () => {
-  // Owner decision: a trader who picked "My own rules" should SEE that they picked it,
-  // and a row that appears for some firms and not others reads as a missing question.
-  // An earlier version hid it when products.length === 1.
+test('the account name has to be unique among the accounts the user has', () => {
+  // The owner's spec. Compared trimmed and case-insensitively, because "FTMO 25K" and
+  // "ftmo 25k " are two rows nobody can tell apart in an account switcher.
   const src = readCode('AccountStep.jsx');
-  assert.equal(/products\.length > 1/.test(src), false,
-    'the type row must not be conditional on there being more than one');
-  assert.match(src, /products\.map\(/, 'it renders one card per type');
+  assert.match(src, /takenNames/);
+  assert.match(src, /\.trim\(\)\.toLowerCase\(\)/);
+  assert.match(src, /duplicateName/, 'and it must block Continue, not just warn');
+  assert.match(src, /ready = [\s\S]*?!duplicateName/);
+  // It is compared against the accounts the user ALREADY has, which only the shell can
+  // supply — the draft knows nothing about them. CLIENT-SIDE ONLY, and the page says so:
+  // neither the database nor validateProvision enforces label uniqueness, so a second tab
+  // can still create a duplicate. Not asserted as the absence of a server check, because
+  // adding one would be an improvement and a test that fails on an improvement is a trap.
+  assert.match(src, /const \{ draft, patch, advance, accounts \} = useFlow\(\)/);
+  assert.match(src, /\(accounts \|\| \[\]\)\.map/, 'read from the account list, defensively');
 });
 
-test('page 3 lays its controls out in the owner\'s grid', () => {
-  // size + type, then phase + metrics, then drawdown type + name. Three two-up rows, so
-  // three WizardPair sections — and the body is `wide`, because two columns of card
-  // grids inside the usual measure leaves each one too narrow to read.
+test('the duplicate-name error is visible, in the colour the app uses for errors', () => {
+  // IT RENDERED NOTHING BEFORE. `Field.Error` shows itself from the control's native
+  // ValidityState, and "you already have an account with this name" is not in it — so the
+  // element sat in the tree, compiled, and invisible. `match` is Base UI's own prop for
+  // "the caller has decided"; the page renders the element only when there IS an error.
+  //
+  // AND IT WAS WHITE. `text-destructive-foreground` maps to `--on-accent`, a near-white
+  // for text sitting ON a destructive fill; on the page background it reads as ordinary
+  // copy. `text-destructive` is what legacy `.error` and `Alert variant="error"` already
+  // resolve to — the wizard shows one of those two steps later, so a white validation
+  // message beside a red alert was a bug, not a position on §17.
+  const field = readCode('components/primitives/field.jsx');
+  assert.match(field, /<UIFieldError\n(?:.*\n)*?\s+match\n/, 'the error must render when the caller says so');
+  assert.match(field, /cn\('text-destructive'/);
+  assert.equal(/text-destructive-foreground/.test(field), false, 'that is the on-fill colour');
+});
+
+test('page 3 lays its controls out in the owner\'s sketch', () => {
+  // Type · Size, then Phase · Name, then an "Account Details" label over the four rule
+  // fields and the drawdown toggle. TWO field grids with the section title between them,
+  // which is what makes the label belong to the fields under it rather than floating
+  // between two rows of one grid.
   const src = readCode('AccountStep.jsx');
-  assert.equal((src.match(/<WizardPair>/g) || []).length, 3, 'three two-up rows');
-  assert.match(readCode('NewAccountFlow.jsx'), /wide=\{step === 'account'\}/);
+  assert.equal((src.match(/<WizardFields>/g) || []).length, 2, 'two field grids');
+  assert.match(src, /<WizardSectionTitle>Account Details<\/WizardSectionTitle>/);
+  // The order of the fields IS the sketch, and that can only be checked as a sequence.
+  // `Account Name` comes first because it is defined above the JSX as `nameField` — the
+  // live path renders it alone.
+  const labels = [...src.matchAll(/<FieldLabel[^>]*>([^<]+)<\/FieldLabel>/g)].map((m) => m[1].trim());
+  assert.deepEqual(labels, [
+    'Account Name',
+    'Account Type', 'Account Size', 'Select Phase',
+    'Daily Drawdown (%)', 'Max Drawdown (%)', 'Payout Split (%)', 'Profit Target (%)',
+    'Minimum Trading Days', 'Drawdown Type',
+  ]);
+  // And the body is `wide`, because two columns of fields need room for two labels and
+  // two values.
+  assert.match(readCode('NewAccountFlow.jsx'), /const BODY_SIZE = \{[^}]*account: 'wide'/);
+});
+
+test('the controls are dropdowns and a toggle, per the owner\'s spec', () => {
+  // The four type cards and three phase cards used ten times the height of a select for
+  // the same one-of-N answer, on a page that asks nine questions — the grids pushed the
+  // drawdowns below the fold, which is where a rule nobody reads gets typed wrong.
+  const src = readCode('AccountStep.jsx');
+  assert.equal((src.match(/<Select\b/g) || []).length, 3, 'type, size and phase are dropdowns');
+  assert.equal(/<ChoiceCard/.test(src), false, 'no card grids left on this page');
+  assert.match(src, /<ToggleGroupExclusive/, 'drawdown type is a toggle');
+  // The closed trigger has to show the LABEL. Base UI renders the raw value unless the
+  // Root is told the labels, so without these the field reads "2step" and "25000" after
+  // being chosen — built from the same tables the options are.
+  assert.match(src, /items=\{TYPE_LABELS\}/);
+  assert.match(src, /items=\{SIZE_LABELS\}/);
+  assert.match(src, /items=\{PHASE_LABEL\}/);
+});
+
+test('no question page explains itself under the title', () => {
+  // Owner decision 2026-08-25: the explanation text comes out, on this page and the rest.
+  // Asserted as a RULE rather than page by page, so it cannot creep back one step at a
+  // time. Welcome and Done keep theirs: neither asks a question — one is an intro whose
+  // description introduces the three pillars under it, the other is a receipt naming
+  // what happened.
+  const allowed = new Set(['WelcomeStep.jsx', 'DoneStep.jsx']);
+  for (const f of stepFiles()) {
+    const name = f.split('/').pop();
+    if (allowed.has(name)) continue;
+    for (const h of readCode(f).match(/<WizardHeading[\s\S]*?\/>/g) || []) {
+      assert.equal(/description=/.test(h), false, `${name} still explains itself: ${h}`);
+    }
+  }
 });
 
 test('every rule is collected from the user, for every firm', () => {
@@ -346,13 +666,33 @@ test('no wizard step hardcodes a drawdown percentage', () => {
   }
 });
 
-test('the merged page offers only the three values challenges.phase accepts', () => {
-  const src = readCode('AccountStep.jsx');
-  assert.match(src, /PHASES/, 'the phase list must come from the flow module, not be retyped');
-  const literals = [...src.matchAll(/phase:\s*'(\w+)'/g)].map((m) => m[1]);
-  for (const p of literals) {
-    assert.ok(['p1', 'p2', 'funded'].includes(p), `${p} is not a phase the schema accepts`);
+test('the phase list is DERIVED from the account type', () => {
+  // The owner's rule, and the reason it is a rule: an Instant account is funded from the
+  // start, so offering it "Phase 2" would let a trader file a challenge that cannot
+  // exist — and the phase decides which number the account is scored against (a target
+  // for an evaluation, a split for a funded account).
+  assert.deepEqual(phasesFor('1step'), ['p1', 'funded']);
+  assert.deepEqual(phasesFor('2step'), ['p1', 'p2', 'funded']);
+  assert.deepEqual(phasesFor('3step'), ['p1', 'p2', 'p3', 'funded']);
+  assert.deepEqual(phasesFor('instant'), ['funded']);
+  // An unrecognised type offers NOTHING rather than everything — including the 'custom'
+  // product older accounts carry, which the picker deliberately does not offer.
+  assert.deepEqual(phasesFor('custom'), []);
+  assert.deepEqual(phasesFor(undefined), []);
+
+  // Every phase any type offers must be one the server accepts, or the flow ends in a
+  // 400 nine questions later.
+  for (const t of ACCOUNT_TYPES) {
+    for (const phase of t.phases) {
+      assert.ok(PHASES.includes(phase), `${t.id} offers ${phase}, which provision.js rejects`);
+    }
   }
+
+  const src = readCode('AccountStep.jsx');
+  assert.match(src, /phasesFor\(productId\)/, 'the page must derive the list, not restate it');
+  // Changing the type has to withdraw a phase that type does not have, or picking Instant
+  // after Phase 2 leaves a phase selected that the dropdown no longer offers.
+  assert.match(src, /setPhase\(\(p\) => \(phasesFor\(nextId\)\.includes\(p\) \? p : ''\)\)/);
 });
 
 test('the merged page never writes account_type itself', () => {
@@ -608,7 +948,12 @@ test('the connect step is reached only after the user chose to give a credential
   // a setup card and never renders a password field at all.
   const src = readCode('ConnectStep.jsx');
   assert.match(src, /draft\.import_method === 'ea'/, 'the branch must read the decision, not re-ask it');
-  const ea = src.slice(src.indexOf('if (isEa)'), src.indexOf('return (\n    <>\n      <WizardHeading\n        title="Connect'));
+  // Sliced to the SECOND branch's return, found by its heading title. Anchored on the
+  // title alone rather than on the surrounding JSX shape: the headings lost their
+  // `description` prop when the explanation text came out, and an anchor that spelled out
+  // the element's line breaks stopped matching — sending the slice to -1 and asserting
+  // against an empty string, which passes for the wrong reason.
+  const ea = src.slice(src.indexOf('if (isEa)'), src.indexOf('title="Connect your account"'));
   assert.equal(/type="password"/.test(ea), false, 'the EA branch must render no password field');
 });
 
