@@ -94,5 +94,5 @@ export {
 export {
   ChoiceCard, ChoiceGrid, WizardBody, WizardBrand, WizardFields, WizardFooter,
   WizardForm, WizardGroup, WizardHeader, WizardHeading, WizardPage, WizardProgress,
-  WizardPillars, WizardRow,
+  WizardPair, WizardPillars, WizardRow,
 } from './wizard.jsx';

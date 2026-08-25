@@ -186,7 +186,10 @@ export default function NewAccountFlow({
 
       {/* key={step} remounts the body per step: it is both the transition trigger and
           the reason a step's local state cannot leak into the next one. */}
-      <WizardBody key={step} ref={bodyRef}>
+      {/* `wide` for the merged account page only: it lays its controls out in a grid
+          rather than asking one question, and two columns of card grids inside the
+          usual measure leaves each one too narrow to read. */}
+      <WizardBody key={step} ref={bodyRef} wide={step === 'account'}>
         {allowed ? <Outlet context={ctx} /> : (
           <Navigate to={`/accounts/new/${firstIncomplete(draft)}`} replace />
         )}

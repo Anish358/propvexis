@@ -127,7 +127,7 @@ export function WizardProgress({ index, total, className, ...rest }) {
  * inside §10's stated rule rather than inventing one. Verified to emit real
  * `@starting-style` CSS. */
 export const WizardBody = React.forwardRef(function WizardBody(
-  { className, children, ...rest }, ref,
+  { className, wide = false, children, ...rest }, ref,
 ) {
   return (
     <main
@@ -147,7 +147,11 @@ export const WizardBody = React.forwardRef(function WizardBody(
       // would read as an error state.
       tabIndex={-1}
       className={cn(
-        'mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-8 px-6 py-12',
+        'mx-auto flex w-full flex-1 flex-col justify-center gap-8 px-6 py-12',
+        // `wide` is for the one step that lays its controls out in a grid rather than
+        // asking a single question. Two columns of card grids inside 42rem leaves each
+        // one too narrow to read, and the answer to that is width, not smaller cards.
+        wide ? 'max-w-4xl' : 'max-w-2xl',
         'outline-none',
         'transition-opacity duration-[var(--dur)] starting:opacity-0 motion-reduce:duration-0',
         className,
@@ -192,6 +196,24 @@ export function WizardForm({ className, children, ...rest }) {
     >
       {children}
     </form>
+  );
+}
+
+/* A two-up row of control GROUPS — "size and type in one row, phase and metrics in the
+ * next". Distinct from WizardFields (which lays out single fields) and from ChoiceGrid
+ * (which lays out cards): this arranges whole labelled sections, so the minimum column
+ * is wide enough to hold a card grid or a field pair without either collapsing.
+ *
+ * `items-start` so a short section beside a tall one does not stretch to match it. */
+export function WizardPair({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="wizard-pair"
+      className={cn('grid w-full items-start gap-6 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]', className)}
+      {...rest}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -315,7 +337,12 @@ export function ChoiceCard({
     <Button
       variant="secondary"
       data-slot="choice-card"
-      data-selected={selected ? '' : undefined}
+      // `'true'`, NOT `''`. Tailwind v4 compiles the `data-selected:` variant to
+      // `:where([data-selected=true])` — it matches the VALUE, not the attribute's
+      // presence. An empty-string attribute is present and never matches, so the
+      // selected state compiled to real CSS that could not fire: the cards simply never
+      // highlighted, with nothing in the build or the tests to say so.
+      data-selected={selected ? 'true' : undefined}
       disabled={disabled}
       // A DISABLED CARD STAYS REACHABLE BY KEYBOARD, and that is the point of the
       // state. Its description is the REASON it is unavailable — every platform card

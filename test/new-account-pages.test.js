@@ -197,8 +197,8 @@ test('the merged page stops suggesting a label the moment the user types', () =>
   // different size would silently discard their own text.
   const src = readCode('AccountStep.jsx');
   assert.match(src, /labelTouched/, 'the page must track that the label was edited');
-  assert.match(src, /!labelTouched && suggestion/,
-    'the suggestion may only be applied while the field is untouched');
+  assert.match(src, /labelTouched \? label :/,
+    'the suggestion may only be shown while the field is untouched');
 });
 
 test('the platform step reads the presentation catalog, not the backend registry', () => {
@@ -269,41 +269,70 @@ test('the merged page renders only verified or custom products', () => {
     'it must not read firm.products directly — that includes unverified rules');
 });
 
-test('the merged page resolves its rules through templateToFields', () => {
-  // Not by reading phase objects itself. templateToFields enforces size membership and
-  // the eval/funded target-vs-split split, and it is tested. It is now called on the one
-  // page that has all four of its arguments at once, which is what the merge bought.
-  assert.match(readCode('AccountStep.jsx'), /templateToFields\(/);
-});
-
-test('the prefill is a starting point, not a lock', () => {
-  // The owner's requirement: show the preset AND let the trader change it. So the
-  // resolved rules go into editable state rather than being read straight into the
-  // patch, and a field the user has edited is never overwritten by a later prefill.
+test('NO PRESETS: the page resolves nothing from the catalog', () => {
+  // OWNER DECISION 2026-08-25 (second pass) — presets are removed and will return
+  // later. This is the inverse of the assertion that stood here, and it is inverted
+  // rather than deleted so the removal stays deliberate: a reader who reintroduces a
+  // prefill will fail this test and go looking for why.
+  //
+  // WHAT IT COSTS, recorded because it is invisible: a GoatFundedTrader 2-Step trader
+  // now types 5 / 10 / 8 / 3 by hand and nothing checks it against the catalog we
+  // already have. A mistyped drawdown does not fail loudly — it mis-scores that account
+  // for the length of the challenge.
   const src = readCode('AccountStep.jsx');
-  assert.match(src, /rulesTouched/, 'an edited rule must survive a later phase change');
-  assert.match(src, /if \(!resolved \|\| rulesTouched\) return/,
-    'the prefill effect must bail out once the user has edited anything');
-  // What is submitted is what is in the fields — not the resolved object.
-  assert.match(src, /start_balance: num\(rules\.start_balance\)/,
-    'the patch must read the FIELDS, or an edit would be silently dropped');
+  assert.equal(/templateToFields/.test(src), false, 'no rule may be resolved from the catalog');
+  assert.equal(/useEffect/.test(src), false, 'the prefill effect is what was removed');
+  assert.equal(/rulesTouched/.test(src), false, 'and the guard that existed only to protect it');
 });
 
-test('the size row offers every size the firm sells, and names an impossible pair', () => {
-  // Size is asked before account type (the owner's order) while sizes are a property OF
-  // the type, so the row is the union and the mismatch is called out rather than
-  // silently resolving to no preset.
+test('templateToFields survives untouched, for when presets return', () => {
+  // It is called from no page now. It stays exported and tested because it is the only
+  // thing that enforces size membership and the eval-vs-funded target/split split, so
+  // presets should come back THROUGH it rather than by reading phase objects in a page.
+  assert.ok(templateToFields('gft', '2step', 25000, 'p1'), 'still resolves a real combination');
+  assert.equal(templateToFields('gft', '2step', 37000, 'p1'), null, 'still refuses a size not sold');
+});
+
+test('the size row offers every size the firm sells', () => {
+  // Still a choice rather than a free number input: a typed 37000 is a balance no firm
+  // sold, and every drawdown would then be scored against it. The union across the
+  // firm's types, because size is asked before type (the owner's order).
   const src = readCode('AccountStep.jsx');
   assert.match(src, /firmSizes/);
-  assert.match(src, /sizeMismatch/, 'a size the chosen type does not sell must be named');
+  assert.match(src, /products\.flatMap/, 'the union comes from the firm\'s own products');
 });
 
-test('the custom product gets inputs, not defaults', () => {
+test('the account type row is always rendered, even for a single-type firm', () => {
+  // Owner decision: a trader who picked "My own rules" should SEE that they picked it,
+  // and a row that appears for some firms and not others reads as a missing question.
+  // An earlier version hid it when products.length === 1.
   const src = readCode('AccountStep.jsx');
-  assert.match(src, /isCustomProduct\(/, 'the step must branch on the custom product');
-  for (const field of ['daily_dd_pct', 'max_dd_pct', 'start_balance']) {
-    assert.ok(src.includes(field), `the custom editor does not collect ${field}`);
+  assert.equal(/products\.length > 1/.test(src), false,
+    'the type row must not be conditional on there being more than one');
+  assert.match(src, /products\.map\(/, 'it renders one card per type');
+});
+
+test('page 3 lays its controls out in the owner\'s grid', () => {
+  // size + type, then phase + metrics, then drawdown type + name. Three two-up rows, so
+  // three WizardPair sections — and the body is `wide`, because two columns of card
+  // grids inside the usual measure leaves each one too narrow to read.
+  const src = readCode('AccountStep.jsx');
+  assert.equal((src.match(/<WizardPair>/g) || []).length, 3, 'three two-up rows');
+  assert.match(readCode('NewAccountFlow.jsx'), /wide=\{step === 'account'\}/);
+});
+
+test('every rule is collected from the user, for every firm', () => {
+  // With presets gone this is no longer a special case for the unlisted firm — the page
+  // asks for all of them from everyone, which is what "remove the presets" means. The
+  // reason the list matters is unchanged: a missing percentage is numOrNull'd by
+  // validateProvision and then COALESCEd by mt5_accounts to 5/10/8, so an unasked
+  // drawdown becomes GoatFundedTrader's silently.
+  const src = readCode('AccountStep.jsx');
+  for (const field of ['daily_dd_pct', 'max_dd_pct', 'start_balance', 'min_trading_days']) {
+    assert.ok(src.includes(field), `the page does not collect ${field}`);
   }
+  assert.match(src, /payout_split_pct/);
+  assert.match(src, /profit_target_pct/);
 });
 
 test('no wizard step hardcodes a drawdown percentage', () => {

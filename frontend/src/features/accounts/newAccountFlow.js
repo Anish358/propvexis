@@ -290,10 +290,25 @@ export function prevStep(draft, stepId) {
 /** One-based position in this branch, and the branch's real length. `index: 0`
  *  for a step the branch does not have — the guard is about to redirect, and
  *  claiming a position would render a wrong number for a frame. */
+/* The two screens that are not questions, and so are not counted.
+ *
+ * `done` is a receipt — the account already exists by the time it renders, and counting
+ * it made a six-question flow announce itself as seven, which is a promise of one more
+ * thing to do than there is. `welcome` is an intro for the same reason: it asks nothing.
+ * Both stay in stepsFor — `done` in particular is where firstIncomplete comes to rest,
+ * so removing it from the branch would break the guard — they are simply not part of
+ * "step N of M". */
+const UNCOUNTED_STEPS = ['welcome', 'done'];
+
 export function progress(draft, stepId) {
-  const steps = stepsFor(draft);
+  const steps = stepsFor(draft).filter((s) => !UNCOUNTED_STEPS.includes(s));
+  const total = steps.length;
   const i = steps.indexOf(stepId);
-  return { index: i === -1 ? 0 : i + 1, total: steps.length };
+  if (i !== -1) return { index: i + 1, total };
+  // `done` sits after the count and reads as finished; `welcome` sits before it; a step
+  // this branch does not have at all reports 0 rather than a wrong number, because the
+  // guard is about to redirect and "step 3 of 5" would be a lie for a frame.
+  return { index: stepId === 'done' ? total : 0, total };
 }
 
 // What each identity choice invalidates. Kept as data so the cascade reads as one

@@ -150,24 +150,44 @@ test('stepsFor is total — no draft shape throws', () => {
 
 // ---- progress (decision B2) -------------------------------------------------
 
-test('progress counts within the resolved branch, one-based', () => {
-  assert.deepEqual(progress(liveUpToImport({ import_method: 'manual' }), 'platform'), { index: 3, total: 5 });
-  assert.deepEqual(progress(propUpToImport({ import_method: 'auto_sync' }), 'connect'), { index: 6, total: 7 });
+test('progress counts the QUESTIONS, one-based — not the receipt', () => {
+  // `done` and `welcome` are not counted: one is a receipt for an account that already
+  // exists and the other asks nothing, and counting them made a six-question flow
+  // announce itself as seven. Both stay in the branch — `done` is where firstIncomplete
+  // comes to rest — they are just not part of "step N of M".
+  assert.deepEqual(progress(liveUpToImport({ import_method: 'manual' }), 'platform'), { index: 3, total: 4 });
+  assert.deepEqual(progress(propUpToImport({ import_method: 'auto_sync' }), 'connect'), { index: 6, total: 6 });
+});
+
+test('the credential step is the LAST counted step, so nothing follows it in the count', () => {
+  // The complaint this fixes: "if there are only 6 steps why does it say 7". Connect is
+  // 6 of 6, and `done` reads as finished rather than as a seventh thing to do.
+  const d = propUpToImport({ import_method: 'auto_sync' });
+  const { index, total } = progress(d, 'connect');
+  assert.equal(index, total, 'connect must be the last counted step');
+  assert.deepEqual(progress(d, 'done'), { index: total, total }, 'done reads as complete');
+});
+
+test('welcome sits before the count rather than inflating it', () => {
+  const first = fresh({ firstRun: true, capital_kind: 'live', import_method: 'manual' });
+  assert.equal(stepsFor(first)[0], 'welcome', 'it is still in the branch');
+  assert.deepEqual(progress(first, 'welcome'), { index: 0, total: 4 });
+  assert.equal(progress(first, 'capital').index, 1, 'capital is still step 1 on first run');
 });
 
 test('progress grows honestly as the branch resolves', () => {
   const atCapital = fresh();
-  assert.equal(progress(atCapital, 'capital').total, 5);
+  assert.equal(progress(atCapital, 'capital').total, 4);
   const chosePropFirm = patchDraft(atCapital, { capital_kind: 'prop' });
-  assert.equal(progress(chosePropFirm, 'capital').total, 6);
+  assert.equal(progress(chosePropFirm, 'capital').total, 5);
   const choseAutoSync = patchDraft(propUpToImport(), { import_method: 'auto_sync' });
-  assert.equal(progress(choseAutoSync, 'capital').total, 7);
+  assert.equal(progress(choseAutoSync, 'capital').total, 6);
 });
 
 test('progress on a step this branch does not have reports index 0, not a wrong number', () => {
   // A live draft asked about `firm` means the guard is about to redirect. Claiming
   // "step 3 of 5" for a step that is not in the list would render a lie for a frame.
-  assert.deepEqual(progress(liveUpToImport({ import_method: 'manual' }), 'firm'), { index: 0, total: 5 });
+  assert.deepEqual(progress(liveUpToImport({ import_method: 'manual' }), 'firm'), { index: 0, total: 4 });
 });
 
 // ---- the guard (spec §8.1) --------------------------------------------------
