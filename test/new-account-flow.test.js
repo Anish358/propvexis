@@ -6,7 +6,7 @@ import {
   nextStep, prevStep, progress, patchDraft, commitStep, isCommitted,
   suggestedLabel, toProvisionPayload,
 } from '../frontend/src/features/accounts/newAccountFlow.js';
-import { validateProvision } from '../src/domain/accounts/provision.js';
+import { validateProvision, PHASES as SERVER_PHASES } from '../src/domain/accounts/provision.js';
 
 // The Add Account wizard is eleven ROUTES, and none of them can be rendered in
 // this repo: there is no jsdom and no React Testing Library, by decision. So the
@@ -254,7 +254,11 @@ test('a platform badged Soon is not a complete answer', () => {
 });
 
 test('the phase step rejects a phase the challenges table does not accept', () => {
-  assert.deepEqual(PHASES, ['p1', 'p2', 'funded']);
+  // Read from the server's own export, not restated: challenges.phase is the
+  // authority (migration 0016) and provision.js is where it is enforced. This was
+  // the one duplication in the branch pinned by a literal instead of a drift test,
+  // while this file already imported from that very module.
+  assert.deepEqual(PHASES, SERVER_PHASES);
   assert.equal(isStepComplete(propUpToImport({ phase: 'p3' }), 'phase'), false);
 });
 
@@ -733,4 +737,49 @@ test('a whitespace-only unlisted firm name is not a name', () => {
 test('a catalog firm needs no typed name to complete the firm step', () => {
   const gft = patchDraft(propUpToImport(), { firm_id: 'gft' });
   assert.notEqual(firstIncomplete({ ...gft, product_id: null }), 'firm');
+});
+
+// ---- has(): a blank text input is not a number (final review, minor promoted) --
+
+test('a whitespace-only percentage does not complete the product step', () => {
+  // Task 7 puts a TEXT INPUT in front of these on the custom-rules path, and an
+  // empty one arrives as '  ', which Number() reads as 0. A stored 0% max drawdown
+  // makes any loss at all a breach — the prop engine would score the account
+  // against a rule no firm published.
+  const blank = propUpToImport({ start_balance: 25000, daily_dd_pct: '  ', max_dd_pct: 10 });
+  assert.equal(isStepComplete(blank, 'product'), false);
+});
+
+test('has() accepts the strings a text input actually produces, and 0', () => {
+  // A typed '5' must pass or the custom path is unusable, and 0 is a legitimate
+  // answer for min_trading_days and for a percentage.
+  assert.equal(isStepComplete(propUpToImport({ start_balance: '25000', daily_dd_pct: '5', max_dd_pct: '10' }), 'product'), true);
+  assert.equal(isStepComplete(propUpToImport({ start_balance: 25000, daily_dd_pct: 0, max_dd_pct: 0 }), 'product'), true);
+});
+
+test('a non-numeric answer is not a number, whatever Number() coerces it to', () => {
+  for (const junk of [false, [], 'abc', {}]) {
+    const d = propUpToImport({ start_balance: 25000, daily_dd_pct: junk, max_dd_pct: 10 });
+    assert.equal(isStepComplete(d, 'product'), false, `${JSON.stringify(junk)} passed as a percentage`);
+  }
+});
+
+// ---- post-commit patchDraft identity (final review, minor promoted) ------------
+
+test('a post-commit no-op patch returns the SAME draft object', () => {
+  // The Task 6 shell holds this draft in component state. Returning a fresh copy
+  // for a patch that changes nothing is how an effect keyed on the draft drives a
+  // re-render loop — the same reason importReducer returns state for an unknown
+  // action.
+  const committed = patchDraft(propUpToImport({ import_method: 'file' }), { account: { id: 7, mt5_login: 1 } });
+  assert.equal(patchDraft(committed, { label: 'ignored' }), committed, 'a rejected post-commit patch must not copy');
+  assert.equal(patchDraft(committed, { uploadDone: false }), committed, 'uploadDone already false — nothing changed');
+});
+
+test('a post-commit uploadDone that DOES change still returns a new draft', () => {
+  const committed = patchDraft(propUpToImport({ import_method: 'file' }), { account: { id: 7, mt5_login: 1 } });
+  const flagged = patchDraft(committed, { uploadDone: true });
+  assert.notEqual(flagged, committed);
+  assert.equal(flagged.uploadDone, true);
+  assert.equal(committed.uploadDone, false, 'the original must not be mutated');
 });

@@ -155,7 +155,12 @@ export const isCommitted = (draft) => draft?.account != null;
 // A number is present if it is a real number — 0 included. `min_trading_days: 0`
 // means "no requirement" and a 0% drawdown is a legitimate answer, so a falsy
 // check here would be the same bug numOrNull avoids on the server.
-const has = (v) => v != null && v !== '' && Number.isFinite(Number(v));
+// Only a number or a numeric string counts. `Number()` reads '  ', false and []
+// as 0, and Task 7 puts a text input in front of the drawdowns on the custom-rules
+// path — a blank one arriving as '  ' would store a 0% max drawdown, under which
+// any loss at all is a breach.
+const has = (v) => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== ''))
+  && Number.isFinite(Number(v));
 
 // Completeness per step, keyed by step id. A step is complete when the data it
 // exists to collect is present — nothing about whether it was visited, except
@@ -294,7 +299,12 @@ const FIRM_CLEARED = { firm_id: null, firm_name: null, product_id: null, phase: 
 export function patchDraft(draft, patch = {}) {
   const d = draft || emptyDraft();
   if (isCommitted(d)) {
-    return 'uploadDone' in patch ? { ...d, uploadDone: patch.uploadDone === true } : { ...d };
+    // The SAME object for a no-op, not a copy: the wizard shell holds this draft in
+    // component state, and a fresh object for a patch that changed nothing is how an
+    // effect keyed on the draft drives a re-render loop.
+    if (!('uploadDone' in patch)) return d;
+    const uploadDone = patch.uploadDone === true;
+    return uploadDone === d.uploadDone ? d : { ...d, uploadDone };
   }
 
   const changed = (key) => key in patch && patch[key] !== d[key];
