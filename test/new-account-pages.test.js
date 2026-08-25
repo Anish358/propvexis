@@ -7,7 +7,8 @@ import {
 import {
   findFirm, findProduct, templateToFields, wizardProducts,
 } from '../frontend/src/features/prop/propFirms.js';
-import { readCode, readSrc, allSrcFiles } from './helpers/src-files.js';
+import { readCode, readSrc, allSrcFiles, appJsx } from './helpers/src-files.js';
+import { autoSyncGate, KNOWN_PLANS } from '../frontend/src/features/accounts/accountGating.js';
 
 // The eleven wizard pages cannot be rendered here — no jsdom, no React Testing
 // Library, by decision — so what is asserted is structure: the routes exist, the
@@ -420,4 +421,101 @@ test('the unlisted firm reaches a valid payload on typed rules alone', () => {
   assert.equal(payload.dd_type, 'trailing');
   assert.equal(payload.profit_target_pct, 9);
   assert.equal(payload.broker, null, 'a prop account carries no broker');
+});
+
+// ---- Task 9: the import step, and the only place gating happens -------------
+
+test('the import step gates through autoSyncGate, not its own plan arithmetic', () => {
+  const src = readCode('ImportStep.jsx');
+  assert.match(src, /autoSyncGate\(/);
+  assert.equal(/=== 'free'|!== 'free'|'premium'/.test(src), false,
+    'a second copy of the plan rule here is how the UI and the server disagree');
+});
+
+test('the import step shows the reason and the upgrade route, not a bare disabled card', () => {
+  // Spec §7.5. A greyed card with no sentence beside it reads as a bug in our app.
+  const src = readCode('ImportStep.jsx');
+  assert.match(src, /reason/);
+  assert.match(src, /\/billing/, 'the refusal must offer the route that lifts it');
+});
+
+test('only Auto Sync is gated — Manual and File upload never are', () => {
+  // Free users journal by hand and by CSV; that is the whole free tier. A gate that
+  // caught all three cards would make the flow uncompletable for them.
+  //
+  // Asserted against the step's own METHODS table rather than by regexing for
+  // `gate.allowed` near `'manual'`: the table is data, so this reads which methods
+  // are gated instead of guessing from how the branch happens to be written.
+  const src = readCode('ImportStep.jsx');
+  const table = /const METHODS = \[([\s\S]*?)\n\];/.exec(src);
+  assert.ok(table, 'ImportStep must declare its methods as a METHODS table');
+  const entries = table[1].split(/\},\s*\{/);
+  const gatedIds = [];
+  for (const e of entries) {
+    const id = /id:\s*'(\w+)'/.exec(e);
+    if (id && /gated:\s*true/.test(e)) gatedIds.push(id[1]);
+  }
+  assert.deepEqual(gatedIds, ['auto_sync'],
+    `these methods are gated: ${gatedIds.join(', ')} — only auto_sync may be`);
+});
+
+test('the import step offers only methods this platform supports', () => {
+  // `other` and MT4 offer file and manual only. Offering auto_sync there submits a
+  // payload platformSupports() refuses with a 400.
+  const src = readCode('ImportStep.jsx');
+  assert.match(src, /importMethods|findPlatformCard\(/);
+});
+
+test('the import step commits for the branches that end here, and only those', () => {
+  // Spec §6.2: `import` is the commit point for Manual and File upload; Auto Sync and
+  // the EA commit on `connect`. Committing for all four would create the account
+  // before the credential was collected — the half-configured row this whole commit
+  // strategy exists to avoid.
+  const src = readCode('ImportStep.jsx');
+  assert.match(src, /commit\(/);
+  assert.match(src, /commitStep\(/, 'the branch decision must come from the tested function');
+});
+
+test('no step calls provisionAccount directly — the shell owns the commit', () => {
+  // One call site means one place that records the account, reloads the list and
+  // stamps onboarding. Two means one of them forgets.
+  for (const f of stepFiles()) {
+    assert.equal(/provisionAccount\(/.test(readCode(f)), false,
+      `${f} provisions directly — use commit() from the flow context`);
+  }
+});
+
+test('the EA is not a fourth card', () => {
+  // Spec §2 decision 5 and §7.4: the EA is a sub-choice UNDER Auto Sync, decided on
+  // connect. A card here would put two doors on one route and make `connect`
+  // unreachable for the EA.
+  const src = readCode('ImportStep.jsx');
+  const table = /const METHODS = \[([\s\S]*?)\n\];/.exec(src);
+  assert.equal(/id:\s*'ea'/.test(table[1]), false, 'the EA must not be an import card');
+});
+
+test('GATING IS CURRENTLY OFF, so every method is offered on every plan', () => {
+  // Plan gating was lifted by owner decision 2026-08-25 (see THE POLICY PIN in
+  // plans.test.js). autoSyncGate therefore allows every plan, so the disabled-with-a-
+  // reason path this step exists for is unreachable today. The card, the reason and
+  // the Billing link are kept wired rather than deleted, because they are what §7.5
+  // needs the moment caps return — and the pin fails if caps come back without this.
+  for (const plan of KNOWN_PLANS) {
+    const g = autoSyncGate({ plan, accounts: Array.from({ length: 20 }, () => ({ kind: 'synced' })) });
+    assert.equal(g.allowed, true, `${plan}: Auto Sync should be offered while gating is off`);
+  }
+});
+
+test('no page uses an Alert variant that resolves to nothing', () => {
+  // Alert ships info/success/warning. `warning` works — this app has a --warning token
+  // (amber). `info` and `success` do not exist and are inert, deliberately: emerald as
+  // status would be a green reading as profit, and blue as status collides with brand
+  // blue, both forbidden by §4. Using either renders an unstyled box and no reviewer
+  // catches it by eye. See primitives/alert.jsx.
+  for (const f of appJsx()) {
+    const src = readCode(f);
+    const bad = [...src.matchAll(/<Alert\b[^>]*variant=(?:"|\{')(info|success)/g)];
+    assert.deepEqual(bad.map((m) => m[1]), [],
+      `${f} uses an Alert variant with no tokens behind it`);
+  }
 });

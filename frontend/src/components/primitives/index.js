@@ -48,6 +48,8 @@
    using this layer correctly, not waiting to.
    =========================================================================== */
 
+// NOTE: only the `default` and `error` variants render — see alert.jsx.
+export { Alert, AlertAction, AlertDescription, AlertTitle } from './alert.jsx';
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
 export { Badge } from './badge.jsx';
 export { Button, buttonVariants } from './button.jsx';
