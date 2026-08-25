@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  FLOW_VERSION, DRAFT_KEY, STEP_IDS, PHASES,
+  FLOW_VERSION, DRAFT_KEY, STEP_IDS, PHASES, isSpentDraft,
   emptyDraft, reviveDraft, stepsFor, isStepComplete, firstIncomplete, canVisit,
   nextStep, prevStep, progress, patchDraft, commitStep, isCommitted,
   suggestedLabel, toProvisionPayload,
@@ -842,4 +842,49 @@ test('a post-commit uploadDone that DOES change still returns a new draft', () =
   assert.notEqual(flagged, committed);
   assert.equal(flagged.uploadDone, true);
   assert.equal(committed.uploadDone, false, 'the original must not be mutated');
+});
+
+// ---- a committed draft is SPENT ---------------------------------------------
+
+test('a committed draft is spent, so a second account can be created at all', () => {
+  // THE BUG: the draft is mirrored to sessionStorage and never cleared, so after
+  // creating an account the next visit to /accounts/new revived the COMMITTED draft.
+  // firstIncomplete of a committed draft is 'done' — `done` is deliberately never
+  // complete so the guard has somewhere to rest — so the user was redirected onto the
+  // previous account's success page with no way back.
+  //
+  // And it is worse than a wrong page: the draft carries provision_key, and the server
+  // treats a repeat of that key as a REPLAY that returns the account it already made.
+  // So the spent draft has to be discarded for a second account to be creatable at all,
+  // not merely for the right page to render.
+  const committed = fresh({
+    capital_kind: 'live', label: 'First', platform: 'mt5', import_method: 'manual',
+    account: { id: 9, mt5_login: -9 },
+  });
+  assert.equal(firstIncomplete(committed), 'done', 'this is what stranded the user');
+  assert.equal(isSpentDraft(committed, 'capital'), true, 'entering the flow again starts fresh');
+  assert.equal(isSpentDraft(committed, undefined), true, 'and so does the bare /accounts/new index');
+});
+
+test('a committed draft is NOT spent on the steps that follow the commit', () => {
+  // A refresh on `upload` or `done` must resume: the account exists, and the file branch
+  // still has a statement to import into it. Discarding there would drop the user back
+  // to the first question with an account already created.
+  const committed = fresh({
+    capital_kind: 'prop', firm_id: 'gft', product_id: '2step', phase: 'p1',
+    label: 'GFT', platform: 'mt5', import_method: 'file',
+    account: { id: 9, mt5_login: 314943467 },
+  });
+  for (const step of ['connect', 'upload', 'done']) {
+    assert.equal(isSpentDraft(committed, step), false, `a refresh on ${step} must resume`);
+  }
+});
+
+test('an UNcommitted draft is never spent, wherever it is resumed', () => {
+  // Mid-flow refresh and mid-flow re-entry both resume. Nothing has been written, so
+  // there is no reason to throw away answers the user already gave.
+  const partial = fresh({ capital_kind: 'prop', firm_id: 'gft' });
+  for (const step of ['capital', 'firm', 'account', 'platform', 'import', undefined]) {
+    assert.equal(isSpentDraft(partial, step), false, `${step} must resume an unfinished draft`);
+  }
 });

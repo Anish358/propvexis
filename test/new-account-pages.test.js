@@ -1044,3 +1044,28 @@ test('branch 4 — Prop + Auto Sync asks for the login and never the password', 
   assert.equal('credential' in p, false, 'the payload must never carry a credential');
   assert.equal('password' in p, false);
 });
+
+test('the shell discards a spent draft rather than resuming it', () => {
+  // The pure predicate is only worth having if the shell asks it. This is the wiring:
+  // the step has to be derived BEFORE the draft is hydrated (whether a stored draft may
+  // be resumed depends on where it is being resumed), and the stored copy has to be
+  // dropped, not just ignored — otherwise it is revived again on the next mount.
+  const shell = readCode('NewAccountFlow.jsx');
+  assert.match(shell, /isSpentDraft\(stored, step\)/, 'the shell must ask the predicate');
+  assert.match(shell, /clearStoredDraft\(\)/, 'and drop the stored copy');
+  assert.match(shell, /emptyDraft\(/, 'and start from a fresh draft, which mints a new provision_key');
+  // Order matters: `step` must be assigned above the useState that reads it, or it is
+  // undefined at hydration and every committed draft looks spent — including a refresh
+  // on `done`.
+  assert.ok(shell.indexOf('const step =') < shell.indexOf('const [draft, setDraft]'),
+    'the step must be derived before the draft is hydrated');
+});
+
+test('finish drops the draft on the way out', () => {
+  // So a browser Back to /accounts/new/done finds nothing to revive rather than
+  // re-rendering the receipt for an account the user has moved on from.
+  const shell = readCode('NewAccountFlow.jsx');
+  const fn = shell.slice(shell.indexOf('const finish ='), shell.indexOf('const ctx ='));
+  assert.match(fn, /clearStoredDraft\(\)/);
+  assert.match(fn, /navigate\('\/'\)/);
+});

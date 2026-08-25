@@ -169,6 +169,39 @@ export function commitStep(draft) {
 
 export const isCommitted = (draft) => draft?.account != null;
 
+/**
+ * The steps that can legitimately follow a commit, so a refresh on one of them resumes.
+ * `connect` is here for the EA, which commits on `import` and is shown its setup card
+ * here; `upload` still has a statement to import into an account that already exists;
+ * `done` is the receipt.
+ */
+export const POST_COMMIT_STEPS = ['connect', 'upload', 'done'];
+
+/**
+ * Is this stored draft SPENT — committed, and being resumed somewhere that is not
+ * downstream of the commit?
+ *
+ * The draft is mirrored to sessionStorage, so without this a user who created an
+ * account and came back to /accounts/new in the same tab revived the COMMITTED draft.
+ * `firstIncomplete` of a committed draft is `done` (which is deliberately never
+ * complete, so the guard always has somewhere to rest), so they were redirected onto
+ * the PREVIOUS account's success page, with no way back because navigation is
+ * forward-only after a commit. They could not create a second account at all.
+ *
+ * AND IT IS NOT MERELY A ROUTING BUG. The draft carries `provision_key`, and the server
+ * treats a repeat of that key as an idempotent REPLAY that returns the account it
+ * already created. So a spent draft cannot be reused even in principle — discarding it
+ * is what mints the new key a second account needs.
+ *
+ * Scoped by step rather than cleared unconditionally, because a refresh on `upload` or
+ * `done` must resume: the account exists there, and on the file branch there is still a
+ * statement to import into it. Throwing the draft away then would drop the user back to
+ * the first question having already created something.
+ */
+export function isSpentDraft(draft, stepId) {
+  return isCommitted(draft) && !POST_COMMIT_STEPS.includes(stepId);
+}
+
 // A number is present if it is a real number — 0 included. `min_trading_days: 0`
 // means "no requirement" and a 0% drawdown is a legitimate answer, so a falsy
 // check here would be the same bug numOrNull avoids on the server.

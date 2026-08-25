@@ -8,8 +8,8 @@ import {
   Button, WizardBody, WizardBrand, WizardFooter, WizardHeader, WizardPage, WizardProgress,
 } from '@/components/primitives';
 import {
-  DRAFT_KEY, canVisit, firstIncomplete, nextStep, patchDraft, prevStep, progress,
-  reviveDraft, toProvisionPayload,
+  DRAFT_KEY, canVisit, emptyDraft, firstIncomplete, isSpentDraft, nextStep, patchDraft,
+  prevStep, progress, reviveDraft, toProvisionPayload,
 } from './newAccountFlow.js';
 
 /* The Add Account wizard's shell — eleven routed steps, one draft, one guard.
@@ -53,6 +53,14 @@ function readStoredDraft() {
   }
 }
 
+/* Dropped on the way out, so the next Add Account starts clean even before the
+ * spent-draft check below gets a chance to. Wrapped for the same reason as the read. */
+function clearStoredDraft() {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch { /* nothing to clear if storage is unavailable */ }
+}
+
 export default function NewAccountFlow({
   accounts = [],
   reloadAccounts,
@@ -82,10 +90,25 @@ export default function NewAccountFlow({
    * — no error, no announcement, and nothing in a test to see it. */
   const bodyRef = useRef(null);
 
-  const [draft, setDraft] = useState(() => reviveDraft(readStoredDraft(), {
-    provisionKey: keyRef.current,
-    firstRun,
-  }));
+  /* The step comes from the URL, not from state. That is the point of real routes over
+   * one stateful page: the browser's Back button, a refresh and a pasted link all mean
+   * the same thing. Derived BEFORE the draft, because whether a stored draft may be
+   * resumed depends on where it is being resumed. */
+  const step = location.pathname.split('/').filter(Boolean).pop();
+
+  const [draft, setDraft] = useState(() => {
+    const stored = reviveDraft(readStoredDraft(), {
+      provisionKey: keyRef.current,
+      firstRun,
+    });
+    // A COMMITTED draft is spent everywhere but downstream of the commit. Without this,
+    // creating one account and then coming back to /accounts/new in the same tab revived
+    // it and redirected onto the previous account's success page — and its provision_key
+    // would have replayed that account rather than making a new one. See isSpentDraft.
+    if (!isSpentDraft(stored, step)) return stored;
+    clearStoredDraft();
+    return emptyDraft({ provisionKey: keyRef.current, firstRun });
+  });
   const [committing, setCommitting] = useState(false);
 
   useEffect(() => {
@@ -93,11 +116,6 @@ export default function NewAccountFlow({
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch { /* private window with site data blocked — the flow still works */ }
   }, [draft]);
-
-  /* The step comes from the URL, not from state. That is the point of real routes
-   * over one stateful page: the browser's Back button, a refresh and a pasted link
-   * all mean the same thing. */
-  const step = location.pathname.split('/').filter(Boolean).pop();
 
   // On the step, not on mount: the whole point is announcing the CHANGE.
   useEffect(() => {
@@ -159,6 +177,10 @@ export default function NewAccountFlow({
    * created." */
   const finish = useCallback(() => {
     if (draft.account?.mt5_login != null) setAccountId?.(String(draft.account.mt5_login));
+    // The draft is spent the moment we leave — dropping it here means a browser Back to
+    // /accounts/new/done finds nothing to revive rather than re-rendering the receipt for
+    // an account the user has already moved on from.
+    clearStoredDraft();
     navigate('/');
   }, [draft, setAccountId, navigate]);
 
