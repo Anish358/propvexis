@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { Modal } from '@/components/primitives';
-import { Link } from 'react-router-dom';
-import { createAccount, updateAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from '../../lib/api.js';
-import { useAuth } from '../../app/AuthContext.jsx';
+import { updateAccount, INGEST_URL, INGEST_ORIGIN, EA_DOWNLOAD_URL } from '../../lib/api.js';
 import { PROP_FIRMS, findFirm, findProduct, templateToFields, sizeLabel } from '../prop/propFirms.js';
-import { eaAllowed } from './accountGating.js';
 
 // ---------------------------------------------------------------------------
 // The account FORMS — the shared field components plus the two dialogs that host
@@ -21,14 +18,18 @@ import { eaAllowed } from './accountGating.js';
 //
 // So the modal became two, each answering one question:
 //
-//   AccountFormModal   add an account, or edit one's rules
+//   AccountEditModal   correct an existing account's label and rules
 //   EaSetupModal       how do I get trades flowing into this account
+//
+// NEITHER OF THEM ADDS ANY MORE. Creating an account is the Add Account wizard at
+// /accounts/new, and it is the only way (spec §2 decision 7).
 //
 // WHAT DID NOT CHANGE, AND DELIBERATELY: the fields. `TemplatePicker`, `PropFields`,
 // `SetupCard`, `toPayload` and `formFrom` are the same components and the same
-// arithmetic they always were, because the onboarding wizard renders them too
-// (Onboarding.jsx) and a second copy of a drawdown field is how a rule ends up
-// meaning one thing on first run and another afterwards.
+// arithmetic they always were. The reason has moved rather than gone: they used to be
+// shared with Onboarding.jsx's duplicate form, and that file is deleted — but a second
+// copy of a drawdown field is still how a rule ends up meaning one thing in the wizard
+// and another in this dialog.
 // ---------------------------------------------------------------------------
 
 // Prop-firm template picker: choose firm → size → phase, then Apply to pre-fill
@@ -89,12 +90,15 @@ export function TemplatePicker({ onApply }) {
 // node:test, and the wizard's `import` step needs the cap NUMBER as well as this
 // predicate.
 //
-// IMPORT **AND** RE-EXPORT, not `export … from`. This file calls eaAllowed itself
-// (AccountFormModal below), and `export { x } from './y'` adds an indirect export
-// entry for external importers WITHOUT creating a local binding — so the bare call
-// site throws ReferenceError at render. Nothing catches that here: no bundler
-// scope-checks it, and this repo cannot render JSX in a test.
-export { eaAllowed };
+// A PURE PASS-THROUGH NOW, and that is a change worth recording rather than a
+// simplification to make quietly. This file used to CALL eaAllowed — the add form's
+// kind radios were gated on it — which is why it imported the binding and re-exported
+// it separately: `export { x } from './y'` creates an export entry without a local
+// binding, so a bare call site throws ReferenceError at render, and nothing here
+// catches that (no bundler scope-checks it, and this repo cannot render JSX in a
+// test). That hazard is gone with the add branch; the re-export stays only because
+// SettingsPanels imports eaAllowed through this module.
+export { eaAllowed } from './accountGating.js';
 
 // EA setup card shown for an account. The downloaded EA is pre-filled with this
 // account's ingest endpoint + token (injected client-side), so the user just
@@ -263,38 +267,33 @@ export const applyTemplateToForm = (prev, fields) => ({
 });
 
 // ---------------------------------------------------------------------------
-// AccountFormModal — add an account, or edit an existing one's rules.
+// AccountEditModal — correct an existing account's label and its rules.
 //
-// ONE COMPONENT FOR BOTH, because the two forms are the same form minus one field.
-// Adding asks which KIND of account it is (a manual bucket or a live EA-synced one),
-// and that question has exactly one right moment: a synced account is provisioned
-// with an ingest token and a manual one is given a synthetic login, so `kind` is not
-// editable afterwards by design (see domain/accounts/accounts.js). Everything else —
-// the label, the firm template, the six rule fields — is identical, and writing it
-// twice is how an edit form ends up missing the field an add form gained.
+// IT NO LONGER ADDS. Creating an account is the Add Account wizard
+// (/accounts/new), and it is the ONLY way: firm, product, size and phase are four
+// decisions with dependencies between them, which is why the firm picked in this
+// dialog's template strip was not even being saved before migration 0026. Three
+// surfaces used to open this dialog in add mode — Settings > Accounts, Prop OS >
+// Challenges, and the onboarding wizard's own duplicate form — and all three now
+// navigate to the wizard.
 //
-// ADDING A SYNCED ACCOUNT CONTINUES INTO ITS EA SETUP RATHER THAN CLOSING. The
-// account exists at that point but no trades reach it until the EA is attached, so
-// closing on success would leave a row reading "Waiting for first trade" with no
-// indication of what the user is waiting for. A manual account needs nothing, so it
-// closes immediately. That is the behaviour the old modal had; it is written down
-// here because it is the one place the two kinds diverge after submit.
+// What stays: the template picker and the six rule fields, as a CORRECTION tool.
+// A firm changes its drawdown, or a wizard answer was wrong, and this is where it
+// is fixed. `kind` remains immutable after provisioning by design (see
+// domain/accounts/accounts.js), so there is nothing add-time left to ask.
+//
+// GONE WITH THE ADD BRANCH, so a reader does not go looking for them: the kind
+// radios and their Pro upsell (an add-time question), the eaAllowed gate that drove
+// them, and the created/SetupCard second step. The EA setup card has two homes now —
+// EaSetupModal below, reached from the accounts table, and the wizard's connect step
+// at creation time.
 // ---------------------------------------------------------------------------
 
-export function AccountFormModal({ mode = 'add', account = null, onClose, onSaved }) {
-  const { user } = useAuth();
-  const eaOk = eaAllowed(user?.plan);
-  const editing = mode === 'edit';
-
+export function AccountEditModal({ account = null, onClose, onSaved }) {
   const [label, setLabel] = useState(account?.label || '');
-  // Default to EA sync where the plan allows it — that is what a trader adding a prop
-  // account almost always wants; the manual bucket is the deliberate choice.
-  const [kind, setKind] = useState(eaOk ? 'synced' : 'manual');
   const [v, setV] = useState(formFrom(account));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
-  // Set once a synced account has been created — the dialog's second step.
-  const [created, setCreated] = useState(null);
   const set = (f, val) => setV((p) => ({ ...p, [f]: val }));
 
   async function submit(e) {
@@ -303,18 +302,9 @@ export function AccountFormModal({ mode = 'add', account = null, onClose, onSave
     setBusy(true);
     setErr(null);
     try {
-      if (editing) {
-        await updateAccount(account.id, { label: label.trim(), ...toPayload(v) });
-        onSaved?.();
-        onClose?.();
-      } else {
-        const acct = await createAccount({ label: label.trim(), kind, ...toPayload(v) });
-        onSaved?.();
-        // See the header: a synced account continues to its EA setup, a manual one is
-        // ready the moment it exists.
-        if (acct.kind === 'manual') onClose?.();
-        else setCreated(acct);
-      }
+      await updateAccount(account.id, { label: label.trim(), ...toPayload(v) });
+      onSaved?.();
+      onClose?.();
     } catch (e2) {
       setErr(e2.message);
     } finally {
@@ -322,61 +312,13 @@ export function AccountFormModal({ mode = 'add', account = null, onClose, onSave
     }
   }
 
-  const title = editing ? 'Edit Account' : 'Add Account';
-
-  if (created) {
-    return (
-      <Modal onClose={onClose} className="acct-form-modal" label="Finish EA setup">
-        <div className="modal-head">
-          <h3>Finish EA Setup</h3>
-          <button className="modal-x" onClick={onClose} aria-label="Close">&#10005;</button>
-        </div>
-        <div className="acct-form-body">
-          <div className="acct-created">
-            <div className="acct-created-head">
-              &ldquo;{created.label}&rdquo; created. Attach the EA to start syncing:
-            </div>
-          </div>
-          <SetupCard account={created} />
-        </div>
-        <div className="acct-form-foot">
-          <button type="button" className="primary" onClick={onClose}>Done</button>
-        </div>
-      </Modal>
-    );
-  }
-
   return (
-    <Modal onClose={onClose} className="acct-form-modal" label={title}>
+    <Modal onClose={onClose} className="acct-form-modal" label="Edit Account">
       <div className="modal-head">
-        <h3>{title}</h3>
+        <h3>Edit Account</h3>
         <button className="modal-x" onClick={onClose} aria-label="Close">&#10005;</button>
       </div>
       <form className="acct-form-body" onSubmit={submit}>
-        {/* Kind is an add-time decision only — see the header. */}
-        {!editing && (
-          <>
-            <div className="acct-kind">
-              <label className={`acct-kind-opt ${kind === 'manual' ? 'sel' : ''}`}>
-                <input type="radio" name="acct-kind" checked={kind === 'manual'} onChange={() => setKind('manual')} />
-                <span><b>Manual account</b><small>Group manual / CSV trades into their own per-account view. No live sync.</small></span>
-              </label>
-              <label className={`acct-kind-opt ${kind === 'synced' ? 'sel' : ''} ${eaOk ? '' : 'disabled'}`}>
-                <input type="radio" name="acct-kind" checked={kind === 'synced'} disabled={!eaOk} onChange={() => setKind('synced')} />
-                <span>
-                  <b>Live MT5 (EA sync){eaOk ? '' : ' — Pro'}</b>
-                  <small>Auto-import trades from MetaTrader via the EA. {eaOk ? '' : 'Requires the Pro plan.'}</small>
-                </span>
-              </label>
-            </div>
-            {!eaOk && (
-              <div className="acct-kind-upsell">
-                Want live sync? <Link to="/billing" onClick={onClose}>Upgrade to Pro &rarr;</Link>
-              </div>
-            )}
-          </>
-        )}
-
         <label className="acct-form-field">
           <span>Account name</span>
           <input
@@ -387,8 +329,8 @@ export function AccountFormModal({ mode = 'add', account = null, onClose, onSave
         </label>
 
         {/* Picking a firm and a size pre-fills the six rule fields below, all still
-            editable. On the edit form it is a correction tool: choose the template the
-            account should have been on and the fields catch up. */}
+            editable. Here it is a correction tool: choose the template the account
+            should have been on and the fields catch up. */}
         <TemplatePicker onApply={(fields, suggested) => {
           setV((p) => applyTemplateToForm(p, fields));
           if (!label.trim() && suggested) setLabel(suggested);
@@ -399,7 +341,7 @@ export function AccountFormModal({ mode = 'add', account = null, onClose, onSave
         <div className="acct-form-foot">
           <button type="button" className="secondary" onClick={onClose}>Cancel</button>
           <button type="submit" className="primary" disabled={busy || !label.trim()}>
-            {busy ? (editing ? 'Saving…' : 'Adding…') : (editing ? 'Save Changes' : 'Add Account')}
+            {busy ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </form>

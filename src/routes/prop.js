@@ -8,6 +8,7 @@ import { insertNotifications } from '../domain/alerts/notifications.js';
 import { challengeHistory, challengesForScope, lastTradeByLogin, dailyTotalsForLogins, advanceChallenge } from '../domain/prop/challenges.js';
 import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, passedChallenges, propCalendarEvents, propBrief } from '../domain/prop/propOverview.js';
 import { propStatesForScope } from '../domain/analytics/reports.js';
+import { PHASES } from '../domain/accounts/provision.js';
 
 /**
  * The prop engine's read surface — rule state, challenge finance, the Overview
@@ -156,8 +157,11 @@ export default function propRoutes(app, ctx) {
     const b = req.body ?? {};
     const login = Number(b.account_id);
     if (Number.isNaN(login)) return reply.code(400).send({ error: 'account_id required' });
-    if (!['p1', 'p2', 'funded'].includes(b.to_phase)) {
-      return reply.code(400).send({ error: 'to_phase must be p1, p2, or funded' });
+    // PHASES, not a literal: this whitelist and validateProvision's are the same fact,
+    // and a 3-Step account that could be CREATED in p3 but not advanced INTO p3 is what
+    // two copies of it produce.
+    if (!PHASES.includes(b.to_phase)) {
+      return reply.code(400).send({ error: `to_phase must be one of ${PHASES.join(', ')}` });
     }
     const mark = b.mark === 'breached' ? 'breached' : 'passed';
     const ch = await advanceChallenge(req.user.uid, login, {

@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { MoreVertical, Plus } from 'lucide-react';
 import {
   Badge, Button, Card, CountBadge, EmptyState, Menu, MenuContent, MenuItem,
   MenuSeparator, MenuTrigger, Tabs,
 } from '@/components/primitives';
-import { AccountFormModal, EaSetupModal } from '../accounts/AccountForms.jsx';
+import { AccountEditModal, EaSetupModal } from '../accounts/AccountForms.jsx';
 import SyncModal from '../accounts/SyncModal.jsx';
 import { deleteAccount, updateAccount } from '../../lib/api.js';
 import { fmtMoney } from '../../lib/metrics.js';
@@ -215,10 +215,13 @@ function AccountsTable({ rows, onEdit, onSetup, onSync, onArchive, onDelete }) {
 export default function SettingsAccounts() {
   const { accounts = [], reloadAccounts } = useOutletContext();
   const [tab, setTab] = useState('active');
-  // `form` is { mode, account } or null; `setup` is an account or null. Two pieces of
-  // state rather than one "which dialog" enum, because they open from different rows
-  // for different reasons and neither is a mode of the other.
-  const [form, setForm] = useState(null);
+  // `editing` is the account being corrected, or null; `setup` is an account or null.
+  // Two pieces of state rather than one "which dialog" enum, because they open from
+  // different rows for different reasons and neither is a mode of the other.
+  //
+  // There is no `mode` any more: adding is the wizard at /accounts/new (spec §2
+  // decision 7), so this dialog has one job and the state is just the row.
+  const [editing, setEditing] = useState(null);
   const [setup, setSetup] = useState(null);
   const [syncFor, setSyncFor] = useState(null);
   const [err, setErr] = useState(null);
@@ -282,7 +285,11 @@ export default function SettingsAccounts() {
       <Card className="set-card">
         <div className="set-card-head">
           <Tabs className="set-tabs" tabs={tabs} value={tab} onChange={setTab} />
-          <Button variant="primary" size="sm" onClick={() => setForm({ mode: 'add', account: null })}>
+          {/* The wizard, not a dialog: firm, product, size and phase are four decisions
+              with dependencies between them, and /accounts/new is the one place that
+              collects them. `render={<Link/>}` is the pattern the top bar already
+              uses. */}
+          <Button variant="primary" size="sm" render={<Link to="/accounts/new/capital" />}>
             <Plus aria-hidden="true" />
             <span>Add Account</span>
           </Button>
@@ -299,7 +306,7 @@ export default function SettingsAccounts() {
                 ? 'Archiving an account takes it out of the account switcher and keeps every trade it ever had, so a finished challenge stops crowding your workspace without losing its history.'
                 : 'Every account you own is archived. Restore one from the Archived tab, or add a new one.'}
             actions={noAccountsAtAll && (
-              <Button variant="primary" onClick={() => setForm({ mode: 'add', account: null })}>
+              <Button variant="primary" render={<Link to="/accounts/new/capital" />}>
                 <Plus aria-hidden="true" />
                 <span>Add Account</span>
               </Button>
@@ -308,7 +315,7 @@ export default function SettingsAccounts() {
         ) : (
           <AccountsTable
             rows={rows}
-            onEdit={(a) => setForm({ mode: 'edit', account: a })}
+            onEdit={(a) => setEditing(a)}
             onSetup={(a) => setSetup(a)}
             onSync={(a) => setSyncFor(a)}
             onArchive={toggleArchive}
@@ -317,11 +324,10 @@ export default function SettingsAccounts() {
         )}
       </Card>
 
-      {form && (
-        <AccountFormModal
-          mode={form.mode}
-          account={form.account}
-          onClose={() => setForm(null)}
+      {editing && (
+        <AccountEditModal
+          account={editing}
+          onClose={() => setEditing(null)}
           onSaved={reloadAccounts}
         />
       )}

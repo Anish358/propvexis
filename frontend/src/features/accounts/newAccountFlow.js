@@ -28,16 +28,45 @@ import { findPlatformCard } from './platformCatalog.js';
 export const FLOW_VERSION = 1;
 export const DRAFT_KEY = `propvexis.newAccount.v${FLOW_VERSION}`;
 
-/** The eleven routes of spec §8.1, in route order. */
+/**
+ * The wizard's routes, in route order.
+ *
+ * OWNER RESTRUCTURE 2026-08-25, which supersedes spec §8.1's eleven pages. Two
+ * merges, on the owner's reading that the original split asked one question per
+ * page where the questions belonged together:
+ *   · `product`, `phase` and `name` became ONE `account` page — size, phase,
+ *     account type, name, then the rules, prefilled from the catalog where we have
+ *     them and editable either way.
+ *   · `connect`'s sub-choice ("do we run the terminal, or do you?") moved onto
+ *     `import`, so the EA is a fourth sync card rather than a hidden sub-option.
+ *     That reverses spec §2 decision 5 and §7.4 deliberately.
+ * Nine routes now, and a prop account is seven pages rather than nine.
+ */
 export const STEP_IDS = [
-  'welcome', 'capital', 'firm', 'product', 'phase',
-  'name', 'platform', 'import', 'connect', 'upload', 'done',
+  'welcome', 'capital', 'firm', 'account',
+  'platform', 'import', 'connect', 'upload', 'done',
 ];
 
-/** The three values challenges.phase accepts (migration 0016). Mirrors PHASES in
+/** The phase values challenges.phase accepts. Mirrors PHASES in
  *  src/domain/accounts/provision.js — the validator is what enforces it; this is
- *  what stops the UI offering a fourth. */
-export const PHASES = ['p1', 'p2', 'funded'];
+ *  what stops the UI offering a fifth.
+ *
+ *  'p3' WAS ADDED 2026-08-25 for the owner's 3-Step account type. There is no CHECK
+ *  constraint to widen — migration 0016 declares `phase TEXT NOT NULL DEFAULT 'p1'`
+ *  with the three values in a COMMENT only — so the enforcement really is these two
+ *  arrays plus the /api/prop advance whitelist. Everything that partitions phases had
+ *  to learn about it in the same change: EVAL_PHASES in src/domain/prop/propOverview.js
+ *  and in features/prop/propAccounts.js (a p3 challenge is an evaluation, and a phase
+ *  missing from that set is counted as neither eval nor funded), STAGE_ORDER in
+ *  features/prop/challengesData.js, the to_phase whitelist in src/routes/prop.js, and
+ *  the phase label in src/domain/alerts/alerts.js. */
+export const PHASES = ['p1', 'p2', 'p3', 'funded'];
+
+/* ACCOUNT_TYPES, phasesFor and ACCOUNT_SIZES live in features/prop/propFirms.js, not
+ * here: the account-type taxonomy is prop-domain knowledge, and Prop OS needs it too —
+ * `challengeStages` builds an account's stage list from it and PropCards decides which
+ * phase to advance INTO from it. A copy in the wizard's own module would be a second
+ * answer to "how many phases does a 3-Step have". */
 
 const AUTO_SYNC_METHODS = ['auto_sync', 'ea'];
 
@@ -131,8 +160,8 @@ export function stepsFor(draft) {
   const steps = [];
   if (d.firstRun === true) steps.push('welcome');
   steps.push('capital');
-  if (d.capital_kind === 'prop') steps.push('firm', 'product', 'phase');
-  steps.push('name', 'platform', 'import');
+  if (d.capital_kind === 'prop') steps.push('firm');
+  steps.push('account', 'platform', 'import');
   if (AUTO_SYNC_METHODS.includes(d.import_method)) steps.push('connect');
   else if (d.import_method === 'file') steps.push('upload');
   steps.push('done');
@@ -140,17 +169,54 @@ export function stepsFor(draft) {
 }
 
 /**
- * Which step writes the account (spec §6.2): the last one that collects data.
- * Auto Sync and the EA both collect on `connect`; Manual and File upload have
- * nothing left to ask after `import`.
+ * Which step writes the account (spec §6.2): the last one that COLLECTS data.
+ *
+ * Only Auto Sync commits at `connect`, because only Auto Sync has something left to
+ * ask there — a credential. The EA used to commit there too, when `connect` was
+ * where you chose it; since the 2026-08-25 restructure the EA is picked on `import`
+ * and has nothing further to answer, so it commits with Manual and File upload and
+ * `connect` shows it the setup card for an account that already exists.
  */
 export function commitStep(draft) {
   const method = draft?.import_method;
   if (!method) return null;
-  return AUTO_SYNC_METHODS.includes(method) ? 'connect' : 'import';
+  return method === 'auto_sync' ? 'connect' : 'import';
 }
 
 export const isCommitted = (draft) => draft?.account != null;
+
+/**
+ * The steps that can legitimately follow a commit, so a refresh on one of them resumes.
+ * `connect` is here for the EA, which commits on `import` and is shown its setup card
+ * here; `upload` still has a statement to import into an account that already exists;
+ * `done` is the receipt.
+ */
+export const POST_COMMIT_STEPS = ['connect', 'upload', 'done'];
+
+/**
+ * Is this stored draft SPENT — committed, and being resumed somewhere that is not
+ * downstream of the commit?
+ *
+ * The draft is mirrored to sessionStorage, so without this a user who created an
+ * account and came back to /accounts/new in the same tab revived the COMMITTED draft.
+ * `firstIncomplete` of a committed draft is `done` (which is deliberately never
+ * complete, so the guard always has somewhere to rest), so they were redirected onto
+ * the PREVIOUS account's success page, with no way back because navigation is
+ * forward-only after a commit. They could not create a second account at all.
+ *
+ * AND IT IS NOT MERELY A ROUTING BUG. The draft carries `provision_key`, and the server
+ * treats a repeat of that key as an idempotent REPLAY that returns the account it
+ * already created. So a spent draft cannot be reused even in principle — discarding it
+ * is what mints the new key a second account needs.
+ *
+ * Scoped by step rather than cleared unconditionally, because a refresh on `upload` or
+ * `done` must resume: the account exists there, and on the file branch there is still a
+ * statement to import into it. Throwing the draft away then would drop the user back to
+ * the first question having already created something.
+ */
+export function isSpentDraft(draft, stepId) {
+  return isCommitted(draft) && !POST_COMMIT_STEPS.includes(stepId);
+}
 
 // A number is present if it is a real number — 0 included. `min_trading_days: 0`
 // means "no requirement" and a 0% drawdown is a legitimate answer, so a falsy
@@ -173,16 +239,29 @@ const COMPLETE = {
   // collect an identity would pass without one (same shape as Ruling 8).
   firm: (d) => Boolean(d.firm_id)
     && (d.firm_id !== UNLISTED_FIRM_ID || String(d.firm_name ?? '').trim() !== ''),
-  // The balance and BOTH drawdowns, because of the custom-rules path: a missing
-  // percentage is numOrNull'd by validateProvision and then COALESCEd by
-  // mt5_accounts to 5/10/8, so an unlisted firm's account would silently be
-  // judged against GoatFundedTrader's rules.
-  product: (d) => Boolean(d.product_id) && has(d.start_balance) && has(d.daily_dd_pct) && has(d.max_dd_pct),
-  // Plus the one number the phase decides: a target for an evaluation, a split
-  // for a funded account.
-  phase: (d) => PHASES.includes(d.phase)
-    && (d.account_type === 'funded' ? has(d.payout_split_pct) : has(d.profit_target_pct)),
-  name: (d) => String(d.label ?? '').trim() !== '',
+  /* The merged page (owner restructure 2026-08-25) — everything the three separate
+   * `product`, `phase` and `name` steps each demanded, now demanded together. The
+   * three old rules are unchanged in substance, and each is still here for the reason
+   * it was written:
+   *
+   *  · The balance and BOTH drawdowns, because of the custom-rules path: a missing
+   *    percentage is numOrNull'd by validateProvision and then COALESCEd by
+   *    mt5_accounts to 5/10/8, so an unlisted firm's account would silently be judged
+   *    against GoatFundedTrader's rules.
+   *  · The phase, plus the ONE number the phase decides — a target for an evaluation,
+   *    a split for a funded account.
+   *  · A non-blank label.
+   *
+   * A LIVE account needs only the label. It has no firm, no product and no phase, and
+   * asking it for a drawdown would be asking for a rule nothing scores. */
+  account: (d) => {
+    if (String(d.label ?? '').trim() === '') return false;
+    if (d.capital_kind !== 'prop') return true;
+    if (!d.product_id) return false;
+    if (!has(d.start_balance) || !has(d.daily_dd_pct) || !has(d.max_dd_pct)) return false;
+    if (!PHASES.includes(d.phase)) return false;
+    return d.account_type === 'funded' ? has(d.payout_split_pct) : has(d.profit_target_pct);
+  },
   // Not merely "a platform was chosen": three of the five cards are badged `soon`
   // and the backend refuses exactly those (platforms.js `enabled: false`), so a
   // chosen-but-unavailable platform would pass this step and then 400 at the
@@ -260,10 +339,25 @@ export function prevStep(draft, stepId) {
 /** One-based position in this branch, and the branch's real length. `index: 0`
  *  for a step the branch does not have — the guard is about to redirect, and
  *  claiming a position would render a wrong number for a frame. */
+/* The two screens that are not questions, and so are not counted.
+ *
+ * `done` is a receipt — the account already exists by the time it renders, and counting
+ * it made a six-question flow announce itself as seven, which is a promise of one more
+ * thing to do than there is. `welcome` is an intro for the same reason: it asks nothing.
+ * Both stay in stepsFor — `done` in particular is where firstIncomplete comes to rest,
+ * so removing it from the branch would break the guard — they are simply not part of
+ * "step N of M". */
+const UNCOUNTED_STEPS = ['welcome', 'done'];
+
 export function progress(draft, stepId) {
-  const steps = stepsFor(draft);
+  const steps = stepsFor(draft).filter((s) => !UNCOUNTED_STEPS.includes(s));
+  const total = steps.length;
   const i = steps.indexOf(stepId);
-  return { index: i === -1 ? 0 : i + 1, total: steps.length };
+  if (i !== -1) return { index: i + 1, total };
+  // `done` sits after the count and reads as finished; `welcome` sits before it; a step
+  // this branch does not have at all reports 0 rather than a wrong number, because the
+  // guard is about to redirect and "step 3 of 5" would be a lie for a frame.
+  return { index: stepId === 'done' ? total : 0, total };
 }
 
 // What each identity choice invalidates. Kept as data so the cascade reads as one

@@ -5,7 +5,7 @@ import { readSrc } from './helpers/src-files.js';
 import { legacyCss } from './helpers/app-css.js';
 import { NAV, navRoutes, navTitle, isSingleAccountRoute } from '../frontend/src/app/nav.js';
 import {
-  ALL_FIRMS, CHALLENGE_TABS, STAGE_ORDER, STAGE_STATUS_LABEL,
+  ALL_FIRMS, CHALLENGE_TABS, DEFAULT_STAGES, STAGE_ORDER, STAGE_STATUS_LABEL,
   challengeCounts, challengeLifecycle, challengeRows, challengeStages, currentStageMetrics,
   firmKeyOf, firmOptions, groupByFirm, stageFigures,
 } from '../frontend/src/features/prop/challengesData.js';
@@ -247,20 +247,26 @@ test('history resets to null (not []) on an account change, because they differ'
 });
 
 test('Start New Challenge is an entry point to the EXISTING flow, not a fake purchase', () => {
-  // It opens the app's own add-account form. That form used to be one section of
-  // `AccountsModal`, which also listed every account; the list is Settings > Accounts
-  // now, so what this button opens is the add HALF of it — same fields, same template
-  // catalog, no list of existing accounts inside a "start new" dialog.
-  assert.match(page, /import \{ AccountFormModal \} from '[^']*AccountForms\.jsx'/);
+  // THE POINT OF THIS TEST STILL HOLDS; only the destination changed. It goes to the
+  // app's own Add Account wizard. It used to open AccountFormModal in add mode —
+  // creating an account is one route now (spec §2 decision 7), and a challenge IS an
+  // account, so this is the same entry point at a new address.
   assert.match(page, /<span>Start New Challenge<\/span>/);
-  assert.match(page, /onClick=\{\(\) => setAddOpen\(true\)\}/);
-  assert.match(page, /<AccountFormModal[\s\S]*?mode="add"[\s\S]*?onSaved=\{reloadAccounts\}/);
+  assert.match(page, /to="\/accounts\/new\/capital"/);
+  // code(), not page: the button's own comment EXPLAINS that it used to open
+  // AccountFormModal, and a raw scan reads that explanation as the thing it rules out.
+  // This file's header already says why the negative assertions read the code — the
+  // plan's version of this test regressed it.
+  assert.equal(/AccountFormModal|setAddOpen/.test(code(page)), false,
+    'the dialog and its state must go together — a button wired to nothing is worse');
   // No invented commerce anywhere in the module.
   for (const f of [page, card, details, lifecycle, kpis]) {
     assert.ok(!/checkout|payment|razorpay|price|amount/i.test(code(f)), 'no purchase flow in this module');
   }
-  // ...and the entry point opens the existing form rather than a new screen of its own.
-  assert.ok(!/Modal(?!s)/.test(code(page).replace(/AccountFormModal/g, '')), 'no second modal invented here');
+  // ...and the entry point goes to the existing flow rather than a new screen of its
+  // own. The `.replace(/AccountFormModal/g, '')` that used to exempt the dialog being
+  // rendered here is gone with the dialog.
+  assert.ok(!/Modal(?!s)/.test(code(page)), 'no second dialog invented here');
 });
 
 // ---------------------------------------------------------------------------
@@ -432,15 +438,32 @@ test('challengeCounts: the section subtitle counts what it shows', () => {
 });
 
 test('challengeStages: the lifecycle adapts to the firm, and never invents one', () => {
-  assert.deepEqual(challengeStages('ftmo'), STAGE_ORDER, 'a two-phase firm runs all three stages');
+  assert.deepEqual(challengeStages('ftmo'), DEFAULT_STAGES, 'a two-phase firm runs all three stages');
   // A firm the trader typed by hand has no catalog entry — "we don't know" is not
-  // "this firm has no Phase 2", so the full lifecycle is kept.
-  assert.deepEqual(challengeStages(null), STAGE_ORDER);
-  assert.deepEqual(challengeStages('not-a-firm'), STAGE_ORDER);
+  // "this firm has no Phase 2", so the default lifecycle is kept.
+  assert.deepEqual(challengeStages(null), DEFAULT_STAGES);
+  assert.deepEqual(challengeStages('not-a-firm'), DEFAULT_STAGES);
   // ...and the returned array is a copy, so a caller cannot mutate the constant.
   const s = challengeStages(null);
   s.pop();
-  assert.deepEqual(STAGE_ORDER, ['p1', 'p2', 'funded']);
+  assert.deepEqual(DEFAULT_STAGES, ['p1', 'p2', 'funded']);
+  // THE ORDER IS NOT THE DEFAULT. Since the 3-Step type arrived, STAGE_ORDER carries a
+  // p3 that no default lifecycle has — falling back to the order would draw a Phase 3
+  // on every account whose type cannot be resolved, which is every account created
+  // before the fixed taxonomy.
+  assert.deepEqual(STAGE_ORDER, ['p1', 'p2', 'p3', 'funded']);
+});
+
+test('challengeStages: the fixed account type decides, over the firm catalog', () => {
+  // The wizard's four types are not catalog products: a '3step' account against GFT
+  // carries a type whose catalog entry lists two evaluations. The type wins, or the rail
+  // shows three stages for a challenge with four.
+  assert.deepEqual(challengeStages('gft', '3step'), ['p1', 'p2', 'p3', 'funded']);
+  assert.deepEqual(challengeStages('gft', 'instant'), ['funded']);
+  assert.deepEqual(challengeStages(null, '1step'), ['p1', 'funded']);
+  // An id the table does not name still falls through to the catalog, which is what
+  // keeps older 'custom' rows rendering the way they always did.
+  assert.deepEqual(challengeStages('gft', 'custom'), DEFAULT_STAGES);
 });
 
 test('challengeStages: a resolved product overrides the firm-wide union', () => {
@@ -469,7 +492,10 @@ test('challengeStages: no product given falls back to the union across the firm\
   // this gap would need a firm whose products union to a strict SUBSET of
   // STAGE_ORDER, which the catalog does not currently contain (and is not
   // worth adding a fixture firm to create).
-  assert.deepEqual(challengeStages('gft'), STAGE_ORDER);
+  // DEFAULT_STAGES, not STAGE_ORDER: since the 3-Step type arrived, the ORDER carries a
+  // p3 that no catalog product has, and "we do not know this account's type" still means
+  // the two-evaluation lifecycle. GFT's products union to exactly that.
+  assert.deepEqual(challengeStages('gft'), DEFAULT_STAGES);
 });
 
 // ---- the lifecycle state machine -------------------------------------------

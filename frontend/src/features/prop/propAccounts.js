@@ -9,7 +9,10 @@
 // account size, broker). A second copy of "what counts as breached" living here
 // is exactly how the Dashboard and this page would start disagreeing.
 
-const EVAL_PHASES = new Set(['p1', 'p2']);
+// 'p3' for the 3-Step account type (2026-08-25). Mirrors EVAL_PHASES in
+// src/domain/prop/propOverview.js: a phase in neither this set nor 'funded' puts the
+// account in no Portfolio bucket at all, so it disappears from the page.
+const EVAL_PHASES = new Set(['p1', 'p2', 'p3']);
 
 // The two main tabs. LOCKED IA — Portfolio is the multi-account view, Details is
 // the single-account workspace. There is no third.
@@ -35,7 +38,7 @@ export const PORTFOLIO_TABS = [
 export const isLive = (s) => Boolean(s && s.challenge !== null && s.phase != null);
 export const isBreached = (s) => Boolean(s?.breach?.breached);
 
-export const PHASE_LABEL = { p1: 'Phase 1', p2: 'Phase 2', funded: 'Funded' };
+export const PHASE_LABEL = { p1: 'Phase 1', p2: 'Phase 2', p3: 'Phase 3', funded: 'Funded' };
 
 /**
  * Join one engine state to its account record. The engine knows the CHALLENGE
@@ -57,6 +60,10 @@ export function accountRow(state, account) {
     pnl: state.currentEquity != null && state.startBalance != null
       ? Math.round((state.currentEquity - state.startBalance) * 100) / 100
       : null,
+    // The account TYPE, carried through because the phase after this one depends on it:
+    // a 2-Step goes p2 -> funded where a 3-Step goes p2 -> p3. The engine state knows the
+    // current phase and nothing about how many there are.
+    productId: account?.product_id ?? null,
     isManual: account?.kind === 'manual',
     archived: account?.is_active === false,
   };

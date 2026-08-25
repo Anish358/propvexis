@@ -12,7 +12,6 @@ import Login from './features/auth/Login.jsx';
 import ForgotPassword from './features/auth/ForgotPassword.jsx';
 import ResetPassword from './features/auth/ResetPassword.jsx';
 import VerifyEmail from './features/auth/VerifyEmail.jsx';
-import Onboarding from './features/auth/Onboarding.jsx';
 import Dashboard from './features/dashboard/Dashboard.jsx';
 import TradeLog from './features/trades/TradeLog.jsx';
 import Analytics from './features/analytics/Analytics.jsx';
@@ -33,7 +32,55 @@ import SettingsAccounts from './features/settings/SettingsAccounts.jsx';
 import {
   SettingsAppearance, SettingsPlan, SettingsProfile, SettingsSession, SettingsTrades,
 } from './features/settings/SettingsPanels.jsx';
+import NewAccountFlow, { FlowIndex } from './features/accounts/NewAccountFlow.jsx';
+import WelcomeStep from './features/accounts/steps/WelcomeStep.jsx';
+import UploadStep from './features/accounts/steps/UploadStep.jsx';
+import DoneStep from './features/accounts/steps/DoneStep.jsx';
+import ConnectStep from './features/accounts/steps/ConnectStep.jsx';
+import ImportStep from './features/accounts/steps/ImportStep.jsx';
+import CapitalStep from './features/accounts/steps/CapitalStep.jsx';
+import FirmStep from './features/accounts/steps/FirmStep.jsx';
+import AccountStep from './features/accounts/steps/AccountStep.jsx';
+import PlatformStep from './features/accounts/steps/PlatformStep.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';
+
+// The Add Account wizard. A SIBLING of <Layout> on purpose (spec §8.1): eleven
+// full-bleed pages with no sidebar and no filter bar, so it cannot nest inside the
+// shell — and therefore has no outlet context, which is why accounts, reloadAccounts
+// and setAccountId are passed as props.
+//
+// Returns an ARRAY, not a fragment: both branches spread it into <Routes>, and an
+// array of keyed <Route> elements is the shape this file already relies on (see the
+// LEGACY_REDIRECTS map). Declared once so the first-run branch (Task 12) cannot
+// drift from the onboarded one.
+function wizardRoutes({ accounts, reloadAccounts, setAccountId, firstRun, onOnboarded }) {
+  return [
+    <Route
+      key="new-account"
+      path="/accounts/new"
+      element={
+        <NewAccountFlow
+          accounts={accounts}
+          reloadAccounts={reloadAccounts}
+          setAccountId={setAccountId}
+          firstRun={firstRun}
+          onOnboarded={onOnboarded}
+        />
+      }
+    >
+      <Route index element={<FlowIndex />} />
+      <Route path="welcome" element={<WelcomeStep />} />
+      <Route path="capital" element={<CapitalStep />} />
+      <Route path="firm" element={<FirmStep />} />
+      <Route path="account" element={<AccountStep />} />
+      <Route path="platform" element={<PlatformStep />} />
+      <Route path="import" element={<ImportStep />} />
+      <Route path="connect" element={<ConnectStep />} />
+      <Route path="upload" element={<UploadStep />} />
+      <Route path="done" element={<DoneStep />} />
+    </Route>,
+  ];
+}
 
 const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login (per-device nav state)
 const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
@@ -416,12 +463,31 @@ export default function App() {
         <Route path="/reset" element={<ResetPassword />} />
         <Route path="/verify" element={<VerifyEmail />} />
         {user && !user.onboarded_at ? (
-          // First-run users are routed to the setup wizard for every path until
-          // it's completed; completing it sets onboarded_at and re-renders here.
-          <Route path="*" element={<Onboarding onDone={setUser} />} />
+          // First run renders the SAME wizard routes as everyone else (spec §8.2): one
+          // route table, one component. It differs in exactly two ways — the `welcome`
+          // step exists, and the commit stamps onboarded_at. The old branch mounted a
+          // single <Route path="*"> over a self-contained Onboarding page, which
+          // swallowed every URL and would fight per-step routing; the catch-all now
+          // REDIRECTS into the wizard instead of standing in for it, so a first-run
+          // user still cannot escape setup by typing a URL.
+          [
+            ...wizardRoutes({
+              accounts, reloadAccounts, setAccountId, firstRun: true, onOnboarded: setUser,
+            }),
+            <Route
+              key="first-run-catchall"
+              path="*"
+              element={<Navigate to="/accounts/new/welcome" replace />}
+            />,
+          ]
         ) : user ? (
-          <Route
-            element={
+          [
+            ...wizardRoutes({
+              accounts, reloadAccounts, setAccountId, firstRun: false, onOnboarded: setUser,
+            }),
+            <Route
+              key="app-shell"
+              element={
               <Layout
                 trades={filteredTrades}
                 account={account}
@@ -524,7 +590,8 @@ export default function App() {
             {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
               <Route key={from} path={from.slice(1)} element={<Navigate to={to} replace />} />
             ))}
-          </Route>
+            </Route>,
+          ]
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />
         )}

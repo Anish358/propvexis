@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button, CountBadge, EmptyState, LoadingBlock, Tabs } from '@/components/primitives';
 import PageHeader from '../../app/PageHeader.jsx';
-import { AccountFormModal } from '../accounts/AccountForms.jsx';
 import { fetchPropHistory, fetchPropPortfolio } from '../../lib/api.js';
 import ChallengeCard from './ChallengeCard.jsx';
 import ChallengeDetails from './ChallengeDetails.jsx';
@@ -53,7 +52,7 @@ import {
 
 export default function PropChallenges() {
   const {
-    connected, toggleSidebar, accounts: allAccounts = [], accountId = 'all', setAccountId, reloadAccounts,
+    connected, toggleSidebar, accounts: allAccounts = [], accountId = 'all', setAccountId,
   } = useOutletContext();
   // The outlet context carries every account (the switcher needs live ones too),
   // so Prop OS filters for itself — a live account has no challenge to report on.
@@ -64,7 +63,6 @@ export default function PropChallenges() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [history, setHistory] = useState(null);
-  const [addOpen, setAddOpen] = useState(false);
 
   // Reloaded on an account switch as well as on mount, for the same reason the
   // Accounts page does it: the route is portfolio-wide by design (it ignores
@@ -173,7 +171,11 @@ export default function PropChallenges() {
         <EmptyState
           title="No challenges yet"
           description="A challenge appears here once one of your prop accounts carries challenge rules — a phase, a profit target and its drawdown limits."
-          actions={<Button variant="primary" size="sm" onClick={() => setAddOpen(true)}>Start New Challenge</Button>}
+          actions={(
+            <Button variant="primary" size="sm" render={<Link to="/accounts/new/capital" />}>
+              Start New Challenge
+            </Button>
+          )}
         />
       ) : shown.map(section)}
     </>
@@ -214,11 +216,15 @@ export default function PropChallenges() {
         right={(
           // THE ENTRY POINT ONLY. Buying a challenge from a firm happens on the firm's
           // own site, and PropVexis has no checkout, no marketplace and no purchase
-          // backend — so this opens the app's EXISTING account flow, where picking a
-          // firm and a size pre-fills that challenge's rules from the template catalog
+          // backend — so this goes to the app's EXISTING account flow, where picking a
+          // firm and a size resolves that challenge's rules from the template catalog
           // (propFirms.js). That is what starting to track a new challenge already
           // means here; a button that simulated a purchase would be inventing a product.
-          <Button variant="primary" size="sm" onClick={() => setAddOpen(true)}>
+          //
+          // It used to open AccountFormModal in add mode. Creating an account is one
+          // route now (spec §2 decision 7) and a challenge IS an account, so this is
+          // the same entry point at a new address.
+          <Button variant="primary" size="sm" render={<Link to="/accounts/new/capital" />}>
             <Plus aria-hidden="true" />
             <span>Start New Challenge</span>
           </Button>
@@ -232,13 +238,6 @@ export default function PropChallenges() {
           <LoadingBlock label="Loading your challenges" />
         ) : tab === 'challenges' ? challenges : details}
       </div>
-      {addOpen && (
-        <AccountFormModal
-          mode="add"
-          onClose={() => setAddOpen(false)}
-          onSaved={reloadAccounts}
-        />
-      )}
     </div>
   );
 }

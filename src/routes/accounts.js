@@ -93,10 +93,22 @@ export default function accountRoutes(app, ctx) {
     if (!Number.isInteger(login) || login <= 0) {
       return reply.code(400).send({ error: 'a positive login is required' });
     }
+    // Whether the SERVER-RUN Auto Sync route exists at all, answered from the same
+    // predicate provision gates on rather than a second copy of it. It rides on this
+    // endpoint because the connect step already calls it while the user types the
+    // LOGIN — before the password field is rendered — so the step can hide a branch it
+    // cannot complete instead of attempting the provision and reading the 503. That
+    // matters beyond tidiness: the 503 fires BEFORE validateCredential, so without
+    // this a broker password leaves the browser for a server guaranteed to refuse it.
+    // Not a per-user fact and not sensitive: it is server configuration, and the same
+    // boolean is already public on GET /api/accounts/:id/sync as `configured`.
+    const autoSyncConfigured = credentialsEnabled();
     const mine = await ownedAccountByLogin(req.user.uid, login);
-    if (mine) return reply.send({ available: false, mine: true, account_id: mine.id });
+    if (mine) {
+      return reply.send({ available: false, mine: true, account_id: mine.id, autoSyncConfigured });
+    }
     const { rows } = await query('SELECT 1 FROM mt5_accounts WHERE mt5_login = $1', [login]);
-    return reply.send({ available: rows.length === 0, mine: false });
+    return reply.send({ available: rows.length === 0, mine: false, autoSyncConfigured });
   });
 
   /**

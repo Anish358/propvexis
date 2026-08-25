@@ -7,8 +7,19 @@
 import { findPlatform, platformSupports, IMPORT_METHODS } from '../sync/platforms.js';
 import { accountLimit, manualAccountLimit, canUseEA } from '../billing/plans.js';
 
-/** The three values challenges.phase accepts (migration 0016). */
-export const PHASES = ['p1', 'p2', 'funded'];
+/**
+ * The values challenges.phase accepts.
+ *
+ * 'p3' ADDED 2026-08-25 for the 3-Step account type. There is no CHECK constraint to
+ * widen — migration 0016 declares `phase TEXT NOT NULL DEFAULT 'p1'` and lists the
+ * values in a COMMENT only — so this array and the /api/prop/advance whitelist ARE the
+ * enforcement. Everything that partitions phases learned about it in the same change:
+ * EVAL_PHASES in ../prop/propOverview.js (a phase in neither set is counted as neither
+ * an evaluation nor funded), the phase label in ../alerts/alerts.js, and on the
+ * frontend EVAL_PHASES in features/prop/propAccounts.js plus PHASES in
+ * features/accounts/newAccountFlow.js, which mirrors this one.
+ */
+export const PHASES = ['p1', 'p2', 'p3', 'funded'];
 
 const LABEL_MAX = 120;
 const KEY_MAX = 64;

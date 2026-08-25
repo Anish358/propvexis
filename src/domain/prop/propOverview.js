@@ -29,7 +29,10 @@ const dayOf = (ts) => (ts == null ? null : new Date(ts).toISOString().slice(0, 1
 const addDays = (ts, n) => new Date(new Date(ts).getTime() + n * DAY_MS);
 const num = (v) => (v == null || v === '' ? null : Number(v));
 
-const EVAL_PHASES = new Set(['p1', 'p2']);
+// 'p3' for the 3-Step account type (2026-08-25). A phase in NEITHER this set nor
+// 'funded' is counted as neither an evaluation nor a funded account, which is how a
+// missing value here turns into an account that vanishes from every breakdown.
+const EVAL_PHASES = new Set(['p1', 'p2', 'p3']);
 
 // A state carries an active challenge when propStatesForScope found one; the
 // `challenge: null` shape means the account has no rules to be judged against.
@@ -533,6 +536,12 @@ export function propBrief({
   // Passed an evaluation with no funded account running yet — the firm owes you a
   // login and it's easy to lose track of.
   const anyFunded = accounts.some((a) => isFunded(stateByLogin.get(Number(a.mt5_login))));
+  // KEYED ON p2, AND THAT IS AN OPEN LIMIT rather than an oversight. "Passed an
+  // evaluation, no funded account yet" means passed the LAST evaluation, and which phase
+  // that is depends on the account type: p1 for a 1-Step, p2 for a 2-Step, p3 for a
+  // 3-Step. This row set has no product_id to decide with, so the card fires for 2-Step
+  // accounts only — as it always has (a 1-Step passing p1 never triggered it either).
+  // Widening it needs product_id in the challenges query, which is its own change.
   const awaiting = challenges.filter((c) => c.status === 'passed' && c.phase === 'p2');
   for (const c of awaiting) {
     const login = Number(c.mt5_login);

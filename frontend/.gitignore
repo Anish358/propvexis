@@ -2,3 +2,16 @@ node_modules/
 dist/
 .env.local
 *.log
+
+# Local visual-check harness for the design pass: renders a page with the REAL
+# primitives via react-dom/server, inlines the built stylesheet and screenshots it
+# headlessly, so a layout claim is checked against compiled CSS rather than reasoned
+# about. Untracked because it is a workbench, not a build step.
+#   npx vite build --ssr .ssr-preview.jsx --outDir .ssr-out && node .mk-preview.mjs <outdir>
+.ssr-preview.jsx
+.ssr-out/
+.mk-preview.mjs
+.preview.html
+.preview.jsx
+.preview.vite.config.mjs
+.preview-out/

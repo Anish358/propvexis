@@ -108,10 +108,18 @@ test('a prop account needs a firm, a product and a phase', () => {
   }
 });
 
-test('phase is validated because its three values are a schema fact', () => {
-  assert.deepEqual(PHASES, ['p1', 'p2', 'funded']);
-  assert.equal(validateProvision({ ...propBody(), phase: 'p3' }).ok, false);
-  assert.equal(validateProvision({ ...propBody(), phase: 'funded' }).ok, true);
+test('phase is validated because its values are a schema fact', () => {
+  // 'p3' JOINED THE SET 2026-08-25 with the 3-Step account type. It is enforced HERE and
+  // in the /api/prop/advance whitelist and nowhere else: migration 0016 declares `phase
+  // TEXT NOT NULL DEFAULT 'p1'` and lists the values in a comment, so there is no CHECK
+  // constraint behind this array.
+  assert.deepEqual(PHASES, ['p1', 'p2', 'p3', 'funded']);
+  for (const phase of PHASES) {
+    assert.equal(validateProvision({ ...propBody(), phase }).ok, true, `${phase} must be accepted`);
+  }
+  // A fourth evaluation is not a phase, and neither is a typo.
+  assert.equal(validateProvision({ ...propBody(), phase: 'p4' }).ok, false);
+  assert.equal(validateProvision({ ...propBody(), phase: 'Funded' }).ok, false);
 });
 
 test('firm and product are NOT checked against the catalog, only for shape', () => {

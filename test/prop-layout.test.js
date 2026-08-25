@@ -323,7 +323,13 @@ test('phase advance is re-homed onto the account row it acts on', () => {
   assert.match(cards2, /advanceChallenge\(\{ account_id: row\.accountId, to_phase: next, mark: 'passed' \}\)/);
   // Offered only once the target is actually met.
   assert.match(cards2, /\{r\.targetReached && <AdvanceButton/);
-  assert.match(cards2, /const next = row\.phase === 'p1' \? 'p2' : 'funded';/);
+  // THE TARGET COMES FROM THE ACCOUNT TYPE. `p1 ? 'p2' : 'funded'` was right while
+  // 2-Step was the only type the wizard could produce; a 3-Step account passing Phase 2
+  // would have skipped Phase 3 and been marked funded. The old rule survives as the
+  // fallback for a row whose type is unknown.
+  assert.match(cards2, /const stages = phasesFor\(row\.productId\)/);
+  assert.match(cards2, /stages\[Math\.min\(stages\.indexOf\(row\.phase\) \+ 1, stages\.length - 1\)\]/);
+  assert.match(cards2, /row\.phase === 'p1' \? 'p2' : 'funded'/);
 });
 
 test('each accounts slice carries the columns that slice needs', () => {

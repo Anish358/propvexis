@@ -198,10 +198,14 @@ export async function checkLoginAvailable(login, platform) {
     const path = '/api/accounts/login-available';
     const q = new URLSearchParams({ login: String(login), platform: String(platform ?? '') });
     const res = await apiFetch(`${path}?${q}`);
-    if (!res.ok) return { available: null, mine: false };
+    // `autoSyncConfigured: null` on both unknown paths, spelled out rather than left
+    // absent: the connect step hides its server-run branch on `false`, so an ABSENT
+    // key and a genuine `false` must not read alike. Unknown means show the branch —
+    // the 503 is still behind it.
+    if (!res.ok) return { available: null, mine: false, autoSyncConfigured: null };
     return await res.json();
   } catch {
-    return { available: null, mine: false };
+    return { available: null, mine: false, autoSyncConfigured: null };
   }
 }
 

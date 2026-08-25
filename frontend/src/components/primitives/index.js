@@ -48,6 +48,8 @@
    using this layer correctly, not waiting to.
    =========================================================================== */
 
+// NOTE: only the `default` and `error` variants render — see alert.jsx.
+export { Alert, AlertAction, AlertDescription, AlertTitle } from './alert.jsx';
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
 export { Badge } from './badge.jsx';
 export { Button, buttonVariants } from './button.jsx';
@@ -59,6 +61,7 @@ export {
   DialogPopup, DialogPortal, DialogTitle, DialogTrigger,
 } from './dialog.jsx';
 export { EmptyState } from './empty-state.jsx';
+export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './field.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { LoadingBlock } from './loading-block.jsx';
@@ -74,6 +77,12 @@ export {
 // TradePreview drawer is the candidate). Exported because the barrel is the only door.
 export { OverlayContainerContext, useOverlayContainer } from './overlay-container.js';
 export { Popover, PopoverContent, PopoverTrigger } from './popover.jsx';
+// The @coss select, with its trigger matched to our Input and its popup rendered from
+// the Base UI parts so it takes §6's overlay radius and §7's elevation — see select.jsx.
+export { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './select.jsx';
+export {
+  Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue,
+} from './progress.jsx';
 export { Separator } from './separator.js';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
@@ -82,3 +91,12 @@ export { Textarea } from './textarea.js';
 export {
   ToggleGroup, ToggleGroupExclusive, ToggleGroupItem, ToggleGroupSeparator,
 } from './toggle-group.jsx';
+// The Add Account wizard's layout. App-specific like EmptyState and Tabs, and here
+// for the same reason: this directory is where application code imports from, and it
+// is the only place besides components/ui where a Tailwind utility compiles at all.
+export {
+  ChoiceCard, ChoiceGrid, ChoiceMark, ChoiceRow, WizardActions, WizardBody, WizardBrand,
+  WizardExit, WizardFields, WizardFooter, WizardForm, WizardGroup, WizardHeader,
+  WizardHeading, WizardNote, WizardPage, WizardPillars, WizardProgress, WizardRow,
+  WizardSearch, WizardSectionTitle,
+} from './wizard.jsx';
