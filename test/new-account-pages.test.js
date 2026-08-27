@@ -641,6 +641,21 @@ test('no question page explains itself under the title', () => {
   }
 });
 
+test('no step labels itself "Add Account" above the question', () => {
+  // Owner decision 2026-08-27: the eyebrow comes off every step. It answered "where am
+  // I" in a page with no sidebar and no breadcrumb — but it answered it seven times, once
+  // per step, with the same two words, above the only line on the page that changes.
+  //
+  // Asserted as a RULE across the step files, exactly like the description sweep above,
+  // so it cannot come back one page at a time. The PROP stays on WizardHeading: it is a
+  // primitive capability with its own outline test (an eyebrow is a <p>, never an <h2>),
+  // and what the owner decided is that no step of THIS flow passes it.
+  for (const f of stepFiles()) {
+    const src = readCode(f);
+    assert.equal(/eyebrow=/.test(src), false, `${f.split('/').pop()} still labels itself`);
+  }
+});
+
 test('every rule is collected from the user, for every firm', () => {
   // With presets gone this is no longer a special case for the unlisted firm — the page
   // asks for all of them from everyone, which is what "remove the presets" means. The
@@ -867,6 +882,34 @@ test('only the synced methods are gated — Manual and File upload never are', (
   for (const free of ['manual', 'file']) {
     assert.equal(gatedIds.includes(free), false, `${free} must never be gated`);
   }
+});
+
+test('an import method is a name and an icon — the blurbs are gone', () => {
+  // Owner decision 2026-08-27, the same pass that took the eyebrow off every step. The
+  // four blurbs each explained the PLUMBING behind a method (what installs, what is
+  // stored, what stays running); the answer the trader is giving is which of the four
+  // they want. The cards became the centred icon cards the capital step already uses.
+  //
+  // Read off the METHODS table rather than from the JSX, for the same reason the gating
+  // test is: the table is data, so this asserts what the cards ARE instead of guessing
+  // from how the map happens to be written.
+  const src = readCode('ImportStep.jsx');
+  const table = /const METHODS = \[([\s\S]*?)\n\];/.exec(src);
+  assert.ok(table, 'ImportStep must declare its methods as a METHODS table');
+  for (const e of table[1].split(/\},\s*\{/)) {
+    const id = /id:\s*'(\w+)'/.exec(e)?.[1] ?? '?';
+    assert.equal(/description:/.test(e), false, `${id} still carries a blurb`);
+    assert.match(e, /icon:\s*[A-Z]\w+/, `${id} has no icon, so its card would be a bare name`);
+  }
+  // Centred with the icon in its own tile — the capital step's layout, so the flow's two
+  // card steps read as one control rather than two.
+  assert.match(src, /align="center"/);
+
+  // THE GATE'S REASON IS THE EXCEPTION AND MUST SURVIVE. §7.5: a disabled card whose
+  // reason is invisible reads as a bug in our app, and with the blurbs gone
+  // `description` is the only place that sentence can go — passed only when blocked.
+  assert.match(src, /description=\{blocked \? gate\.reason : undefined\}/,
+    'the blocked card must still say why, and an unblocked one must say nothing');
 });
 
 test('the import step offers only methods this platform supports', () => {

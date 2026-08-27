@@ -81,11 +81,7 @@ export default function FirmStep() {
 
   return (
     <>
-      <WizardHeading
-        align="center"
-        eyebrow="Add Account"
-        title="Choose Prop Firm"
-      />
+      <WizardHeading align="center" title="Choose Prop Firm" />
 
       <WizardGroup>
         <WizardSearch

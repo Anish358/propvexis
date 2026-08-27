@@ -178,7 +178,7 @@ export default function AccountStep() {
   if (!isProp) {
     return (
       <>
-        <WizardHeading align="center" eyebrow="Add Account" title="Name the account" />
+        <WizardHeading align="center" title="Name the account" />
         <WizardForm onSubmit={onSubmit}>
           {nameField}
           <Button type="submit" variant="primary" disabled={!ready}>Continue</Button>
@@ -189,7 +189,7 @@ export default function AccountStep() {
 
   return (
     <>
-      <WizardHeading align="center" eyebrow="Add Account" title="Tell us about the account" />
+      <WizardHeading align="center" title="Tell us about the account" />
 
       <WizardForm onSubmit={onSubmit} stretch>
         {/* Row 1 — Account Type · Account Size.  Row 2 — Select Phase · Set Account Name */}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { FileUp, MonitorDown, PencilLine, RefreshCw } from 'lucide-react';
 import {
   Alert, AlertDescription, AlertTitle, Button, ChoiceCard, ChoiceGrid, WizardGroup,
   WizardHeading,
@@ -48,13 +49,26 @@ import { autoSyncGate } from '../accountGating.js';
  * Auto Sync still collects something afterwards — a credential — so only Auto Sync
  * commits on `connect`. `commitStep()` decides, so the branch comes from the tested
  * function rather than from a condition repeated here.
+ *
+ * A NAME AND AN ICON, NO BLURB (owner decision 2026-08-27), which is the same pass that
+ * took the eyebrow off every step. The four blurbs each explained the plumbing behind a
+ * method — what gets installed, what gets stored, what stays running — and the answer a
+ * trader is actually giving is which of the four they want. The cards are now the centred
+ * icon cards the capital step uses, so the two card steps of the flow read as one control.
+ *
+ * THE GATE'S REASON IS THE ONE EXCEPTION and it is not a blurb: `description` is passed
+ * ONLY when the card is blocked, because a disabled card whose reason is invisible is
+ * indistinguishable from a bug in our app. §7.5 needs that sentence the moment plan caps
+ * return, and ChoiceCard renders a disabled card at full contrast for exactly this.
  */
 const METHODS = [
   {
     id: 'auto_sync',
     gated: true,
+    // The feature's name, never "Live sync" — that collides with Live Capital, which is
+    // the answer to the FIRST question of this flow.
     title: 'Auto Sync',
-    description: 'We connect to your account and keep it in sync. Nothing to install, nothing left running.',
+    icon: RefreshCw,
   },
   {
     id: 'ea',
@@ -62,19 +76,21 @@ const METHODS = [
     // occupies a synced slot exactly as a hosted one does, so the same cap applies.
     gated: true,
     title: 'Run our EA on your PC',
-    description: 'Attach our Expert Advisor to your own MetaTrader 5. No password needed — it syncs while your terminal is open.',
+    // A screen, not a file: the EA is the one method whose work happens on the trader's
+    // own machine, and that is the whole difference between it and Auto Sync.
+    icon: MonitorDown,
   },
   {
     id: 'manual',
     gated: false,
     title: 'Enter trades by hand',
-    description: 'Log each trade yourself. You can add a CSV or connect a platform later.',
+    icon: PencilLine,
   },
   {
     id: 'file',
     gated: false,
     title: 'Import a statement',
-    description: 'Upload a CSV export from your platform. We detect the columns and skip duplicates.',
+    icon: FileUp,
   },
 ];
 
@@ -112,7 +128,7 @@ export default function ImportStep() {
 
   return (
     <>
-      <WizardHeading align="center" eyebrow="Add Account" title="How should we get your trades?" />
+      <WizardHeading align="center" title="How should we get your trades?" />
 
       <WizardGroup>
         {err ? (
@@ -126,19 +142,22 @@ export default function ImportStep() {
         ) : null}
 
         <ChoiceGrid>
-          {offered.map((m) => {
-            const blocked = m.gated && !gate.allowed;
+          {offered.map(({ id, gated, title, icon: Icon }) => {
+            const blocked = gated && !gate.allowed;
             return (
               <ChoiceCard
-                key={m.id}
-                title={m.title}
-                // The reason REPLACES the description when blocked, rather than sitting
-                // under it: a card that says both what it does and why you cannot have
-                // it buries the actionable half.
-                description={blocked ? gate.reason : m.description}
-                selected={draft.import_method === m.id}
+                key={id}
+                align="center"
+                icon={<Icon aria-hidden="true" />}
+                title={title}
+                // THE ONLY PROSE LEFT ON THE CARD, and only while it is refused. There is
+                // no blurb for it to replace any more, so an unblocked card passes
+                // nothing — `undefined` rather than `null`, which ChoiceCard's own
+                // truthiness check treats the same but which reads as "not passed".
+                description={blocked ? gate.reason : undefined}
+                selected={draft.import_method === id}
                 disabled={blocked || committing}
-                onClick={() => choose(m.id)}
+                onClick={() => choose(id)}
               />
             );
           })}
