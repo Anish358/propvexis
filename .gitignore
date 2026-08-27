@@ -24,3 +24,10 @@ Foundational_files/
 # Python bytecode (the MT5 sync agent)
 __pycache__/
 *.pyc
+
+# The visual preview harness: a standalone IIFE build of ONE wizard step with the real
+# primitives and the real CSS, screenshotted headlessly (Brave --headless over file://,
+# because this sandbox has no localhost HTTP). Local only — it is a debugging tool, and
+# it caught the 1012px `.grid` row and, this pass, a className in a step file that
+# compiles to nothing.
+frontend/.preview*

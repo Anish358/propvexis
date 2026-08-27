@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import Logo from '../../components/Logo.jsx';
 import { BRAND } from '../../lib/theme.js';
-import { completeOnboarding, provisionAccount } from '../../lib/api.js';
+import { completeOnboarding, fetchChallengeGroups, provisionAccount } from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import {
   Button, WizardBody, WizardBrand, WizardExit, WizardFooter, WizardHeader, WizardPage,
@@ -117,6 +117,30 @@ export default function NewAccountFlow({
   });
   const [committing, setCommitting] = useState(false);
 
+  /* THE USER'S EXISTING CHALLENGES, for the account page's first question (migration
+   * 0027). `null` means NOT LOADED and `[]` means "you have none", and the page draws
+   * those differently — one is a spinner's worth of patience, the other is a reason the
+   * Existing option is not offered at all.
+   *
+   * FETCHED HERE, NOT IN THE STEP, because the body is remounted on every navigation
+   * (`key={step}`), so a fetch inside the page would re-run each time the user walked
+   * back to it. Gated on the prop branch: a live account has no phases, and asking for
+   * a list it can never use is a request per wizard for nothing.
+   *
+   * A FAILURE RESOLVES TO `[]` RATHER THAN THROWING. The consequence is that the
+   * Existing branch quietly disappears and the trader can still create the account as a
+   * new challenge — which is the right degradation for a request that is an aid to one
+   * question, not the flow's spine. */
+  const [challenges, setChallenges] = useState(null);
+  useEffect(() => {
+    if (draft.capital_kind !== 'prop') return undefined;
+    let live = true;
+    fetchChallengeGroups()
+      .then((d) => { if (live) setChallenges(d?.groups ?? []); })
+      .catch(() => { if (live) setChallenges([]); });
+    return () => { live = false; };
+  }, [draft.capital_kind]);
+
   useEffect(() => {
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -210,7 +234,7 @@ export default function NewAccountFlow({
 
   const ctx = {
     draft, patch, advance, back, canGoBack, step, index, total,
-    accounts, plan: user?.plan, firstRun, onOnboarded,
+    accounts, challenges, plan: user?.plan, firstRun, onOnboarded,
     commit, committing, finish,
   };
 

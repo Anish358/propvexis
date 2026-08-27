@@ -399,6 +399,17 @@ export async function fetchPropPortfolio() {
   return getJson('/api/prop/portfolio');
 }
 
+/* The multi-account CHALLENGES (migration 0027): one entry per challenge, each with the
+ * accounts that are its phases and what each phase did.
+ *
+ * Portfolio-wide and takes no account id, for the same reason the two above do not — a
+ * challenge SPANS accounts, so scoping it to the selected one would hide the phases
+ * either side of it. Carries no live figures: those are fetchPropPortfolio's, and both
+ * of its callers already hold them. */
+export async function fetchChallengeGroups() {
+  return getJson('/api/prop/challenges');
+}
+
 export async function fetchPropHistory(accountId) {
   return getJson(`/api/prop/history?account_id=${accountId}`);
 }

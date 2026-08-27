@@ -31,6 +31,12 @@ export const PRODUCT_IDS = ['1step', '2step', 'instant', 'custom'];
 export const SHORT_PRODUCT_LABEL = {
   '1step': '1-Step',
   '2step': '2-Step',
+  // '3step' was missed when the 3-Step type was added on 2026-08-25, and the symptom was
+  // silent: a missing key is falsy, so suggestedLabel simply left the type OUT — every
+  // 3-Step account was suggested "GoatFundedTrader 25K", the same name as its 1-Step and
+  // 2-Step siblings of that size. It matters more now that a challenge's phases all
+  // share firm/type/size and the name is what tells two accounts apart.
+  '3step': '3-Step',
   instant: 'Instant',
   custom: '',
 };

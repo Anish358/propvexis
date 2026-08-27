@@ -565,7 +565,7 @@ test('the account name has to be unique among the accounts the user has', () => 
   // neither the database nor validateProvision enforces label uniqueness, so a second tab
   // can still create a duplicate. Not asserted as the absence of a server check, because
   // adding one would be an improvement and a test that fails on an improvement is a trap.
-  assert.match(src, /const \{ draft, patch, advance, accounts \} = useFlow\(\)/);
+  assert.match(src, /const \{ draft, patch, advance, accounts(?:, \w+)* \} = useFlow\(\)/);
   assert.match(src, /\(accounts \|\| \[\]\)\.map/, 'read from the account list, defensively');
 });
 
@@ -615,8 +615,20 @@ test('the controls are dropdowns and a toggle, per the owner\'s spec', () => {
   // drawdowns below the fold, which is where a rule nobody reads gets typed wrong.
   const src = readCode('AccountStep.jsx');
   assert.equal((src.match(/<Select\b/g) || []).length, 3, 'type, size and phase are dropdowns');
-  assert.equal(/<ChoiceCard/.test(src), false, 'no card grids left on this page');
   assert.match(src, /<ToggleGroupExclusive/, 'drawdown type is a toggle');
+  /* THE RULE IS ABOUT THE ONE-OF-N FIELDS, and it is now stated that way. It used to be
+   * "no ChoiceCard anywhere on this page", which was the same thing while the page had
+   * nothing but fields. The existing-challenge list (0027) is a card grid on purpose —
+   * a challenge is identified by a name, a state line and the phase it is waiting for,
+   * which is three lines of content, not a one-of-N value a dropdown row could hold.
+   * What must not come back is a card grid for the TYPE or the PHASE. */
+  // Anchored on the PROP form's own opening tag (`stretch`), not on the first
+  // `<WizardForm` in the file — that one is the live path's single-field form, and a
+  // slice from there covers the whole page including the challenge list above it.
+  const fields = src.slice(src.indexOf('<WizardForm onSubmit={onSubmit} stretch>'));
+  assert.ok(fields.includes('<WizardSectionTitle>'), 'the slice must really reach the fields');
+  assert.equal(/<ChoiceCard/.test(fields), false, 'no card grid among the fields');
+  assert.equal(/<ChoiceGrid/.test(fields), false, 'and no choice grid either');
   // The closed trigger has to show the LABEL. Base UI renders the raw value unless the
   // Root is told the labels, so without these the field reads "2step" and "25000" after
   // being chosen — built from the same tables the options are.
@@ -704,7 +716,12 @@ test('the phase list is DERIVED from the account type', () => {
   }
 
   const src = readCode('AccountStep.jsx');
-  assert.match(src, /phasesFor\(productId\)/, 'the page must derive the list, not restate it');
+  // `effProductId` — the type the challenge dictates while joining one, else the type the
+  // trader picked. ONE value feeds the phase list, the validation and the submitted
+  // patch, so a locked field cannot be validated against one type and submitted with
+  // another.
+  assert.match(src, /phasesFor\(effProductId\)/, 'the page must derive the list, not restate it');
+  assert.match(src, /const effProductId = inherited\.product_id \?\? productId/);
   // Changing the type has to withdraw a phase that type does not have, or picking Instant
   // after Phase 2 leaves a phase selected that the dropdown no longer offers.
   assert.match(src, /setPhase\(\(p\) => \(phasesFor\(nextId\)\.includes\(p\) \? p : ''\)\)/);
@@ -1363,6 +1380,7 @@ test('branch 2 — Prop GFT 2-Step 25K Phase 1 + File carries the catalog rules'
   let d = walk([
     { capital_kind: 'prop' },
     { firm_id: 'gft' },
+    { challenge_mode: 'new' },
     {
       product_id: '2step', start_balance: 25000,
       daily_dd_pct: first.dailyDdPct, max_dd_pct: first.maxDdPct,
@@ -1389,6 +1407,7 @@ test('branch 3 — Prop unlisted firm keeps the TYPED rules, not GFT defaults', 
   const d = walk([
     { capital_kind: 'prop' },
     { firm_id: 'other' },
+    { challenge_mode: 'new' },
     { firm_name: 'FundedNext' },
     {
       product_id: 'custom', start_balance: 20000,
@@ -1413,6 +1432,9 @@ test('branch 4 — Prop + Auto Sync asks for the login and never the password', 
   let d = walk([
     { capital_kind: 'prop' },
     { firm_id: 'gft' },
+    // A challenge of its own — the account page's first question since 0027. The
+    // existing-challenge branch is walked in the same file, further down.
+    { challenge_mode: 'new' },
     {
       product_id: '2step', start_balance: 50000,
       daily_dd_pct: first.dailyDdPct, max_dd_pct: first.maxDdPct,

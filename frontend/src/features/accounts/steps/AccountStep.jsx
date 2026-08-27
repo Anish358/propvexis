@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import { FilePlus2, Layers } from 'lucide-react';
 import {
-  Button, Field, FieldError, FieldLabel, Input, Select, SelectItem, SelectPopup,
-  SelectTrigger, SelectValue, ToggleGroupExclusive, ToggleGroupItem, WizardActions,
-  WizardFields, WizardForm, WizardHeading, WizardSectionTitle,
+  Badge, Button, ChoiceCard, ChoiceGrid, ChoiceMark, ChoiceRow, Field, FieldError,
+  FieldLabel, Input, Select, SelectItem, SelectPopup, SelectTrigger, SelectValue,
+  ToggleGroupExclusive, ToggleGroupItem, WizardActions, WizardFields, WizardForm,
+  WizardGroup, WizardHeading, WizardNote, WizardSectionTitle,
 } from '@/components/primitives';
 import { useFlow } from '../NewAccountFlow.jsx';
 import { suggestedLabel } from '../newAccountFlow.js';
@@ -10,6 +12,7 @@ import {
   ACCOUNT_SIZES, ACCOUNT_TYPES, phasesFor, sizeLabel,
 } from '../../prop/propFirms.js';
 import { PHASE_LABEL } from '../../prop/propAccounts.js';
+import { challengePhases, joinableChallenges } from '../../prop/challengeGroups.js';
 
 /* ONE PAGE FOR THE WHOLE ACCOUNT — type, size, phase, name, then the rules.
  *
@@ -51,6 +54,37 @@ import { PHASE_LABEL } from '../../prop/propAccounts.js';
  *
  * A LIVE ACCOUNT SEES ONLY THE NAME. It has no firm, type or phase, and asking it for a
  * drawdown would be asking for a rule nothing scores.
+ *
+ * ── NEW CHALLENGE, OR THE NEXT PHASE OF ONE? (owner spec 2026-08-27) ────────────────
+ *
+ * This is now the page's FIRST question, and it is the reason migration 0027 exists. A
+ * prop firm does not move an account through its phases: passing Phase 1 gets the
+ * trader a BRAND NEW LOGIN for Phase 2. So adding that login has to be able to say
+ * "this is a phase of the challenge I am already running", and until now it could not —
+ * the Phase 2 account was recorded as an unrelated challenge that happened to start at
+ * Phase 2, and Prop OS drew two journeys where there was one.
+ *
+ * THE LIST IS THIS FIRM'S CHALLENGES ONLY, and page 2 has already asked which firm. A
+ * GoatFundedTrader Phase 2 login cannot be a phase of an FTMO challenge, and offering
+ * the choice would be offering an error. `joinableChallenges` does the filtering and
+ * the ordering: the challenges whose next phase is ready come FIRST, because that is
+ * why the trader opened the list.
+ *
+ * A CHALLENGE THAT CANNOT BE ADDED TO IS STILL SHOWN, disabled, with the reason on it —
+ * "Phase 1 is still running." Hiding it would leave the trader looking for a challenge
+ * they know they have; a greyed row with no sentence reads as a bug in our app. Same
+ * rule §7.5 sets for the gated Auto Sync card, applied to a list.
+ *
+ * WHAT THE CHALLENGE DICTATES, AND WHAT IT DOES NOT. Type, size and phase come from the
+ * challenge and are shown LOCKED: they are properties of the challenge rather than of
+ * this phase, and the server enforces the same thing (provisionAccount takes them from
+ * the group row, whatever the payload says). The RULES stay the trader's to enter — a
+ * firm's Phase 2 drawdowns and target are routinely not its Phase 1 ones, and
+ * inheriting them silently is how an account gets scored against the wrong numbers.
+ *
+ * A FIELD IS LOCKED ONLY WHERE THE CHALLENGE KNOWS THE ANSWER. A challenge created
+ * before the fixed taxonomy carries no product_id, and disabling an empty dropdown
+ * would leave the trader unable to finish the page at all.
  */
 
 /* The sentinel for "not one of the eight sizes". A value the <select> can hold, because
@@ -58,9 +92,24 @@ import { PHASE_LABEL } from '../../prop/propAccounts.js';
  * tell "typing 8000" from "nothing chosen yet". */
 const CUSTOM_SIZE = 'custom';
 
+/* The two answers to the page's first question. Data rather than two hand-written
+ * cards, for the same reason the capital step's KINDS is: the set is what a test reads,
+ * and the handler that patches is written once instead of twice. */
+const CHALLENGE_MODES = [
+  { id: 'new', icon: FilePlus2, title: 'New challenge' },
+  { id: 'existing', icon: Layers, title: 'Existing challenge' },
+];
+
 export default function AccountStep() {
-  const { draft, patch, advance, accounts } = useFlow();
+  const { draft, patch, advance, accounts, challenges } = useFlow();
   const isProp = draft.capital_kind === 'prop';
+
+  /* Local state, patched to the draft on submit — the whole page works that way, and
+   * the capital step's header says why: patching per click would run the invalidation
+   * cascade on the way past an option the trader only paused on. Seeded from the draft
+   * so Back lands on the answers already stored. */
+  const [mode, setMode] = useState(() => draft.challenge_mode || '');
+  const [groupId, setGroupId] = useState(() => draft.challenge_group_id ?? null);
 
   const [productId, setProductId] = useState(() => draft.product_id || '');
   const [phase, setPhase] = useState(() => draft.phase || '');
@@ -85,7 +134,52 @@ export default function AccountStep() {
   );
   const size = sizeChoice === CUSTOM_SIZE ? customSize : sizeChoice;
 
-  const phases = phasesFor(productId);
+  /* THIS FIRM'S CHALLENGES, ordered by whether the trader can act on them. `null` from
+   * the shell means the request has not landed yet, and it is drawn as a skeleton rather
+   * than as an empty list: "you have no challenges" is a different fact from "we have
+   * not asked yet", and the second one talked out of the Existing branch entirely. */
+  const loading = challenges == null;
+  const options = useMemo(
+    () => (isProp && !loading
+      ? joinableChallenges(challenges, { firm_id: draft.firm_id, firm_name: draft.firm_name })
+      : []),
+    [isProp, loading, challenges, draft.firm_id, draft.firm_name],
+  );
+  const chosen = options.find((o) => o.id === groupId) || null;
+  const joining = mode === 'existing' && chosen != null;
+
+  /* WHAT THE CHALLENGE DECIDES. Read straight off the chosen challenge on every render
+   * rather than copied into state, so the locked fields cannot drift from the row they
+   * came from — and so switching challenge needs no reset code. `null` for a value the
+   * challenge does not carry, which is what leaves that field editable below. */
+  const inherited = joining
+    ? {
+      product_id: chosen.group.product_id ?? null,
+      start_balance: chosen.group.start_balance ?? null,
+      phase: chosen.addPhase,
+    }
+    : { product_id: null, start_balance: null, phase: null };
+
+  /* THE EFFECTIVE ANSWERS — what the challenge dictates, else what the trader chose.
+   *
+   * ONE PAIR OF VALUES FOR THE WHOLE PAGE, and that is the point: `ready`, the suggested
+   * name, the phase list and the submitted patch all read these, so a locked field
+   * cannot be validated against one value and submitted with another. Writing
+   * `joining ? ... : ...` at each of those four sites is how they come to disagree. */
+  const effProductId = inherited.product_id ?? productId;
+  const effPhase = inherited.phase ?? phase;
+  const effSize = inherited.start_balance != null ? String(inherited.start_balance) : size;
+
+  /* Locked where the challenge HAS the answer — not simply "locked when joining". A
+   * challenge created before the fixed taxonomy carries no product_id, and a disabled
+   * empty dropdown would leave the trader unable to finish the page at all. */
+  const locked = {
+    type: joining && inherited.product_id != null,
+    size: joining && inherited.start_balance != null,
+    phase: joining && inherited.phase != null,
+  };
+
+  const phases = phasesFor(effProductId);
 
   /* Suggested from what has been chosen, and it stops the moment the user types —
    * otherwise picking a different size would silently discard their own text. Not a
@@ -93,9 +187,15 @@ export default function AccountStep() {
   const suggestion = useMemo(() => (isProp
     ? suggestedLabel({
       capital_kind: 'prop', firm_id: draft.firm_id, firm_name: draft.firm_name,
-      product_id: productId, start_balance: size === '' ? null : Number(size),
+      product_id: effProductId, start_balance: effSize === '' ? null : Number(effSize),
+      // The phase is appended ONLY when joining, and it is what keeps the suggestion
+      // usable: every phase of one challenge shares its firm, type and size, so without
+      // it the Phase 2 account is offered the name the Phase 1 account already has —
+      // and the duplicate check below then blocks Continue on the wizard's own
+      // suggestion. suggestedLabel reads the group id to decide, so it is passed too.
+      challenge_group_id: joining ? chosen.id : null, phase: effPhase,
     })
-    : ''), [isProp, draft.firm_id, draft.firm_name, productId, size]);
+    : ''), [isProp, draft.firm_id, draft.firm_name, effProductId, effSize, joining, chosen, effPhase]);
   const shownLabel = labelTouched ? label : (suggestion || label);
 
   /* THE NAME HAS TO BE UNIQUE, per the owner's spec. Compared case-insensitively and
@@ -113,12 +213,20 @@ export default function AccountStep() {
     && takenNames.has(shownLabel.trim().toLowerCase());
 
   const setRule = (k, v) => setRules((p) => ({ ...p, [k]: v }));
-  const fundedPhase = phase === 'funded';
+  const fundedPhase = effPhase === 'funded';
   const num = (v) => (String(v).trim() === '' ? null : Number(v));
   const filled = (v) => String(v).trim() !== '' && Number.isFinite(Number(v));
 
+  /* The challenge choice gates the rest of the page, which mirrors isStepComplete's own
+   * rule: 'existing' without a challenge is not an answer — it says only that the list
+   * was opened, and an account submitted from that state would quietly start a challenge
+   * of its own rather than continuing the one on screen. */
+  const modeAnswered = mode === 'new' || (mode === 'existing' && chosen != null);
+
   const ready = shownLabel.trim() !== '' && !duplicateName && (!isProp || (
-    productId !== '' && phase !== '' && filled(size)
+    modeAnswered
+    && effProductId !== '' && effProductId != null && effPhase !== '' && effPhase != null
+    && filled(effSize)
     && filled(rules.daily_dd_pct) && filled(rules.max_dd_pct)
     && filled(fundedPhase ? rules.payout_split_pct : rules.profit_target_pct)
   ));
@@ -133,15 +241,31 @@ export default function AccountStep() {
     setPhase((p) => (phasesFor(nextId).includes(p) ? p : ''));
   }
 
+  /* Choosing a challenge does NOT clear the type the trader may already have picked —
+   * `productId` is left alone and simply overridden by `inherited` while joining, so
+   * changing back to New restores what they had. What the DRAFT carries is settled on
+   * submit, from the effective values. */
+  function chooseMode(next) {
+    setMode(next);
+    if (next !== 'existing') setGroupId(null);
+  }
+
   function onSubmit(e) {
     e.preventDefault();
     if (!ready) return;
     if (!isProp) { patch({ label: shownLabel.trim() }); advance(); return; }
     patch({
-      product_id: productId,
-      phase,
+      // The challenge FIRST in the object, because patchDraft's cascade reads
+      // `challenge_mode` and the merge that follows must carry the rest of this patch
+      // over anything it clears. (The cascade only clears when LEAVING 'existing', so
+      // this is order-independent today — pinned by the flow tests rather than relied on
+      // by eye.)
+      challenge_mode: mode,
+      challenge_group_id: mode === 'existing' ? chosen.id : null,
+      product_id: effProductId,
+      phase: effPhase,
       label: shownLabel.trim(),
-      start_balance: num(size),
+      start_balance: num(effSize),
       daily_dd_pct: num(rules.daily_dd_pct),
       max_dd_pct: num(rules.max_dd_pct),
       // Exactly one of the two, decided by the phase — the other is nulled rather than
@@ -187,16 +311,87 @@ export default function AccountStep() {
     );
   }
 
+  /* One challenge as a card: its name, where it has got to, and the phase this account
+   * would become. A card rather than a row, because the state line is the whole reason
+   * the trader can tell two challenges apart — and ChoiceRow is one truncated line. */
+  const challengeCard = (o) => (
+    <ChoiceCard
+      key={o.id}
+      title={o.name}
+      // The phase to add is the ANSWER, so it is the badge — the thing that says what
+      // clicking this does. The blocked reason takes its place when there is nothing to
+      // add, for the same reason the import step's gate reason replaces its badge: the
+      // actionable half of a disabled option is why it is disabled.
+      badge={o.addPhase ? <Badge tone="neutral">{`Add ${PHASE_LABEL[o.addPhase]}`}</Badge> : null}
+      description={o.blockedReason ?? phaseSummary(o)}
+      selected={groupId === o.id}
+      disabled={o.addPhase == null}
+      onClick={() => setGroupId(o.id)}
+    />
+  );
+
   return (
     <>
       <WizardHeading align="center" title="Tell us about the account" />
 
+      {/* THE PAGE'S FIRST QUESTION, above the form it decides the shape of. Rows rather
+          than the capital step's icon-tile cards: those are for a step that is nothing
+          BUT a question, and this one has nine fields under it — a pair of 8rem cards
+          here would push the drawdowns off the screen, which is the same mistake the
+          type and phase card grids made before they became dropdowns. */}
+      <WizardGroup>
+        <ChoiceGrid layout="rows">
+          {CHALLENGE_MODES.map(({ id, icon: Icon, title }) => (
+            <ChoiceRow
+              key={id}
+              mark={<ChoiceMark><Icon aria-hidden="true" /></ChoiceMark>}
+              title={title}
+              selected={mode === id}
+              onClick={() => chooseMode(id)}
+            />
+          ))}
+        </ChoiceGrid>
+
+        {mode === 'existing' ? (
+          <>
+            {/* Three states, drawn as three different things. The in-flight one says so
+                in words, because an empty list would read as "you have no challenges" and
+                talk the trader out of the branch they just chose.
+                A SKELETON WOULD NEED A SIZE, and a size cannot be written here: a
+                className in a step file compiles to nothing (tailwind.css scopes @source
+                to components/{ui,primitives}). Adding a self-sizing primitive for one
+                line of waiting is machinery for nothing, and DESIGN-LANGUAGE §16 leaves
+                skeleton fidelity undecided — so a note it is. */}
+            {loading ? <WizardNote>Loading your challenges…</WizardNote> : null}
+            {!loading && options.length === 0 ? (
+              <WizardNote>
+                No challenges yet at this firm — choose New challenge to start one.
+              </WizardNote>
+            ) : null}
+            {!loading && options.length > 0 ? (
+              <ChoiceGrid>{options.map(challengeCard)}</ChoiceGrid>
+            ) : null}
+          </>
+        ) : null}
+      </WizardGroup>
+
+      {/* The form appears once the question above it is answered. Not disabled-but-
+          visible: nine fields whose values are about to be dictated by a challenge the
+          trader has not picked yet are nine questions asked too early. */}
+      {modeAnswered ? (
       <WizardForm onSubmit={onSubmit} stretch>
         {/* Row 1 — Account Type · Account Size.  Row 2 — Select Phase · Set Account Name */}
         <WizardFields>
           <Field>
             <FieldLabel htmlFor="naf-type">Account Type</FieldLabel>
-            <Select value={productId} onValueChange={chooseType} items={TYPE_LABELS}>
+            {/* Locked to the challenge's own type while joining one — a Phase 2 login of a
+                2-Step challenge is not a 3-Step account, and the server takes this from the
+                challenge row regardless of what the payload says. Disabled rather than
+                hidden, so the trader can SEE what they are inheriting. */}
+            <Select
+              value={effProductId} onValueChange={chooseType} items={TYPE_LABELS}
+              disabled={locked.type}
+            >
               <SelectTrigger id="naf-type">
                 <SelectValue placeholder="Select account type" />
               </SelectTrigger>
@@ -210,7 +405,10 @@ export default function AccountStep() {
 
           <Field>
             <FieldLabel htmlFor="naf-size">Account Size</FieldLabel>
-            <Select value={sizeChoice} onValueChange={setSizeChoice} items={SIZE_LABELS}>
+            <Select
+              value={locked.size ? String(inherited.start_balance) : sizeChoice}
+              onValueChange={setSizeChoice} items={SIZE_LABELS} disabled={locked.size}
+            >
               <SelectTrigger id="naf-size">
                 <SelectValue placeholder="Select account size" />
               </SelectTrigger>
@@ -218,11 +416,20 @@ export default function AccountStep() {
                 {ACCOUNT_SIZES.map((n) => (
                   <SelectItem key={n} value={String(n)}>{sizeLabel(n)}</SelectItem>
                 ))}
+                {/* A challenge's size need not be one of the eight — it may have been
+                    typed into the custom field when the challenge was created. Without an
+                    item for it, Base UI's Select would hold a value its list does not
+                    contain and the locked trigger would render blank. */}
+                {locked.size && !ACCOUNT_SIZES.includes(Number(inherited.start_balance)) ? (
+                  <SelectItem value={String(inherited.start_balance)}>
+                    {sizeLabel(inherited.start_balance)}
+                  </SelectItem>
+                ) : null}
                 {/* The eight cover what firms usually sell; they also sell 8K and 1M. */}
                 <SelectItem value={CUSTOM_SIZE}>Other amount…</SelectItem>
               </SelectPopup>
             </Select>
-            {sizeChoice === CUSTOM_SIZE ? (
+            {!locked.size && sizeChoice === CUSTOM_SIZE ? (
               <Input
                 id="naf-size-custom" type="number" inputMode="decimal" min="0" step="1"
                 value={customSize} onChange={(e) => setCustomSize(e.target.value)}
@@ -235,12 +442,18 @@ export default function AccountStep() {
             <FieldLabel htmlFor="naf-phase">Select Phase</FieldLabel>
             {/* Disabled until the type is chosen, because the type is what decides the
                 options — an empty dropdown that opens onto nothing reads as broken. */}
-            <Select value={phase} onValueChange={setPhase} items={PHASE_LABEL} disabled={phases.length === 0}>
+            {/* Locked to the phase the challenge is WAITING for: Phase 1 passed means the
+                firm has issued a Phase 2 login and nothing else. Offering the dropdown
+                here would let a trader file that login as a second Phase 1. */}
+            <Select
+              value={effPhase} onValueChange={setPhase} items={PHASE_LABEL}
+              disabled={locked.phase || phases.length === 0}
+            >
               <SelectTrigger id="naf-phase">
                 <SelectValue placeholder={phases.length ? 'Select phase' : 'Choose a type first'} />
               </SelectTrigger>
               <SelectPopup>
-                {phases.map((id) => (
+                {(locked.phase && !phases.includes(effPhase) ? [effPhase] : phases).map((id) => (
                   <SelectItem key={id} value={id}>{PHASE_LABEL[id]}</SelectItem>
                 ))}
               </SelectPopup>
@@ -313,8 +526,23 @@ export default function AccountStep() {
           </Button>
         </WizardActions>
       </WizardForm>
+      ) : null}
     </>
   );
+}
+
+/* Where a challenge has got to, in one line: the phase, and what became of it.
+ *
+ * Built from the phases rather than from the group's own columns, because "Phase 1
+ * passed" is a fact about an ACCOUNT's challenge row and the group row does not carry
+ * it. Only the phases that have an account are named — an empty stage has no state to
+ * report, and printing "Phase 2 —" for it would invent one. */
+function phaseSummary(option) {
+  const done = option.phases.filter((p) => p.account);
+  if (!done.length) return 'No accounts yet.';
+  return done
+    .map((p) => `${p.label} ${p.status === 'passed' ? 'passed' : p.status === 'breached' ? 'breached' : 'running'}`)
+    .join(' · ');
 }
 
 /* value -> label, for the closed trigger. Base UI's Select.Value renders the raw value
