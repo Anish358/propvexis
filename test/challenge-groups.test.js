@@ -377,6 +377,33 @@ test('a ?challenge= deep link opens the account page with that challenge chosen'
   assert.match(shell, /phaseToAdd\(group\)\.phase != null/, 'a challenge with nothing to add seeds nothing');
 });
 
+test('every hook in the shell is declared after the callbacks it calls', () => {
+  /* THIS SHIPPED BROKEN FOR ONE COMMIT, and it is the exact failure this repo's testing
+   * decision cannot see. The seed effect was written next to the fetch it waits on —
+   * above `const patch = useCallback(...)` — and `patch` is a const, so on the FIRST
+   * render the effect hit the temporal dead zone: "Cannot access 'patch' before
+   * initialization", the whole wizard replaced by the error boundary. The reference is
+   * legal JavaScript, so the build is silent; there is no jsdom and no React Testing
+   * Library here, so nothing rendered it; and the tests read this file as TEXT, so
+   * `assert.match(shell, /patch\(\{/)` passed on a line that could never run.
+   *
+   * So the ORDER is what gets pinned. Checked for the three callbacks the effects use,
+   * as positions in the source, which is the one property text can actually verify. */
+  const shell = readCode('NewAccountFlow.jsx');
+  for (const fn of ['patch', 'commit', 'advance']) {
+    const declared = shell.indexOf(`const ${fn} = useCallback`);
+    assert.ok(declared > -1, `${fn} must be a useCallback in the shell`);
+    for (const m of shell.matchAll(new RegExp(`\\b${fn}\\(`, 'g'))) {
+      // Skip the declaration itself and any reference inside a JSX prop (those run on
+      // render, after every const in the body has been initialised).
+      if (m.index < declared) {
+        assert.fail(`${fn}() is called at ${m.index}, before it is declared at ${declared}`
+          + ' — a temporal-dead-zone ReferenceError on the first render');
+      }
+    }
+  }
+});
+
 test('the card links into that flow, and only where a phase can be added', () => {
   const card = readCode('ChallengeCard.jsx');
   assert.match(card, /to=\{`\/accounts\/new\/account\?challenge=\$\{row\.id\}`\}/);

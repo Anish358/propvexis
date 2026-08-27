@@ -159,7 +159,33 @@ export default function NewAccountFlow({
     return () => { live = false; };
   }, [draft.capital_kind, wantedGroup]);
 
-  /* ONE PATCH, and the order inside patchDraft is what makes that safe: the cascade
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch { /* private window with site data blocked — the flow still works */ }
+  }, [draft]);
+
+  // On the step, not on mount: the whole point is announcing the CHANGE.
+  useEffect(() => {
+    bodyRef.current?.focus();
+  }, [step]);
+  const { index, total } = progress(draft, step);
+  const canGoBack = prevStep(draft, step) !== null;
+
+  const patch = useCallback((p) => {
+    let next;
+    setDraft((d) => { next = patchDraft(d, p); return next; });
+    return next;
+  }, []);
+
+  /* DECLARED AFTER patch(), AND THAT IS LOAD-BEARING. `patch` is a `const` arrow from
+   * useCallback, so an effect written above it that closes over it hits the temporal dead
+   * zone on the FIRST render — "Cannot access 'patch' before initialization", the whole
+   * wizard replaced by the error boundary. It shipped that way for one commit because the
+   * flow's tests read this file as TEXT (no jsdom, no React Testing Library, by decision)
+   * and a build cannot see it either: the reference is legal, its timing is not.
+   *
+   * ONE PATCH, and the order inside patchDraft is what makes that safe: the cascade
    * clears the firm and the challenge when capital_kind changes, then merges this patch
    * over the result — so every field here survives. Two patches would not: the first
    * would clear what the second was about to rely on.
@@ -182,25 +208,6 @@ export default function NewAccountFlow({
     }
     setSeedTried(true);
   }, [wantedGroup, seedTried, challenges, draft, patch]);
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch { /* private window with site data blocked — the flow still works */ }
-  }, [draft]);
-
-  // On the step, not on mount: the whole point is announcing the CHANGE.
-  useEffect(() => {
-    bodyRef.current?.focus();
-  }, [step]);
-  const { index, total } = progress(draft, step);
-  const canGoBack = prevStep(draft, step) !== null;
-
-  const patch = useCallback((p) => {
-    let next;
-    setDraft((d) => { next = patchDraft(d, p); return next; });
-    return next;
-  }, []);
 
   /* `draftOverride` for the same reason commit() takes one: a step that patches and
    * leaves in ONE handler has not re-rendered yet, so `draft` here is still the answer
