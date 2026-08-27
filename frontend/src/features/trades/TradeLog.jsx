@@ -160,9 +160,14 @@ export default function TradeLog() {
           {canAddTrades && (
             <span className="add-trade-group">
               <button className="add-trade-btn" onClick={() => setImporting(true)}>⬆ Import CSV</button>
-              <button className="add-trade-btn" onClick={() => setAdding(true)}>
-                {currentIsManual ? '+ Add trade' : '+ Add strategy trade'}
-              </button>
+              {/* ONE NAME (owner decision 2026-08-27). The split said "strategy trade"
+                  when no manual account was selected, because an account-less trade lives
+                  only in the all-accounts view — but the modal serves both cases and its
+                  Account field is what decides which. Two names for one action, differing
+                  by a field the user has not reached yet, reads as two features. What the
+                  distinction actually needs is explaining, and the Explain beside this
+                  button already does that. */}
+              <button className="add-trade-btn" onClick={() => setAdding(true)}>+ Add trade</button>
               <Explain align="right">
                 <b>Manual & CSV trades</b> are journal entries you enter by hand or import — used to
                 log a setup or backtest a strategy in R without a live MT5 position behind it.

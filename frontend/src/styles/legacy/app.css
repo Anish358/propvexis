@@ -1100,7 +1100,7 @@ label.full { margin-bottom: 16px; }
 .sb-account-start .win { color: var(--profit); font-weight: 400; }
 .sb-account-start .loss { color: var(--loss); font-weight: 400; }
 
-/* Add strategy trade */
+/* Add trade (the modal was "Add strategy trade" until 2026-08-27) */
 .add-trade-btn {
   margin-left: auto; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent-on-surface);
   border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 400; cursor: pointer;
