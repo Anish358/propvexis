@@ -17,13 +17,13 @@
 // those three; nothing here decides a rule. Drawdown room, target progress and
 // trading days are computed server-side by src/domain/prop/prop.js and arrive whole,
 // exactly as they do for Prop OS › Accounts — which is also why this file imports
-// that module's joins (`accountRow`, `byRisk`, `isLive`) rather than repeating them.
+// that module's joins (`accountRow`, `byRisk`) rather than repeating them.
 // A second copy of "which of these accounts matters most" is how two pages start
 // disagreeing about the same portfolio.
 
 import { findFirm, findProduct, phasesFor, UNLISTED_FIRM_ID } from './propFirms.js';
 import {
-  PHASE_LABEL, accountRow, byRisk, isLive,
+  PHASE_LABEL, accountRow, byRisk,
 } from './propAccounts.js';
 
 const round2 = (n) => (n == null || Number.isNaN(n) ? null : Math.round(n * 100) / 100);
@@ -148,7 +148,13 @@ export const firmKeyOf = (account) => (account?.firm_id && account.firm_id !== U
 export function challengeRows({ states = [], accounts = [] } = {}) {
   const acctByLogin = new Map(accounts.map((a) => [String(a.mt5_login), a]));
   return states
-    .filter(isLive)
+    /* "HAS A CHALLENGE", not `isLive`, and the header above already says why: a challenge
+     * you broke is still one of your challenges. `isLive` became narrower when the phase
+     * status went automatic (it now means "still trading it"), so filtering on it here
+     * would drop every settled phase from the Details tab — the one place a trader goes to
+     * read what happened to it. A state with no challenge at all is still dropped: that is
+     * an account with no rules, and it is not a challenge. */
+    .filter((s) => Boolean(s && s.challenge !== null && s.phase != null))
     .map((s) => {
       const account = acctByLogin.get(String(s.account_id));
       return {

@@ -202,7 +202,11 @@ test('the drawdown/health thresholds are the shared ones, not a second set', () 
   // `isBreached` came off this import with challengeCounts, which was its only caller —
   // the breach predicate is still ONE implementation (propAccounts.js), it is just read by
   // the pages that ask the question now rather than by this module.
-  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk, isLive,\s*\} from '\.\/propAccounts\.js'/);
+  // `isLive` came off this import too. It is still ONE implementation (propAccounts.js) —
+  // it just narrowed to "still trading it" when the phase status went automatic, and this
+  // module wants "has a challenge": a challenge you broke is still one of your challenges,
+  // and the Details tab is where a trader reads what happened to it.
+  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk,\s*\} from '\.\/propAccounts\.js'/);
   assert.equal(typeof byRisk, 'function');
 });
 

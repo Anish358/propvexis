@@ -34,12 +34,30 @@ const num = (v) => (v == null || v === '' ? null : Number(v));
 // missing value here turns into an account that vanishes from every breakdown.
 const EVAL_PHASES = new Set(['p1', 'p2', 'p3']);
 
-// A state carries an active challenge when propStatesForScope found one; the
-// `challenge: null` shape means the account has no rules to be judged against.
-const isLive = (s) => s && s.challenge !== null && s.phase != null;
+/* A state carries a challenge when propStatesForScope found one; the `challenge: null`
+ * shape means the account has no rules to be judged against.
+ *
+ * `isLive` NOW MEANS "STILL TRADING IT", which is narrower than it was and had to become
+ * so. Since the status went automatic (challengeStatus.js), a settled phase keeps its
+ * challenge row — propStatesForScope reads the LATEST one so a breached account still has
+ * figures to draw — so "has a challenge" stopped meaning "is running it". Without the
+ * status check a passed Phase 1 would be counted as an evaluation still in progress: its
+ * capital would sit in capital-under-management and its account would show up as an
+ * account to watch, weeks after the firm closed it. */
+const isSettled = (s) => s?.status === 'passed' || s?.status === 'breached';
+/* "This account has rules to be judged against", settled or not — the test that decides
+ * whether an account belongs to the prop world at all. Separate from `isLive` because the
+ * two answer different questions, and conflating them is what made a breached account
+ * disappear: reporting a breach needs the first, counting the operating business needs
+ * the second. */
+const hasChallenge = (s) => Boolean(s && s.challenge !== null && s.phase != null);
+const isLive = (s) => hasChallenge(s) && !isSettled(s);
 const isFunded = (s) => isLive(s) && s.phase === 'funded';
 const isEval = (s) => isLive(s) && EVAL_PHASES.has(s.phase);
-const isBreached = (s) => Boolean(s?.breach?.breached);
+/* Breached is the ENGINE'S live verdict OR the settled row's, and it needs both: the
+ * engine sees a floor break the moment it happens, and the stored status is what survives
+ * once the row is closed and the engine stops judging it. */
+const isBreached = (s) => Boolean(s?.breach?.breached) || s?.status === 'breached';
 
 // ---------------------------------------------------------------------------
 // Business KPIs. Six figures, five shown by default (monthly fees is opt-in) —
@@ -462,7 +480,12 @@ export function propBrief({
   for (const a of accounts) {
     const login = Number(a.mt5_login);
     const s = stateByLogin.get(login);
-    if (!isLive(s)) continue;
+    // `hasChallenge`, not `isLive`: a breach is the single most important thing this
+    // brief can say, and a breached phase is SETTLED — testing isLive here would skip the
+    // account and the brief would go quiet about exactly the account that failed. The
+    // progress half below is still reached only by a phase that is running, because the
+    // breach branch returns.
+    if (!hasChallenge(s)) continue;
     const acct = nameOf(a);
 
     // --- left: risk and progress -------------------------------------------
@@ -470,7 +493,12 @@ export function propBrief({
       left.push({
         id: `breached:${login}`, kind: 'breach', severity: 'critical', accountId: login,
         title: `${acct} breached`,
-        detail: s.breach.reason === 'max_dd' ? 'Max drawdown hit — challenge failed.' : 'Daily drawdown hit — challenge failed.',
+        // `breach_reason` is on the settled CHALLENGE row and `breach.reason` is the
+        // engine's live read; a closed row has the first and not always the second, so
+        // both are consulted before falling back to the generic sentence.
+        detail: (s.breach?.reason ?? s.breachReason) === 'daily_dd'
+          ? 'Daily drawdown hit — challenge failed.'
+          : 'Max drawdown hit — challenge failed.',
       });
       continue; // a failed challenge has no meaningful progress left to report
     }

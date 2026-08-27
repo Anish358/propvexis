@@ -49,6 +49,45 @@ export async function activeChallengesByLogin(logins) {
   return new Map(rows.map((r) => [Number(r.mt5_login), shapeChallenge(r)]));
 }
 
+/**
+ * The challenge each account is standing on: its ACTIVE one, or — when there is none —
+ * the last one it had. Returns a Map keyed by mt5_login.
+ *
+ * WHY A FALLBACK EXISTS AT ALL, and it is not a convenience. Since the status became
+ * automatic (challengeStatus.js, 2026-08-27), passing or breaching a phase CLOSES its
+ * challenge row, so an account that breached has no active challenge — and every prop
+ * read path went through `activeChallengesByLogin`, which meant a breached account
+ * produced `{ challenge: null }`, dropped out of `isLive`, and VANISHED from the
+ * Portfolio's Breached tab, the Overview's breakdown and its own Details page. The
+ * account the trader most needs to look at was the one the app stopped drawing.
+ *
+ * THE READERS GET THIS; THE ALERT EVALUATOR DOES NOT. evaluateAccountAlerts deliberately
+ * keeps `activeChallengesByLogin`: it exists to judge a phase that is still running, and
+ * handing it a closed row would have it re-deriving a verdict for a challenge that has
+ * already been settled. resolveChallengeOutcome refuses a non-active row anyway, so this
+ * is defence in depth rather than the only guard — but the intent belongs in the query
+ * each side asks.
+ *
+ * `status` rides on the shaped row (it always has), so a caller can tell a running phase
+ * from a settled one — which is exactly what the buckets now do rather than assuming that
+ * "has a challenge" means "is trading it".
+ *
+ * ORDER BY IS THE WHOLE QUERY: active first (there is at most one, by the partial unique
+ * index), then the newest by start date. DISTINCT ON takes the first row per account.
+ */
+export async function currentChallengesByLogin(logins) {
+  if (!logins?.length) return new Map();
+  const { rows } = await query(
+    `SELECT DISTINCT ON (a.mt5_login) c.*, a.mt5_login, a.label, a.currency, a.firm_id, a.firm_name
+       FROM challenges c
+       JOIN mt5_accounts a ON a.id = c.mt5_account_id
+      WHERE a.mt5_login = ANY($1::bigint[])
+      ORDER BY a.mt5_login, (c.status = 'active') DESC, c.start_date DESC, c.id DESC`,
+    [logins],
+  );
+  return new Map(rows.map((r) => [Number(r.mt5_login), shapeChallenge(r)]));
+}
+
 // ALL challenges (every status: active/passed/breached) across a set of logins,
 // for scope-wide aggregation (pass/breach insights). Closed rows are retained as
 // history, so this is the full per-phase-attempt record. Newest first.
