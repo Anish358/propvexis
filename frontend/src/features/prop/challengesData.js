@@ -23,7 +23,7 @@
 
 import { findFirm, findProduct, phasesFor, UNLISTED_FIRM_ID } from './propFirms.js';
 import {
-  PHASE_LABEL, accountRow, byRisk, isBreached, isLive,
+  PHASE_LABEL, accountRow, byRisk, isLive,
 } from './propAccounts.js';
 
 const round2 = (n) => (n == null || Number.isNaN(n) ? null : Math.round(n * 100) / 100);
@@ -166,24 +166,15 @@ export function challengeRows({ states = [], accounts = [] } = {}) {
     .sort(byRisk);
 }
 
-/**
- * Group the rows by prop firm — the module's locked hierarchy (Prop Firm →
- * Challenges), which holds even when "All" is selected.
+/* groupByFirm LIVED HERE AND IS GONE (2026-08-27). It grouped ACCOUNT rows for the
+ * Challenges grid, and that grid is built from CHALLENGES now — one card per
+ * challenge_groups row, however many accounts are its phases. Its replacement is
+ * `groupChallengesByFirm` in challengeGroups.js, next to the rows it groups.
  *
- * Firms are ordered by how many challenges the trader is running at each, then by
- * name. The selector reads the same order, so the row of tabs and the sections
- * below it are never in two different orders.
- */
-export function groupByFirm(rows = []) {
-  const groups = new Map();
-  for (const r of rows) {
-    if (!groups.has(r.firmKey)) groups.set(r.firmKey, { key: r.firmKey, name: r.firmName, rows: [] });
-    groups.get(r.firmKey).rows.push(r);
-  }
-  return [...groups.values()].sort(
-    (a, b) => b.rows.length - a.rows.length || String(a.name).localeCompare(String(b.name)),
-  );
-}
+ * `challengeRows` above STAYS and is not the same function: the Details tab is a
+ * single-ACCOUNT workspace walking one login's attempt history, which is a different
+ * question from a challenge's phases. `firmOptions` below stays too — the firm groups it
+ * labels have the same shape whichever rows are in them. */
 
 /**
  * The prop-firm selector's options: All, then one per firm, each with the count of
@@ -198,11 +189,10 @@ export function firmOptions(groups = []) {
   ];
 }
 
-/** How many challenges a section is showing, and how many of them are broken. */
-export function challengeCounts(rows = []) {
-  const breached = rows.filter((r) => isBreached(r)).length;
-  return { total: rows.length, active: rows.length - breached, breached };
-}
+/* challengeCounts LIVED HERE AND IS GONE, with groupByFirm and for the same reason: it
+ * counted account rows and their breaches, where the section subtitle now counts
+ * CHALLENGES and how many are awaiting their next phase — which is the actionable number
+ * and is derived on the page, from the challenge rows it is describing. */
 
 /**
  * THE MODULE'S CENTRAL DERIVATION: the selected challenge's Phase 1 → Phase 2 →

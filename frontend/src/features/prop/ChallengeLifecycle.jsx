@@ -59,8 +59,26 @@ const markOf = (stage) => {
  * separately is how the two would end up disagreeing about what a passed phase looks
  * like. `compact` drops the status words (the card carries a status badge already)
  * and shrinks the stops; nothing else differs.
+ *
+ * THE STOPS ARE BUTTONS WHEN THERE IS SOMEWHERE TO GO (owner spec 2026-08-27), which is
+ * what makes a multi-account challenge navigable: each phase now has its OWN account, so
+ * the rail is the only control that can move between them. `onSelect` turns them on;
+ * without it the rail is the read-only stepper it has always been, which is what the
+ * Details lifecycle still wants.
+ *
+ * ELIGIBILITY IS THE STAGE'S, NOT THE RAIL'S. A stop is a button only when
+ * `stage.selectable` says so — it has an account to show, or it is the phase the firm
+ * has just issued. Every other stop stays a plain `<span>`: a disabled button that
+ * cannot ever be enabled is a control that explains nothing, and there is nothing
+ * behind a phase that neither exists nor can be created yet.
+ *
+ * A REAL BUTTON, so it is reachable by Tab and fires on Enter and Space for free.
+ * `aria-current` carries the selection to a screen reader, because the ring around the
+ * chosen stop is styling and reads as nothing.
  */
-export function LifecycleRail({ stages = [], activeTone = 'na', compact = false }) {
+export function LifecycleRail({
+  stages = [], activeTone = 'na', compact = false, onSelect = null, selected = null,
+}) {
   const last = stages.length - 1;
   return (
     <ol className={cx('pc-rail', compact && 'pc-rail--compact')}>
@@ -69,12 +87,9 @@ export function LifecycleRail({ stages = [], activeTone = 'na', compact = false 
         // skipped stage is not travelled through — the journey never went that way.
         const inDone = i > 0 && stages[i - 1].status === 'complete';
         const outDone = s.status === 'complete';
-        return (
-          <li
-            key={s.id}
-            className={cx('pc-step', `prop-${toneOf(s, activeTone)}`, `pc-step--${s.status}`)}
-            title={`${s.label}: ${STAGE_STATUS_LABEL[s.status]}`}
-          >
+        const clickable = Boolean(onSelect) && s.selectable === true;
+        const body = (
+          <>
             <span className="pc-step-track" aria-hidden="true">
               <span className={cx('pc-step-line', i === 0 && 'is-end', inDone && 'is-travelled')} />
               <span className="pc-step-node">{markOf(s)}</span>
@@ -84,6 +99,32 @@ export function LifecycleRail({ stages = [], activeTone = 'na', compact = false 
               <span className="pc-step-label">{s.label}</span>
               {!compact && <span className="pc-step-status">{STAGE_STATUS_LABEL[s.status]}</span>}
             </span>
+          </>
+        );
+        return (
+          <li
+            key={s.id}
+            className={cx(
+              'pc-step', `prop-${toneOf(s, activeTone)}`, `pc-step--${s.status}`,
+              // The phase the firm has just issued, and the leg leading into it: the one
+              // thing on this card the trader can act on, so it is the one thing that
+              // moves. Set on the STAGE rather than only on the selected one, because the
+              // point is to be noticed before it is clicked.
+              s.addable && 'pc-step--next',
+              selected === s.id && 'is-selected',
+            )}
+            title={`${s.label}: ${STAGE_STATUS_LABEL[s.status]}`}
+          >
+            {clickable ? (
+              <button
+                type="button"
+                className="pc-step-btn"
+                onClick={() => onSelect(s.id)}
+                aria-current={selected === s.id ? 'step' : undefined}
+              >
+                {body}
+              </button>
+            ) : body}
           </li>
         );
       })}

@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  challengeName, challengePhases, isAwaitingPhase, inheritedFields, joinableChallenges,
-  phaseToAdd,
+  challengeGroupRows, challengeName, challengePhases, defaultStage, groupChallengesByFirm,
+  groupLifecycle, isAwaitingPhase, inheritedFields, joinableChallenges, phaseToAdd,
 } from '../frontend/src/features/prop/challengeGroups.js';
 import { patchDraft, emptyDraft, isStepComplete, toProvisionPayload } from '../frontend/src/features/accounts/newAccountFlow.js';
 import { validateProvision } from '../src/domain/accounts/provision.js';
-import { readCode } from './helpers/src-files.js';
+import { readCode, readSrc } from './helpers/src-files.js';
+import { readBackend } from './helpers/backend-src.js';
 
 // THE MULTI-ACCOUNT CHALLENGE (migration 0027, owner spec 2026-08-27). A challenge owns
 // one account per phase, because a prop firm issues a NEW LOGIN for each phase rather
@@ -334,7 +335,11 @@ test('the wizard reads the challenges once, in the shell', () => {
   // because a live account has no phases and the request could never be used.
   const shell = readCode('NewAccountFlow.jsx');
   assert.match(shell, /fetchChallengeGroups\(\)/);
-  assert.match(shell, /if \(draft\.capital_kind !== 'prop'\) return undefined;/);
+  // Gated on the prop branch OR on a `?challenge=` deep link. The second half is not
+  // belt-and-braces: on a COLD deep link the draft has no capital_kind yet, so gating on
+  // 'prop' alone would never fetch and the seed would wait forever on a payload nobody
+  // asked for.
+  assert.match(shell, /if \(draft\.capital_kind !== 'prop' && wantedGroup == null\) return undefined;/);
   // A failure resolves to [] rather than throwing: the Existing branch quietly
   // disappears and the account can still be created as a new challenge, which is the
   // right degradation for an aid to one question.
@@ -342,4 +347,177 @@ test('the wizard reads the challenges once, in the shell', () => {
   assert.match(shell, /accounts, challenges, plan/, 'and it rides the flow context');
   // No step may fetch it for itself — one request, one source of truth.
   assert.equal(/fetchChallengeGroups/.test(readCode('AccountStep.jsx')), false);
+});
+
+test('a ?challenge= deep link opens the account page with that challenge chosen', () => {
+  // The "Add Phase 2 Account" button on a challenge card carries it. The trader has
+  // already said WHICH challenge by clicking that card's rail, so the wizard must not ask
+  // again.
+  const shell = readCode('NewAccountFlow.jsx');
+  assert.match(shell, /new URLSearchParams\(location\.search\)\.get\('challenge'\)/);
+  // THE FIRM COMES FROM THE SERVER, not from the URL: `&firm=gft` would seed
+  // synchronously and skip the wait, at the cost of trusting a URL for the fact that
+  // decides which firm's challenge this account joins.
+  assert.equal(/get\('firm'\)/.test(shell), false, 'the firm must not ride the URL');
+  assert.match(shell, /firm_id: group\.firm_id/);
+  assert.match(shell, /challenge_mode: 'existing'/);
+
+  // ONE PATCH, because patchDraft clears the firm and the challenge when capital_kind
+  // changes and then merges the patch over the result — two patches would have the first
+  // clear what the second relies on.
+  const seed = shell.slice(shell.indexOf('if (wantedGroup == null || seedTried'));
+  assert.equal((seed.slice(0, seed.indexOf('setSeedTried')).match(/patch\(\{/g) || []).length, 1);
+
+  // The guard cannot see a draft that has not been seeded yet, so the account step is
+  // held open while the request is in flight — and the hold closes on its own, because
+  // `seedTried` flips whether or not the challenge turned out to be joinable. A stale
+  // link must not strand the trader on a step they cannot fill.
+  assert.match(shell, /const seedPending = wantedGroup != null && !seedTried && !isCommitted\(draft\)/);
+  assert.match(shell, /canVisit\(draft, step\) \|\| \(seedPending && step === 'account'\)/);
+  assert.match(shell, /phaseToAdd\(group\)\.phase != null/, 'a challenge with nothing to add seeds nothing');
+});
+
+test('the card links into that flow, and only where a phase can be added', () => {
+  const card = readCode('ChallengeCard.jsx');
+  assert.match(card, /to=\{`\/accounts\/new\/account\?challenge=\$\{row\.id\}`\}/);
+  // The button exists only on the ADDABLE stop. A phase whose predecessor has not passed
+  // says so instead, because the firm has issued no login for it.
+  assert.match(card, /stage\?\.addable \? \(/);
+  assert.match(card, /It opens when the phase before it passes/);
+});
+
+// ---- Prop OS › Challenges: one card per CHALLENGE ---------------------------
+
+const engineState = (login, over = {}) => ({
+  account_id: login, challenge: {}, phase: 'p1', startBalance: 25000, currentEquity: 26400,
+  maxDd: { limit: 2500, roomLeft: 1900, fracRemaining: 0.76, breached: false },
+  profitTarget: { target: 2000, current: 1400, pctToTarget: 0.7, reached: false },
+  tradingDays: { required: 3, completed: 2, met: false },
+  breach: { breached: false, reason: null },
+  health: { score: 78 }, ...over,
+});
+
+test('the rail spans the CHALLENGE, and each stop carries its own account', () => {
+  const g = group({
+    accounts: [
+      acct({ id: 1, mt5_login: 500, phase: 'p1', challenge_status: 'passed' }),
+      acct({ id: 2, mt5_login: 501, phase: 'p2', challenge_status: 'active' }),
+    ],
+  });
+  const stages = groupLifecycle(g, { statesByLogin: new Map([['501', engineState(501)]]) });
+
+  assert.deepEqual(stages.map((s) => s.id), ['p1', 'p2', 'funded']);
+  // The rail's OWN status words, so LifecycleRail draws this with no new branch.
+  assert.deepEqual(stages.map((s) => s.status), ['complete', 'active', 'upcoming']);
+  // Each stop's figures are ITS account's. A passed phase has no engine state at all —
+  // passing closes its challenge row, which is what removes it from the engine — so it
+  // must not borrow the live phase's numbers.
+  assert.equal(stages[0].state, null, 'a passed phase has no live state');
+  assert.equal(stages[1].state.account_id, 501);
+  assert.equal(stages[2].state, null);
+  // `current` is the phase being TRADED, not the one waiting to be added: it is what the
+  // rail lights, and an empty stop has no figures to light.
+  assert.deepEqual(stages.map((s) => s.current), [false, true, false]);
+});
+
+test('only a stop with somewhere to go is selectable, and one stop is addable', () => {
+  const passed = group({ accounts: [acct({ challenge_status: 'passed' })] });
+  const stages = groupLifecycle(passed);
+  // p1 has an account to show; p2 is the phase the firm has just issued; Funded is
+  // neither — clicking it would have nothing to do, so it is not a button at all.
+  assert.deepEqual(stages.map((s) => s.selectable), [true, true, false]);
+  assert.deepEqual(stages.map((s) => s.addable), [false, true, false]);
+
+  // Nothing is addable while a phase is still running, and the stop for it stays inert.
+  const running = groupLifecycle(group());
+  assert.deepEqual(running.map((s) => s.addable), [false, false, false]);
+  assert.deepEqual(running.map((s) => s.selectable), [true, false, false]);
+});
+
+test('a card opens on the phase that matters, never on nothing', () => {
+  // The phase being traded, else the one waiting to be added, else the last that
+  // happened — so a card always has a body to draw.
+  assert.equal(defaultStage(groupLifecycle(group())), 'p1', 'the phase being traded');
+  assert.equal(
+    defaultStage(groupLifecycle(group({ accounts: [acct({ challenge_status: 'passed' })] }))),
+    'p2', 'the phase waiting to be added',
+  );
+  assert.equal(
+    defaultStage(groupLifecycle(group({ accounts: [acct({ challenge_status: 'breached' })] }))),
+    'p1', 'the last phase that happened',
+  );
+  assert.equal(defaultStage([]), null);
+});
+
+test('a card is one challenge, and the firm sections count challenges', () => {
+  const waiting = group({ id: 1, created_at: '2026-08-01T00:00:00Z', accounts: [acct({ challenge_status: 'passed' })] });
+  const runningG = group({ id: 2, created_at: '2026-08-20T00:00:00Z' });
+  const failedG = group({ id: 3, status: 'failed', created_at: '2026-08-05T00:00:00Z' });
+  const ftmo = group({ id: 4, firm_id: 'ftmo', firm_name: 'FTMO' });
+
+  const rows = challengeGroupRows({ groups: [waiting, runningG, failedG, ftmo], states: [engineState(500)] });
+  assert.equal(rows.length, 4);
+  const first = rows.find((r) => r.id === 1);
+  assert.equal(first.name, 'GoatFundedTrader 2-Step 25K');
+  assert.equal(first.filled, 1, 'one of its three phases has an account');
+  assert.equal(first.addPhase, 'p2');
+
+  // A FAILED challenge is KEPT here, unlike in the wizard's list: a challenge you broke
+  // is still one of your challenges, and hiding it would make the firm's count disagree
+  // with the trader's memory. You just cannot add to it.
+  assert.ok(rows.some((r) => r.status === 'failed'));
+
+  const firms = groupChallengesByFirm(rows);
+  assert.deepEqual(firms.map((f) => [f.name, f.rows.length]), [['GoatFundedTrader', 3], ['FTMO', 1]]);
+  // Within a firm: the challenge awaiting its next phase first — the one thing on the
+  // page the trader can act on — then newest.
+  assert.deepEqual(firms[0].rows.map((r) => r.id), [1, 2, 3]);
+});
+
+test('the rail\'s tone comes from the phase being TRADED, not the one being viewed', () => {
+  // A screenshot caught this: the rail lights its active stop with `activeTone`, so
+  // passing the SELECTED phase's health drew a live Phase 2 node red the moment the
+  // trader clicked back to their passed Phase 1 — a passed phase has no state and
+  // healthStatus(0) is 'bad', so a healthy challenge reported itself as critical.
+  const card = readCode('ChallengeCard.jsx');
+  assert.match(card, /const live = stages\.find\(\(s\) => s\.status === 'active'\) \|\| null/);
+  assert.match(card, /activeTone=\{railTone\}/);
+  assert.match(card, /: 'na';/, "no live phase means 'we do not know', not red");
+});
+
+test('the rail is styled as a control, and the new phase pulses without blinking out', () => {
+  // The page cannot style itself — a utility class in a feature file compiles to nothing
+  // — so the rail's button and its animation live in the `pc-` namespace with the rest of
+  // the module's CSS.
+  const css = readSrc('styles/legacy/app.css');
+  assert.match(css, /\.pc-step-btn \{/);
+  assert.match(css, /\.pc-step\.is-selected \.pc-step-node/);
+  assert.match(css, /\.pc-step--next \.pc-step-track > \.pc-step-line:first-child \{/);
+  // OPACITY, NOT BACKGROUND. The leg into the addable stop is also the TRAVELLED leg —
+  // the phase behind it passed, which is why this one is addable — so animating the
+  // background between --line and --status-good made a green leg blink to grey, reading
+  // as a connection LOST rather than one newly live.
+  assert.match(css, /@keyframes pc-next-leg \{\s*0%, 100% \{ opacity: 1; \}/);
+  // An animation that repeats forever is exactly what this setting exists to stop.
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.pc-step--next[\s\S]*?animation: none;/);
+  // And it names no colour of its own: the tones come from the tone classes.
+  const block = css.slice(css.indexOf('.pc-step-btn {'), css.indexOf('.pc-rail--compact {'));
+  assert.equal(/#[0-9a-f]{3,8}\b/i.test(block), false, 'no raw colour in the new rules');
+});
+
+test('the route answers a challenge that cannot be joined, rather than 500ing', () => {
+  // A 500 is what this looked like before: provisionAccount throws a TYPED conflict and
+  // the handler only mapped the two it already knew, rethrowing anything else. Found by
+  // driving the real transaction against the dev database, not by reading the handler.
+  const routes = readBackend('routes/accounts.js');
+  assert.match(routes, /PROVISION_CONFLICT\.GROUP/);
+  // 400, not 409: nothing is in conflict — the request names a challenge that cannot be
+  // joined. And ONE message for all three causes (not yours / gone / already failed),
+  // because telling them apart confirms another tenant's row exists.
+  // Sliced to the NEXT conflict branch rather than by a character count — the comment
+  // above the reply is longer than any count I would have guessed, and a slice that stops
+  // inside it asserts against prose.
+  const from = routes.indexOf('PROVISION_CONFLICT.GROUP');
+  const branch = routes.slice(from, routes.indexOf('PROVISION_CONFLICT.KEY', from));
+  assert.match(branch, /reply\.code\(400\)/);
 });

@@ -4085,6 +4085,59 @@ label.full { margin-bottom: 16px; }
 .pc-step--upcoming .pc-step-label, .pc-step--skipped .pc-step-label { color: var(--text-2); }
 .pc-step-status { font-size: var(--fs-label); color: var(--status); }
 
+/* ---- a stop you can go to ---- */
+/* THE RAIL IS THE ONLY WAY BETWEEN A CHALLENGE'S PHASES since 0027, because each phase
+   now lives on its own ACCOUNT. So a stop with something behind it is a real <button>
+   (reachable by Tab, fires on Enter and Space) and the styling here only has to undo the
+   button chrome and give it a hit area. A stop with nothing behind it is not rendered as
+   a button at all — see LifecycleRail — so there is no disabled state to style. */
+.pc-step-btn {
+  appearance: none; -webkit-appearance: none; background: none; border: 0; padding: 4px 2px;
+  margin: -4px -2px; font: inherit; color: inherit; cursor: pointer; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: inherit;
+  border-radius: var(--r-md);
+}
+.pc-step-btn:hover .pc-step-node { border-color: var(--accent-ring); }
+/* The chosen stop, which is what decides the panel under the rail. A ring rather than a
+   fill: the node's fill already encodes the phase's STATUS, and overwriting it would
+   trade one fact for another. */
+.pc-step.is-selected .pc-step-node { box-shadow: 0 0 0 3px var(--sel-bg-strong); }
+
+/* THE PHASE THE FIRM HAS JUST ISSUED — Phase 1 passed, Phase 2 not yet added. It is the
+   one thing on the card the trader can act on, so it is the one thing that moves: the leg
+   leading INTO the stop pulses, which is the connection that has just become live rather
+   than the stop itself (the stop is still empty — there is no account there yet).
+   Deliberately slow and low-contrast; §14's rule is that motion points, it does not
+   perform. */
+.pc-step--next .pc-step-track > .pc-step-line:first-child {
+  animation: pc-next-leg 2.4s ease-in-out infinite;
+}
+.pc-step--next .pc-step-node { border-color: var(--status-good); border-style: dashed; }
+/* OPACITY, NOT THE BACKGROUND COLOUR, and that was a real bug caught in the screenshot:
+   the leg into this stop is also the TRAVELLED leg (the phase behind it passed, which is
+   why this one is addable), so animating `background` between --line and --status-good
+   made a green leg blink to grey — which reads as a connection LOST, the opposite of what
+   it is announcing. Breathing the opacity keeps it green throughout. */
+@keyframes pc-next-leg {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+/* An animation that repeats forever is exactly what this setting exists to stop. The
+   dashed, green-edged node still marks the phase, so nothing is lost but the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .pc-step--next .pc-step-track > .pc-step-line:first-child { animation: none; }
+}
+
+/* ---- the phase panel: one phase of the challenge, under the rail ---- */
+.pc-phase { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.pc-phase-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.pc-phase-title { font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--text); }
+.pc-phase-meta { font-size: var(--fs-label); color: var(--text-2); }
+/* The empty phase: the firm has issued the login and we have not been told about it.
+   Centred, because the button IS the content — there are no figures to align to. */
+.pc-phase-add { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0 4px; text-align: center; }
+.pc-phase-add-note { font-size: var(--fs-label); color: var(--text-2); margin: 0; }
+
 .pc-rail--compact { margin-bottom: 0; }
 .pc-rail--compact .pc-step { gap: 6px; }
 .pc-rail--compact .pc-step-node { width: 22px; height: 22px; font-size: 11px; }
