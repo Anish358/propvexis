@@ -6,6 +6,7 @@ import { passBreachSummary } from '../domain/prop/insights.js';
 import { phasePassedAlert } from '../domain/alerts/alerts.js';
 import { insertNotifications } from '../domain/alerts/notifications.js';
 import { challengeHistory, challengesForScope, lastTradeByLogin, dailyTotalsForLogins, advanceChallenge } from '../domain/prop/challenges.js';
+import { challengeGroupsForUser } from '../domain/prop/challengeGroups.js';
 import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, passedChallenges, propCalendarEvents, propBrief } from '../domain/prop/propOverview.js';
 import { propStatesForScope } from '../domain/analytics/reports.js';
 import { PHASES } from '../domain/accounts/provision.js';
@@ -142,6 +143,31 @@ export default function propRoutes(app, ctx) {
     const challenges = await challengesForScope(scope.logins);
     return passBreachSummary(challenges);
   });
+
+  /* THE CHALLENGES THEMSELVES — one row per multi-account challenge (migration 0027),
+   * each carrying the accounts that are its phases and what each phase DID.
+   *
+   * TWO CALLERS, ONE PAYLOAD. The Add Account wizard asks "which challenge is this new
+   * account a phase of?" and Prop OS › Challenges asks "how far along is each of my
+   * challenges?" — the same question about the same rows, so a second endpoint shaped
+   * for one of them would be a second answer that could drift.
+   *
+   * NO LIVE FIGURES HERE, deliberately. Drawdown room, target progress and health come
+   * from GET /api/prop/portfolio, which both callers already load; recomputing them
+   * here would let a card and the challenge behind it disagree.
+   *
+   * AND NO LADDER. Which phase may be added next — p1 -> p2 for a 2-Step, p1 -> funded
+   * for a 1-Step — is catalog knowledge, and the catalog lives in frontend/src
+   * (propFirms.js `phasesFor`), which the backend cannot import. So this reports the
+   * phases that EXIST and what became of each; the client decides what is missing.
+   * Same boundary validateProvision draws for the firms' drawdown percentages.
+   *
+   * Portfolio-wide, ignoring ?account_id, exactly like /api/prop/portfolio and for the
+   * same reason: a challenge spans accounts, so scoping it to the selected one would
+   * hide the phases either side of it. */
+  app.get('/api/prop/challenges', { preHandler: app.requireAuth }, async (req) => ({
+    groups: await challengeGroupsForUser(req.user.uid),
+  }));
 
   // Challenge phase history for one owned account (the phase timeline).
   app.get('/api/prop/history', { preHandler: app.requireAuth }, async (req, reply) => {
