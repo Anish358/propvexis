@@ -5,6 +5,7 @@ import {
 } from '../src/domain/prop/challengeStatus.js';
 import { phaseOutcomeAlert } from '../src/domain/alerts/alerts.js';
 import { readBackend } from './helpers/backend-src.js';
+import { readCode, stripComments } from './helpers/src-files.js';
 import { bucketAccounts, isBreached, isLive, isSettled } from '../frontend/src/features/prop/propAccounts.js';
 import { accountsBreakdown, propBrief } from '../src/domain/prop/propOverview.js';
 
@@ -168,9 +169,27 @@ test('the ingest path is where status is written — not a read handler', () => 
   const notif = readBackend('domain/alerts/notifications.js');
   assert.match(notif, /resolveChallengeOutcome\(/);
   assert.match(notif, /applyChallengeOutcome\(/);
+  /* THE READ ROUTES must not settle a challenge. The MANUAL OVERRIDE may — POST
+   * /api/prop/settle calls the same writer on purpose, so a phase closed by hand and one
+   * closed by the engine are the same row in the same shape. So this is asserted per
+   * handler rather than per file: every call site must sit inside the settle POST, and no
+   * GET may contain one. A blunt "this file never calls it" passed before the override
+   * existed and would have had to be deleted to add it — which is how a rule gets lost. */
   const routes = readBackend('routes/prop.js');
-  assert.equal(/applyChallengeOutcome\(/.test(routes), false,
-    'the prop read routes must not settle a challenge — that belongs on the ingest path');
+  const settleAt = routes.indexOf("app.post('/api/prop/settle'");
+  assert.ok(settleAt > -1, 'the override route must exist');
+  const nextRoute = routes.indexOf('app.', routes.indexOf('return reply.code(201).send(settled);'));
+  for (const m of routes.matchAll(/applyChallengeOutcome\(|reopenChallenge\(/g)) {
+    // The import line is not a call site.
+    if (routes.lastIndexOf('\n', m.index) < routes.indexOf('\n')) continue;
+    assert.ok(m.index > settleAt && m.index < nextRoute,
+      `a challenge is settled at ${m.index}, outside the override route — reads must not write`);
+  }
+  for (const g of routes.matchAll(/app\.get\('\/api\/prop[^']*'/g)) {
+    const body = routes.slice(g.index, routes.indexOf('app.', g.index + 10));
+    assert.equal(/applyChallengeOutcome\(|reopenChallenge\(/.test(body), false,
+      `${g[0]} settles a challenge — that belongs on the ingest path or the override`);
+  }
 
   // The write is idempotent in SQL, which is what makes it safe on every tick. A
   // resolver that returned 'passed' forever plus an UPDATE with no status guard would
@@ -272,4 +291,102 @@ test('the Overview stops counting a settled phase as business, but still reports
   const item = [...brief.left, ...brief.right].find((i) => i.kind === 'breach');
   assert.ok(item, 'a settled breach must still reach the brief');
   assert.match(item.title, /breached/);
+});
+
+// ---- every write path must re-evaluate the account -------------------------
+
+test('EVERY trade write re-evaluates its account, not just the EA ingest', () => {
+  /* THE BUG THIS CATCHES SHIPPED. When the phase status became automatic it was wired
+   * into `evaluateAccountAlerts`, which is called from `runAlerts` — and runAlerts was
+   * called from ONE place, /api/trades/ingest. So a trader who typed three winning trades
+   * into the Add trade modal met their target, met their trading days, and watched Prop OS
+   * go on saying Phase 1: the engine had never been asked. Reproduced against the dev
+   * database before fixing, which is the only reason it was found at all.
+   *
+   * Asserted per HANDLER rather than by counting calls, because the count is what was
+   * wrong: one call looked deliberate. Each write handler's own body has to contain it. */
+  const trades = readBackend('routes/trades.js');
+  const WRITES = [
+    ["app.post('/api/trades/ingest'", 'the EA ingest'],
+    ["app.post('/api/trades'", 'a hand-entered trade'],
+    ["app.post('/api/trades/import'", 'a CSV import'],
+    ["app.patch('/api/trades/:id'", 'an edit (an SL change rescales fixed_r)'],
+    ["app.delete('/api/trades/:id'", 'a delete (it gives drawdown room back)'],
+  ];
+  for (const [anchor, what] of WRITES) {
+    const from = trades.indexOf(anchor);
+    assert.ok(from > -1, `${anchor} not found`);
+    /* To the NEXT ROUTE REGISTRATION, and it has to be matched as `\n  app.` rather than
+     * as `app.` — every one of these handlers has `app.requireAuth` in its own options
+     * object on the SAME line, so a bare `app.` cut the body to nothing and the assertion
+     * failed on a handler that was correct. */
+    const next = trades.indexOf('\n  app.', from + anchor.length);
+    const body = trades.slice(from, next === -1 ? undefined : next);
+    assert.match(body, /runAlerts\(/, `${what} does not re-evaluate its account`);
+  }
+  // The equity feed too: floating drawdown is what breaches an account intraday.
+  assert.match(readBackend('routes/candles.js'), /runAlerts\(/);
+});
+
+// ---- the manual override ---------------------------------------------------
+
+test('the override settles the phase and opens nothing', () => {
+  // NOT /api/prop/advance, which closes the active challenge AND opens the next phase's
+  // on the SAME account. That was right while a challenge WAS an account; since 0027 a
+  // firm issues a new login per phase, so it invents a Phase 2 on the Phase 1 account and
+  // swallows the invitation to add the real one.
+  const routes = readBackend('routes/prop.js');
+  const from = routes.indexOf("app.post('/api/prop/settle'");
+  // stripComments, because the route's own header EXPLAINS that there is no `to_phase`
+  // here — asserting its absence against raw source asserts against the prose.
+  const body = stripComments(routes.slice(from, routes.indexOf("app.post('/api/prop/advance'")));
+  assert.match(body, /applyChallengeOutcome\(acct\.id, \{ status, reason \}\)/);
+  assert.equal(/to_phase/.test(body), false, 'the override must not open the next phase');
+  // Ownership by LOGIN through the owned-account lookup, like every other route here —
+  // the account id arrives in a request body.
+  assert.match(body, /ownedAccountByLogin\(req\.user\.uid, login\)/);
+  assert.match(body, /reply\.code\(404\)/);
+  // Only the three states, and a breach reason only from the two the engine can produce.
+  assert.match(body, /\['passed', 'breached', 'active'\]\.includes\(b\.status\)/);
+  assert.match(body, /b\.reason === 'daily_dd' \|\| b\.reason === 'max_dd' \? b\.reason : null/);
+  // A no-op is a 409, not an empty success the UI would draw as a change.
+  assert.match(body, /reply\.code\(409\)/);
+});
+
+test('the override works BOTH ways, which an automatic system has to allow', () => {
+  // Without a reopen, one bad tick — a stale EA balance, a payout recorded late — leaves
+  // a phase permanently passed and its challenge waiting for a login that never comes.
+  const groups = readBackend('domain/prop/challengeGroups.js');
+  assert.match(groups, /export async function reopenChallenge/);
+  // Guarded IN the statement, not by a read-then-write: the partial unique index allows
+  // one active challenge per account, so two clicks must not both win.
+  assert.match(groups, /AND NOT EXISTS \(\s*SELECT 1 FROM challenges o/);
+  // And it un-fails the challenge — but only when no OTHER phase of it is still breached.
+  assert.match(groups, /UPDATE challenge_groups g\s*SET status = 'active', failed_at = NULL/);
+  assert.match(groups, /WHERE sib\.challenge_group_id = g\.id AND sc\.status = 'breached'/);
+
+  // Reopening announces nothing: it undoes a state the trader just saw announced.
+  const routes = readBackend('routes/prop.js');
+  const body = routes.slice(routes.indexOf("app.post('/api/prop/settle'"), routes.indexOf("app.post('/api/prop/advance'"));
+  assert.match(body, /if \(status !== 'active'\) \{[\s\S]*?insertNotifications/);
+});
+
+test('the override is on the page the trader is looking at', () => {
+  // The button that existed was on the OVERVIEW's accounts card — three clicks from the
+  // rail that shows the phase it acts on. It is now on the phase panel as well, and both
+  // call ONE endpoint so they cannot disagree.
+  const card = readCode('ChallengeCard.jsx');
+  assert.match(card, /import \{ settlePhase \} from '[^']*api\.js'/);
+  assert.match(card, /settlePhase\(\{ account_id: stage\.account\.mt5_login, status \}\)/);
+  // A running phase offers the two verdicts; a settled one offers the way back. Never
+  // both — a phase is in one state, and four buttons would imply it could be in two.
+  assert.match(card, /stage\.status === 'active' \? \(/);
+  assert.match(card, /settle\('passed'\)/);
+  assert.match(card, /settle\('breached'\)/);
+  assert.match(card, /settle\('active'\)/);
+  // The 409 is rendered, not swallowed: it means another tab (or the engine) got there
+  // first, and a button that appears to do nothing is worse than a sentence.
+  assert.match(card, /\{err \? <span className="pc-phase-error">\{err\}<\/span> : null\}/);
+  // The page refetches rather than patching a local copy of the challenge.
+  assert.match(readCode('PropChallenges.jsx'), /onChanged=\{reload\}/);
 });

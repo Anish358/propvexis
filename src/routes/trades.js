@@ -308,6 +308,12 @@ export default function tradeRoutes(app, ctx) {
     const trade = { ...rows[0], adherence: adherenceOf(rows[0], await rulesMapFor(req.user.uid)) };
 
     emitTrade('trade:upserted', trade);
+    // A HAND-ENTERED TRADE CAN PASS OR BREACH A PHASE, exactly as an EA one can, so it
+    // must be re-evaluated too. This call was missing when the phase status became
+    // automatic (2026-08-27): only /api/trades/ingest ran it, so a trader who typed in
+    // three winning trades met their target, met their trading days, and watched Prop OS
+    // go on saying Phase 1 — the engine had simply never been asked.
+    if (account_id != null) await runAlerts(req.user.uid, account_id);
     return reply.code(201).send(trade);
   });
 
@@ -391,6 +397,11 @@ export default function tradeRoutes(app, ctx) {
         client.release();
       }
       invalidateStats(req.user.uid);
+      // Same reason as the manual add: an imported statement is a month of trades
+      // arriving at once, and it can carry an account clean through its target. Once
+      // per import rather than per row — the engine reads the account's whole history
+      // every time it runs, so N calls would compute the same verdict N times.
+      if (acctLogin != null) await runAlerts(req.user.uid, acctLogin);
     }
     return { dryRun: false, imported: fresh.length, ...summary };
   });
@@ -491,6 +502,11 @@ export default function tradeRoutes(app, ctx) {
     // Re-annotate adherence: tagging is where a trade's strategy (setup) is set.
     const trade = { ...rows[0], adherence: adherenceOf(rows[0], await rulesMapFor(req.user.uid)) };
     emitTrade('trade:updated', trade);
+    // An EDIT moves the numbers as surely as an insert does — correcting an SL rescales
+    // fixed_r, and correcting a P&L moves the equity curve the drawdown floor is measured
+    // against. It can also move them BACK, which is why the evaluator is idempotent
+    // rather than one-way: it writes a transition once and re-reads it as a no-op.
+    if (trade.account_id != null) await runAlerts(req.user.uid, trade.account_id);
     return trade;
   });
 
@@ -511,6 +527,12 @@ export default function tradeRoutes(app, ctx) {
     const room = t.user_id != null ? `user:${t.user_id}` : `acct:${t.account_id}`;
     io.to(room).emit('trade:deleted', { id });
     invalidateStats(t.user_id);
+    // Deleting the trade that crossed the target does NOT un-pass the phase, and that is
+    // deliberate rather than an oversight: applyChallengeOutcome only ever closes an
+    // ACTIVE row, so a settled phase stays settled and needs the manual override to
+    // reopen. What this call is for is the account still running — a mistaken loss
+    // removed should give back the drawdown room it took.
+    if (t.account_id != null) await runAlerts(t.user_id, t.account_id);
     return { id, deleted: true };
   });
 }

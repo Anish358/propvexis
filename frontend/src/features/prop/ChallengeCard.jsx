@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Badge, Button, Card } from '@/components/primitives';
+import { settlePhase } from '../../lib/api.js';
 import { fmtMoney } from '../../lib/metrics.js';
 import { healthStatus, roomStatus } from './PropOS.jsx';
 import { MiniMeter } from './AccountPortfolioCard.jsx';
@@ -37,6 +38,17 @@ import { LifecycleRail } from './ChallengeLifecycle.jsx';
 // challenge row, which is what removes it from the engine — so it reports what the
 // account row knows and does not invent a final equity nobody stored.
 //
+// THE MANUAL OVERRIDE LIVES HERE TOO (owner decision 2026-08-27), on the phase panel,
+// because this is the page a trader is looking at when the automatic settlement does not
+// fire — and the button that existed before was on the OVERVIEW's accounts card, three
+// clicks away from the rail that shows the phase it acts on.
+//
+// It calls `settlePhase`, NOT `advanceChallenge`: the second closes the phase and opens
+// the next one on the SAME account, which under the multi-account model invents a Phase 2
+// on the Phase 1 login and swallows the invitation to add the real one. And it works both
+// ways — a phase settled by mistake (or by a stale EA balance) can be reopened, which is
+// the undo an automatic system has to have.
+//
 // AND IT REUSES EVERYTHING ELSE: the meter is `MiniMeter` from the accounts card, the
 // rail is `LifecycleRail` from the Details lifecycle, the thresholds are the shared
 // `roomStatus` / `healthStatus`, and the frame is the `.pa-card*` / `.pc-*` rules that
@@ -71,7 +83,7 @@ function phaseFigures(stage) {
 }
 
 export default function ChallengeCard({
-  row, stages, selected, onSelectPhase, onOpenAccount,
+  row, stages, selected, onSelectPhase, onOpenAccount, onChanged,
 }) {
   const stage = stages.find((s) => s.id === selected) || null;
   const state = stage?.state ?? null;
@@ -98,6 +110,27 @@ export default function ChallengeCard({
   const target = state?.profitTarget ?? null;
   const { capital, pnl } = phaseFigures(stage);
   const badge = GROUP_BADGE[row.status] ?? GROUP_BADGE.active;
+
+  /* The override's own state, per card. `err` is rendered rather than swallowed: the one
+   * failure this call has is a 409 ("already settled"), which happens when another tab —
+   * or the engine, between renders — got there first, and that is a sentence the trader
+   * needs to read rather than a button that appears to do nothing. */
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState(null);
+  const settle = async (status) => {
+    setBusy(status);
+    setErr(null);
+    try {
+      await settlePhase({ account_id: stage.account.mt5_login, status });
+      // The parent refetches; nothing here caches a challenge's state of its own, so
+      // there is no local row to patch and no chance of the two disagreeing.
+      onChanged?.();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
 
   return (
     <Card className="pa-card pc-card">
@@ -231,6 +264,28 @@ export default function ChallengeCard({
               >
                 View Details
               </Button>
+            </div>
+
+            {/* THE OVERRIDE. Offered on a RUNNING phase as the two verdicts a firm can
+                reach, and on a settled one as the way back — never both, because a phase
+                is in one state and a row of four buttons would imply it could be in two.
+                Ghost buttons: this is the correction, not the action the card is for. */}
+            <div className="pc-phase-override">
+              {stage.status === 'active' ? (
+                <>
+                  <Button variant="ghost" size="sm" disabled={busy !== ''} onClick={() => settle('passed')}>
+                    {busy === 'passed' ? 'Marking…' : 'Mark passed'}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={busy !== ''} onClick={() => settle('breached')}>
+                    {busy === 'breached' ? 'Marking…' : 'Mark breached'}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="ghost" size="sm" disabled={busy !== ''} onClick={() => settle('active')}>
+                  {busy === 'active' ? 'Reopening…' : `Reopen ${stage.label}`}
+                </Button>
+              )}
+              {err ? <span className="pc-phase-error">{err}</span> : null}
             </div>
           </>
         )}

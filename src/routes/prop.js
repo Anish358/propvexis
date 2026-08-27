@@ -3,10 +3,10 @@ import { listPayouts } from '../domain/finance/payouts.js';
 import { listFees } from '../domain/finance/fees.js';
 import { roiProgression, financeSummary } from '../domain/finance/finance.js';
 import { passBreachSummary } from '../domain/prop/insights.js';
-import { phasePassedAlert } from '../domain/alerts/alerts.js';
+import { phaseOutcomeAlert, phasePassedAlert } from '../domain/alerts/alerts.js';
 import { insertNotifications } from '../domain/alerts/notifications.js';
 import { challengeHistory, challengesForScope, lastTradeByLogin, dailyTotalsForLogins, advanceChallenge } from '../domain/prop/challenges.js';
-import { challengeGroupsForUser } from '../domain/prop/challengeGroups.js';
+import { applyChallengeOutcome, challengeGroupsForUser, reopenChallenge } from '../domain/prop/challengeGroups.js';
 import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, passedChallenges, propCalendarEvents, propBrief } from '../domain/prop/propOverview.js';
 import { propStatesForScope } from '../domain/analytics/reports.js';
 import { PHASES } from '../domain/accounts/provision.js';
@@ -175,6 +175,72 @@ export default function propRoutes(app, ctx) {
     if (Number.isNaN(login)) return reply.code(400).send({ error: 'account_id required' });
     if (!(await ownedAccountByLogin(req.user.uid, login))) return reply.code(404).send({ error: 'account not found' });
     return challengeHistory(req.user.uid, login);
+  });
+
+  /* THE MANUAL OVERRIDE (owner decision 2026-08-27): settle THIS phase, or put it back.
+   *
+   * WHY IT IS NOT /api/prop/advance. That route closes the active challenge AND opens a
+   * new one for `to_phase` ON THE SAME ACCOUNT — the pre-0027 model, where a challenge WAS
+   * an account. Under the multi-account model that is the wrong write for the common case:
+   * the firm issues a NEW LOGIN for the next phase, so marking Phase 1 passed must leave
+   * the challenge WAITING for that login rather than inventing a Phase 2 on the Phase 1
+   * account, which is what made the wizard's "add the next phase" invitation disappear.
+   *
+   * ONE WRITER, TWO TRIGGERS. This calls the same `applyChallengeOutcome` the automatic
+   * settlement calls, so a phase closed by hand and one closed by the engine are the same
+   * row in the same shape, announce themselves through the same dedup key, and cannot
+   * drift. The override exists because the engine can be wrong about a real account: a
+   * stale EA balance, a payout recorded late, a firm judging a technicality its own way.
+   *
+   * AND IT WORKS BOTH WAYS. `status: 'active'` reopens the last settled phase, which an
+   * automatic system has to allow — without it one bad tick leaves a phase permanently
+   * passed and its challenge waiting for a login that will never come.
+   *
+   * A 409, NOT A 200, when there is nothing to change: the UPDATE is guarded on the row's
+   * current status, so a no-op means the phase was already in the state asked for, and
+   * saying so is better than an empty success the UI would draw as a change.
+   */
+  app.post('/api/prop/settle', { preHandler: app.requireAuth }, async (req, reply) => {
+    const b = req.body ?? {};
+    const login = Number(b.account_id);
+    if (Number.isNaN(login)) return reply.code(400).send({ error: 'account_id required' });
+    const status = ['passed', 'breached', 'active'].includes(b.status) ? b.status : null;
+    if (!status) {
+      return reply.code(400).send({ error: 'status must be one of passed, breached, active' });
+    }
+    // Ownership FIRST and by login, like every other route here: `mt5_account_id` is what
+    // the writers take, and resolving it through the owned-account lookup is what stops a
+    // body naming someone else's account.
+    const acct = await ownedAccountByLogin(req.user.uid, login);
+    if (!acct) return reply.code(404).send({ error: 'account not found' });
+
+    const reason = b.reason === 'daily_dd' || b.reason === 'max_dd' ? b.reason : null;
+    const settled = status === 'active'
+      ? await reopenChallenge(acct.id)
+      : await applyChallengeOutcome(acct.id, { status, reason });
+    if (!settled) {
+      return reply.code(409).send({
+        error: status === 'active'
+          ? 'This phase is already running'
+          : 'This phase has already been settled — reopen it first',
+      });
+    }
+
+    io.to(`acct:${login}`).emit('prop:updated', { account_id: login });
+    // Reopening announces nothing: it undoes a state the trader just saw announced, and a
+    // notification saying a phase is running again is noise about their own correction.
+    if (status !== 'active') {
+      const created = await insertNotifications(req.user.uid, [phaseOutcomeAlert({
+        accountId: login,
+        label: acct.label,
+        phase: settled.phase,
+        status: settled.status,
+        reason,
+        challengeId: settled.challengeId,
+      })]);
+      for (const n of created) io.to(`user:${req.user.uid}`).emit('notification:new', n);
+    }
+    return reply.code(201).send(settled);
   });
 
   // Advance/reset an account's challenge: close the active one (passed|breached) and

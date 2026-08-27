@@ -414,7 +414,39 @@ export async function fetchPropHistory(accountId) {
   return getJson(`/api/prop/history?account_id=${accountId}`);
 }
 
+/**
+ * THE MANUAL OVERRIDE: settle the account's current phase, or put it back.
+ *
+ * `{ account_id, status: 'passed' | 'breached' | 'active', reason? }`. It hits the same
+ * writer the automatic settlement uses, so a phase closed by hand is the same row as one
+ * the engine closed. 'active' REOPENS the last settled phase — the undo an automatic
+ * system has to have, because the engine can be wrong about a real account.
+ *
+ * NOT `advanceChallenge` below, which is the pre-0027 write: that closes the phase AND
+ * opens the next one on the SAME account, and since a firm issues a new login per phase
+ * that would invent a Phase 2 on the Phase 1 account and swallow the wizard's invitation
+ * to add the real one.
+ *
+ * Surfaces the SERVER's message: a 409 here means "already settled", which is a sentence
+ * the user has to read rather than a status code.
+ */
+export async function settlePhase(fields) {
+  const res = await apiFetch('/api/prop/settle', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `could not update the phase (${res.status})`);
+  return data;
+}
+
 // Advance/reset a challenge: close the active one and open the next phase.
+//
+// THE PRE-0027 WRITE, kept for the firms that keep ONE login across phases (some upgrade
+// the account in place rather than issuing a new one). It has no UI today: the Challenges
+// card and the Overview both use settlePhase, because the multi-account case is the
+// common one and mixing the two would put two different meanings behind one button.
 export async function advanceChallenge(fields) {
   const res = await apiFetch('/api/prop/advance', {
     method: 'POST',

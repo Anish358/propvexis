@@ -202,3 +202,65 @@ export async function applyChallengeOutcome(accountId, { status, reason = null }
     client.release();
   }
 }
+
+/**
+ * Put a settled phase back to running — the undo an automatic system has to have.
+ *
+ * WHY IT EXISTS. The status now writes itself off the engine's reading, and the engine can
+ * be wrong about a real account: a stale EA balance, a payout the trader recorded late, a
+ * firm that judged a technicality differently. Without a way back, one bad tick leaves a
+ * phase permanently passed and its challenge waiting for a login that will never come —
+ * so the override has to work in both directions, not only the direction that helps.
+ *
+ * REOPENS THE LATEST SETTLED ROW, and only when the account has NO active one: the partial
+ * unique index allows one active challenge per account, so the guard is what stops this
+ * being an integrity error rather than a refusal. `WHERE NOT EXISTS` is inside the
+ * statement rather than a read followed by a write, so two clicks cannot both win.
+ *
+ * AND IT UN-FAILS THE CHALLENGE, because a breach is what failed it. Only when nothing
+ * else in the group is still breached — a 3-phase challenge with two breached accounts is
+ * still a failed challenge, and reopening one of them does not change that.
+ */
+export async function reopenChallenge(accountId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `UPDATE challenges c
+          SET status = 'active', passed_at = NULL, breached_at = NULL, breach_reason = NULL
+        WHERE c.id = (
+                SELECT id FROM challenges
+                 WHERE mt5_account_id = $1 AND status <> 'active'
+                 ORDER BY COALESCE(passed_at, breached_at) DESC, id DESC
+                 LIMIT 1
+              )
+          AND NOT EXISTS (
+                SELECT 1 FROM challenges o
+                 WHERE o.mt5_account_id = $1 AND o.status = 'active'
+              )
+        RETURNING c.id, c.phase`,
+      [accountId],
+    );
+    if (!rows.length) { await client.query('ROLLBACK'); return null; }
+
+    await client.query(
+      `UPDATE challenge_groups g
+          SET status = 'active', failed_at = NULL
+         FROM mt5_accounts a
+        WHERE a.id = $1 AND g.id = a.challenge_group_id AND g.status = 'failed'
+          AND NOT EXISTS (
+                SELECT 1 FROM mt5_accounts sib
+                  JOIN challenges sc ON sc.mt5_account_id = sib.id
+                 WHERE sib.challenge_group_id = g.id AND sc.status = 'breached'
+              )`,
+      [accountId],
+    );
+    await client.query('COMMIT');
+    return { challengeId: Number(rows[0].id), phase: rows[0].phase, status: 'active' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}

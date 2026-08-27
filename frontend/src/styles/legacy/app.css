@@ -4135,6 +4135,10 @@ label.full { margin-bottom: 16px; }
 .pc-phase-meta { font-size: var(--fs-label); color: var(--text-2); }
 /* The empty phase: the firm has issued the login and we have not been told about it.
    Centred, because the button IS the content — there are no figures to align to. */
+/* The override row: the correction, not the card's main action, so it sits under the
+   footer it corrects and reads quieter than everything above it. */
+.pc-phase-override { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding-top: 6px; }
+.pc-phase-error { font-size: var(--fs-label); color: var(--status-bad); }
 .pc-phase-add { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0 4px; text-align: center; }
 .pc-phase-add-note { font-size: var(--fs-label); color: var(--text-2); margin: 0; }
 

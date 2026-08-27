@@ -82,6 +82,12 @@ export default function PropChallenges() {
    * once the trader picks, so a card that gains a phase while open follows the challenge
    * instead of pinning itself to a stale answer. */
   const [phaseByCard, setPhaseByCard] = useState({});
+  /* A REFETCH TRIGGER, not a second copy of the data. The manual override writes on the
+   * server, so the page has to re-read both payloads — and bumping a counter the fetch
+   * effect depends on keeps ONE fetch path rather than a second one that could return a
+   * differently-shaped result. */
+  const [reloads, setReloads] = useState(0);
+  const reload = () => setReloads((n) => n + 1);
 
   // Reloaded on an account switch as well as on mount, for the same reason the
   // Accounts page does it: the route is portfolio-wide by design (it ignores
@@ -100,7 +106,7 @@ export default function PropChallenges() {
       .then((d) => { if (live) setGroupData(d?.groups ?? []); })
       .catch(() => { if (live) setGroupData([]); });
     return () => { live = false; };
-  }, [accountId, accounts.length]);
+  }, [accountId, accounts.length, reloads]);
 
   const login = selectedLogin(accountId);
 
@@ -204,6 +210,7 @@ export default function PropChallenges() {
                 selected={selectedPhase}
                 onSelectPhase={(phase) => setPhaseByCard((p) => ({ ...p, [r.id]: phase }))}
                 onOpenAccount={select}
+                onChanged={reload}
               />
             );
           })}
