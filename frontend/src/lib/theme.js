@@ -5,17 +5,18 @@
 export const BRAND = 'PropVexis';
 
 const FALLBACKS = {
-  // Foundation values from preset b2qKmlY80. Last resort for non-DOM contexts
-  // (tests) only -- live values always come from tokens.css.
+  // Last resort for non-DOM contexts (tests) only -- live values always come from
+  // tokens.css, and design-tokens.test.js resolves both sides and compares them.
+  // Outcome hues are the 2026-08-28 Figma values; the blues predate it and are unchanged.
   '--accent': '#193cb8',              // brand FILL
   '--accent-on-surface': '#2b7fff',   // brand as a stroke/link (5.26:1 on --bg)
   '--accent-bg': 'rgba(43,127,255,0.14)',
-  '--profit': '#22c55e',   // trade profit (green)
-  '--loss': '#ef4444',     // trade loss (red)
+  '--profit': '#00d492',   // trade profit (green) — figma
+  '--loss': '#ff6467',     // trade loss (red) — figma
   '--ai': '#8b5cf6',       // AI / insight accent (purple)
   '--payout': '#38bdf8',   // funded-account payout highlight (cyan)
-  '--status-bad': '#ef4444',
-  '--red': '#ef4444',
+  '--status-bad': '#ff6467',
+  '--red': '#ff6467',
   '--muted': '#a1a1a1',
   '--neutral-7': '#23232a',  // gauge/ring track (DashWidgets)
 };

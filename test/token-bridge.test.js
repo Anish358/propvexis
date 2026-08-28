@@ -77,12 +77,22 @@ test('the --muted collision stays resolved in our favour', () => {
   assert.match(tokensCss, /--muted:\s*var\(--slate-400\)/);
 });
 
-test('dark stays default and theming stays on data-theme', () => {
+test('there is one theme, it is dark, and no .dark class exists', () => {
+  /* WHAT CHANGED 2026-08-28. This used to assert a `:root[data-theme="light"]` block
+   * and a `dark:` variant derived from its absence. The app is dark-only now, so both
+   * halves invert: there must be NO light block (a palette no screen is designed
+   * against drifts silently), and `dark:` must match unconditionally — a variant keyed
+   * on a selector that is never present would silently drop the dark styling off every
+   * generated component that uses it.
+   *
+   * The `.dark` prohibition is unchanged and is the part that was never about light:
+   * shadcn ships `.dark`, we theme on :root, and two mechanisms for one concept is the
+   * drift the bridge exists to prevent. */
   for (const [name, css] of [['tokens', tokensCss], ['bridge', bridge], ['tailwind', tailwind]]) {
     assert.ok(!/(^|[\s,{>+~])\.dark\b/.test(strip(css)), `${name} must not introduce a .dark class`);
   }
-  assert.match(tokensCss, /:root\[data-theme="light"\]/, 'light mode overrides tokens only');
-  assert.match(bridgeCode, /@custom-variant dark \([^)]*data-theme="light"/, 'dark: derives from data-theme');
+  assert.doesNotMatch(tokensCss, /:root\[data-theme="light"\]\s*\{/, 'the light theme is gone — do not re-add it untested');
+  assert.match(bridgeCode, /@custom-variant dark \(&\)/, 'dark: must match unconditionally');
 });
 
 test('our domain ring survives and is first-class in Tailwind', () => {
@@ -95,7 +105,11 @@ test('our domain ring survives and is first-class in Tailwind', () => {
 });
 
 test('typography stays ours', () => {
-  assert.match(tokensCss, /--font-sans:\s*'Geist Variable'/);
+  // Inter, and only Inter, since the 2026-08-28 Figma redesign — Geist, Geist Mono
+  // and JetBrains Mono are gone from the bundle. --font-mono is an alias of the sans
+  // stack while legacy rules still name it; see tokens.css.
+  assert.match(tokensCss, /--font-sans:\s*'Inter Variable'/);
+  assert.match(tokensCss, /--font-mono:\s*var\(--font-sans\)/);
   // Mapping --font-sans in @theme would be circular; the cascade already makes
   // ours win. Guard that nobody "fixes" it by duplicating the stack.
   assert.ok(!/--font-sans\s*:/.test(bridgeCode), 'bridge must not redeclare --font-sans');

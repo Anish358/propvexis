@@ -138,7 +138,7 @@ test('the mobile table trade-off is made explicitly, not by accident', () => {
   assert.match(block, /\.log-panel \.grid-wrap \{ overflow-x: auto/);
   // A scroll box captures the sticky header, so the header must stop being
   // sticky at this width — otherwise it pins itself out of sight.
-  assert.match(block, /\.log-panel \.grid thead th \{ position: static; \}/);
+  assert.match(block, /\.log-panel \.log-grid thead th \{ position: static; \}/);
   assert.match(block, /table-layout: auto; min-width: 720px/);
   // The desktop rule it is overriding must still exist, or this is overriding
   // nothing and the sticky header is simply gone everywhere.

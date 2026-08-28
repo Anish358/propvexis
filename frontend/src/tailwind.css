@@ -35,7 +35,17 @@
    Tailwind produces. That property is what makes this install a no-op.
 --------------------------------------------------------------------------- */
 
-@layer theme, base, components, utilities;
+/* `legacy` IS FIRST, AND THAT IS THE WHOLE POINT. A layer declared earlier loses to
+   every layer after it, so legacy/app.css can no longer outrank anything Tailwind,
+   shadcn or @coss emits — regardless of selector specificity and with no !important
+   anywhere. This REVERSES the original install's guarantee (see index.css): the old
+   order existed to make the library a visual no-op during a gradual migration, and the
+   2026-08-28 Figma redesign supersedes it — the new components are now the authority
+   and legacy is what gets deleted page by page.
+
+   tokens.css stays UNLAYERED, so token values still beat everything. That is the one
+   piece of the original arrangement worth keeping: values have exactly one source. */
+@layer legacy, theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source(none);

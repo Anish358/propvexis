@@ -43,13 +43,15 @@ test('§7 — no component writes an elevation shadow; only the ladder does', ()
     'these cast a shadow without using --sh-1/2/3 — see DESIGN-LANGUAGE §7');
 });
 
-test('§7 — the ladder is three levels, themed for both modes', () => {
+test('§7 — the ladder is three levels, defined once', () => {
+  /* ONCE, NOT TWICE, SINCE 2026-08-28. This asserted each shadow was declared twice —
+   * on :root and again under [data-theme="light"] — because a level defined only for
+   * dark would fall back to a dark shadow on a white surface. There is no light theme
+   * any more (tokens.css, "NO LIGHT THEME"), so a second declaration would be a value
+   * nothing reads. The ladder itself is unchanged: three levels, all present. */
   for (const t of ['--sh-1', '--sh-2', '--sh-3']) {
-    // Twice: once on :root (dark) and once under [data-theme="light"]. A level defined
-    // only for dark would silently fall back to the dark shadow on a white surface,
-    // which is the failure mode §7's dark/light CONTEXT note warns about.
     const hits = (tokensCss.match(new RegExp(`${t}:`, 'g')) || []).length;
-    assert.equal(hits, 2, `${t} must be defined for both themes, found ${hits}`);
+    assert.equal(hits, 1, `${t} must be defined exactly once, found ${hits}`);
   }
 });
 

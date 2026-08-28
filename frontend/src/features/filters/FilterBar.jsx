@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Filter, Moon, Settings, Star, Sun } from 'lucide-react';
+import { ChevronDown, Filter, Settings, Star } from 'lucide-react';
 import { activeFilterCount } from './filters.js';
 import { navTitle, isSingleAccountRoute } from '../../app/nav.js';
 import { titleCase } from '../../lib/constants.js';
@@ -33,37 +33,6 @@ import {
 import { useAuth } from '../../app/AuthContext.jsx';
 import { NotificationBell } from '../alerts/Notifications.jsx';
 import TradeSettingsModal from '../trades/TradeSettingsModal.jsx';
-
-// Light/dark switch. Shows the theme you'd GET by clicking — a sun while you're in
-// dark — which reads faster than showing the state you're already in.
-//
-// The light theme it toggles is KNOWINGLY UNFINISHED: contrast is verified but the
-// palette hasn't been tuned, and it currently reads flat (white sidebar against a
-// near-white page, cards barely separated from it). Mounted deliberately anyway so
-// it can be improved in place. Dark is unaffected either way — dark is :root, and
-// the toggle only adds data-theme="light" to <html>.
-//
-// PHASE 4c — a chrome icon Button, replacing `.tb-icon-btn`. The two hand-written SVG
-// paths are lucide's `Sun` and `Moon`: `components.json` sets `iconLibrary: "lucide"`,
-// and the generated Button already sizes any `svg` child it is given, so the explicit
-// width/height this used to carry is now the component's business rather than each
-// icon's. `size="icon-sm"` is the same square the bell uses, so "matches the
-// notification bell's footprint" is true by construction now instead of by two legacy
-// rules agreeing on 30px.
-function ThemeToggle({ theme, setTheme }) {
-  const toLight = theme !== 'light';
-  return (
-    <Button
-      variant="chrome"
-      size="icon-sm"
-      onClick={() => setTheme(toLight ? 'light' : 'dark')}
-      title={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
-      aria-label={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
-    >
-      {toLight ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-    </Button>
-  );
-}
 
 const GOD = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
@@ -358,7 +327,6 @@ export default function FilterBar({
   accounts = [], accountId = 'all', setAccountId = () => {},
   tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
   collapsed = false, onToggleSidebar = () => {}, slotRef,
-  theme = 'dark', setTheme = () => {},
 }) {
   const active = activeFilterCount(filters);
   // Publish this bar's height as --topbar-h. Anything else that wants to sit
@@ -427,7 +395,6 @@ export default function FilterBar({
           setAccountId={setAccountId}
           singleSelect={singleAccount}
         />
-        <ThemeToggle theme={theme} setTheme={setTheme} />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
         <UserMenu
           tradeSettings={tradeSettings}

@@ -28,7 +28,12 @@ const appDir = at('../frontend/src');
 
 // Known collisions. Each one's mitigation is asserted below. Adding a name here
 // without a mitigation is not a fix — it is hiding a bug.
-const ACCOUNTED_FOR = new Set(['grid']);
+//
+// EMPTY SINCE 2026-08-28. `grid` lived here for as long as the Trade Log's <table> was
+// class="grid"; the table is `.log-grid` now, so there is nothing left to exempt. An
+// empty set is the right resting state — the exemption list is a debt register, not a
+// config knob.
+const ACCOUNTED_FOR = new Set([]);
 
 /* COMMENTS ARE STRIPPED BEFORE SCANNING, and that is a fix rather than tidiness.
  * `utilitiesUsed` reads STRING LITERALS inside cn(...)/cva(...), and a component's
@@ -94,9 +99,16 @@ function utilitiesUsed(source) {
  * working. So the check is utilities ∩ legacy-styled classes, which still fails on the
  * day someone reuses a Tailwind name in `app.css`.
  */
+/* COMMENTS ARE STRIPPED FIRST, for the same reason the component scan above strips
+ * them: a comment EXPLAINING a collision mentions the colliding name, and an unstripped
+ * scan then reports the explanation as the collision. That is not hypothetical — the
+ * note above `.log-grid` describes the `.grid{display:grid}` utility it was renamed away
+ * from, and without this the rename could never be recorded in prose without failing
+ * the test that the rename exists to satisfy. */
 function legacyStyledClassNames() {
+  const css = legacyCss.replace(/\/\*[\s\S]*?\*\//g, ' ');
   const out = new Set();
-  for (const m of legacyCss.matchAll(/\.([a-z][a-z0-9-]*)\b/g)) out.add(m[1]);
+  for (const m of css.matchAll(/\.([a-z][a-z0-9-]*)\b/g)) out.add(m[1]);
   return out;
 }
 
@@ -140,11 +152,27 @@ test('utilities written in app JSX are not also styled by legacy CSS', () => {
   assert.deepEqual(offenders, [], 'app JSX writes a utility that legacy CSS also styles');
 });
 
-test('the known `grid` collision keeps its mitigation', () => {
-  // The legacy rule must declare `display`, or Tailwind's display:grid wins.
-  const rule = legacyCss.match(/^\.grid\s*\{([^}]*)\}/m);
-  assert.ok(rule, 'the legacy .grid rule has moved or been renamed — re-check the collision');
-  assert.match(rule[1], /display:\s*table/, '.grid must declare display or the Trade Log breaks');
+test('the `grid` collision is gone, not merely mitigated', () => {
+  /* WHAT THIS USED TO ASSERT, and why that is no longer enough. The Trade Log's <table>
+   * was class="grid", colliding with Tailwind's `grid` utility. It survived on cascade
+   * position: legacy CSS was unlayered and utilities are layered, so legacy's explicit
+   * `display: table` beat `display: grid`. The test asserted that declaration.
+   *
+   * The 2026-08-28 redesign put legacy/app.css in `layer(legacy)` — the LOWEST layer —
+   * so the utility now wins every property, and that mitigation silently inverted. The
+   * old assertion would still have passed while the Trade Log rendered as a grid
+   * container, which is the worst kind of green test.
+   *
+   * So the collision is removed at the source: the table is `.log-grid`, a name no
+   * Tailwind utility can ever emit. This asserts the squat is gone AND stays gone. */
+  assert.doesNotMatch(
+    legacyCss,
+    /^\.grid(?![-\w])/m,
+    'legacy CSS is squatting the `grid` utility name again — namespace it (see .log-grid)',
+  );
+  const rule = legacyCss.match(/^\.log-grid\s*\{([^}]*)\}/m);
+  assert.ok(rule, 'the Trade Log table rule has moved or been renamed');
+  assert.match(rule[1], /display:\s*table/, '.log-grid must still declare display: table');
 });
 
 test('generated components hardcode no colours', () => {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { appCss, bridgeCss } from './helpers/app-css.js';
+import { appCss, bridgeCss, legacyCss } from './helpers/app-css.js';
 import { appFiles, appJsx, readSrc } from './helpers/src-files.js';
 // Guards the token layer, which is the prerequisite for a light theme: if every
 // colour lives in :root, a light theme is one `:root[data-theme="light"]` block.
@@ -51,20 +51,18 @@ test('no raw colour literal outside the token layer', () => {
   assert.deepEqual(offenders, [], `hardcoded colours can't be themed:\n${offenders.join('\n')}`);
 });
 
-test('scrims, shadow colours and rings are themed in both directions', () => {
-  // These are the rgba half of the layer and they invert differently from each
-  // other: a scrim still has to darken a light page, while a shadow on white needs
-  // far less alpha. Both sides must declare all of them.
+test('scrims, shadow colours and rings are all declared', () => {
+  /* ONE DIRECTION SINCE 2026-08-28. This asserted every rgba token was declared twice,
+   * once per theme, because a scrim has to darken a light page while a shadow on white
+   * needs far less alpha. With the light theme gone there is one set to check — that it
+   * is COMPLETE, which is the half of the guarantee that still bites: a missing scrim
+   * resolves to nothing and the overlay it dims disappears. */
   const needed = ['--topbar-bg', '--scrim-1', '--scrim-2', '--scrim-3', '--scrim-4',
     '--shadow-40', '--shadow-45', '--shadow-50', '--shadow-60', '--shadow-70',
     '--accent-ring', '--skeleton-sheen'];
-  const inBlock = (block, t) => new RegExp(`${t}\\s*:`).test(block);
   const root = css.slice(css.indexOf(':root {'), css.indexOf('\n}', css.indexOf(':root {')));
-  const at = css.indexOf(':root[data-theme="light"] {');
-  const lightB = at < 0 ? '' : css.slice(at, css.indexOf('\n}', at));
   for (const t of needed) {
-    assert.ok(inBlock(root, t), `${t} missing from :root`);
-    assert.ok(inBlock(lightB, t), `${t} missing from the light theme`);
+    assert.ok(new RegExp(`${t}\\s*:`).test(root), `${t} missing from :root`);
   }
 });
 
@@ -168,84 +166,24 @@ const declared = (block) => Object.fromEntries(
 const darkTokens = declared(rootBlock);
 const lightTokens = declared(lightBlock);
 
-test('a light theme exists and is a pure token override', () => {
-  assert.ok(lightBlock, ':root[data-theme="light"] block missing');
-  // Nothing but token declarations — a selector in here would mean component CSS
-  // is becoming theme-aware, which is what the token layer exists to prevent.
-  const body = lightBlock.slice(lightBlock.indexOf('{') + 1).replace(/\/\*[\s\S]*?\*\//g, '');
-  const nonDecl = body.split('\n').map((l) => l.trim())
-    .filter((l) => l && !/^--[a-z0-9-]+\s*:/.test(l) && !/^color-scheme:/.test(l));
-  assert.deepEqual(nonDecl, [], 'light block should only re-declare tokens');
-});
-
-test('every themed scale token gets a light value', () => {
-  // A scale token with no light override keeps its dark value — i.e. stays dark
-  // on a light page. This is the failure mode most likely to slip through when a
-  // new token is added later.
-  const missing = Object.keys(darkTokens)
-    .filter((t) => /^--(neutral|tint-|surface-tint)/.test(t))
-    .filter((t) => !(t in lightTokens));
-  assert.deepEqual(missing, [], `no light value for: ${missing.join(', ')}`);
-});
-
-test('the core surfaces and text tokens are overridden too', () => {
-  // Without these the page itself never turns light, however good the scales are.
-  for (const t of ['--bg', '--panel', '--surface', '--surface-2', '--text', '--line',
-    '--line-strong', '--surface-hover', '--muted', '--sidebar-bg', '--sh-1']) {
-    assert.ok(t in lightTokens, `--${t.slice(2)} needs a light value`);
-  }
-  // Text on a filled accent button is white in BOTH themes, so it must not flip.
-  assert.ok(!('--on-accent' in lightTokens), '--on-accent must stay white in light mode');
-});
-
-test('every light foreground clears 4.5:1 on its own background', () => {
-  // The reason the light values are contrast-solved rather than hand-picked: at a
-  // fixed lightness amber and cyan are far brighter than red or blue, so one
-  // lightness range can't be accessible across hues. This recomputes the
-  // guarantee from the shipped values.
-  const rgb = (h) => {
-    let s = h.replace('#', '');
-    if (s.length === 3) s = s.split('').map((c) => c + c).join('');
-    return [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16) / 255);
-  };
-  const relLum = (h) => {
-    const [r, g, b] = rgb(h).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const ratio = (a, b) => {
-    const [x, y] = [relLum(a), relLum(b)].sort((p, q) => q - p);
-    return (x + 0.05) / (y + 0.05);
-  };
-
-  // Role comes from how each token is actually used, same as when the values
-  // were generated — a `color:` use is text and has to be readable.
-  const body = css.slice(css.indexOf('\n}', css.indexOf(':root {')) + 2).replace(/\/\*[\s\S]*?\*\//g, '');
-  const role = {};
-  for (const [, prop, val] of body.matchAll(/([a-z-]+)\s*:\s*([^;{}]+)/g)) {
-    for (const [, tok] of val.matchAll(/var\((--(?:neutral|tint|surface-tint)[a-z0-9-]*)\)/g)) {
-      const r = prop.startsWith('background') ? 'bg' : prop === 'color' ? 'fg' : prop.includes('border') ? 'border' : 'other';
-      role[tok] = role[tok] || {};
-      role[tok][r] = (role[tok][r] || 0) + 1;
-    }
-  }
-  const dominant = (t) => Object.entries(role[t] || {}).sort((a, b) => b[1] - a[1])[0]?.[0];
-  const family = (t) => (t.startsWith('--neutral') ? 'neutral'
-    : t.startsWith('--surface') ? 'surface' : t.replace(/-\d+$/, ''));
-
-  const fails = [];
-  for (const [tok, val] of Object.entries(lightTokens)) {
-    if (!/^#[0-9a-fA-F]{3,6}$/.test(val) || dominant(tok) !== 'fg') continue;
-    const bgs = Object.entries(lightTokens)
-      .filter(([t, v]) => family(t) === family(tok) && dominant(t) === 'bg' && /^#[0-9a-fA-F]{3,6}$/.test(v))
-      .map(([, v]) => v);
-    // The palest sibling background is the worst case for a dark foreground.
-    const worst = bgs.length ? bgs.reduce((a, b) => (relLum(a) > relLum(b) ? a : b)) : '#ffffff';
-    for (const [label, bg] of [['white', '#ffffff'], ['tint', worst]]) {
-      const r = ratio(val, bg);
-      if (r < 4.5) fails.push(`${tok} (${val}) on ${label} ${bg}: ${r.toFixed(2)}:1`);
-    }
-  }
-  assert.deepEqual(fails, [], `light foregrounds below 4.5:1:\n${fails.join('\n')}`);
+test('there is no light theme, and the token layer stays the only place it could live', () => {
+  /* REPLACES FOUR TESTS (2026-08-28): that a `:root[data-theme="light"]` block existed,
+   * that it re-declared every themed scale, that it covered the core surfaces, and that
+   * every light foreground cleared 4.5:1 on its own background. The block is gone by
+   * owner decision with the Figma redesign — dark-only — so all four asserted a thing
+   * that must NOT exist.
+   *
+   * What is worth keeping is the invariant underneath them, and it is asserted here:
+   * component CSS must not become theme-aware. As long as that holds, light returns as
+   * one block plus a toggle. The moment a component starts branching on a theme
+   * selector, it does not — which is why this watches the whole stylesheet, not just
+   * the token file. */
+  assert.doesNotMatch(css, /\[data-theme[^\]]*\]\s*\{/,
+    'a data-theme block is back — if the light theme is returning, restore its contrast tests too');
+  assert.doesNotMatch(legacyCss, /\[data-theme/,
+    'component CSS must never be theme-aware — that is what the token layer is for');
+  // Dark is not a mode, it is the only mode: :root declares it outright.
+  assert.match(css, /:root\s*\{[\s\S]*?color-scheme:\s*dark/);
 });
 
 test('chart colours are read during render, never captured at import', () => {
@@ -266,30 +204,22 @@ test('chart colours are read during render, never captured at import', () => {
   }
 });
 
-test('the theme toggle is wired to a server-synced preference', () => {
+test('no theme toggle, no theme state, no data-theme writer', () => {
+  /* INVERTED 2026-08-28. This asserted the toggle existed, was mounted beside the
+   * notification bell, and wrote a server-synced `theme` preference. All three are gone
+   * with the light theme, and the inversion is the point: a toggle left mounted with
+   * one reachable value, or an effect still writing `data-theme`, is exactly the kind of
+   * half-removal that reads as working until someone wonders why the button does
+   * nothing. */
   const app = read('../frontend/src/App.jsx');
   const bar = read('../frontend/src/features/filters/FilterBar.jsx');
   const layout = read('../frontend/src/app/Layout.jsx');
-  // Stored alongside the other global prefs, not in localStorage or per-scope.
-  assert.match(app, /viewConfigs\.theme === 'light'/);
-  assert.match(app, /theme: t === 'light' \? 'light' : 'dark'/);
-  // Dark is :root, so the attribute is only present for light — and must be
-  // REMOVED going back, not set to "dark", or :root[data-theme="light"] logic
-  // and any future selector would drift apart.
-  assert.match(app, /el\.dataset\.theme = 'light'/);
-  assert.match(app, /delete el\.dataset\.theme/);
-  for (const p of ['theme', 'setTheme']) assert.ok(layout.includes(p), `Layout must pass ${p}`);
-  // Mounted, sitting next to the notification bell. The light palette it switches
-  // to is knowingly unfinished; dark is unaffected, since dark is :root and the
-  // toggle only adds data-theme="light".
-  assert.match(bar, /function ThemeToggle/);
-  assert.ok(bar.indexOf('<ThemeToggle') < bar.indexOf('<NotificationBell'));
-  assert.match(bar, /aria-label=\{toLight \? 'Switch to light theme' : 'Switch to dark theme'\}/);
-  // Phase 4c turned it into a chrome icon Button (`.tb-icon-btn` deleted). The label above
-  // is the part that matters and is unchanged — an icon-only control whose icon shows the
-  // theme you would GET has to say so in text, and swapping the <button> for a component
-  // is exactly where that kind of attribute goes missing.
-  assert.match(bar, /variant="chrome"\s+size="icon-sm"/, 'the toggle is a chrome icon Button');
+  assert.doesNotMatch(bar, /ThemeToggle/, 'the top-bar theme toggle must be gone');
+  assert.doesNotMatch(app, /dataset\.theme/, 'nothing may write the data-theme attribute');
+  assert.doesNotMatch(app, /viewConfigs\.theme/, 'theme is no longer a stored preference');
+  for (const p of ['theme={', 'setTheme']) {
+    assert.ok(!layout.includes(p), `Layout must no longer pass ${p}`);
+  }
 });
 
 test('nothing calls token() without importing it', () => {

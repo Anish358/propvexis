@@ -10,9 +10,9 @@
   --blue-400:#51a2ff; --blue-500:#2b7fff; --blue-600:#155dfc; --blue-700:#1447e6;
   --blue-800:#193cb8;   /* preset b2qKmlY80 uses this as the dark-theme brand fill */
   --slate-400:#a1a1a1; --slate-500:#737373;   /* secondary/tertiary text */
-  --green-400:#4ade80; --green-500:#22c55e; --green-600:#16a34a;
-  --red-400:#f87171;  --red-500:#ef4444;  --red-600:#dc2626;  --red-muted:#d95a5a;
-  --amber-400:#fbbf24; --amber-500:#f59e0b;
+  --green-400:#5cf0bb; --green-500:#00d492; --green-600:#00b07a;   /* figma: profit */
+  --red-400:#ff8a8a;  --red-500:#ff6467;  --red-600:#e04f52;  --red-muted:#d95a5a;   /* figma: loss */
+  --amber-400:#ffc933; --amber-500:#ffb900;   /* figma: warning / nudge */
   --purple-400:#a78bfa; --purple-500:#8b5cf6;
   --cyan-400:#38bdf8;
 
@@ -58,9 +58,9 @@
 
   /* ===== OUTCOMES (green/red reserved for trade P&L only) ===== */
   --profit: var(--green-500);
-  --profit-bg: rgba(34,197,94,0.13);
-  --profit-border: rgba(34,197,94,0.30);
-  --profit-strong: rgba(34,197,94,0.45);
+  --profit-bg: rgba(0,212,146,0.13);
+  --profit-border: rgba(0,212,146,0.30);
+  --profit-strong: rgba(0,212,146,0.45);
   --loss: var(--red-500);
   --loss-strong: var(--red-600);
   --loss-bg: rgba(239,68,68,0.13);
@@ -117,8 +117,19 @@
   --sh-3:0 20px 56px rgba(0,0,0,.55);
 
   /* ===== TYPOGRAPHY ===== */
-  --font-sans:'Geist Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono:'Geist Mono Variable', 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* INTER, AND ONLY INTER (2026-08-28). The Figma redesign sets every string in the
+     product in Inter — 400/500/600 at 10/12/14/18/24/30px — so Geist is gone as the
+     sans and the app ships one family instead of four.
+
+     --font-mono SURVIVES AS A NAME, pointing at the same stack. 28 legacy rules ask
+     for it, and the design has no monospace at all: numerics are Inter with
+     `font-variant-numeric: tabular-nums`, which is what `.num` already does and what
+     actually buys column alignment. Deleting the token would have meant editing 28
+     rules in a file being deleted anyway; repointing it drops the JetBrains Mono and
+     Geist Mono webfonts (four woff2 subsets each) with one line and no visual debt.
+     When the last legacy rule goes, so does this alias. */
+  --font-sans:'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:var(--font-sans);
 
   /* Weight scale — 600 is the hard ceiling everywhere (no 700/800 in the UI
      layer; brand wordmark lockups are the one deliberate exception). */
@@ -151,8 +162,9 @@
   --z-nav:30; --z-dropdown:50; --z-modal:2147483000; --z-toast:70;
 
   /* ===== THEMED COLOUR SCALES =====
-     Every colour the components use now lives here, so a light theme is a
-     `:root[data-theme="light"]` block that re-declares these and nothing else.
+     Every colour the components use now lives here — which is what would make a
+     light theme one re-declaring block rather than a sweep through component CSS.
+     There is no such block today; see "NO LIGHT THEME" below.
      Each scale is ordered by luminance (1 = darkest). Values are the exact
      literals these replaced — tokenizing was appearance-neutral by design.
      The one exception is the data-category palette (the .pair- .session- .setup-
@@ -210,100 +222,17 @@
 
 
 
-/* ===== LIGHT THEME =====
-   The whole light theme is this block: it re-declares the token layer and
-   nothing else, so no component CSS is light/dark-aware. Applied by App.jsx
-   setting data-theme="light" on <html>.
+/* ===== NO LIGHT THEME =====
+   REMOVED 2026-08-28, by owner decision, with the Figma redesign.
 
-   The scales are INVERTED BY ROLE, not by index: a token that was a dark
-   background becomes a pale tint, and one that was pale text becomes dark text.
-   So --tint-profit-5 is dark green in :root and pale green here, while the index
-   still means "5th step of the dark scale" in both. Roles were read off actual
-   usage (background: / color: / border:), not guessed.
+   What stood here was a `:root[data-theme="light"]` block that re-declared the whole
+   token layer and nothing else — the arrangement that kept every component
+   theme-agnostic. It is gone rather than disabled: a light palette that no screen is
+   designed against and no test renders drifts out of true silently, and the redesign
+   is dark-only by construction (every Figma frame is one dark surface set).
 
-   Every foreground is contrast-SOLVED, not hand-picked: it is the lightest shade
-   of its own hue that still clears 4.5:1 against the palest background of its
-   family. At a fixed lightness amber and cyan are far brighter than red or blue,
-   so one shared lightness range cannot be accessible for every hue. Shipped
-   range in situ: 4.60:1 to 8.20:1, re-checked by test/theme-tokens.test.js. */
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  /* ---- core surfaces + text ---- */
-  /* Page sits slightly grey so white cards read as raised, mirroring how the
-     dark theme lifts --panel above --bg. */
-  --bg:#ffffff; --sidebar-bg:#fafafa;
-  --panel:#ffffff; --surface:#ffffff; --surface-2:#f5f5f5;
-  --text:#0a0a0a; --slate-400:#737373; --slate-500:#a1a1a1;
-  --muted:#5b6879;
-  /* Hairlines and washes flip from white-alpha to ink-alpha. */
-  --line:#e5e5e5; --line-strong:#d4d4d4;
-  --surface-hover:#f5f5f5;
-  --sel-bg:#f4f4f5; --sel-bg-strong:#e5e5e5;
-  --be-bg:rgba(15,23,42,0.06);
-  /* Shadows need far less alpha on a light page or the cards look dirty. */
-  --sh-1:0 1px 2px rgba(15,23,42,.08);
-  --sh-2:0 8px 24px rgba(15,23,42,.10);
-  --sh-3:0 20px 56px rgba(15,23,42,.16);
-
-  /* ---- brand + status ---- */
-  /* Hues are unchanged; the 500-weights are simply too light for text on white,
-     so accent/profit/loss step down to their 600s. --on-accent is deliberately
-     NOT overridden: it is text ON a filled button, which is coloured in both
-     themes, so it stays white. */
-  --accent:var(--blue-700); --accent-strong:var(--blue-800); --accent-on-surface:var(--blue-700);
-  --accent-bg:rgba(37,99,235,0.10); --accent-hover-bg:rgba(37,99,235,0.16);
-  --accent-border:rgba(37,99,235,0.28); --accent-border-strong:rgba(37,99,235,0.45);
-  --profit:var(--green-600); --loss:var(--red-600); --red:var(--red-600);
-  --status-bad:var(--red-600); --status-good:var(--green-600);
-  --status-info:#2c5fd0; --status-warn:#a16207;
-  --warning:#a16207; --loss-quiet:#b91c1c;
-  --profit-bg:rgba(22,163,74,0.10); --loss-bg:rgba(220,38,38,0.10);
-  --profit-border:rgba(22,163,74,0.28); --profit-strong:rgba(22,163,74,0.40);
-  --loss-strong:var(--red-600); --win-bg:var(--profit-bg);
-  --ai:var(--purple-500); --ai-bg:rgba(139,92,246,0.12);
-  --payout:#0e7490;
-
-  /* ---- themed scales, inverted by role ---- */
-  /* greys: 7 bg, 3 border, 5 fg */
-  --neutral-1:#f6f6f6; --neutral-2:#f3f3f3; --neutral-3:#f0f0f0; --neutral-4:#dbdbdb; --neutral-5:#cccccc;
-  --neutral-6:#ededed; --neutral-7:#eaeaea; --neutral-8:#e7e7e7; --neutral-9:#bdbdbd; --neutral-10:#e4e4e4;
-  --neutral-11:#6f6f6f; --neutral-12:#636363; --neutral-13:#595959; --neutral-14:#515151; --neutral-15:#4a4a4a;
-  /* slate surface: 1 bg */
-  --surface-tint-1:#f3f5f9;
-  /* green: 7 bg, 3 border, 1 fg */
-  --tint-profit-1:#f3f9f3; --tint-profit-2:#f0f7ef; --tint-profit-3:#ebf5ee; --tint-profit-4:#e7f3ed;
-  --tint-profit-5:#e2f2e9; --tint-profit-6:#dcf2e3; --tint-profit-7:#dbede2; --tint-profit-8:#d0e7d8;
-  --tint-profit-9:#bedac7; --tint-profit-10:#a5d4b7; --tint-profit-11:#347f47;
-  /* red: 7 bg, 4 border, 4 fg */
-  --tint-loss-1:#f9f4f3; --tint-loss-2:#f7f0ef; --tint-loss-3:#f7e9e9; --tint-loss-4:#f5e6e7; --tint-loss-5:#f3e1e1;
-  --tint-loss-6:#f1dedd; --tint-loss-7:#eddcdb; --tint-loss-8:#eccccb; --tint-loss-9:#e5bdbd; --tint-loss-10:#dcb7b1;
-  --tint-loss-11:#d8a4a1; --tint-loss-12:#b64b61; --tint-loss-13:#ab3d3d; --tint-loss-14:#9b3832;
-  --tint-loss-15:#823d1b;
-  /* amber: 6 bg, 1 border, 4 fg */
-  --tint-warn-1:#f9f8f3; --tint-warn-2:#f7f5ee; --tint-warn-3:#f6f3e8; --tint-warn-4:#f3efe4; --tint-warn-5:#f0e5e0;
-  --tint-warn-6:#eee6c9; --tint-warn-7:#f5edd4; --tint-warn-8:#92691d; --tint-warn-9:#786217; --tint-warn-10:#785328;
-  --tint-warn-11:#664f11;
-  /* cyan: 3 bg, 2 border, 2 fg */
-  --tint-payout-1:#f2f7fb; --tint-payout-2:#e2f0f8; --tint-payout-3:#d5e6f3; --tint-payout-4:#c9e1ee;
-  --tint-payout-5:#9cc6de; --tint-payout-6:#2a779b; --tint-payout-7:#186a93;
-  /* purple: 1 bg, 1 border */
-  --tint-ai-1:#f3f3f9; --tint-ai-2:#d3cee8;
-  /* blue text on an accent fill: 1 fg */
-  --tint-accent:#496de1;
-  /* Scrims stay dark (they exist to dim), just less so; shadows drop a lot of
-     alpha or white cards read as grimy. */
-  --topbar-bg:rgba(255,255,255,0.97);
-  --scrim-1:rgba(15,23,42,0.25); --scrim-2:rgba(15,23,42,0.32);
-  --scrim-3:rgba(15,23,42,0.42); --scrim-4:rgba(15,23,42,0.55);
-  --shadow-40:rgba(15,23,42,.10); --shadow-45:rgba(15,23,42,.11); --shadow-50:rgba(15,23,42,.12);
-  --shadow-60:rgba(15,23,42,.14); --shadow-70:rgba(15,23,42,.16);
-  --accent-ring:#a1a1a1;
-  --skeleton-sheen:rgba(15,23,42,.05);
-
-}
-
-/* Theme-agnostic by design: the semantic tokens above are the DARK values, and
-   the light theme below overrides that same layer — no component CSS is
-   theme-aware. Dark is the default: a document with no data-theme attribute gets
-   :root, so the theme only has to be applied when it is light. */
+   THE ARCHITECTURE THAT MADE IT CHEAP IS UNTOUCHED. Components still reference tokens
+   and never raw hex, so light returns as a block here plus a toggle — not as a sweep
+   through component CSS. `color-scheme: dark` above is now the whole story, and
+   `data-theme` is no longer read anywhere in the app.
+   ===== */

@@ -197,16 +197,11 @@ export default function App() {
   });
   const setUnit = (u) => setViewConfigs((prev) => ({ ...prev, unit: u }));
 
-  // Colour theme — global like `unit`, and server-synced so it follows the user
-  // across devices. Dark is the default, and :root already holds the dark values,
-  // so the attribute is only set when the theme is light.
-  const theme = viewConfigs.theme === 'light' ? 'light' : 'dark';
-  const setTheme = (t) => setViewConfigs((prev) => ({ ...prev, theme: t === 'light' ? 'light' : 'dark' }));
-  useEffect(() => {
-    const el = document.documentElement;
-    if (theme === 'light') el.dataset.theme = 'light';
-    else delete el.dataset.theme;
-  }, [theme]);
+  /* NO THEME STATE. The app is dark-only as of 2026-08-28 (tokens.css, "NO LIGHT
+     THEME"), so there is nothing to hold, nothing to persist and no `data-theme`
+     attribute to write — :root IS the theme. A stored `theme: 'light'` left over in a
+     user's view state is simply never read; it costs one dead key rather than a
+     migration, and it is what a returning light theme would read first. */
 
   // Dashboard layout — global like `unit`, not per scope, so switching accounts
   // never rearranges the page. Sanitized on read rather than on hydrate so a
@@ -527,8 +522,6 @@ export default function App() {
                 propLayout={propLayout}
                 setPropVisible={setPropVisible}
                 resetPropLayout={resetPropLayout}
-                theme={theme}
-                setTheme={setTheme}
                 briefPrefs={briefPrefs}
                 patchBriefPrefs={patchBriefPrefs}
                 setBriefSection={setBriefSection}

@@ -8,10 +8,11 @@ import { AuthProvider } from './app/AuthContext.jsx';
 // Geist = UI/body & headings; Geist Mono = prices / R / P&L (tabular) — Geist
 // used throughout, per the brand's "one typeface" rule. Inter/JetBrains Mono
 // are fallbacks only (kept loaded so the stack degrades gracefully).
-import '@fontsource-variable/geist';
-import '@fontsource-variable/geist-mono';
+/* ONE FAMILY. The Figma redesign sets the entire product in Inter; Geist (the old
+   sans), Geist Mono and JetBrains Mono are gone, and with them ~8 woff2 subsets that
+   every visitor was downloading for text nobody renders in them. Numerics align via
+   `font-variant-numeric: tabular-nums`, not via a monospace face — see tokens.css. */
 import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
 // Single CSS entry. Import order and the four-layer architecture live in
 // styles/index.css - see that file.
 import './styles/index.css';

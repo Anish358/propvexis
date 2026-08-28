@@ -338,19 +338,23 @@
 @custom-variant max-520 (@media (max-width: 520px));
 
 /* ---------------------------------------------------------------------------
-   5. THEMING — data-theme, NEVER .dark
-   shadcn ships `@custom-variant dark (&:is(.dark *))`. This app is dark-FIRST:
-   :root is dark and `[data-theme="light"]` overrides tokens. Redefining the
-   variant here means a generated component using `dark:` behaves correctly under
-   our architecture, and no `.dark` class ever has to exist.
+   5. THEMING — DARK ONLY, and never `.dark`
+   shadcn ships `@custom-variant dark (&:is(.dark *))`. This app has exactly one
+   theme, declared on :root in tokens.css, and no `.dark` class or `data-theme`
+   attribute exists to hang a variant off.
 
-   Theming does not actually depend on these variants: because section 1 points
-   every colour at a token that already flips under [data-theme="light"], generated
-   components are theme-correct without a single `dark:` utility. These exist only
-   so that library code which does use `dark:` is not silently wrong.
+   Theming does not actually depend on these variants: section 1 points every colour
+   at a token, so generated components are correct without a single `dark:` utility.
+   These exist only so that library code which does use `dark:` is not silently wrong.
 --------------------------------------------------------------------------- */
-@custom-variant dark (&:where(html:not([data-theme="light"]), html:not([data-theme="light"]) *));
-@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+/* DARK IS UNCONDITIONAL AS OF 2026-08-28. There is no light theme and no `data-theme`
+   attribute any more (tokens.css, "NO LIGHT THEME"), so `dark:` must match everywhere
+   rather than match a selector that is now never present — a generated component using
+   `dark:bg-...` would otherwise silently lose its dark styling on every page.
+   `&` alone is the always-true variant. `light:` is defined as never-matching rather
+   than deleted, so library code that uses it compiles to nothing instead of erroring. */
+@custom-variant dark (&);
+@custom-variant light (&:where(.__no-light-theme__));
 
 /* ---------------------------------------------------------------------------
    6. LIBRARY VARIABLES REFERENCED DIRECTLY BY GENERATED COMPONENTS
