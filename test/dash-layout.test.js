@@ -445,8 +445,10 @@ test('a widget with a fixed height still matches its declared row span', () => {
   const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
   assert.match(dashSrc, /<PanelCard className="dash-cal-panel">/, 'the calendar sizes to content');
   assert.ok(!/dash-cal-panel card-lg/.test(dashSrc), 'no fixed height on the calendar');
-  // Three: the activity list, the chart, and the loading skeleton's stand-in for the
-  // activity list — which has to reserve the same box or the page jumps when data lands.
-  const md = (dashSrc.match(/className="card-md"/g) || []).length;
-  assert.equal(md, 3, `card-md is for the activity list, the chart and the skeleton — found ${md}`);
+  /* NOTHING ON THIS PAGE DECLARES A HEIGHT ANY MORE (2026-08-28). The activity list is
+   * capped at six rows by RecentTrades' own `limit`, and the chart declares its height
+   * on the ResponsiveContainer — so both had a natural ceiling already and `card-md`
+   * only added empty space beneath it. The classes still exist for Prop OS, which this
+   * redesign has not reached. */
+  assert.ok(!/className="card-(md|lg)"/.test(dashSrc), 'dashboard cards size to their content');
 });

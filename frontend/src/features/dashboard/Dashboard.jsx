@@ -326,7 +326,11 @@ function OpenPositions() {
 function ActivityCard({ trades, unit, beRounding }) {
   const [tab, setTab] = useState('recent');
   return (
-    <PanelCard className="card-md">
+    /* NO FIXED HEIGHT. `card-md` pinned this to 355px so it lined up with the old
+       calendar's two-row span; the calendar sizes to content now, so all the pin bought
+       was 150px of nothing under five trades. The list is capped at six rows by
+       RecentTrades' own `limit`, so the card has a natural ceiling already. */
+    <PanelCard>
       <PanelHead>Recent Activity</PanelHead>
       {/* The tab strip stays the shared Tabs primitive — it is a control, not a card,
           and the frame draws no tabs at all here (its activity list is placeholder
@@ -337,7 +341,7 @@ function ActivityCard({ trades, unit, beRounding }) {
         value={tab}
         onChange={setTab}
       />
-      <PanelBody scroll>
+      <PanelBody>
         {tab === 'recent' ? <RecentTrades trades={trades} unit={unit} beRounding={beRounding} /> : <OpenPositions />}
       </PanelBody>
     </PanelCard>
@@ -358,7 +362,9 @@ function CumulativePnlCard({ days, unit }) {
 
   const last = data.length ? data[data.length - 1].cum : 0;
   return (
-    <PanelCard className="card-md">
+    /* Same as the activity card: the chart already declares its own height on the
+       ResponsiveContainer, so `card-md` only added empty space beneath it. */
+    <PanelCard>
       <PanelHead
         meta={(
           <PanelMeta tone={last > 0 ? 'pos' : last < 0 ? 'neg' : undefined}>
@@ -372,7 +378,7 @@ function CumulativePnlCard({ days, unit }) {
       {data.length === 0 ? (
         <EmptyState title="No closed trades yet" description="Your cumulative P&L will chart here once you have closed trades." />
       ) : (
-        <ResponsiveContainer width="100%" height={230}>
+        <ResponsiveContainer width="100%" height={190}>
           <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
             <defs>
               <linearGradient id="dashEquityFill" x1="0" y1="0" x2="0" y2="1">
@@ -682,13 +688,15 @@ export function DashSkeleton() {
 
       <div className="dash-grid" style={{ '--dash-grid-cols': GRID_COLUMNS }}>
         <div className="dash-grid-cell" style={{ gridColumn: 'span 2', gridRow: 'span 2' }}>
-          <PanelCard className="card-lg">
+          <PanelCard>
             <PanelHead sub={<SkeletonLine w="7rem" />}><SkeletonLine w="9rem" h="1rem" /></PanelHead>
             <SkeletonBlock h="16rem" radius={12} />
           </PanelCard>
         </div>
         <div className="dash-grid-cell">
-          <PanelCard className="card-md">
+          {/* Content-sized like the card it stands in for — a skeleton that reserves a
+              different box from its content is the layout jump it exists to prevent. */}
+          <PanelCard>
             <PanelHead><SkeletonLine w="8rem" h="1rem" /></PanelHead>
             {[0, 1, 2, 3, 4].map((i) => (
               <PanelRow key={i}><SkeletonLine w={`${60 + i * 8}%`} /></PanelRow>
