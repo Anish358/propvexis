@@ -209,6 +209,16 @@
   --shadow-40:rgba(0,0,0,.4); --shadow-45:rgba(0,0,0,.45); --shadow-50:rgba(0,0,0,.5);
   --shadow-60:rgba(0,0,0,0.6); --shadow-70:rgba(0,0,0,0.7);
   --accent-ring:#737373;
+  /* ===== NAVIGATION RAIL (2026-08-28 Figma) =====
+     Four values the rail and the brand mark need that no existing token named. Here rather than in the
+     component because components reference tokens and never hex — and because the
+     nudge wash in particular is a colour DECISION (amber at 5% reads as encouragement;
+     the same hue at any real opacity reads as the warning state it must not be
+     confused with), which belongs where the palette is, not in a class string. */
+  --brand-mark-bg:#e5e5e5;                /* the brand tile (Logo.jsx) + initials avatar ink */
+  --brand-mark-ink:var(--surface);        /* the chevron, stroked in the surface it sits on */
+  --rail-avatar-bg:rgba(229,229,229,0.20);
+  --nudge-bg:rgba(255,185,0,0.05);
   --skeleton-sheen:rgba(255,255,255,.05);
 
   /* ===== CHART CATEGORICAL PALETTE =====

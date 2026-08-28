@@ -12,6 +12,7 @@ import { appCss } from './helpers/app-css.js';
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const layout = read('../frontend/src/app/Layout.jsx');
 const sidebar = read('../frontend/src/app/Sidebar.jsx');
+const rail = read('../frontend/src/components/primitives/rail.jsx');
 const announcer = read('../frontend/src/components/Announcer.jsx');
 const mediaQuery = read('../frontend/src/lib/useMediaQuery.js');
 const tradeLog = read('../frontend/src/features/trades/TradeLog.jsx');
@@ -109,7 +110,9 @@ test('the drawer claims modal semantics only while it IS a drawer', () => {
   // screen-reader user hears on every page.
   assert.match(sidebar, /\.\.\.\(inDrawer \? \{ role: 'dialog', 'aria-modal': 'true'/);
   assert.match(sidebar, /aria-label=\{inDrawer \? 'Close menu' : 'Hide sidebar'\}/);
-  assert.match(sidebar, /<nav className="sb-nav" aria-label="Main">/);
+  // `RailNav` since the 2026-08-28 rebuild — the <nav> and its label moved into the
+  // primitive, but the landmark itself is the thing being asserted and it survived.
+  assert.match(sidebar, /<RailNav aria-label="Main">/);
 });
 
 test('the drawer closes on navigation and on crossing the breakpoint', () => {
@@ -147,7 +150,12 @@ test('the mobile table trade-off is made explicitly, not by accident', () => {
 
 test('touch targets on the drawer meet the 44px floor', () => {
   const block = appCss.slice(appCss.indexOf('Design B — responsive shell'));
-  assert.match(block, /\.sidebar \.sb-item, \.sidebar \.sb-sub-item \{ min-height: 44px; \}/);
+  /* THE 44px TARGET MOVED FROM A MEDIA QUERY INTO THE ROW ITSELF (2026-08-28). It used
+   * to be a mobile-only floor bolted onto the legacy rail; `RailItem` is now h-11 = 44px
+   * at every width, which is the same guarantee made unconditionally. Asserted at the
+   * primitive because that is where the height now lives — and because legacy CSS sits
+   * in the lowest cascade layer, so a rule there could no longer enforce it anyway. */
+  assert.match(rail, /'group flex h-11 w-full items-center/, 'rail rows must stay 44px tall');
   assert.match(block, /\.sb-collapse \{ min-width: 44px; min-height: 44px; \}/);
   // dvh, not vh: vh ignores mobile browser chrome, so the drawer's last item
   // sits under the address bar.

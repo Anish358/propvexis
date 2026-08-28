@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { titleCase } from '../frontend/src/lib/constants.js';
 
 import { appCss } from './helpers/app-css.js';
-import { appJsx, readSrc } from './helpers/src-files.js';
+import { appJsx, readSrc, stripComments } from './helpers/src-files.js';
 // TYPOGRAPHY RULE: this app writes in Title Case. Never SHOUTED — not via
 // `text-transform: uppercase` in CSS, not by `.toUpperCase()` on display text, and
 // not by typing a label in caps in the markup.
@@ -46,9 +46,20 @@ test('display text is not uppercased in JS', () => {
   // `.toUpperCase()` on a VALUE being shown to a person is the same rule broken in
   // a different place. Normalizing stored DATA is fine (a symbol is EURUSD), as is
   // taking a single initial for an avatar.
+  /* COMMENTS ARE BLANKED FIRST, not stripped, and the difference matters: replacing a
+   * comment with an empty line keeps every later line at its real number, so an offender
+   * is still reported at the line you can go and look at.
+   *
+   * Why at all — a rule about `.toUpperCase()` cannot be explained in a file it scans
+   * without the explanation tripping it. That is not hypothetical: the note above
+   * `initials()` in Sidebar.jsx names the method it is justifying, and this test failed
+   * on the prose while the code beneath it was exactly what the rule permits. Third
+   * scanner in this suite to learn it (see utility-collisions.test.js). */
   const offenders = [];
   for (const f of jsxFiles) {
-    readSrc(f).split('\n').forEach((line, i) => {
+    // stripComments preserves newlines in both comment forms, so indices still line up
+    // with the real file and a reported line number is one you can open.
+    stripComments(readSrc(f)).split('\n').forEach((line, i) => {
       if (!line.includes('.toUpperCase()')) return;
       if (/charAt\(0\)|\.trim\(\)\.charAt|symbols|slug/.test(line)) return;   // initials / data
       if (/titleCase/.test(line)) return;

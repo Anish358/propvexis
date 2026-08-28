@@ -448,6 +448,27 @@
   :where(button[data-slot], [data-slot] button) {
     background-color: transparent;
   }
+
+  /* THE THIRD ONE — 2026-08-28, found by the rebuilt navigation rail, and predicted by
+     the note above in the same breath as the second.
+
+     Preflight sets `*, ::before, ::after { border: 0 solid }`. Without it the UA sheet's
+     `border: 2px outset ButtonBorder` stands, so every generated control that declares
+     no border of its own draws one. It went unseen until now because the controls that
+     came before either declared a border (`variant="outline"`) or sat on legacy CSS that
+     did (`.sb-group-head { border: none }`) — and that legacy rule is exactly what the
+     rail stopped using. Caught in a headless render of the rail: the three accordion
+     headers and the collapse button had a light outset frame the frame does not have.
+
+     Border-WIDTH only, not the shorthand: the shorthand would also reset `border-color`
+     to currentColor, and Tailwind's `border` utility sets width and colour separately —
+     a component asking for `border` and nothing else would then inherit the text colour
+     as its border instead of the token the bridge points at. Same `:where()` zero
+     specificity as the two above, so any author rule still wins and this can only ever
+     remove a browser default. */
+  :where(button[data-slot], [data-slot] button) {
+    border-width: 0;
+  }
 }
 
 /* ---------------------------------------------------------------------------

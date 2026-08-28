@@ -1,99 +1,167 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useMatch } from 'react-router-dom';
+import {
+  Activity, Bell, BarChart3, ChevronDown, ChevronUp, FileText, LayoutGrid, Notebook,
+  PanelLeftClose, Settings as SettingsIcon, Shield, Target, Wrench,
+} from 'lucide-react';
+import Logo from '../components/Logo.jsx';
 import { NAV } from './nav.js';
 import { BRAND } from '../lib/theme.js';
-import Logo from '../components/Logo.jsx';
+import { useAuth } from './AuthContext.jsx';
+import {
+  Rail, RailAction, RailAvatar, RailBrand, RailFooter, RailItem, RailNav,
+  RailNudge, RailSoon, RailSub, RailSubItem, RailUser,
+} from '@/components/primitives';
 
-// Icon registry — nav.js references these by string key so the IA config stays
-// JSX-free (and testable from node). Add a key here when adding one there.
-// 19.08 = 18 * 1.06 — nav icons scaled up alongside the nav label text (see
-// .sb-item in styles.css) so the icon/text ratio stays exactly as it was.
-const svg = (paths) => () => (
-  <svg viewBox="0 0 24 24" width="19.08" height="19.08" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    {paths}
-  </svg>
-);
+/* The navigation rail, rebuilt on the 2026-08-28 Figma redesign.
+ *
+ * NOTHING ABOUT THE INFORMATION ARCHITECTURE MOVED. Same NAV config, same accordion
+ * that auto-expands to the route and can still be overridden by hand, same
+ * `subnavInPage` exception for Settings, same drawer semantics under 900px. What
+ * changed is entirely presentational, and all of it now lives in the `Rail*`
+ * primitives — this file has no class strings left, which is the point: a utility
+ * written here would compile to nothing at all (tailwind.css scopes @source to
+ * components/{ui,primitives}).
+ *
+ * ICONS ARE LUCIDE NOW. The hand-drawn `ICONS` registry that used to sit at the top of
+ * this file — twelve inline <svg> bodies at a hardcoded 19.08px, itself a note about
+ * scaling 18 by 1.06 — is gone. components.json already declares lucide as the icon
+ * library, the generated components size their own svg children, and the frame's icons
+ * ARE lucide. Twelve bespoke paths that have to be re-tuned every time the label size
+ * changes is exactly the hand-written layer the build order puts last.
+ *
+ * TWO THINGS THE FRAME DOES NOT SHOW, and how they were decided. It draws only the
+ * collapsed rail, so an expanded module (Trade Journal's seven children) has no
+ * reference: `RailSub` applies the rail's own vocabulary — its inset, its hairline, its
+ * muted label — rather than inventing a treatment. And the nudge card is drawn with
+ * static copy; what feeds it here is the real notification stream, filtered to the
+ * encouraging half (see `firstGoodNews`), so the card is absent rather than invented
+ * when there is nothing good to say.
+ */
+
+// nav.js references icons by string key so the IA config stays JSX-free and testable
+// from node. Add a key here when adding one there.
 const ICONS = {
-  dashboard: svg(<>
-    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-    <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-  </>),
-  journal: svg(<>
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-  </>),
-  prop: svg(<>
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
-  </>),
-  analytics: svg(<>
-    <path d="M3 3v18h18" /><rect x="7" y="11" width="3" height="6" /><rect x="12" y="7" width="3" height="10" /><rect x="17" y="13" width="3" height="4" />
-  </>),
-  reports: svg(<>
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h5" />
-  </>),
-  settings: svg(<>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </>),
-  account: svg(<>
-    <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" />
-  </>),
-  alerts: svg(<>
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
-  </>),
-  strategies: svg(<>
-    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />
-  </>),
-  backtesting: svg(<>
-    <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" />
-  </>),
-  tools: svg(<>
-    <path d="M14.7 6.3a4 4 0 0 1-5.6 5.6l-6.4 6.4a1.5 1.5 0 0 0 2.1 2.1l6.4-6.4a4 4 0 0 1 5.6-5.6l-2.5 2.5-2-2z" />
-  </>),
+  dashboard: LayoutGrid,
+  journal: Notebook,
+  prop: Shield,
+  strategies: Target,
+  backtesting: Activity,
+  alerts: Bell,
+  reports: FileText,
+  tools: Wrench,
+  settings: SettingsIcon,
+  analytics: BarChart3,
 };
 
-// One flat rail item.
+const iconFor = (key) => ICONS[key] || ICONS.dashboard;
+
+/* THE NUDGE'S SOURCE, and why it is this and not "the latest alert".
+ *
+ * The card is amber-on-encouragement — "Keep going" over a line about progress. The
+ * notification stream carries both halves of the story: `warning` and `critical` mean a
+ * drawdown limit is closing in, `info` means something went RIGHT (minimum trading days
+ * met, profit target reached, phase passed). Feeding it the newest notification of any
+ * severity would eventually put "Keep going" above "you are 1.2% from breaching", which
+ * is not merely tonally wrong — it is reassurance printed over the one alert the trader
+ * has to act on immediately.
+ *
+ * So it reads the good news only, and renders nothing when there is none. An empty
+ * footer is a fine outcome; a cheerful card over a dying account is not.
+ */
+function firstGoodNews(notifications) {
+  return notifications.find((n) => n.severity === 'info' && !n.read_at) || null;
+}
+
+/* One flat rail row.
+ *
+ * `useMatch` RATHER THAN NavLink's isActive, and the reason is structural. NavLink's
+ * render-prop form makes the anchor the PARENT of whatever it returns, so a RailItem
+ * inside it would put the 44px row — its padding, its hover, its rounded background —
+ * on a <span> nested in a bare <a>. The click target and the thing that looks
+ * clickable would be two different boxes. Passing `render={<Link/>}` makes the anchor
+ * the row itself, and then active state has to come from somewhere else: `useMatch`
+ * with the same `end` semantics NavLink uses, which is exactly what NavLink calls. */
 function RailLink({ to, label, icon, end, soon }) {
-  const Icon = ICONS[icon] || ICONS.dashboard;
+  const Icon = iconFor(icon);
+  const active = !!useMatch({ path: to, end: !!end });
   return (
-    <NavLink to={to} end={end} className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`}>
-      <Icon /><span>{label}</span>
-      {soon && <span className="sb-soon">soon</span>}
-    </NavLink>
+    <RailItem
+      render={<Link to={to} />}
+      active={active}
+      icon={<Icon aria-hidden="true" />}
+      badge={soon ? <RailSoon /> : null}
+      aria-current={active ? 'page' : undefined}
+    >
+      {label}
+    </RailItem>
   );
 }
 
-// A module group: header toggles an inline (accordion) sub-nav. Auto-expands
-// while the route is inside the module; the user can still collapse/expand it.
+// Same reasoning as RailLink, one level down.
+function RailSubLink({ to, label, end, soon }) {
+  const active = !!useMatch({ path: to, end: !!end });
+  return (
+    <RailSubItem
+      render={<Link to={to} />}
+      active={active}
+      badge={soon ? <RailSoon /> : null}
+      aria-current={active ? 'page' : undefined}
+    >
+      {label}
+    </RailSubItem>
+  );
+}
+
+/* A module group: the header toggles an inline sub-nav. Auto-expands while the route is
+ * inside the module; the user can still collapse or expand it by hand, and that
+ * override outranks the route until they navigate away. */
 function RailGroup({ item }) {
   const { pathname } = useLocation();
-  const inModule = pathname === item.base || pathname.startsWith(item.base + '/');
+  const inModule = pathname === item.base || pathname.startsWith(`${item.base}/`);
   const [override, setOverride] = useState(null); // null = follow the route
   const expanded = override ?? inModule;
-  const Icon = ICONS[item.icon] || ICONS.dashboard;
+  const Icon = iconFor(item.icon);
+  const Chevron = expanded ? ChevronUp : ChevronDown;
 
   return (
-    <div className={`sb-group ${expanded ? 'open' : ''}`}>
-      <button
-        className={`sb-item sb-group-head ${inModule && !expanded ? 'active' : ''}`}
-        onClick={() => setOverride(!expanded)}
+    <div>
+      <RailItem
+        // A collapsed module whose route you are on still reads as current — the
+        // children are hidden, so the header is the only thing left to say so.
+        active={inModule && !expanded}
+        icon={<Icon aria-hidden="true" />}
+        trailing={<Chevron aria-hidden="true" className="size-4 shrink-0 opacity-60" />}
         aria-expanded={expanded}
+        onClick={() => setOverride(!expanded)}
       >
-        <Icon /><span>{item.label}</span>
-        <svg className="sb-chev" width="14.84" height="14.84" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
+        {item.label}
+      </RailItem>
       {expanded && (
-        <div className="sb-sub">
-          {item.children.map((c) => (
-            <NavLink key={c.to} to={c.to} end={c.end} className={({ isActive }) => `sb-sub-item ${isActive ? 'active' : ''}`}>
-              <span>{c.label}</span>
-              {c.soon && <span className="sb-soon">soon</span>}
-            </NavLink>
-          ))}
-        </div>
+        <RailSub>
+          {item.children.map((c) => <RailSubLink key={c.to} {...c} />)}
+        </RailSub>
       )}
     </div>
   );
 }
+
+// Initials for the avatar when the account carries no photo — the same two-capital
+// rule the wizard's firm marks use, for the same reason: two letters is what fits
+// legibly in a 36px circle at label size.
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  // Upper-cased on the charAt lines themselves, not on the result. typography.test.js
+  // forbids .toUpperCase() on display text and exempts the avatar-initial case by
+  // recognising `charAt(0)` on the same line — a fair rule, since a bare
+  // `x.toUpperCase()` two lines later is indistinguishable from shouting at a user.
+  return parts.length === 1
+    ? parts[0].charAt(0).toUpperCase() + parts[0].charAt(1).toUpperCase()
+    : parts[0].charAt(0).toUpperCase() + parts[1].charAt(0).toUpperCase();
+}
+
+const titleCase = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
 
 /**
  * @param {object}   props
@@ -101,9 +169,11 @@ function RailGroup({ item }) {
  * @param {boolean}  props.inDrawer  true when rendered as the mobile off-canvas
  *   drawer. Only the semantics change — the nav itself is identical, because a
  *   second copy of the tree for mobile is how the two silently drift apart.
+ * @param {Array}    props.notifications  the alert stream, for the footer nudge.
  */
-export default function Sidebar({ onToggle = () => {}, inDrawer = false }) {
+export default function Sidebar({ onToggle = () => {}, inDrawer = false, notifications = [] }) {
   const closeRef = useRef(null);
+  const { user } = useAuth();
 
   // Opening a drawer must move focus into it, or a keyboard user "opens" a menu
   // and their next Tab continues from the button behind the scrim. Layout owns
@@ -112,40 +182,65 @@ export default function Sidebar({ onToggle = () => {}, inDrawer = false }) {
     if (inDrawer) closeRef.current?.focus();
   }, [inDrawer]);
 
+  const nudge = firstGoodNews(notifications);
+
   return (
-    <aside
-      className={`sidebar ${inDrawer ? 'is-drawer' : ''}`}
+    <Rail
+      data-drawer={inDrawer ? '' : undefined}
       // As a drawer it is a modal surface over the page, so it says so; as a
       // static rail it is just a landmark and must NOT claim to be a dialog.
       {...(inDrawer ? { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Main navigation' } : {})}
     >
-      <div className="sb-head">
-        {/* Router Link, not an href — the mark stays inside whichever origin
-            the app is served from (localhost in dev, the deployed host in prod). */}
-        <Link to="/" className="sb-brand"><Logo size={24} />{BRAND}</Link>
-        <button
-          ref={closeRef}
-          className="sb-collapse"
-          onClick={onToggle}
-          title={inDrawer ? 'Close menu' : 'Hide sidebar'}
-          aria-label={inDrawer ? 'Close menu' : 'Hide sidebar'}
-        >
-          <span /><span /><span />
-        </button>
-      </div>
+      <RailBrand
+        mark={(
+          /* THE SHARED Logo, not a mark drawn here. It is the same component the wizard
+             header and the auth screen render, and it draws the frame's 32px tile
+             itself — a second one in this file would be the brand maintained twice.
+             Router Link, not an href, so the mark stays inside whichever origin the app
+             is served from (localhost in dev, the deployed host in prod). */
+          <Link to="/" aria-label={`${BRAND} home`}>
+            <Logo size={32} />
+          </Link>
+        )}
+        action={(
+          <RailAction
+            ref={closeRef}
+            onClick={onToggle}
+            title={inDrawer ? 'Close menu' : 'Hide sidebar'}
+            aria-label={inDrawer ? 'Close menu' : 'Hide sidebar'}
+          >
+            <PanelLeftClose aria-hidden="true" />
+          </RailAction>
+        )}
+      >
+        {BRAND}
+      </RailBrand>
 
-      {/* Sign-out lives in the top-bar avatar menu; the rail is nav-only. */}
       {/* A module with `subnavInPage` gets ONE rail row, not an accordion: its page
           draws its own section rail (Settings), so listing the same six children here
           would be two sub-navs for one module. `to` falls back to `base` because such
           an entry is a destination as well as a module — nav.js says why. */}
-      <nav className="sb-nav" aria-label="Main">
-        {NAV.map((item) =>
+      <RailNav aria-label="Main">
+        {NAV.map((item) => (
           item.children && !item.subnavInPage
             ? <RailGroup key={item.base} item={item} />
             : <RailLink key={item.to || item.base} {...item} to={item.to || item.base} />
+        ))}
+      </RailNav>
+
+      <RailFooter>
+        {nudge && <RailNudge title="Keep going">{nudge.title}</RailNudge>}
+        {/* Sign-out and account switching stay in the top-bar avatar menu; this row is
+            identity, and it goes to the profile it names. */}
+        {user && (
+          <RailUser
+            render={<Link to="/settings" />}
+            avatar={<RailAvatar src={user.picture} alt="">{initials(user.name)}</RailAvatar>}
+            name={user.name || user.email}
+            meta={`${titleCase(user.plan || 'free')} plan`}
+          />
         )}
-      </nav>
-    </aside>
+      </RailFooter>
+    </Rail>
   );
 }

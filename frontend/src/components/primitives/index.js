@@ -100,3 +100,11 @@ export {
   WizardHeading, WizardNote, WizardPage, WizardPillars, WizardProgress, WizardRow,
   WizardSearch, WizardSectionTitle,
 } from './wizard.jsx';
+
+// The navigation rail. App-specific like the wizard above, and here for the same two
+// reasons: application code imports from this directory, and this is one of only two
+// places a Tailwind utility compiles at all.
+export {
+  Rail, RailAction, RailAvatar, RailBrand, RailFooter, RailItem, RailNav,
+  RailNudge, RailSoon, RailSub, RailSubItem, RailUser,
+} from './rail.jsx';
