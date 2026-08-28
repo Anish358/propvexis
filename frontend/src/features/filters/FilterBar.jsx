@@ -23,7 +23,7 @@ import FilterPanel from './FilterPanel.jsx';
 // may not originate visual values (pinned by topbar-overlays.test.js), so what stays
 // here is geometry the preset has no opinion about — a width cap, a truncation.
 import {
-  Button, CountBadge,
+  Badge, Button, CountBadge,
   Menu, MenuCheckboxItem, MenuContent, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger,
   ToggleGroupExclusive, ToggleGroupItem,
@@ -158,10 +158,23 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
             All accounts <span className="acct-opt-sub">God view</span>
           </MenuItem>
           {bound.map((a) => {
+            /* A ROW THAT SAYS WHAT THE ACCOUNT IS (2026-08-28). It used to read a label
+               and then either "Manual" or a five-digit login — the login is the least
+               useful thing about an account you are choosing BY NAME, and "Manual" is
+               how trades arrive, not what the account is.
+               What a trader picks by is the phase, so that is the badge; the connection
+               kind stays as quiet text for the manual case, where it does explain why
+               there is no live balance. Uses the Badge primitive rather than a fourth
+               hand-styled span, so it matches the phase badges in Prop OS. */
             const row = (
               <>
                 <span className="acct-opt-name">{acctLabel(a)}</span>
-                <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
+                {PHASE_TAG[a.phase] && (
+                  <Badge tone={a.phase === 'funded' ? 'profit' : 'neutral'}>
+                    {PHASE_TAG[a.phase]}
+                  </Badge>
+                )}
+                {a.kind === 'manual' && <span className="acct-opt-sub">Manual</span>}
               </>
             );
             return singleSelect ? (
@@ -320,12 +333,15 @@ export default function FilterBar({
    * and the same sentence over the Trade Log would be noise. `/` is the only route that
    * gets it.
    *
-   * Time of day is computed from the local clock rather than stored, and it is
-   * deliberately coarse — three bands, no "good night". A greeting that tells someone
-   * it is late is a judgement, and this app already has enough opinions about when they
-   * should stop trading. */
+   * JUST THE GREETING (owner, 2026-08-28). It ended "— here's where you stand today.",
+   * the frame's copy, which is a sentence explaining what a dashboard is to someone who
+   * opens it every morning. The half worth keeping is the half about THEM.
+   *
+   * Time of day comes from the local clock and is deliberately coarse — three bands, no
+   * "good night". A greeting that remarks on the hour is a judgement, and this app has
+   * enough opinions about when someone should stop trading. */
   const greeting = pathname === '/' && user?.name
-    ? `${timeOfDay()}, ${user.name.trim().split(/\s+/)[0]} — here's where you stand today.`
+    ? `${timeOfDay()}, ${user.name.trim().split(/\s+/)[0]}`
     : null;
 
   return (
@@ -360,17 +376,22 @@ export default function FilterBar({
         {/* The frame wraps the two segments in a bordered capsule rather than letting
             them float; `pill` on the group is what makes the container read as one
             control with two states instead of two adjacent buttons. */}
-        <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit" pill>
-          <ToggleGroupItem value="R" size="sm">R</ToggleGroupItem>
-          <ToggleGroupItem value="USD" size="sm">$</ToggleGroupItem>
-        </ToggleGroupExclusive>
-        <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
+        {/* THE SCOPE LEADS THE CLUSTER (2026-08-28, owner call). It is the only control
+            here that changes what every figure on the page MEANS: the unit toggle changes
+            how they are written, Filters narrows which rows feed them, but the account
+            scope decides whose numbers these are. Reading order is left to right, so
+            "whose account am I looking at" should not be the fourth thing found. */}
         <AccountSwitcher
           accounts={accounts}
           accountId={accountId}
           setAccountId={setAccountId}
           singleSelect={singleAccount}
         />
+        <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit" pill>
+          <ToggleGroupItem value="R" size="sm">R</ToggleGroupItem>
+          <ToggleGroupItem value="USD" size="sm">$</ToggleGroupItem>
+        </ToggleGroupExclusive>
+        <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
         {/* NO AVATAR MENU HERE (2026-08-28, owner call). The rail's footer already
             carries the identity row — name, plan and a link to the profile — so a second

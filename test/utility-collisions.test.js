@@ -340,3 +340,36 @@ test('the stylesheet parses — comments close and braces balance', () => {
     assert.equal(depth, 0, `${name}: ${depth} unclosed block(s)`);
   }
 });
+
+test('no rule is nested inside another rule\'s body', () => {
+  /* THE SECOND HALF OF THE SAME LESSON, and it needed its own check because the first
+   * one passed while the file was broken.
+   *
+   * The comment-and-brace test above catches an insertion that swallows a delimiter.
+   * It does NOT catch a complete, well-formed rule dropped INSIDE another rule's body —
+   * braces still balance, comments still close, and the stylesheet is quietly invalid.
+   * That happened twice in one session, both times from inserting after a matched line
+   * without noticing the line was the first of a multi-line rule.
+   *
+   * At-rule blocks are exempt: `@media`, `@supports` and `@layer` exist to CONTAIN
+   * selectors, and this file is full of legitimate ones. What is never intended here is
+   * a selector inside a DECLARATION block. (CSS nesting is valid modern syntax; this
+   * stylesheet predates it and does not use it, so its appearance means an accident.) */
+  for (const [name, css] of [['legacy/app.css', legacyCss], ['tokens.css', tokensCss], ['bridge.css', bridgeCss]]) {
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const stack = [];
+    const offenders = [];
+    stripped.split('\n').forEach((line, i) => {
+      const t = line.trim();
+      if (stack[stack.length - 1] === 'decl' && /^[.#][A-Za-z0-9_-][^;{}]*\{/.test(t)) {
+        offenders.push(`${name}:${i + 1}: ${t.slice(0, 60)}`);
+      }
+      for (const ch of line) {
+        if (ch === '{') stack.push(t.startsWith('@') ? 'at' : 'decl');
+        else if (ch === '}') stack.pop();
+      }
+    });
+    assert.deepEqual(offenders, [],
+      `a rule is nested inside another rule's body — the stylesheet is invalid there:\n${offenders.join('\n')}`);
+  }
+});

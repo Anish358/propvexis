@@ -410,8 +410,20 @@ test('the button, its position and the top bar are untouched', () => {
   assert.ok(!/<span>Filters<\/span>/.test(bar), 'the visible label is gone');
   assert.match(bar, /\{active > 0 && <CountBadge>\{active\}<\/CountBadge>\}/, 'still a count badge');
   // Order in the right-hand cluster: after the unit switch, before the account switcher.
-  assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<ToggleGroupExclusive'));
-  assert.ok(bar.indexOf('<FiltersButton') < bar.indexOf('<AccountSwitcher'));
+  /* THE CLUSTER REORDERED ON 2026-08-28 (owner call) and the ORDER is the assertion,
+   * not the old sequence. The scope switcher leads now: it is the only control in the
+   * bar that changes what every figure on the page MEANS — the unit toggle changes how
+   * they are written and Filters narrows which rows feed them, but the scope decides
+   * whose numbers these are, and reading order is left to right.
+   *
+   * Filters still sits between the two view controls and the alert feed, which is what
+   * this line was protecting: it is a view control, not chrome. */
+  assert.ok(bar.indexOf('<AccountSwitcher') < bar.indexOf('<ToggleGroupExclusive'),
+    'the account scope leads the cluster');
+  assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<ToggleGroupExclusive'),
+    'Filters stays with the view controls');
+  assert.ok(bar.indexOf('<FiltersButton') < bar.indexOf('<NotificationBell'),
+    'and ahead of the alert feed');
   assert.match(css, /\.tb-filters \{ position: relative; \}/);
 });
 

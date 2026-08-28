@@ -2382,12 +2382,40 @@ label.full { margin-bottom: 16px; }
    fixed head — `overflow: hidden` here is what clips the rows to the rounded corners. */
 .notif-panel { width: 340px; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; }
 .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 400; }
-.notif-markall { background: transparent; border: none; color: var(--status-info); font-size: 12px; cursor: pointer; }
+/* NEUTRAL, NOT BLUE (2026-08-28). It drew in --status-info and was the last blue left
+   in the chrome after the chart line and the tab indicator went neutral — one saturated
+   link in a panel of red, amber and green, where those three all MEAN something and it
+   does not. It is an action on the panel, so it reads like one: muted until hovered. */
+.notif-markall {
+  background: transparent; border: none; color: var(--text-2); font-size: 12px;
+  cursor: pointer; border-radius: var(--r-md); padding: 2px 6px;
+  transition: color var(--dur-fast) var(--ease);
+}
+.notif-markall:hover { color: var(--text); }
 .notif-list { overflow-y: auto; }
 .notif-empty { padding: 32px 16px; text-align: center; color: var(--muted); font-size: 13px; }
 .notif-item { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .notif-item.unread { background: var(--surface-hover); }
 .notif-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 8px; background: var(--muted); }
+
+/* The severity glyph, replacing `.notif-dot` (2026-08-28). Sized and coloured like the
+   dot it replaces — the hue still comes from the row's `.crit` / `.warn` / `.info`
+   class — but it is a SHAPE now, matching the marks Today's Brief uses for the same
+   three severities. Colour was the only encoding before. */
+.notif-glyph { display: inline-flex; flex: none; margin-top: 2px; }
+.notif-glyph svg { width: 15px; height: 15px; }
+.notif-item.crit .notif-glyph { color: var(--loss); }
+.notif-item.warn .notif-glyph { color: var(--warning); }
+.notif-item.info .notif-glyph { color: var(--profit); }
+
+/* The panel's footer link out to the full Alerts page. The feed here is capped, so
+   without it the older alerts were unreachable from the place people look for them. */
+.notif-foot {
+  border-top: 1px solid var(--line); padding: 10px 14px;
+  display: flex; justify-content: center;
+}
+.notif-foot a { color: var(--text-2); font-size: 12px; text-decoration: none; }
+.notif-foot a:hover { color: var(--text); }
 .notif-item.warn .notif-dot { background: var(--status-warn); }
 .notif-item.crit .notif-dot { background: var(--status-bad); }
 .notif-item.info .notif-dot { background: var(--status-info); }
@@ -3203,6 +3231,11 @@ label.full { margin-bottom: 16px; }
   background: var(--surface-2); border: 1px solid var(--line-strong);
   border-radius: var(--r-2xl); box-shadow: var(--sh-2);
 }
+/* The empty state of the stack: the picker is the only panel, so the wrapper keeps its
+   place in the cascade's positioning but draws nothing of its own. See the note in
+   FilterPanel.jsx — two panels, one of them empty, is what this replaces. */
+.fp--bare { background: none; border: none; box-shadow: none; min-height: 0; }
+.fp-stack--bare .fp-cascade { margin-top: 0; }
 .fp-head {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-2);
   padding: 10px 12px; border-bottom: 1px solid var(--line);
@@ -3210,9 +3243,14 @@ label.full { margin-bottom: 16px; }
 .fp-head-title { font-size: 12px; font-weight: var(--fw-semibold); color: var(--text); }
 .fp-head-clear {
   background: transparent; border: none; padding: 0; cursor: pointer;
-  font-size: 11px; color: var(--accent-on-surface);
+  /* NEUTRAL (2026-08-28), with the rest of the chrome. It drew in --accent-on-surface,
+     which after the chart line, the tab indicator and "Mark all read" went neutral was
+     one of the last blues in the app. Blue still means brand and link; a destructive-ish
+     action inside a panel is not either. */
+  font-size: 11px; color: var(--text-2);
+  transition: color var(--dur-fast) var(--ease);
 }
-.fp-head-clear:hover { text-decoration: underline; }
+.fp-head-clear:hover { color: var(--text); text-decoration: underline; }
 
 /* Active filters. Each chip is two buttons: the body re-opens that filter's value
    column (editing beats remove-and-re-add), the ✕ removes only that one. */
