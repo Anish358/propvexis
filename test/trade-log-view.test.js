@@ -7,6 +7,7 @@ import { fmtDayShort } from '../frontend/src/lib/constants.js';
 import { exportValue, csvText, tradesToCsv } from '../frontend/src/features/trades/tradeExport.js';
 
 import { appCss } from './helpers/app-css.js';
+import { readSrc } from './helpers/src-files.js';
 // The Trade Log's default view, table behaviour and headline KPI row. The column
 // SPEC is plain data (tradeColumns.js) so it can be asserted directly; the cells
 // are JSX and node can't import those, so their behaviour is read from source.
@@ -225,7 +226,16 @@ test('the column header sticks to the top bar, and the page is the only scroller
   assert.match(bar, /setProperty\('--topbar-h', `\$\{el\.offsetHeight\}px`\)/);
   assert.match(bar, /new ResizeObserver\(publish\)/);
   assert.match(bar, /ro\.disconnect\(\)/);
-  assert.match(bar, /<div className="topbar" ref=\{barRef\}>/);
+  /* `<TopBar ref={barRef}>` since the 2026-08-28 rebuild. The measurement is the point
+   * and it is unchanged; what this line has to keep watching is that the ref still
+   * reaches a real element. TopBar is forwardRef'd for exactly this — React 18.3 does
+   * not pass `ref` as an ordinary prop, so a plain function component would swallow it
+   * and --topbar-h would never be published: the sticky header would fall back to its
+   * hardcoded 50px guess and sit wrong on one page only, with no error anywhere. */
+  assert.match(bar, /<TopBar ref=\{barRef\}>/);
+  const topbar = readSrc('components/primitives/topbar.jsx');
+  assert.match(topbar, /export const TopBar = React\.forwardRef/, 'TopBar must forward its ref');
+  assert.match(topbar, /<header\s*\n\s*ref=\{ref\}/, 'the ref must reach the element being measured');
 });
 
 test('nothing but the top bar is pinned', () => {

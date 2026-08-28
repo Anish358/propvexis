@@ -128,9 +128,14 @@ export {
 
 // The dashboard's generic content card, and the P&L calendar's cells.
 export {
-  ActionLink, ActionStatus, ActionStrip, PanelBody, PanelCard, PanelCell, PanelHead,
-  PanelMeta, PanelRow, PanelRowHead, PanelValue,
+  ActionLink, ActionStatus, ActionStrip, LoadingNote, PanelBody, PanelCard, PanelCell,
+  PanelHead, PanelMeta, PanelRow, PanelRowHead, PanelValue, SkeletonBlock, SkeletonLine,
+  SkeletonRegion,
 } from './panel.jsx';
 export {
   CalCell, CalCellBody, CalDayNum, CalDow, CalGrid, CalNavButton, CalRoot, CalWeek,
 } from './calendar.jsx';
+
+// The top bar's shell and title. Its controls keep their current skin — topbar.jsx
+// says why.
+export { TopBar, TopBarActions, TopBarTitle } from './topbar.jsx';

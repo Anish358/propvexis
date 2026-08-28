@@ -159,6 +159,12 @@ export function RailNav({ className, children, ...rest }) {
  * alternative — three near-identical class strings — is how the accordion header
  * drifted a pixel off its own links last time.
  */
+/* `trailing` is wrapped rather than rendered bare, so the accordion chevron gets its
+ * size and its dimming HERE. The caller used to pass
+ * `className="size-4 shrink-0 opacity-60"` on the icon, which compiled to nothing at
+ * all — Sidebar.jsx is not a scanned path — leaving a full-size, full-strength chevron
+ * that happened to look close enough to be missed. Caught by
+ * utility-collisions.test.js, which now watches for exactly this. */
 export function RailItem({
   render, active = false, icon, badge, trailing, className, children, ...rest
 }) {
@@ -180,7 +186,7 @@ export function RailItem({
       {icon}
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {badge}
-      {trailing}
+      {trailing && <span className="shrink-0 opacity-60 [&>svg]:size-4">{trailing}</span>}
     </>
   );
 

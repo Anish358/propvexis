@@ -263,3 +263,48 @@ test('the component library uses three breakpoints and no others', () => {
   assert.deepEqual([...new Set(offenders)], [],
     `unknown breakpoint(s) — the set is 900 / 1080 / 1200:\n${offenders.join('\n')}`);
 });
+
+test('no app file writes a Tailwind utility, because it would compile to nothing', () => {
+  /* THE ONE FAILURE IN THIS REPO WITH NO ERROR MESSAGE, and it is worth a test of its
+   * own because it looks like working code in review.
+   *
+   * `@source` scopes Tailwind's scanner to components/{ui,primitives}. A class written
+   * anywhere else is never seen, so no rule is emitted — the markup is correct, the
+   * class is on the element, and the browser has nothing to apply. Worse, tailwind-merge
+   * has usually already dropped the primitive's own default in favour of the class that
+   * does not exist.
+   *
+   * IT HAPPENED TWICE while building the dashboard's loading state. `w-40` on a skeleton
+   * block left it 36px tall and ZERO wide inside a flex row — reserving its space,
+   * painting nothing — and `h-7` on a skeleton line silently kept the default height.
+   * Neither was visible in the source; the first was found by dumping the rendered DOM.
+   * The fix in both cases was to make the dimension a PROP the primitive turns into an
+   * inline style, which is what a caller outside the library has to use.
+   *
+   * The patterns below are the unambiguous ones only. Legacy class names are
+   * hyphenated and domain-shaped (`dash-grid`, `card-md`, `jo-kpi-label`), so a bare
+   * `flex`, an arbitrary value, or a numeric spacing step cannot be one of them. */
+  /* WHOLE TOKENS, NOT SUBSTRINGS. The first version used \\b and matched `grid` inside
+   * `dash-grid` — every legacy grid class in the app. A class attribute is a
+   * space-separated list, so each token is checked on its own. */
+  const UTILITY = [
+    /^(?:flex|grid|truncate|tabular-nums|shrink-0|items-center|justify-between|opacity-\d+)$/,
+    /^(?:w|h|p|px|py|pt|pb|pl|pr|m|mx|my|gap|basis|size)-(?:\d|\[)/,
+    /^(?:text|bg|border|rounded|min-w|max-w|min-h)-\[/,
+  ];
+  const isUtility = (tok) => UTILITY.some((re) => re.test(tok));
+
+  const offenders = [];
+  for (const f of appFiles({ ext: /\.jsx$/ })) {
+    const src = stripComments(readSrc(f));
+    // className="..." and className={`...`} — the two forms a static class arrives in.
+    for (const m of src.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+      const value = m[1] ?? m[2] ?? '';
+      const bad = value.split(/\s+/).filter(Boolean).filter(isUtility);
+      if (bad.length) offenders.push(`${f}: ${bad.join(' ')}`);
+    }
+  }
+  assert.deepEqual(offenders, [],
+    `these classes emit NO CSS — utilities compile only under components/{ui,primitives}.\n`
+    + `Move the style into a primitive, or take it as a prop:\n${offenders.join('\n')}`);
+});

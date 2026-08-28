@@ -249,3 +249,91 @@ export function ActionStatus({ icon, tone, className, children, ...rest }) {
     </span>
   );
 }
+
+/* ---- LOADING ----------------------------------------------------------------
+ * The skeleton vocabulary, on the 2026-08-28 "loading" frame (node 44:2).
+ *
+ * The frame fills every placeholder with --surface-2 and rounds text lines fully, which
+ * is the whole trick: a pill-shaped bar reads as "a line of writing that has not
+ * arrived", where a sharp rectangle reads as a component that failed to style. Blocks
+ * that stand in for a real box keep that box's radius instead.
+ *
+ * FIDELITY IS THE POINT, NOT DECORATION. DESIGN-LANGUAGE §16 leaves skeleton fidelity
+ * undecided; the frame decides it — every placeholder sits exactly where its content
+ * will, inside the real card, so the page does not visibly rearrange when the data
+ * lands. A generic spinner over the whole dashboard would be less work and would make
+ * every load feel like a page change.
+ *
+ * `aria-hidden` comes from the Skeleton primitive these compose. The COUNTERPART is on
+ * the region: whoever owns it sets `aria-busy` so a screen reader is told something is
+ * coming rather than that nothing exists. SkeletonRegion below is that.
+ */
+
+/* A line of text that has not arrived. `w` is a fraction of the container, because real
+ * lines are ragged: a column of identical-length bars reads as a table, not as prose. */
+export function SkeletonLine({ w = '100%', h = '0.75rem', className, ...rest }) {
+  return (
+    <div
+      data-slot="skeleton-line"
+      aria-hidden="true"
+      className={cn('rounded-full bg-[var(--surface-2)]', className)}
+      // Both dimensions are props for the same reason SkeletonBlock's width is: a
+      // caller in a page cannot write `h-7`. It compiles to nothing and the line
+      // silently keeps the default height, which is the sort of wrong that looks
+      // deliberate.
+      style={{ width: w, height: h }}
+      {...rest}
+    />
+  );
+}
+
+/* A box that has not arrived — a chart, a meter, a calendar cell. Takes the radius of
+ * whatever it stands in for.
+ *
+ * `w` IS A PROP AND NOT A CLASS, and that is the interesting part of this component.
+ * The first version took the width via `className="w-40"` from the page, which is the
+ * repo's one silent failure: utilities compile only under components/{ui,primitives},
+ * so the class emitted nothing, twMerge had already dropped the `w-full` it replaced,
+ * and the block rendered 36px tall and ZERO wide inside a flex row — reserving the
+ * space its content would occupy while painting nothing at all. Caught by dumping the
+ * DOM, not by reading the markup, which looked entirely correct.
+ *
+ * Taking it as an inline style means a caller in any file gets the width it asked for. */
+export function SkeletonBlock({ h = '4rem', w, radius = 12, className, ...rest }) {
+  return (
+    <div
+      data-slot="skeleton-block"
+      aria-hidden="true"
+      className={cn('bg-[var(--surface-2)]', !w && 'w-full', className)}
+      style={{ height: h, width: w, borderRadius: radius, flex: w ? '0 0 auto' : undefined }}
+      {...rest}
+    />
+  );
+}
+
+/* Wraps a loading region. `aria-busy` is the half the Skeleton primitive deliberately
+ * does not set, and `label` is what a screen reader is told instead of the grey boxes —
+ * "Loading brief", not nothing. */
+export function SkeletonRegion({ label, className, children, ...rest }) {
+  return (
+    <div data-slot="skeleton-region" aria-busy="true" aria-label={label} className={cn(className)} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+/* The status line the frame pairs with its skeletons — "Loading brief…", "Syncing…".
+ * A spinner ALONE is what this replaces: it says something is happening but not what,
+ * and on a page with five independent loads that is the difference between "the app is
+ * working" and "the app is stuck". */
+export function LoadingNote({ className, children, ...rest }) {
+  return (
+    <span
+      data-slot="loading-note"
+      className={cn('flex items-center gap-2 text-[12px] leading-4 text-[var(--muted)] [&_svg]:size-3.5', className)}
+      {...rest}
+    >
+      {children}
+    </span>
+  );
+}

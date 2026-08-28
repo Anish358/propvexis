@@ -14,7 +14,7 @@ import { useIsMobile } from '../lib/useMediaQuery.js';
 // Below 900px the sidebar becomes an off-canvas drawer instead: a 230px fixed
 // rail on a 390px phone leaves 160px for a data table, which is not a layout.
 export default function Layout({
-  trades, account, accounts, payouts, reloadPayouts, fees, reloadFees, accountId, setAccountId, reloadAccounts,
+  trades, tradesLoading = false, account, accounts, payouts, reloadPayouts, fees, reloadFees, accountId, setAccountId, reloadAccounts,
   strategies, reloadStrategies, reloadTrades,
   notifications, unread, markAllNotificationsRead, toasts, dismissToast,
   connected, flashId, saveTrade, removeTrade, addManualTrade,
@@ -133,7 +133,7 @@ export default function Layout({
           setColumnVisible={setColumnVisible}
           resetColumns={resetColumns}
         />
-        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, clearFilters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, pinnedAccounts, setPinnedAccounts, dashLayout, setDashVisible, moveDashWidget, resetDashLayout, propLayout, setPropVisible, resetPropLayout, briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
+        <Outlet context={{ trades, tradesLoading, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, clearFilters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, pinnedAccounts, setPinnedAccounts, dashLayout, setDashVisible, moveDashWidget, resetDashLayout, propLayout, setPropVisible, resetPropLayout, briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
       </main>
     </div>
   );

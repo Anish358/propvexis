@@ -4,7 +4,7 @@ import React, {
 import { useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
-  RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Sun,
+  Loader2, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Sun,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
@@ -31,8 +31,9 @@ import {
   AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell, AccountTab,
   AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  ActionLink, ActionStatus, ActionStrip, PanelBody, PanelCard, PanelHead, PanelMeta,
-  Tabs, EmptyState, Modal,
+  ActionLink, ActionStatus, ActionStrip, KpiCard, KpiSpacer, LoadingNote, MeterRow,
+  PanelBody, PanelCard, PanelHead, PanelMeta, PanelRow, SkeletonBlock, SkeletonLine,
+  SkeletonRegion, Tabs, EmptyState, Modal,
 } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
@@ -576,11 +577,89 @@ function AccountCard({
   );
 }
 
+/* THE LOADING DASHBOARD, on the 2026-08-28 frame (node 44:2).
+ *
+ * It mirrors the real page rather than replacing it with a spinner: the brief's two
+ * columns, the KPI row's five cards, the account card's three meters, the calendar and
+ * the activity list all sit where they will sit, in the real card shells. That is the
+ * frame's decision and it is the right one — a full-page spinner makes every load feel
+ * like a page change, and a layout that visibly rearranges when data lands teaches a
+ * trader not to trust what they are reading until it stops moving.
+ *
+ * IT IS SHOWN FOR A REAL SIGNAL, not a timer. `tradesLoading` is threaded from App and
+ * starts true; before this existed the page could not tell "your data is three seconds
+ * away" from "you have never traded", and showed the second to both.
+ */
+// Exported for the gitignored visual harness (frontend/.preview.jsx), which is the only
+// way to SEE this state — there is no jsdom here, and reproducing it in the app means
+// throttling a network request.
+export function DashSkeleton() {
+  return (
+    <SkeletonRegion label="Loading dashboard" className="dash-skeleton">
+      <BriefCard>
+        <BriefHeader
+          icon={<Sun aria-hidden="true" />}
+          title="Today's Brief"
+          date={<SkeletonLine w="7rem" />}
+          action={<LoadingNote><Loader2 aria-hidden="true" className="animate-spin" />Loading brief…</LoadingNote>}
+        />
+        <BriefColumns>
+          {['events', 'alerts'].map((col) => (
+            <BriefSection key={col} label={<SkeletonLine w="8rem" />} gap={col === 'alerts' ? 'alerts' : 'events'}>
+              {[0, 1, 2].map((i) => <SkeletonBlock key={i} h="2.75rem" radius={12} />)}
+            </BriefSection>
+          ))}
+        </BriefColumns>
+      </BriefCard>
+
+      <KpiRow>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <KpiCard key={i} hero={i === 0}>
+            <SkeletonLine w="5rem" />
+            <KpiSpacer />
+            <SkeletonLine w="8rem" h="1.75rem" />
+            <SkeletonLine w="6rem" />
+          </KpiCard>
+        ))}
+      </KpiRow>
+
+      <AccountCardShell>
+        <AccountCardHead icon={<ShieldCheck aria-hidden="true" />}>Account Health</AccountCardHead>
+        <AccountTabs>
+          {/* `w` as a prop, not a class: a Tailwind width written in this file would
+              compile to nothing — see SkeletonBlock. */}
+          {[0, 1, 2].map((i) => <SkeletonBlock key={i} h="2.25rem" w="10rem" radius={6} />)}
+        </AccountTabs>
+        <MeterRow>
+          {[0, 1, 2].map((i) => <SkeletonBlock key={i} h="8.5rem" radius={16} />)}
+        </MeterRow>
+      </AccountCardShell>
+
+      <div className="dash-grid" style={{ '--dash-grid-cols': GRID_COLUMNS }}>
+        <div className="dash-grid-cell" style={{ gridColumn: 'span 2', gridRow: 'span 2' }}>
+          <PanelCard className="card-lg">
+            <PanelHead sub={<SkeletonLine w="7rem" />}><SkeletonLine w="9rem" h="1rem" /></PanelHead>
+            <SkeletonBlock h="16rem" radius={12} />
+          </PanelCard>
+        </div>
+        <div className="dash-grid-cell">
+          <PanelCard className="card-md">
+            <PanelHead><SkeletonLine w="8rem" h="1rem" /></PanelHead>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <PanelRow key={i}><SkeletonLine w={`${60 + i * 8}%`} /></PanelRow>
+            ))}
+          </PanelCard>
+        </div>
+      </div>
+    </SkeletonRegion>
+  );
+}
+
 // ---- page ------------------------------------------------------------------
 
 export default function Dashboard() {
   const {
-    trades = [], accounts = [], accountId = 'all', setAccountId,
+    trades = [], tradesLoading = false, accounts = [], accountId = 'all', setAccountId,
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
     dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
     briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
@@ -736,6 +815,14 @@ export default function Dashboard() {
   // the Brief is dragged elsewhere). With the Brief hidden it goes to the top,
   // so the Customize button is never unreachable.
   const stripAfter = isDashVisible(layout, 'brief') ? 'brief' : null;
+
+  if (tradesLoading) {
+    return (
+      <div className="page">
+        <div className="page-body dash-page-body"><DashSkeleton /></div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">

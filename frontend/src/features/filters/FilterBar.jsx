@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Filter, Settings, Star } from 'lucide-react';
+import { ChevronDown, Filter, PanelLeftOpen, Settings, Star } from 'lucide-react';
 import { activeFilterCount } from './filters.js';
 import { navTitle, isSingleAccountRoute } from '../../app/nav.js';
 import { titleCase } from '../../lib/constants.js';
@@ -29,10 +29,19 @@ import {
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger,
   ToggleGroupExclusive, ToggleGroupItem,
+  TopBar, TopBarActions, TopBarTitle,
 } from '@/components/primitives';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { NotificationBell } from '../alerts/Notifications.jsx';
 import TradeSettingsModal from '../trades/TradeSettingsModal.jsx';
+
+// Three bands, local clock. See `greeting` below for why it stops at evening.
+function timeOfDay(now = new Date()) {
+  const h = now.getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
 
 const GOD = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
@@ -353,29 +362,42 @@ export default function FilterBar({
   // nav.js is where the app's route facts live — so the bar asks the IA rather than
   // a page reaching up to reconfigure the bar it does not own.
   const singleAccount = isSingleAccountRoute(pathname);
+  const { user } = useAuth();
+
+  /* THE FRAME'S GREETING, and only where it belongs. "Good morning, Alex — here's where
+   * you stand today." is the dashboard's line: it is the screen a trader opens first,
+   * and the same sentence over the Trade Log would be noise. `/` is the only route that
+   * gets it.
+   *
+   * Time of day is computed from the local clock rather than stored, and it is
+   * deliberately coarse — three bands, no "good night". A greeting that tells someone
+   * it is late is a judgement, and this app already has enough opinions about when they
+   * should stop trading. */
+  const greeting = pathname === '/' && user?.name
+    ? `${timeOfDay()}, ${user.name.trim().split(/\s+/)[0]} — here's where you stand today.`
+    : null;
 
   return (
-    <div className="topbar" ref={barRef}>
-      {/* The view controls moved across to the right; the left now holds the
-          sidebar re-opener and the current page's name. */}
-      <div className="tb-left">
-        {collapsed && (
-          <button className="tb-menu" onClick={onToggleSidebar} title="Show sidebar" aria-label="Show sidebar">
-            <span /><span /><span />
-          </button>
-        )}
-        {title && (
-          <h1 className="tb-title">
-            {title.module && <span className="tb-title-module">{title.module}</span>}
-            <span className="tb-title-page">{title.page}</span>
-          </h1>
-        )}
-      </div>
+    <TopBar ref={barRef}>
+      {collapsed && (
+        <Button
+          variant="chrome"
+          size="icon-sm"
+          onClick={onToggleSidebar}
+          title="Show sidebar"
+          aria-label="Show sidebar"
+        >
+          <PanelLeftOpen aria-hidden="true" />
+        </Button>
+      )}
+      {title && (
+        <TopBarTitle module={title.module} sub={greeting}>{title.page}</TopBarTitle>
+      )}
 
       {/* Per-page actions portal here (PageHeader → this node). */}
       <div className="tb-page" ref={slotRef} />
 
-      <div className="tb-right">
+      <TopBarActions>
         {/* PHASE 4c. `.fb-unit` / `.fb-unit-btn` are deleted; this is a real
             ToggleGroup. The old version was two independent <button>s in a
             role="group" whose selected state existed only as a CSS class — visually
@@ -402,8 +424,7 @@ export default function FilterBar({
           setColumnVisible={setColumnVisible}
           resetColumns={resetColumns}
         />
-      </div>
-
-    </div>
+      </TopBarActions>
+    </TopBar>
   );
 }

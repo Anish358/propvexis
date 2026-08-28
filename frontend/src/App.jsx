@@ -103,6 +103,12 @@ function clearLegacyViewState() {
 export default function App() {
   const { user, loading, setUser } = useAuth();
   const [trades, setTrades] = useState([]);
+  /* "STILL LOADING" AND "NOTHING TO SHOW" WERE THE SAME STATE, and they are not the
+     same story. `trades` starts as [] and fills in, so a trader whose data is three
+     seconds away saw exactly what a brand-new account with no trades sees: an empty
+     dashboard telling them they have never traded. Starts true because the first fetch
+     is already on its way by the time anything renders. */
+  const [tradesLoading, setTradesLoading] = useState(true);
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [payouts, setPayouts] = useState([]);
@@ -378,12 +384,24 @@ export default function App() {
   // Load trades + account snapshot + payouts for the selected scope. Waits until
   // accounts are known before trusting a specific (non-god) selection.
   useEffect(() => {
-    if (!user) { setTrades([]); setAccount(null); setPayouts([]); setFees([]); return; }
+    if (!user) {
+      setTrades([]); setAccount(null); setPayouts([]); setFees([]);
+      // Not logged in is not "loading" — it is an answer, and the router is about to
+      // send them to the login screen anyway.
+      setTradesLoading(false);
+      return;
+    }
     const owned = accountId === 'all'
       || String(accountId).split(',').every((l) => accounts.some((a) => String(a.mt5_login) === l));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
-    fetchTrades(accountId).then(setTrades).catch((e) => setLoadError(e.message));
+    setTradesLoading(true);
+    // finally, not then: a failed load must stop claiming to be loading, or the page
+    // shows a skeleton for ever with the error banner sitting above it.
+    fetchTrades(accountId)
+      .then(setTrades)
+      .catch((e) => setLoadError(e.message))
+      .finally(() => setTradesLoading(false));
     fetchAccount(accountId).then(setAccount).catch(() => {});
     fetchPayouts(accountId).then(setPayouts).catch(() => {});
     fetchFees(accountId).then(setFees).catch(() => {});
@@ -485,6 +503,7 @@ export default function App() {
               element={
               <Layout
                 trades={filteredTrades}
+                tradesLoading={tradesLoading}
                 account={account}
                 accounts={accounts}
                 payouts={payouts}

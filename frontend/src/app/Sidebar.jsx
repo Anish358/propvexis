@@ -131,7 +131,7 @@ function RailGroup({ item }) {
         // children are hidden, so the header is the only thing left to say so.
         active={inModule && !expanded}
         icon={<Icon aria-hidden="true" />}
-        trailing={<Chevron aria-hidden="true" className="size-4 shrink-0 opacity-60" />}
+        trailing={<Chevron aria-hidden="true" />}
         aria-expanded={expanded}
         onClick={() => setOverride(!expanded)}
       >
