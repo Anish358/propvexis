@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { legacyCss } from './helpers/app-css.js';
+import { bridgeCss, legacyCss, tokensCss } from './helpers/app-css.js';
 import { appFiles, libraryFiles, readSrc, stripComments } from './helpers/src-files.js';
 
 /* Tailwind utility names and this app's 862 legacy class names share one global
@@ -307,4 +307,36 @@ test('no app file writes a Tailwind utility, because it would compile to nothing
   assert.deepEqual(offenders, [],
     `these classes emit NO CSS — utilities compile only under components/{ui,primitives}.\n`
     + `Move the style into a primitive, or take it as a prop:\n${offenders.join('\n')}`);
+});
+
+test('the stylesheet parses — comments close and braces balance', () => {
+  /* A NEAR MISS ON 2026-08-28 IS WHY THIS EXISTS. A rule inserted programmatically
+   * landed INSIDE an existing block comment, which swallowed the closing delimiter and
+   * turned the rest of the file into commented-out text. The whole app rendered blank.
+   * (Written without the delimiter itself: quoting it here closes THIS comment early,
+   * which is the same bug one language over — it happened on the first draft.)
+   *
+   * `npm test` was green throughout: every test here reads the stylesheet as a STRING
+   * and greps it, so a file that no longer parses as CSS still satisfies every
+   * assertion about what it contains. Only running the app found it.
+   *
+   * This is the cheapest possible parser — comment nesting and brace depth — and it
+   * catches exactly that class of damage. It is not a CSS validator and does not try to
+   * be; it answers "could this file still be a stylesheet at all". */
+  for (const [name, css] of [['legacy/app.css', legacyCss], ['tokens.css', tokensCss], ['bridge.css', bridgeCss]]) {
+    // Comments first: an unterminated one hides every brace after it, so brace counting
+    // on the raw text would report a confusing second failure instead of the real one.
+    const opens = (css.match(/\/\*/g) || []).length;
+    const closes = (css.match(/\*\//g) || []).length;
+    assert.equal(opens, closes, `${name}: ${opens} comment openers vs ${closes} closers — one is unterminated`);
+
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    let depth = 0;
+    for (const ch of stripped) {
+      if (ch === '{') depth += 1;
+      else if (ch === '}') depth -= 1;
+      assert.ok(depth >= 0, `${name}: a closing brace with nothing open`);
+    }
+    assert.equal(depth, 0, `${name}: ${depth} unclosed block(s)`);
+  }
 });

@@ -1260,6 +1260,12 @@ label.full { margin-bottom: 16px; }
    `.acct-switch`'s own two declarations went with them — its `position: relative`
    dated from the hand-rolled dropdown, and Base UI's Positioner has not needed a
    positioned ancestor since Phase 4b. */
+
+/* The scope summary beside the account count — "P1 · P2 · Funded" (2026-08-28). Muted
+   and a step down, so the trigger reads "3 Accounts" first and the detail second. A
+   legacy rule rather than a utility because it is written in a page, where Tailwind
+   compiles nothing at all (tailwind.css @source). */
+.acct-switch-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 /* PRESET SKIN (2026-08-05). Surface, border, radius, padding and shadow are the
    generated dropdown-menu's now — DESIGN-LANGUAGE "the preset outranks legacy CSS".
@@ -2578,7 +2584,12 @@ label.full { margin-bottom: 16px; }
 }
 .u-tab::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-  border-radius: 2px; background: var(--accent); transform-origin: center;
+  /* THE INDICATOR IS NEUTRAL, NOT BRAND (2026-08-28). It drew in --accent, a blue, and
+     was the last blue left on the dashboard after the chart line went neutral — one
+     saturated 1px rule under "Recent Trades" with nothing else on the page to relate
+     it to. A selected tab is a position, not a brand moment; --text says "you are
+     here" without claiming to mean anything more. */
+  border-radius: 2px; background: var(--text); transform-origin: center;
   transform: scaleX(0); opacity: 0;
   transition: transform 220ms var(--ease), opacity 220ms var(--ease), height 180ms var(--ease);
 }

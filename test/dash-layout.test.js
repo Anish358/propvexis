@@ -415,8 +415,16 @@ test('the KPI row re-splits itself, and grid rows size to content', () => {
    * rule no longer applies to anything. */
   const kpi = readSrc('components/primitives/kpi.jsx');
   assert.match(kpi, /\[&>\*\]:min-w-\[10rem\] \[&>\*\]:flex-1/);
-  assert.match(kpi, /min-\[1080px\]:\[&>\[data-kpi=hero\]\]:flex-\[1\.7\]/,
-    'the hero keeps its extra width — but only while the row is on one line');
+  /* FIVE EQUAL CARDS SINCE 2026-08-28 (owner call). The frame draws the hero at 1.7x a
+   * default card (392 : 231) and it was built that way; in the real row the extra width
+   * bought nothing — Net P&L's figure is no longer than "58.33%" — while making the row
+   * visibly lopsided. The hero keeps what actually marks it out, the signed wash of its
+   * own outcome colour, and gives up the width.
+   *
+   * Asserted as ABSENT because the ratio is the tempting thing to re-add from the frame
+   * without noticing it was tried. */
+  assert.doesNotMatch(kpi, /flex-\[1\.7\]/, 'the hero is the same size as every other card');
+  assert.match(kpi, /data-kpi=\{hero \? 'hero' : undefined\}/, 'the hero is still marked, just not wider');
   assert.match(dash, /<KpiRow>/);
   // stripComments, because the note above KpiRow in Dashboard.jsx explains what
   // `--kpi-count` was — a rule that forbids a name cannot be explained using it.

@@ -39,7 +39,11 @@ export function NotificationBell({ notifications = [], unread = 0, onMarkAllRead
             `.notif-inline` in legacy CSS — a utility here would not be compiled, since
             `@source` covers `components/` only. */}
         <PopoverTrigger
-          render={<Button variant="chrome" size="icon-sm" />}
+          /* `pill` since 2026-08-28: every control in the top bar is a capsule at one
+             height, and the bell was the last rounded-rect in the row. The count badge,
+             the popover, the aria-label and the corner positioning are unchanged — the
+             component was already primitive-backed, so this is the shape only. */
+          render={<Button variant="chrome" size="icon-sm" pill />}
           aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
         >
           <Bell aria-hidden="true" />

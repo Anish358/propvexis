@@ -397,9 +397,17 @@ test('the button, its position and the top bar are untouched', () => {
   // implementation, not of icon, label, badge or order — so the assertions are restated
   // against what is durable. Anything pinned to a class name was pinning the migration's
   // starting point rather than the requirement.
-  assert.match(bar, /variant="chrome" size="sm" active=\{active > 0\}/, 'still a quiet control that brightens when engaged');
+  /* ICON-ONLY SINCE 2026-08-28, and that is the one thing here that DID change. The
+   * word "Filters" was the only label left in a row of glyphs, so the bar read as one
+   * text button among icons. What the test protects is unchanged and restated: still a
+   * quiet control that brightens when engaged, still a funnel, still carrying its count
+   * — and now carrying its NAME as an attribute, which is the debt an icon-only control
+   * takes on and the usual thing this refactor drops. */
+  assert.match(bar, /variant="chrome"\s*\n\s*size="icon-sm"\s*\n\s*active=\{active > 0\}/, 'still a quiet control that brightens when engaged');
   assert.match(bar, /<Filter aria-hidden="true" \/>/, 'still a funnel icon');
-  assert.match(bar, /<span>Filters<\/span>/);
+  assert.match(bar, /aria-label=\{active > 0 \? `Filters — \$\{active\} active` : 'Filters'\}/,
+    'an icon-only control must carry its name');
+  assert.ok(!/<span>Filters<\/span>/.test(bar), 'the visible label is gone');
   assert.match(bar, /\{active > 0 && <CountBadge>\{active\}<\/CountBadge>\}/, 'still a count badge');
   // Order in the right-hand cluster: after the unit switch, before the account switcher.
   assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<ToggleGroupExclusive'));

@@ -115,7 +115,14 @@ const RADIUS = 'rounded-lg';
  * It sits after RADIUS in the class list so tailwind-merge lets it replace both the
  * generated `rounded-2xl` and the corrected `rounded-lg` — one radius on the element,
  * never two racing on specificity. */
-const PILL = 'rounded-full';
+/* AND ONE HEIGHT WITH IT. The bar's controls were three sizes — `sm` for the switcher,
+ * `icon-sm` for the glyphs, a padded container for the toggle — which is invisible in
+ * isolation and obvious in a row. `pill` carries the height because in this app the
+ * capsule IS the bar: nothing else uses it, and a shape that only appears in one place
+ * may as well bring that place's metrics. `w-9` only for the icon sizes, so a labelled
+ * pill still sizes to its text. */
+const PILL = 'h-9 rounded-full';
+const PILL_ICON = 'w-9';
 
 const Button = React.forwardRef(function Button({
   variant = 'secondary',
@@ -149,6 +156,7 @@ const Button = React.forwardRef(function Button({
         // stay distinguishable — hence only the resting half is conditional.
         isChrome && (active ? 'text-foreground' : CHROME_REST),
         pill && PILL,
+        pill && String(size).startsWith('icon') && PILL_ICON,
         block && 'w-full',
         className,
       )}

@@ -46,10 +46,16 @@ const FOCUS =
  * The padding is what actually draws the capsule — the segments inset from the border
  * by 3px, exactly as the frame does — and `overflow-hidden` keeps a pressed segment's
  * own corners inside the round. */
-const PILL = 'rounded-full border border-[var(--line)] bg-[var(--surface)] p-[3px] overflow-hidden';
+const PILL = 'h-9 rounded-full border border-[var(--line)] bg-[var(--surface)] p-[3px] overflow-hidden';
+
+/* THE SEGMENTS ROUND TOO. A pressed segment inherits the generated item's `rounded-md`,
+ * which inside a fully-round container reads as a square chip floating in a capsule —
+ * two radii arguing in a 92px control. `[&>*]` rather than a prop on the item, because
+ * it is a property of being INSIDE a pill: an item does not know what it is in. */
+const PILL_ITEMS = '[&>*]:h-full [&>*]:rounded-full';
 
 function ToggleGroup({ pill = false, className, ...rest }) {
-  return <UIToggleGroup className={[pill && PILL, className].filter(Boolean).join(' ')} {...rest} />;
+  return <UIToggleGroup className={[pill && PILL, pill && PILL_ITEMS, className].filter(Boolean).join(' ')} {...rest} />;
 }
 
 function ToggleGroupItem({ className, ...rest }) {

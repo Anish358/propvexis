@@ -61,10 +61,14 @@ export function KpiRow({ className, children, ...rest }) {
     <div
       data-slot="kpi-row"
       className={cn(
+        /* FIVE EQUAL CARDS (owner call, 2026-08-28). The frame draws the hero at 1.7x
+         * a default card (392 : 231) and it was built that way; in the real row the
+         * extra width bought nothing — Net P&L's figure is no longer than "58.33%" —
+         * while making the row visibly lopsided. The hero keeps what actually marks it
+         * out, which is the signed wash of its own outcome colour, and gives up the
+         * width. Equal columns also mean the row stays even however many cards are
+         * hidden, with no ratio to re-tune. */
         'flex flex-wrap gap-2.5 [&>*]:min-w-[10rem] [&>*]:flex-1',
-        // The hero is ~1.7x a default card in the frame (392 : 231). Dropped once the
-        // row wraps: on a two-card line a 1.7 ratio makes the hero swallow the row.
-        'min-[1080px]:[&>[data-kpi=hero]]:flex-[1.7]',
         className,
       )}
       {...rest}

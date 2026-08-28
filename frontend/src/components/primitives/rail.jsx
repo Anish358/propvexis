@@ -277,7 +277,10 @@ export function RailFooter({ className, children, ...rest }) {
   return (
     <div
       data-slot="rail-footer"
-      className={cn('mt-auto flex shrink-0 flex-col gap-4 border-t border-[var(--line)] pt-6', className)}
+      /* pt-3, not pt-6. The hairline is a separator, not a section break — six units
+         of air above a single identity row read as an unfinished third block rather
+         than as the rail's floor. */
+      className={cn('mt-auto flex shrink-0 flex-col gap-3 border-t border-[var(--line)] pt-3', className)}
       {...rest}
     >
       {children}
@@ -304,7 +307,7 @@ export function RailNudge({ title, className, children, ...rest }) {
  * initials, and `trailing` for the chevron that says it opens something. */
 export function RailUser({ render, avatar, name, meta, trailing, className, ...rest }) {
   const classes = cn(
-    'flex h-13 w-full items-center gap-3 rounded-[12px] px-2 text-left transition-colors',
+    'flex h-12 w-full items-center gap-2.5 rounded-[10px] px-2 text-left transition-colors',
     'hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     className,
   );
