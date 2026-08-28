@@ -37,7 +37,7 @@ export function BriefCard({ className, children, ...rest }) {
     <section
       data-slot="brief"
       className={cn(
-        'flex flex-col gap-4 rounded-[20px] bg-[var(--surface)] p-5',
+        'flex flex-col gap-3 rounded-[16px] bg-[var(--surface)] p-4',
         className,
       )}
       {...rest}
@@ -144,7 +144,7 @@ export function BriefColumns({ className, children, ...rest }) {
     <div
       data-slot="brief-columns"
       className={cn(
-        'grid grid-cols-2 gap-6 max-[1200px]:grid-cols-1 max-[1200px]:gap-4',
+        'grid grid-cols-2 gap-5 max-[1200px]:grid-cols-1 max-[1200px]:gap-4',
         /* A LONE COLUMN TAKES THE WHOLE WIDTH. `hideEmpty` can switch either section
          * off, and a single half-width list beside an empty half reads as a column that
          * failed to load rather than one the user turned off. `:only-child` says it in

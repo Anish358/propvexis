@@ -106,7 +106,7 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
             it keeps aria-haspopup/aria-expanded on the focusable element. The
             generated Button reads `aria-expanded` itself (`aria-expanded:bg-…`), so
             the open state paints without a class of ours. */}
-        <MenuTrigger render={<Button variant="tinted" size="sm" />}>
+        <MenuTrigger render={<Button variant="tinted" size="sm" pill />}>
           {/* Long account labels truncate rather than widening the bar. The width cap
               and the ellipsis are A1 geometry, not styling the preset owns — and they
               live in legacy CSS on `.tb-acct` / `.acct-switch-cur` rather than as
@@ -201,7 +201,7 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
             strength once any filter is set, because a bar with filters applied has to
             look different from one without. Both now say what they mean instead of
             naming a colour. */}
-        <PopoverTrigger render={<Button variant="chrome" size="sm" active={active > 0} />}>
+        <PopoverTrigger render={<Button variant="chrome" size="sm" active={active > 0} pill />}>
           <Filter aria-hidden="true" />
           <span>Filters</span>
           {active > 0 && <CountBadge>{active}</CountBadge>}
@@ -273,7 +273,7 @@ function UserMenu({ tradeSettings = {}, setBeRounding, setColumnVisible, resetCo
             one declaration on `.tb-user` in legacy CSS, for the same @source reason as
             the account switcher above. */}
         <MenuTrigger
-          render={<Button variant="chrome" size="icon-sm" />}
+          render={<Button variant="chrome" size="icon-sm" pill />}
           title="Account"
           aria-label="Account"
         >
@@ -406,7 +406,10 @@ export default function FilterBar({
             navigation between the segments come from the primitive.
             `ToggleGroupExclusive` is the wrapper that refuses to end up with
             neither unit pressed; see components/primitives/toggle-group.jsx. */}
-        <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit">
+        {/* The frame wraps the two segments in a bordered capsule rather than letting
+            them float; `pill` on the group is what makes the container read as one
+            control with two states instead of two adjacent buttons. */}
+        <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit" pill>
           <ToggleGroupItem value="R" size="sm">R</ToggleGroupItem>
           <ToggleGroupItem value="USD" size="sm">$</ToggleGroupItem>
         </ToggleGroupExclusive>

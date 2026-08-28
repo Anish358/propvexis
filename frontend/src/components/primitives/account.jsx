@@ -2,8 +2,8 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 
 /* ACCOUNT HEALTH — the full-width card that says whether this account is about to die.
- * On the 2026-08-28 Figma frame (node 1:2), scaled one step down like the rest of the
- * page: 28->20 padding, 24->20 card radius, 24->22 meter figure, 20->16 gaps.
+ * On the 2026-08-28 Figma frame (node 1:2), scaled two steps down with the rest of the
+ * page: 28->16 padding, 24->16 card radius, 24->20 meter figure, 20->12 gaps.
  *
  * Presentation only. Nothing here reads a challenge, computes a drawdown or decides a
  * threshold — AccountDetails.jsx and prop.js do that and hand down strings and a tone.
@@ -47,7 +47,7 @@ export function AccountCardShell({ className, children, ...rest }) {
     <section
       data-slot="account-card"
       className={cn(
-        'flex flex-col gap-5 rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5',
+        'flex flex-col gap-4 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4',
         className,
       )}
       {...rest}
@@ -82,7 +82,7 @@ export function AccountCardHead({ icon, sub, className, children, ...rest }) {
  * accounts hides the very account a trader is looking for. */
 export function AccountTabs({ className, children, ...rest }) {
   return (
-    <div data-slot="account-tabs" className={cn('flex flex-wrap items-center gap-3', className)} {...rest}>
+    <div data-slot="account-tabs" className={cn('flex flex-wrap items-center gap-2', className)} {...rest}>
       {children}
     </div>
   );
@@ -101,7 +101,7 @@ export function AccountTab({
       data-slot="account-tab"
       aria-pressed={selected}
       className={cn(
-        'flex h-9 shrink-0 items-center gap-2 rounded-[6px] border px-3',
+        'flex h-8 shrink-0 items-center gap-2 rounded-[6px] border px-2.5',
         'text-[13px] leading-5 font-medium transition-colors',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         selected
@@ -136,7 +136,7 @@ export function AccountTabMore({ className, children, ...rest }) {
       type="button"
       data-slot="account-tab-more"
       className={cn(
-        'flex h-9 shrink-0 items-center gap-1.5 rounded-[12px] bg-[var(--bg)] px-3',
+        'flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] bg-[var(--bg)] px-2.5',
         'text-[13px] leading-5 font-medium text-[var(--muted)] transition-colors',
         'hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-3.5',
@@ -156,7 +156,7 @@ export function MeterRow({ className, children, ...rest }) {
   return (
     <div
       data-slot="meter-row"
-      className={cn('grid grid-cols-3 gap-4 max-[1200px]:grid-cols-1', className)}
+      className={cn('grid grid-cols-3 gap-3 max-[1200px]:grid-cols-1', className)}
       {...rest}
     >
       {children}
@@ -189,7 +189,7 @@ export function Meter({
   return (
     <div
       data-slot="meter"
-      className={cn('flex flex-col gap-3 rounded-[16px] border p-4', className)}
+      className={cn('flex flex-col gap-2.5 rounded-[12px] border p-3', className)}
       style={{
         // No wash and a plain hairline when the account is fine. See the header on why
         // a quiet meter stays quiet.
@@ -208,7 +208,7 @@ export function Meter({
           these tick on every ingested trade. */}
       <p className="m-0 flex flex-wrap items-baseline gap-1.5">
         <span
-          className="text-[22px] leading-7 font-semibold tabular-nums"
+          className="text-[20px] leading-7 font-semibold tabular-nums"
           style={{ color: hue && tone !== 'warn' && tone !== 'bad' ? hue : 'var(--text)' }}
         >
           {value}
@@ -237,7 +237,7 @@ export function AccountCardFoot({ action, className, children, ...rest }) {
     <div
       data-slot="account-foot"
       className={cn(
-        'flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-4',
+        'flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-3',
         className,
       )}
       {...rest}

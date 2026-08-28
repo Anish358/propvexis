@@ -104,6 +104,19 @@ const SIZES = { sm: 'sm', md: 'default', lg: 'lg' };
  */
 const RADIUS = 'rounded-lg';
 
+/* `pill` — the top bar's shape, added 2026-08-28 with the Figma redesign.
+ *
+ * The frame draws every control in the bar fully rounded: the account switcher, the
+ * unit toggle's container, the notification bell and the avatar. That is a statement
+ * about the BAR, not about buttons — chrome that floats above the page is a capsule,
+ * content actions are rects — so it is a boolean any variant can take rather than a
+ * fifth variant, and the same reasoning as `active` above: it is orthogonal.
+ *
+ * It sits after RADIUS in the class list so tailwind-merge lets it replace both the
+ * generated `rounded-2xl` and the corrected `rounded-lg` — one radius on the element,
+ * never two racing on specificity. */
+const PILL = 'rounded-full';
+
 const Button = React.forwardRef(function Button({
   variant = 'secondary',
   size = 'md',
@@ -114,6 +127,8 @@ const Button = React.forwardRef(function Button({
   // did. A boolean rather than a second variant because it is orthogonal: any chrome
   // control can be engaged or not.
   active = false,
+  // See PILL above: the top bar's controls are capsules, content actions are not.
+  pill = false,
   as: As,
   className,
   ...rest
@@ -133,6 +148,7 @@ const Button = React.forwardRef(function Button({
         // An engaged control keeps the hover but not the muted rest, so the two states
         // stay distinguishable — hence only the resting half is conditional.
         isChrome && (active ? 'text-foreground' : CHROME_REST),
+        pill && PILL,
         block && 'w-full',
         className,
       )}

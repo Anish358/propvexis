@@ -59,19 +59,22 @@ test('the rail states are the frame\'s two, and they are token-driven', () => {
   }
 });
 
-test('the nudge shows good news only, and nothing when there is none', () => {
-  /* THE RULE THIS PROTECTS IS A SAFETY ONE, not a stylistic one. The card reads
-   * "Keep going" over a line of progress. The notification stream carries both halves
-   * of the story: warning/critical mean a drawdown limit is closing in. Widening the
-   * filter to "the newest notification" would eventually print reassurance over the one
-   * alert a trader has to act on within the minute. */
-  const fn = sidebar.slice(sidebar.indexOf('function firstGoodNews'));
-  assert.match(fn, /severity === 'info'/, 'the nudge must read info-severity notifications only');
-  assert.ok(!/severity === 'warning'|severity === 'critical'/.test(fn),
-    'a drawdown warning must never be dressed up as encouragement');
-  // Absent, not faked, when there is nothing to say.
-  assert.match(fn, /\|\| null/);
-  assert.match(sidebar, /\{nudge && <RailNudge/);
+test('there is no nudge card in the rail footer', () => {
+  /* REMOVED 2026-08-28, owner call, and this test is inverted rather than deleted.
+   *
+   * The frame draws an amber "Keep going" card above the identity row. It was built and
+   * wired to the real notification stream, filtered to info severity so it could never
+   * print reassurance over a drawdown warning — that filter was the whole point of the
+   * test this replaces. It is gone because a permanent card in the rail spends vertical
+   * space on every screen repeating what Alerts and Today's Brief already say, and the
+   * rail is navigation.
+   *
+   * `RailNudge` stays exported: it works, and this was a placement decision. What must
+   * not come back silently is the WIRING — if the card returns, the info-only filter has
+   * to return with it, so this fails and sends the next reader to that reasoning. */
+  assert.ok(!sidebar.includes('<RailNudge'), 'the rail footer must not render a nudge card');
+  assert.ok(!sidebar.includes('firstGoodNews'), 'the notification wiring went with it');
+  assert.ok(!sidebar.includes('notifications'), 'the rail no longer takes the alert stream');
 });
 
 test('the rail owns its own responsive behaviour, because legacy CSS no longer can', () => {

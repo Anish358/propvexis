@@ -37,8 +37,19 @@ import {
 const FOCUS =
   'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:ring-offset-0';
 
-function ToggleGroup({ className, ...rest }) {
-  return <UIToggleGroup className={className} {...rest} />;
+/* `pill` — the top bar's shape (2026-08-28 Figma). The frame wraps the unit toggle's
+ * two segments in a bordered capsule rather than letting them sit loose, which is what
+ * makes them read as ONE control with two states instead of two adjacent buttons that
+ * happen to touch. Same boolean, same reasoning, as Button's `pill`: it describes the
+ * bar, not the component, so any group can take it.
+ *
+ * The padding is what actually draws the capsule — the segments inset from the border
+ * by 3px, exactly as the frame does — and `overflow-hidden` keeps a pressed segment's
+ * own corners inside the round. */
+const PILL = 'rounded-full border border-[var(--line)] bg-[var(--surface)] p-[3px] overflow-hidden';
+
+function ToggleGroup({ pill = false, className, ...rest }) {
+  return <UIToggleGroup className={[pill && PILL, className].filter(Boolean).join(' ')} {...rest} />;
 }
 
 function ToggleGroupItem({ className, ...rest }) {

@@ -222,6 +222,14 @@
      light fill is the strongest thing that can be drawn, and it leaves blue free to
      mean "brand / link / data line" instead of competing with it for "the button you
      press". --accent is untouched and still does that job. */
+  /* THE DATA LINE IS NEUTRAL, NOT BRAND (2026-08-28). The equity curve used
+     --accent-on-surface, a blue, which was the last blue left on the dashboard and read
+     as an accent rather than as data. The redesign has no blue on this page at all: a
+     single-series line should be the colour of TEXT, because that is what it is — the
+     figures drawn as a shape. Colour on a chart is reserved for series that MEAN
+     something (profit, loss, payout), and a lone cumulative-P&L line means nothing by
+     being blue. */
+  --chart-line:#e5e5e5;
   --action:#e5e5e5;
   --on-action:var(--surface);
   --brand-mark-ink:var(--surface);        /* the chevron, stroked in the surface it sits on */

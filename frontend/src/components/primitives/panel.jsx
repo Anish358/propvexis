@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils';
  * drift, which is exactly what happened to `.dash-cal-panel`, `.dash-activity` and
  * `.dash-equity` in the CSS this replaces.
  *
- * Scaled one step down like everything else on the page: 28->20 padding, 24->20 radius,
- * 20->16 gap, 18->16 title, 14->13 sub.
+ * Scaled two steps down with everything else on the page: 28->16 padding, 24->16
+ * radius, 20->12 gap, 18->16 title, 14->13 sub.
  *
  * NOT the generated `Card`. That one is shadcn's box with the preset's own geometry and
  * a `spacing` prop; this is the dashboard's panel, at the frame's numbers, and mapping
@@ -24,7 +24,7 @@ export function PanelCard({ className, children, ...rest }) {
     <section
       data-slot="panel"
       className={cn(
-        'flex min-w-0 flex-col gap-4 rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5',
+        'flex min-w-0 flex-col gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4',
         className,
       )}
       {...rest}

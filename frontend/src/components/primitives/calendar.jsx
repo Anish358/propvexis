@@ -8,24 +8,25 @@ import { cn } from '@/lib/utils';
  * instruction: keep the contents, take the design). What the frame does specify is the
  * cell: 12 radius, --surface-2 at 40%, a 10% hairline, 12 padding.
  *
- * A DAY'S COLOUR IS ITS RESULT, and that is the whole reason this grid exists. Twelve
- * green cells and four red ones is a month a trader reads in half a second, before any
- * figure. So:
+ * THE CELL IS ONE BLOCK, AND THE RESULT IS IN THE TEXT (revised 2026-08-28 to match
+ * the frame, on the owner's call).
  *
- *   win     --profit at 12% behind a 30% border
- *   loss    --loss, same treatment
- *   flat    a traded day that closed at zero — the neutral cell, still bordered,
- *           because it IS a trading day and must not read as an empty one
- *   idle    no trades: the frame's plain cell, recessed and unbordered
+ * The first build washed the whole tile in its outcome colour at 12% behind a 30%
+ * border, on the reasoning that a month of green and red tiles is readable in half a
+ * second. The frame does not do that: every day is the same recessed block —
+ * --surface-2 at 40% behind a 10% hairline — and it was visibly a different calendar
+ * from the one designed.
  *
- * THE PERCENTAGES ARE LOWER THAN THE ALERT ROWS' (12/30 against the brief's 10/20 at a
- * much larger size) because these are 100px tiles tiled 42 to a card. At the alert
- * rows' strength a green month becomes a solid green rectangle and the individual days
- * stop being legible as days.
+ * What the block treatment buys, beyond matching: forty-two tinted tiles is a lot of
+ * colour on a page whose OTHER uses of red and amber mean "this account is about to be
+ * closed". A quiet grid leaves the account meters as the only alarming thing on screen,
+ * which is where alarm belongs. The result is still legible per day — the P&L figure
+ * carries its outcome colour, and it is the thing you actually read.
  *
- * IDLE IS NOT A THIRD OUTCOME. A day with no trades gets no border and no wash —
- * drawing it like a flat day would make a quiet week look like sixteen breakeven
- * sessions, which is a different and much worse story.
+ * IDLE IS STILL NOT AN OUTCOME. A day with no trades gets the same block at half
+ * strength and a muted number: present, clearly part of the month, and clearly empty.
+ * Giving it the traded treatment would make a quiet week look like sixteen breakeven
+ * sessions — a different and much worse story.
  */
 
 const TONE = {
@@ -87,7 +88,6 @@ export function CalDow({ className, children, ...rest }) {
  * @param {boolean} clickable whether the day opens its trades
  */
 export function CalCell({ tone = 'idle', clickable = false, className, children, ...rest }) {
-  const hue = TONE[tone] || null;
   const idle = tone === 'idle';
   const Tag = clickable ? 'button' : 'div';
   return (
@@ -96,18 +96,17 @@ export function CalCell({ tone = 'idle', clickable = false, className, children,
       data-slot="cal-cell"
       data-tone={tone}
       className={cn(
-        'flex min-h-[4.5rem] flex-col items-stretch gap-1 rounded-[12px] border p-2 text-left',
+        'flex min-h-[3.75rem] flex-col items-stretch gap-0.5 rounded-[10px] border p-1.5 text-left',
         clickable && 'cursor-pointer transition-colors hover:border-[var(--line-strong)]',
         clickable && 'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         className,
       )}
       style={{
-        background: hue
-          ? `color-mix(in srgb, ${hue} 12%, transparent)`
-          : idle ? 'transparent' : 'var(--brief-row-bg)',
-        borderColor: hue
-          ? `color-mix(in srgb, ${hue} 30%, transparent)`
-          : idle ? 'transparent' : 'var(--line)',
+        /* THE FRAME'S BLOCK, for every day. An idle cell is the same shape at half
+           strength rather than a different shape — the grid has to read as a month,
+           and a month with holes in it reads as a rendering fault. */
+        background: idle ? 'color-mix(in srgb, var(--surface-2) 20%, transparent)' : 'var(--brief-row-bg)',
+        borderColor: idle ? 'transparent' : 'var(--line)',
       }}
       {...rest}
     >
@@ -160,7 +159,7 @@ export function CalWeek({ tone, label, value, sub, className, ...rest }) {
   return (
     <div
       data-slot="cal-week"
-      className={cn('flex min-h-[4.5rem] flex-col justify-center gap-0.5 rounded-[12px] bg-[var(--bg)] p-2', className)}
+      className={cn('flex min-h-[3.75rem] flex-col justify-center gap-0.5 rounded-[10px] bg-[var(--bg)] p-1.5', className)}
       {...rest}
     >
       <span className="text-[10px] leading-4 font-medium text-[var(--muted)]">{label}</span>

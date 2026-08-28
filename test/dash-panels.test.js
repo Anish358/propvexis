@@ -20,7 +20,7 @@ test('the three cards are one shell, not three', () => {
    * are built as one — three hand-written shells is three places for the radius to
    * drift, which is exactly what happened to `.dash-cal-panel`, `.dash-activity` and
    * `.dash-equity` in the CSS this replaces. */
-  assert.match(panel, /rounded-\[20px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\] p-5/);
+  assert.match(panel, /rounded-\[16px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\] p-4/);
   const uses = (dash.match(/<PanelCard/g) || []).length;
   assert.ok(uses >= 3, `expected all three cards on PanelCard, found ${uses}`);
   // And none of them kept a bespoke box.
@@ -29,19 +29,27 @@ test('the three cards are one shell, not three', () => {
   }
 });
 
-test('a day is coloured by its result, and idle is not an outcome', () => {
-  /* THE POINT OF THE GRID. Twelve green cells and four red ones is a month read in half
-   * a second, before any figure. The distinction that matters is the third one: a day
-   * with NO trades gets no wash and no border, while a day that was traded and closed
-   * at zero keeps its border. Collapsing them would make a quiet week look like sixteen
-   * breakeven sessions — a different and much worse story. */
+test('the cell is one block and the result is in the text', () => {
+  /* REVISED 2026-08-28 TO MATCH THE FRAME, on the owner's call. The first build washed
+   * the whole tile in its outcome colour at 12% behind a 30% border; the frame draws
+   * every day as the same recessed block, and it was visibly a different calendar from
+   * the one designed.
+   *
+   * Beyond matching, what the block buys: forty-two tinted tiles is a lot of colour on a
+   * page whose OTHER reds and ambers mean "this account is about to be closed". A quiet
+   * grid leaves the account meters as the only alarming thing on screen, which is where
+   * alarm belongs. The day is still legible — its P&L figure carries the outcome colour,
+   * and that is the part you read.
+   *
+   * IDLE IS STILL NOT AN OUTCOME: same block at half strength, muted number. Present,
+   * clearly part of the month, clearly empty. A month with holes in it reads as a
+   * rendering fault. */
   assert.match(month, /const cellTone = \(data\) => \(data \? tone\(data\.pnl\) : 'idle'\)/);
   assert.match(month, /const tone = \(n\) => \(n > 0 \? 'win' : n < 0 \? 'loss' : 'flat'\)/);
-  assert.match(calCode, /idle \? 'transparent'/);
-  // The wash is weaker than the brief's alert rows on purpose: these are 42 tiles on
-  // one card, and at alert strength a green month becomes one green rectangle.
-  assert.match(cal, /color-mix\(in srgb, \$\{hue\} 12%, transparent\)/);
-  assert.match(cal, /color-mix\(in srgb, \$\{hue\} 30%, transparent\)/);
+  assert.doesNotMatch(calCode, /color-mix\(in srgb, \$\{hue\} 12%/, 'the cell no longer washes itself');
+  assert.match(calCode, /background: idle \? 'color-mix\(in srgb, var\(--surface-2\) 20%, transparent\)' : 'var\(--brief-row-bg\)'/);
+  // The figure keeps its outcome colour — that is where the result lives now.
+  assert.match(calCode, /color: hue \|\| 'var\(--text\)'/);
 });
 
 test('only the P&L is coloured inside a cell', () => {

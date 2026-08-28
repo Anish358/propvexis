@@ -19,9 +19,13 @@ import { cn } from '@/lib/utils';
  * any digit is read. Hardcoding the green would have made the card a lie exactly when
  * it matters most. `tone` is the prop; kpi.test.js pins all three branches.
  *
- * SCALED ONE STEP DOWN from the frame, matching the brief (owner call 2026-08-28):
- * 24->20 padding and radius, 30->26 value, 16->12 gaps, 14->13 label, 12->11 footer.
- * The whole page is one size smaller than the frame, consistently.
+ * SCALED TWO STEPS DOWN from the frame (owner, 2026-08-28, after seeing one step in
+ * the real shell): 24->16 padding and radius, 30->22 value, 16->10 gaps, 14->13 label,
+ * 12->11 footer. The frame is drawn as five cards filling a viewport; in situ they are
+ * one band of a page that also has to hold a brief, an account card and a calendar
+ * above the fold. The card's PROPORTIONS are the frame's — it is the same card, smaller.
+ *
+ * The row's floor drops to 11rem with it, which is what keeps five across at 1280.
  */
 
 // tone -> the CSS colour a card reads and washes itself with.
@@ -57,7 +61,7 @@ export function KpiRow({ className, children, ...rest }) {
     <div
       data-slot="kpi-row"
       className={cn(
-        'flex flex-wrap gap-4 [&>*]:min-w-[12.5rem] [&>*]:flex-1',
+        'flex flex-wrap gap-3 [&>*]:min-w-[11rem] [&>*]:flex-1',
         // The hero is ~1.7x a default card in the frame (392 : 231). Dropped once the
         // row wraps: on a two-card line a 1.7 ratio makes the hero swallow the row.
         'min-[1080px]:[&>[data-kpi=hero]]:flex-[1.7]',
@@ -77,7 +81,7 @@ export function KpiCard({ hero = false, tone = 'flat', className, children, ...r
       data-slot="kpi-card"
       data-kpi={hero ? 'hero' : undefined}
       className={cn(
-        'flex flex-col gap-3 rounded-[20px] p-5',
+        'flex flex-col gap-2.5 rounded-[16px] p-4',
         hero
           // The wash IS the border: a hero with both reads as two nested boxes.
           ? 'border-0'
@@ -118,7 +122,7 @@ export function KpiPill({ tone = 'flat', className, children, ...rest }) {
   return (
     <span
       data-slot="kpi-pill"
-      className={cn('shrink-0 rounded-full px-2.5 py-1 text-[11px] leading-4 font-normal', className)}
+      className={cn('shrink-0 rounded-full px-2 py-0.5 text-[11px] leading-4 font-normal', className)}
       style={hue
         ? { background: `color-mix(in srgb, ${hue} 15%, transparent)`, color: hue }
         : { background: 'var(--surface-2)', color: 'var(--muted)' }}
@@ -142,12 +146,12 @@ export function KpiValue({ tone = 'flat', trailing, className, children, ...rest
   return (
     <div data-slot="kpi-value" className={cn('flex items-end justify-between gap-3', className)} {...rest}>
       <span
-        className="text-[26px] leading-8 font-semibold tabular-nums"
+        className="text-[22px] leading-7 font-semibold tabular-nums"
         style={{ color: hue || 'var(--text)' }}
       >
         {children}
       </span>
-      {trailing && <span className="shrink-0 [&_svg]:size-6" style={{ color: hue || 'var(--muted)' }}>{trailing}</span>}
+      {trailing && <span className="shrink-0 [&_svg]:size-5" style={{ color: hue || 'var(--muted)' }}>{trailing}</span>}
     </div>
   );
 }

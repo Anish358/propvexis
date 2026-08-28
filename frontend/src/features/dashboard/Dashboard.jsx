@@ -38,7 +38,7 @@ import {
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
-  filterBriefEvents, briefEmptyReason, briefSectionOn, formatBriefTime,
+  filterBriefEvents, fallbackBriefEvents, briefEmptyReason, briefSectionOn, formatBriefTime,
   briefEventsLabel, defaultBriefPrefs, formatBriefDate, formatBriefClock,
 } from './briefPrefs.js';
 import {
@@ -136,11 +136,22 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
     () => filterBriefEvents(events || [], prefs, now).slice(0, 4),
     [events, prefs, now],
   );
+  /* WHAT TO SHOW WHEN THE WINDOW IS QUIET. The user's window is usually a few hours, so
+     on a slow afternoon the list is legitimately empty — and "nothing in the next four
+     hours" only half-answers the question the column exists for. The fallback is the
+     next HIGH-impact events from the whole feed, in the currencies they trade. It is
+     labelled as a fallback rather than blended in, because a substitute list that looks
+     like the real one teaches the trader their window setting does nothing. */
+  const fallback = useMemo(
+    () => (shown.length ? [] : fallbackBriefEvents(events || [], prefs, now)),
+    [shown, events, prefs, now],
+  );
+  const eventRows = shown.length ? shown : fallback;
   const emptyReason = events == null ? null : briefEmptyReason(events, prefs, now);
 
   // A section is rendered when its toggle is on AND either it has content or the
   // user hasn't asked for empty sections to be hidden.
-  const showEvents = briefSectionOn(prefs, 'events') && (!prefs.hideEmpty || shown.length > 0);
+  const showEvents = briefSectionOn(prefs, 'events') && (!prefs.hideEmpty || eventRows.length > 0);
   const showAlerts = briefSectionOn(prefs, 'alerts') && (!prefs.hideEmpty || alerts.length > 0);
   // With everything hidden the banner would collapse to a bare title bar, which
   // reads as broken — say so instead.
@@ -189,12 +200,12 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
       ) : (
         <BriefColumns>
           {showEvents && (
-            <BriefSection label={briefEventsLabel(prefs)}>
+            <BriefSection label={shown.length ? briefEventsLabel(prefs) : 'Next high-impact events'}>
               {events == null ? (
                 <BriefNote>Loading economic calendar…</BriefNote>
-              ) : shown.length === 0 ? (
+              ) : eventRows.length === 0 ? (
                 <BriefNote>{EMPTY_EVENT_COPY[emptyReason] || EMPTY_EVENT_COPY['no-events']}</BriefNote>
-              ) : shown.map((e, i) => (
+              ) : eventRows.map((e, i) => (
                 <BriefEvent
                   key={`${e.date}-${e.title}-${i}`}
                   currency={e.country}
@@ -204,6 +215,9 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
                   impactLabel={IMPACT_LABEL[e.impact]}
                 />
               ))}
+              {!shown.length && fallback.length > 0 && (
+                <BriefNote>Nothing inside your Brief window — showing the next high-impact releases instead.</BriefNote>
+              )}
             </BriefSection>
           )}
 

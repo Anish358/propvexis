@@ -247,3 +247,38 @@ export function formatBriefTime(iso, timezone = 'local', now = new Date()) {
   const day = d.toLocaleDateString('en-US', { weekday: 'short', ...(utc ? { timeZone: 'UTC' } : {}) });
   return `${day} ${time}`;
 }
+
+/**
+ * THE FALLBACK LIST, for when the user's own filter matches nothing.
+ *
+ * `filterBriefEvents` narrows by importance, currency AND time window, and the window
+ * is usually a few hours — so on a quiet afternoon, or at 6pm on a Friday, the column
+ * is legitimately empty and the card has nothing to say. That is honest and it is also
+ * useless: the question a trader is asking is "what is coming that could move this
+ * against me", and "nothing in the next four hours" is only half an answer.
+ *
+ * So when the narrow list is empty, this returns the next HIGH-IMPACT events from the
+ * whole feed, ignoring the window and the importance setting — the ones that would end
+ * a session — while still respecting the CURRENCIES the user chose, because those are a
+ * statement about what they trade rather than about when they are looking.
+ *
+ * Deliberately not merged into filterBriefEvents: the caller has to know which list it
+ * is showing so it can say so. A fallback that silently looks like the real list
+ * teaches the trader that their window setting does nothing.
+ */
+export function fallbackBriefEvents(events, prefs, now = new Date(), limit = 4) {
+  const p = sanitizeBriefPrefs(prefs);
+  if (!Array.isArray(events) || p.currencies.length === 0) return [];
+  const from = now.getTime();
+  return events
+    .filter((e) => {
+      const t = new Date(e.date).getTime();
+      if (!Number.isFinite(t) || t < from) return false;
+      if (!p.currencies.includes(e.country)) return false;
+      // High only. A fallback that admits medium and low is just a wider window, and
+      // the point of it is "the things that matter, whenever they are".
+      return (e.impact || '').toLowerCase() === 'high';
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, limit);
+}

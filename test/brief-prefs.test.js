@@ -9,6 +9,7 @@ import {
   defaultBriefPrefs, sanitizeBriefPrefs, isDefaultBriefPrefs, briefSectionOn,
   impactAllowed, briefWindowRange, filterBriefEvents, briefEmptyReason,
   formatBriefTime, briefEventsLabel, formatBriefDate, formatBriefClock,
+  fallbackBriefEvents,
 } from '../frontend/src/features/dashboard/briefPrefs.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
@@ -363,7 +364,10 @@ test('the banner filters and formats through the prefs', () => {
    * anything. */
   assert.match(readSrc('components/primitives/brief.jsx'), /flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1/);
   // Hide-empty gates each section, and the all-hidden case says something.
-  assert.match(dash, /briefSectionOn\(prefs, 'events'\) && \(!prefs\.hideEmpty \|\| shown\.length > 0\)/);
+  /* `eventRows`, not `shown`, since the fallback landed (2026-08-28). hideEmpty has to
+   * consider what will ACTUALLY be rendered — with a fallback list present the column is
+   * not empty, and hiding it would hide the very events the fallback exists to surface. */
+  assert.match(dash, /briefSectionOn\(prefs, 'events'\) && \(!prefs\.hideEmpty \|\| eventRows\.length > 0\)/);
   assert.match(dash, /briefSectionOn\(prefs, 'alerts'\) && \(!prefs\.hideEmpty \|\| alerts\.length > 0\)/);
   assert.match(dash, /allQuiet \? \(/);
 });
@@ -388,4 +392,57 @@ test('the heading clock ticks, and drives the window filter', () => {
   assert.match(dash, /clearTimeout\(timeout\); clearInterval\(interval\);/);
   // ...and fed into the filter, so events age out of the window unaided.
   assert.match(dash, /\[events, prefs, now\]/);
+});
+
+// ---- the fallback list -------------------------------------------------------
+
+test('when the window is quiet, the fallback offers the next high-impact events', () => {
+  /* The user's window is usually a few hours, so on a slow afternoon the filtered list
+   * is legitimately empty — and "nothing in the next four hours" only half-answers the
+   * question the column exists for, which is "what is coming that could move this
+   * against me". The fallback ignores the WINDOW and the importance setting, keeps HIGH
+   * only, and still respects the chosen currencies: those are a statement about what the
+   * trader trades, not about when they happen to be looking. */
+  const now = new Date('2026-08-28T09:00:00Z');
+  const hours = (n) => new Date(now.getTime() + n * 3600_000).toISOString();
+  const events = [
+    { date: hours(1), title: 'Minor', country: 'USD', impact: 'low' },
+    { date: hours(30), title: 'NFP', country: 'USD', impact: 'high' },
+    { date: hours(50), title: 'CPI', country: 'EUR', impact: 'high' },
+    { date: hours(40), title: 'BoJ', country: 'JPY', impact: 'high' },
+    { date: hours(-2), title: 'Past', country: 'USD', impact: 'high' },
+  ];
+  const prefs = { ...defaultBriefPrefs(), currencies: ['USD', 'EUR'] };
+  const out = fallbackBriefEvents(events, prefs, now);
+  assert.deepEqual(out.map((e) => e.title), ['NFP', 'CPI'], 'high impact, chosen currencies, in time order');
+});
+
+test('the fallback never reaches past the currencies, and never backwards', () => {
+  const now = new Date('2026-08-28T09:00:00Z');
+  const hours = (n) => new Date(now.getTime() + n * 3600_000).toISOString();
+  // A currency the user does not trade is not "better than nothing" — it is noise on the
+  // one card that exists to say what matters to THEM.
+  const out = fallbackBriefEvents(
+    [{ date: hours(5), title: 'RBA', country: 'AUD', impact: 'high' }],
+    { ...defaultBriefPrefs(), currencies: ['USD'] },
+    now,
+  );
+  assert.deepEqual(out, []);
+  // An empty currency list means the user has switched the column off by other means.
+  assert.deepEqual(fallbackBriefEvents([{ date: hours(5), title: 'X', country: 'USD', impact: 'high' }],
+    { ...defaultBriefPrefs(), currencies: [] }, now), []);
+  // Past events never come back, whatever their impact.
+  assert.deepEqual(fallbackBriefEvents([{ date: hours(-1), title: 'Gone', country: 'USD', impact: 'high' }],
+    { ...defaultBriefPrefs(), currencies: ['USD'] }, now), []);
+});
+
+test('the fallback is labelled as a substitute, not blended into the real list', () => {
+  /* A substitute list that looks like the real one teaches the trader their window
+   * setting does nothing. The column heading changes AND a note under the rows says
+   * what happened. */
+  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
+  assert.match(dashSrc, /label=\{shown\.length \? briefEventsLabel\(prefs\) : 'Next high-impact events'\}/);
+  assert.match(dashSrc, /Nothing inside your Brief window/);
+  // And it is only computed when the real list is empty — never merged in alongside.
+  assert.match(dashSrc, /shown\.length \? \[\] : fallbackBriefEvents/);
 });

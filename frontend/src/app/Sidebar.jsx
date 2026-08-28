@@ -10,7 +10,7 @@ import { BRAND } from '../lib/theme.js';
 import { useAuth } from './AuthContext.jsx';
 import {
   Rail, RailAction, RailAvatar, RailBrand, RailFooter, RailItem, RailNav,
-  RailNudge, RailSoon, RailSub, RailSubItem, RailUser,
+  RailSoon, RailSub, RailSubItem, RailUser,
 } from '@/components/primitives';
 
 /* The navigation rail, rebuilt on the 2026-08-28 Figma redesign.
@@ -30,13 +30,10 @@ import {
  * ARE lucide. Twelve bespoke paths that have to be re-tuned every time the label size
  * changes is exactly the hand-written layer the build order puts last.
  *
- * TWO THINGS THE FRAME DOES NOT SHOW, and how they were decided. It draws only the
- * collapsed rail, so an expanded module (Trade Journal's seven children) has no
- * reference: `RailSub` applies the rail's own vocabulary — its inset, its hairline, its
- * muted label — rather than inventing a treatment. And the nudge card is drawn with
- * static copy; what feeds it here is the real notification stream, filtered to the
- * encouraging half (see `firstGoodNews`), so the card is absent rather than invented
- * when there is nothing good to say.
+ * ONE THING THE FRAME DOES NOT SHOW. It draws only the collapsed rail, so an expanded
+ * module (Trade Journal's seven children) has no reference: `RailSub` applies the
+ * rail's own vocabulary — its inset, its hairline, its muted label — rather than
+ * inventing a treatment.
  */
 
 // nav.js references icons by string key so the IA config stays JSX-free and testable
@@ -56,22 +53,16 @@ const ICONS = {
 
 const iconFor = (key) => ICONS[key] || ICONS.dashboard;
 
-/* THE NUDGE'S SOURCE, and why it is this and not "the latest alert".
+/* NO NUDGE CARD IN THE FOOTER (removed 2026-08-28, owner call).
  *
- * The card is amber-on-encouragement — "Keep going" over a line about progress. The
- * notification stream carries both halves of the story: `warning` and `critical` mean a
- * drawdown limit is closing in, `info` means something went RIGHT (minimum trading days
- * met, profit target reached, phase passed). Feeding it the newest notification of any
- * severity would eventually put "Keep going" above "you are 1.2% from breaching", which
- * is not merely tonally wrong — it is reassurance printed over the one alert the trader
- * has to act on immediately.
- *
- * So it reads the good news only, and renders nothing when there is none. An empty
- * footer is a fine outcome; a cheerful card over a dying account is not.
+ * The frame draws an amber "Keep going / Your Phase 1 target is almost complete" card
+ * above the identity row, and it was built and wired to the real notification stream —
+ * info-severity only, so it could never print reassurance over a drawdown warning.
+ * It is gone because a permanent card in the rail costs vertical space on every screen
+ * to repeat something the Alerts page and Today's Brief already say, and the rail is
+ * navigation. `RailNudge` stays in the primitives: it is a working component and this
+ * is a placement decision, not a verdict on the card.
  */
-function firstGoodNews(notifications) {
-  return notifications.find((n) => n.severity === 'info' && !n.read_at) || null;
-}
 
 /* One flat rail row.
  *
@@ -169,9 +160,8 @@ const titleCase = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '
  * @param {boolean}  props.inDrawer  true when rendered as the mobile off-canvas
  *   drawer. Only the semantics change — the nav itself is identical, because a
  *   second copy of the tree for mobile is how the two silently drift apart.
- * @param {Array}    props.notifications  the alert stream, for the footer nudge.
  */
-export default function Sidebar({ onToggle = () => {}, inDrawer = false, notifications = [] }) {
+export default function Sidebar({ onToggle = () => {}, inDrawer = false }) {
   const closeRef = useRef(null);
   const { user } = useAuth();
 
@@ -181,8 +171,6 @@ export default function Sidebar({ onToggle = () => {}, inDrawer = false, notific
   useEffect(() => {
     if (inDrawer) closeRef.current?.focus();
   }, [inDrawer]);
-
-  const nudge = firstGoodNews(notifications);
 
   return (
     <Rail
@@ -229,7 +217,6 @@ export default function Sidebar({ onToggle = () => {}, inDrawer = false, notific
       </RailNav>
 
       <RailFooter>
-        {nudge && <RailNudge title="Keep going">{nudge.title}</RailNudge>}
         {/* Sign-out and account switching stay in the top-bar avatar menu; this row is
             identity, and it goes to the profile it names. */}
         {user && (

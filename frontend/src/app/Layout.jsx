@@ -97,7 +97,7 @@ export default function Layout({
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <Announcer message={announcement} />
 
-      {!collapsed && <Sidebar onToggle={toggleSidebar} inDrawer={drawerOpen} notifications={notifications} />}
+      {!collapsed && <Sidebar onToggle={toggleSidebar} inDrawer={drawerOpen} />}
       {/* Scrim: dismisses the drawer, and hides the page behind it from assistive
           tech so the reading order does not run straight past the menu. */}
       {drawerOpen && (

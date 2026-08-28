@@ -10,6 +10,7 @@ const FALLBACKS = {
   // Outcome hues are the 2026-08-28 Figma values; the blues predate it and are unchanged.
   '--accent': '#193cb8',              // brand FILL
   '--accent-on-surface': '#2b7fff',   // brand as a stroke/link (5.26:1 on --bg)
+  '--chart-line': '#e5e5e5',          // a neutral single-series line — see chartPalette
   '--accent-bg': 'rgba(43,127,255,0.14)',
   '--profit': '#00d492',   // trade profit (green) — figma
   '--loss': '#ff6467',     // trade loss (red) — figma
@@ -50,9 +51,17 @@ export function chartPalette() {
   paletteCache = {
     profit: token('--profit'),
     loss: token('--loss'),
-    // The brand step meant to be READ, not filled: --accent is the preset's fill
-    // value and measures 2.24:1 on --bg, which is invisible as a 2px stroke.
-    accent: token('--accent-on-surface'),
+    /* THE SERIES LINE, AND IT IS NO LONGER THE BRAND. This read --accent-on-surface
+     * (blue) on the reasoning that --accent itself measures 2.24:1 on --bg and vanishes
+     * as a 2px stroke. Both are true and both are beside the point after the
+     * 2026-08-28 redesign, which has no blue on the dashboard: a single-series line is
+     * the figures drawn as a shape, so it takes the neutral --chart-line. Colour on a
+     * chart is for series that mean something — profit, loss, payout — and those keys
+     * are below, untouched.
+     *
+     * The KEY is still `accent` because three charts read it by that name; what it
+     * points at is the change. */
+    accent: token('--chart-line'),
     // Two more domain hues, for the places one series is not enough: a categorical
     // breakdown (Finance's spend ring) needs more than profit/loss/brand before it
     // starts repeating, and both of these already exist as tokens with a settled
