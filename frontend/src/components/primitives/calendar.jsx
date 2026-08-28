@@ -46,7 +46,7 @@ export function CalRoot({ className, children, ...rest }) {
   return (
     <div
       data-slot="cal-root"
-      className={cn('flex min-h-0 flex-1 flex-col gap-4', className)}
+      className={cn('flex min-h-0 flex-1 flex-col gap-3', className)}
       {...rest}
     >
       {children}
@@ -58,7 +58,7 @@ export function CalGrid({ columns = 8, className, children, ...rest }) {
   return (
     <div
       data-slot="cal-grid"
-      className={cn('grid gap-1.5', className)}
+      className={cn('grid gap-1', className)}
       // 7 days plus the week-summary column. A CSS variable rather than a Tailwind
       // class because the caller owns whether the week column exists.
       style={{ gridTemplateColumns: `repeat(${columns - 1}, minmax(0, 1fr)) minmax(0, 1.1fr)` }}
@@ -96,7 +96,7 @@ export function CalCell({ tone = 'idle', clickable = false, className, children,
       data-slot="cal-cell"
       data-tone={tone}
       className={cn(
-        'flex min-h-[3.75rem] flex-col items-stretch gap-0.5 rounded-[10px] border p-1.5 text-left',
+        'flex min-h-[3.25rem] flex-col items-stretch gap-0.5 rounded-[8px] border p-1.5 text-left',
         clickable && 'cursor-pointer transition-colors hover:border-[var(--line-strong)]',
         clickable && 'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         className,
@@ -159,7 +159,7 @@ export function CalWeek({ tone, label, value, sub, className, ...rest }) {
   return (
     <div
       data-slot="cal-week"
-      className={cn('flex min-h-[3.75rem] flex-col justify-center gap-0.5 rounded-[10px] bg-[var(--bg)] p-1.5', className)}
+      className={cn('flex min-h-[3.25rem] flex-col justify-center gap-0.5 rounded-[8px] bg-[var(--bg)] p-1.5', className)}
       {...rest}
     >
       <span className="text-[10px] leading-4 font-medium text-[var(--muted)]">{label}</span>

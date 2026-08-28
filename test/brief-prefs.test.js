@@ -367,7 +367,18 @@ test('the banner filters and formats through the prefs', () => {
   /* `eventRows`, not `shown`, since the fallback landed (2026-08-28). hideEmpty has to
    * consider what will ACTUALLY be rendered — with a fallback list present the column is
    * not empty, and hiding it would hide the very events the fallback exists to surface. */
-  assert.match(dash, /briefSectionOn\(prefs, 'events'\) && \(!prefs\.hideEmpty \|\| eventRows\.length > 0\)/);
+    /* hideEmpty no longer hides a section the DATA emptied — only one the user's own
+   * filter emptied. The provider publishes the current week only, so from Friday
+   * evening the events column is legitimately empty, and hiding it took the
+   * explanation and the fallback down with it: the column simply vanished. */
+  /* hideEmpty no longer hides a section the DATA emptied — only one the user's own
+   * filter emptied. The provider publishes the current week only (config.js records
+   * the verification), so from Friday evening the events column is legitimately empty,
+   * and hiding it took the explanation AND the high-impact fallback down with it: the
+   * column simply vanished, which is what the owner reported seeing. */
+  assert.match(dash, /!prefs\.hideEmpty \|\| eventRows\.length > 0/);
+  assert.match(dash, /!USER_EMPTIED\.has\(emptyReason\)/);
+  assert.match(dash, /const USER_EMPTIED = new Set\(\['filtered-out', 'no-currencies'\]\)/);
   assert.match(dash, /briefSectionOn\(prefs, 'alerts'\) && \(!prefs\.hideEmpty \|\| alerts\.length > 0\)/);
   assert.match(dash, /allQuiet \? \(/);
 });

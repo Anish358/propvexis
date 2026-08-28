@@ -92,8 +92,23 @@ function useMinuteClock() {
 const EMPTY_EVENT_COPY = {
   'no-currencies': 'No currencies selected — pick at least one in Brief settings.',
   'filtered-out': 'No events match your Brief settings for this window.',
-  'no-events': 'No events on the calendar right now.',
+  /* THE COMMON CASE, AND IT USED TO SAY NOTHING USEFUL. The provider publishes the
+     CURRENT WEEK ONLY (config.js has the verification), so from Friday evening until the
+     new file lands there are genuinely no future releases — checked on a Friday at 22:00:
+     two events left in the feed, neither high-impact. "No events on the calendar right
+     now" reads as a bug in our app; this says what is actually true and when it changes. */
+  'no-events': 'The economic calendar covers the current week only — next week\'s releases appear once it publishes.',
 };
+
+/* WHICH EMPTY SECTIONS `hideEmpty` MAY HIDE.
+ *
+ * The pref means "do not show me a section my own filter has emptied" — that is what a
+ * user is asking for when they set it. It does not mean "hide it when the DATA is not
+ * there": that is the app having nothing, and the trader should be told rather than
+ * shown a card with a column missing. It matters because the data-gap case is the
+ * common one (see above) and hiding it made the fallback and its explanation
+ * unreachable — the column simply vanished, which is what the owner reported. */
+const USER_EMPTIED = new Set(['filtered-out', 'no-currencies']);
 
 // The feed's closed impact set (see normalizeImpact in src/platform/calendar.js)
 // rendered as the badge that ends each event row. `low` is spelled out rather than
@@ -151,7 +166,8 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
 
   // A section is rendered when its toggle is on AND either it has content or the
   // user hasn't asked for empty sections to be hidden.
-  const showEvents = briefSectionOn(prefs, 'events') && (!prefs.hideEmpty || eventRows.length > 0);
+  const showEvents = briefSectionOn(prefs, 'events')
+    && (!prefs.hideEmpty || eventRows.length > 0 || (events != null && !USER_EMPTIED.has(emptyReason)));
   const showAlerts = briefSectionOn(prefs, 'alerts') && (!prefs.hideEmpty || alerts.length > 0);
   // With everything hidden the banner would collapse to a bare title bar, which
   // reads as broken — say so instead.

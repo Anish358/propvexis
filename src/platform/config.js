@@ -79,6 +79,18 @@ export const config = {
   // events are past (they cluster mid-week), the banner correctly shows its
   // empty state until the next week's feed rolls over. Add mirror/next-week URLs
   // here if a source becomes available.
+  /* THIS WEEK ONLY, AND THAT IS THE PROVIDER'S LIMIT, NOT A CHOICE.
+   *
+   * Verified 2026-08-28: faireconomy publishes `ff_calendar_thisweek.json` and nothing
+   * else — `_nextweek` and `_lastweek` both 404. So for the last third of every week the
+   * feed legitimately has no future events (checked on a Friday evening: 2 events left,
+   * zero of them high-impact), and the Brief has nothing to show however it is filtered.
+   *
+   * That is a DATA gap, not a UI one, and the UI now says so instead of rendering an
+   * empty column — see EMPTY_EVENT_COPY in Dashboard.jsx. Fixing it properly means a
+   * second provider with forward coverage; the list is comma-separated and calendar.js
+   * already merges and dedupes across feeds, so that is a config change when we pick
+   * one. ECON_CALENDAR_URL overrides this per environment. */
   econCalendarUrls: (
     process.env.ECON_CALENDAR_URL ?? 'https://nfs.faireconomy.media/ff_calendar_thisweek.json'
   ).split(',').map((s) => s.trim()).filter(Boolean),

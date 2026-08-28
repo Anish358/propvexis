@@ -78,7 +78,7 @@ test('Today\'s Brief banner has a titled head with a settings control', () => {
   assert.ok(block.indexOf('<BriefHeader') < block.indexOf('<BriefColumns'));
   // The title is the frame's 18/28 semibold, declared once in the primitive.
   const brief = readSrc('components/primitives/brief.jsx');
-  assert.match(brief, /text-\[16px\] leading-6 font-semibold/);
+  assert.match(brief, /text-\[15px\] leading-6 font-semibold/);
 });
 
 test('action strip carries no container chrome', () => {

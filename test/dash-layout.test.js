@@ -414,7 +414,7 @@ test('the KPI row re-splits itself, and grid rows size to content', () => {
    * nothing to keep in sync. Asserted at the primitive, since the legacy `.dash-stats`
    * rule no longer applies to anything. */
   const kpi = readSrc('components/primitives/kpi.jsx');
-  assert.match(kpi, /\[&>\*\]:min-w-\[11rem\] \[&>\*\]:flex-1/);
+  assert.match(kpi, /\[&>\*\]:min-w-\[10rem\] \[&>\*\]:flex-1/);
   assert.match(kpi, /min-\[1080px\]:\[&>\[data-kpi=hero\]\]:flex-\[1\.7\]/,
     'the hero keeps its extra width — but only while the row is on one line');
   assert.match(dash, /<KpiRow>/);

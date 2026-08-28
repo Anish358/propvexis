@@ -20,7 +20,7 @@ test('the three cards are one shell, not three', () => {
    * are built as one — three hand-written shells is three places for the radius to
    * drift, which is exactly what happened to `.dash-cal-panel`, `.dash-activity` and
    * `.dash-equity` in the CSS this replaces. */
-  assert.match(panel, /rounded-\[16px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\] p-4/);
+  assert.match(panel, /rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\] p-3.5/);
   const uses = (dash.match(/<PanelCard/g) || []).length;
   assert.ok(uses >= 3, `expected all three cards on PanelCard, found ${uses}`);
   // And none of them kept a bespoke box.
@@ -68,7 +68,7 @@ test('the calendar owns the gap the old header used to supply', () => {
    * the whole calendar is ONE child of it — so without CalRoot the weekday row crowds
    * the subtitle. Caught in a headless render, not by reading the numbers. */
   assert.match(cal, /export function CalRoot/);
-  assert.match(cal, /flex min-h-0 flex-1 flex-col gap-4/);
+  assert.match(cal, /flex min-h-0 flex-1 flex-col gap-3/);
   assert.match(month, /<CalRoot>/);
   assert.ok(!month.includes('className="cal"'), 'the legacy .cal wrapper is gone');
 });
@@ -87,7 +87,7 @@ test('a page never writes a column width', () => {
 test('the list is a list, and its rows are divided between rather than under', () => {
   // `last:border-b-0` — a border under the final row reads as a list cut off mid-scroll
   // that continues below the card, which is the one thing a "recent" list must not imply.
-  assert.match(panel, /py-2\.5 text-\[13px\] leading-5 last:border-b-0/);
+  assert.match(panel, /py-2 text-\[13px\] leading-5 last:border-b-0/);
   assert.ok(!recentCode.includes('<table'), 'three single values a row is a list, not a table');
 });
 

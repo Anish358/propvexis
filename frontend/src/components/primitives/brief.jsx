@@ -37,7 +37,7 @@ export function BriefCard({ className, children, ...rest }) {
     <section
       data-slot="brief"
       className={cn(
-        'flex flex-col gap-3 rounded-[16px] bg-[var(--surface)] p-4',
+        'flex flex-col gap-3 rounded-[14px] bg-[var(--surface)] p-3.5',
         className,
       )}
       {...rest}
@@ -68,11 +68,11 @@ export function BriefHeader({ icon, title, date, clock, action, aside, className
         {/* The tile is amber because the brief is the morning read, not because
             anything is wrong — 10% is a wash, well below the 15% the impact badges
             use and the 10% the alert rows use for actual warnings. */}
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-[var(--brief-tile-bg)] text-[var(--warning)] [&_svg]:size-4">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--brief-tile-bg)] text-[var(--warning)] [&_svg]:size-4">
           {icon}
         </span>
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-          <h3 className="text-[16px] leading-6 font-semibold text-[var(--text)]">{title}</h3>
+          <h3 className="text-[15px] leading-6 font-semibold text-[var(--text)]">{title}</h3>
           <span className="text-[13px] leading-5 font-normal text-[var(--muted)]">{date}</span>
           {clock}
         </div>
@@ -144,7 +144,7 @@ export function BriefColumns({ className, children, ...rest }) {
     <div
       data-slot="brief-columns"
       className={cn(
-        'grid grid-cols-2 gap-5 max-[1200px]:grid-cols-1 max-[1200px]:gap-4',
+        'grid grid-cols-2 gap-4 max-[1200px]:grid-cols-1 max-[1200px]:gap-3',
         /* A LONE COLUMN TAKES THE WHOLE WIDTH. `hideEmpty` can switch either section
          * off, and a single half-width list beside an empty half reads as a column that
          * failed to load rather than one the user turned off. `:only-child` says it in
@@ -203,7 +203,7 @@ export function BriefEvent({ currency, title, time, impact = 'low', impactLabel,
     <div
       data-slot="brief-event"
       className={cn(
-        'flex items-center gap-3 rounded-[12px] bg-[var(--brief-row-bg)] px-3 py-2',
+        'flex items-center gap-2.5 rounded-[10px] bg-[var(--brief-row-bg)] px-2.5 py-1.5',
         className,
       )}
       {...rest}
@@ -243,7 +243,7 @@ export function BriefAlert({ severity = 'info', icon, className, children, ...re
   return (
     <div
       data-slot="brief-alert"
-      className={cn('flex items-center gap-3 rounded-[12px] border px-3 py-2.5', className)}
+      className={cn('flex items-center gap-2.5 rounded-[10px] border px-2.5 py-2', className)}
       style={{
         background: `color-mix(in srgb, ${hue} 10%, transparent)`,
         borderColor: `color-mix(in srgb, ${hue} 20%, transparent)`,

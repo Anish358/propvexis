@@ -19,14 +19,14 @@ test('the card carries the frame\'s geometry', () => {
   const geometry = [
     // One step down the frame's own scale (owner call, 2026-08-28): 28->20, 24->16,
     // 18->16, 14->13. Proportions are the frame's; the card is one size smaller.
-    ['card radius + padding', /rounded-\[16px\] bg-\[var\(--surface\)\] p-4/],
-    ['blocks 12 apart', /flex flex-col gap-3 rounded-\[16px\]/],
-    ['header tile', /size-9 shrink-0 items-center justify-center rounded-\[12px\]/],
-    ['title', /text-\[16px\] leading-6 font-semibold/],
+    ['card radius + padding', /rounded-\[14px\] bg-\[var\(--surface\)\] p-3.5/],
+    ['blocks 12 apart', /flex flex-col gap-3 rounded-\[14px\]/],
+    ['header tile', /size-8 shrink-0 items-center justify-center rounded-\[10px\]/],
+    ['title', /text-\[15px\] leading-6 font-semibold/],
     ['date', /text-\[13px\] leading-5 font-normal text-\[var\(--muted\)\]/],
-    ['two columns, 20 apart', /grid grid-cols-2 gap-5/],
-    ['event row', /rounded-\[12px\] bg-\[var\(--brief-row-bg\)\] px-3 py-2/],
-    ['alert row', /rounded-\[12px\] border px-3 py-2\.5/],
+    ['two columns, 20 apart', /grid grid-cols-2 gap-4/],
+    ['event row', /rounded-\[10px\] bg-\[var\(--brief-row-bg\)\] px-2.5 py-1.5/],
+    ['alert row', /rounded-\[10px\] border px-2.5 py-2/],
     ['pill chips', /rounded-full border border-\[var\(--brief-chip-border\)\] px-1\.5 py-0\.5/],
   ];
   for (const [what, re] of geometry) {

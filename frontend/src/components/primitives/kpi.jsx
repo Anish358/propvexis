@@ -61,7 +61,7 @@ export function KpiRow({ className, children, ...rest }) {
     <div
       data-slot="kpi-row"
       className={cn(
-        'flex flex-wrap gap-3 [&>*]:min-w-[11rem] [&>*]:flex-1',
+        'flex flex-wrap gap-2.5 [&>*]:min-w-[10rem] [&>*]:flex-1',
         // The hero is ~1.7x a default card in the frame (392 : 231). Dropped once the
         // row wraps: on a two-card line a 1.7 ratio makes the hero swallow the row.
         'min-[1080px]:[&>[data-kpi=hero]]:flex-[1.7]',
@@ -81,7 +81,7 @@ export function KpiCard({ hero = false, tone = 'flat', className, children, ...r
       data-slot="kpi-card"
       data-kpi={hero ? 'hero' : undefined}
       className={cn(
-        'flex flex-col gap-2.5 rounded-[16px] p-4',
+        'flex flex-col gap-2 rounded-[14px] p-3.5',
         hero
           // The wash IS the border: a hero with both reads as two nested boxes.
           ? 'border-0'
@@ -146,7 +146,7 @@ export function KpiValue({ tone = 'flat', trailing, className, children, ...rest
   return (
     <div data-slot="kpi-value" className={cn('flex items-end justify-between gap-3', className)} {...rest}>
       <span
-        className="text-[22px] leading-7 font-semibold tabular-nums"
+        className="text-[20px] leading-7 font-semibold tabular-nums"
         style={{ color: hue || 'var(--text)' }}
       >
         {children}

@@ -47,7 +47,7 @@ export function AccountCardShell({ className, children, ...rest }) {
     <section
       data-slot="account-card"
       className={cn(
-        'flex flex-col gap-4 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4',
+        'flex flex-col gap-3.5 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3.5',
         className,
       )}
       {...rest}
@@ -70,7 +70,7 @@ export function AccountCardHead({ icon, sub, className, children, ...rest }) {
     <div data-slot="account-head" className={cn('flex flex-col gap-1.5', className)} {...rest}>
       <div className="flex items-center gap-3">
         {icon && <span className="shrink-0 text-[var(--text-2)] [&_svg]:size-5">{icon}</span>}
-        <h3 className="text-[16px] leading-6 font-semibold text-[var(--text)]">{children}</h3>
+        <h3 className="text-[15px] leading-6 font-semibold text-[var(--text)]">{children}</h3>
       </div>
       {sub && <p className="m-0 text-[13px] leading-5 text-[var(--muted)]">{sub}</p>}
     </div>
@@ -156,7 +156,7 @@ export function MeterRow({ className, children, ...rest }) {
   return (
     <div
       data-slot="meter-row"
-      className={cn('grid grid-cols-3 gap-3 max-[1200px]:grid-cols-1', className)}
+      className={cn('grid grid-cols-3 gap-2.5 max-[1200px]:grid-cols-1', className)}
       {...rest}
     >
       {children}
@@ -189,7 +189,7 @@ export function Meter({
   return (
     <div
       data-slot="meter"
-      className={cn('flex flex-col gap-2.5 rounded-[12px] border p-3', className)}
+      className={cn('flex flex-col gap-2 rounded-[10px] border p-3', className)}
       style={{
         // No wash and a plain hairline when the account is fine. See the header on why
         // a quiet meter stays quiet.
@@ -208,7 +208,7 @@ export function Meter({
           these tick on every ingested trade. */}
       <p className="m-0 flex flex-wrap items-baseline gap-1.5">
         <span
-          className="text-[20px] leading-7 font-semibold tabular-nums"
+          className="text-[18px] leading-6 font-semibold tabular-nums"
           style={{ color: hue && tone !== 'warn' && tone !== 'bad' ? hue : 'var(--text)' }}
         >
           {value}

@@ -24,7 +24,7 @@ export function PanelCard({ className, children, ...rest }) {
     <section
       data-slot="panel"
       className={cn(
-        'flex min-w-0 flex-col gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4',
+        'flex min-w-0 flex-col gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3.5',
         className,
       )}
       {...rest}
@@ -49,7 +49,7 @@ export function PanelHead({ sub, meta, action, className, children, ...rest }) {
       {...rest}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <h3 className="flex items-center gap-2 text-[16px] leading-6 font-semibold text-[var(--text)]">
+        <h3 className="flex items-center gap-2 text-[15px] leading-6 font-semibold text-[var(--text)]">
           {children}
         </h3>
         {sub && <p className="m-0 text-[13px] leading-5 text-[var(--muted)]">{sub}</p>}
@@ -107,7 +107,7 @@ export function PanelRow({ className, children, ...rest }) {
     <div
       data-slot="panel-row"
       className={cn(
-        'flex items-center gap-3 border-b border-[var(--line)] py-2.5 text-[13px] leading-5 last:border-b-0',
+        'flex items-center gap-3 border-b border-[var(--line)] py-2 text-[13px] leading-5 last:border-b-0',
         className,
       )}
       {...rest}

@@ -81,7 +81,7 @@ test('the day count is printed once', () => {
 test('the card and its meters reflow inside the 1080-1920 range', () => {
   // Three meters become one column at 1200: a meter holds a 22px figure, its limit, a
   // bar and a footer line, and under ~300px the figure and the limit collide.
-  assert.match(account, /grid grid-cols-3 gap-3 max-\[1200px\]:grid-cols-1/);
+  assert.match(account, /grid grid-cols-3 gap-2.5 max-\[1200px\]:grid-cols-1/);
   // Tabs wrap rather than scroll. A horizontally scrolling strip of accounts hides the
   // account the trader is looking for, which is the one thing this row exists to find.
   assert.match(account, /flex flex-wrap items-center gap-2/);
