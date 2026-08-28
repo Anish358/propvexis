@@ -12,6 +12,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test test/*.test.js",
+    "lint": "eslint .",
     "db:pull": "node scripts/db-pull.js",
     "db:setup": "node scripts/setup-db.js",
     "db:migrate": "node scripts/migrate.js",
@@ -41,6 +42,9 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "eslint": "^10.9.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.11.0",
     "socket.io-client": "^4.8.1"
   },
   "registries": {

@@ -29,6 +29,15 @@ jobs:
       - run: npm ci
       - run: npm test
 
+      # `no-undef` ACROSS BOTH TREES. The suite above cannot see an identifier that
+      # is called but never imported: the module still loads, and the ReferenceError
+      # fires per-request inside a handler (that shipped on /api/prop/finance for
+      # weeks) or on the render of one page (Billing.jsx called an unimported
+      # `titleCase` in prod). `vite build` only catches a missing named export.
+      # eslint.config.js runs exactly that one rule, so this step is red only when
+      # something is genuinely undefined.
+      - run: npm run lint
+
       # THE FRONTEND HAS ITS OWN LOCKFILE AND WAS NEVER CHECKED HERE. `npm ci`
       # above installs the backend only, so a broken frontend dependency passed
       # every check on the PR and failed later in deploy-env.yml, which is the

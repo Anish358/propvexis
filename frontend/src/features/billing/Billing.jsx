@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { BRAND, token } from '../../lib/theme.js';
+import { titleCase } from '../../lib/constants.js';
 import { fetchMe, fetchBillingConfig, fetchSubscription, startSubscription, cancelSubscription } from '../../lib/api.js';
 
 // Pricing / plan-status page. When Razorpay is configured, the Pro CTA runs a
