@@ -114,3 +114,8 @@ export {
   BriefAction, BriefAlert, BriefCard, BriefClock, BriefColumns, BriefEvent, BriefHeader,
   BriefNote, BriefSection,
 } from './brief.jsx';
+
+// The KPI row. Here for the same reason as the rail and the brief.
+export {
+  KpiCard, KpiFoot, KpiLabel, KpiPill, KpiRow, KpiSpacer, KpiSplitBar, KpiValue,
+} from './kpi.jsx';

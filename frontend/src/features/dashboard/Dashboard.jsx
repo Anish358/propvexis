@@ -26,7 +26,7 @@ import Explain from '../../components/Explain.jsx';
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
   BriefAction, BriefAlert, BriefCard, BriefClock, BriefColumns, BriefEvent, BriefHeader,
-  BriefNote, BriefSection, Button, Card, Tabs, EmptyState, Modal,
+  BriefNote, BriefSection, Button, Card, KpiRow, Tabs, EmptyState, Modal,
 } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
@@ -692,12 +692,14 @@ export default function Dashboard() {
       />
     ),
 
-    // --kpi-count drives the column count, so hiding a card re-splits the row
-    // evenly instead of leaving a hole where it used to be.
+    /* KpiRow re-splits itself, so `--kpi-count` is gone. The row is flex with the hero
+       at a 1.7 ratio (the frame's 392 : 231), which means hiding a card widens the rest
+       instead of leaving a hole — the same guarantee the custom property gave, without a
+       number the row has to be told. */
     kpis: () => (
-      <div className="jo-kpis dash-stats" style={{ '--kpi-count': visibleKpis.length }}>
+      <KpiRow>
         {visibleKpis.map((id) => <React.Fragment key={id}>{kpiCard[id]()}</React.Fragment>)}
-      </div>
+      </KpiRow>
     ),
 
     // The content grid. GRID_COLUMNS wide with dense packing, and row height is

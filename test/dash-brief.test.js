@@ -80,11 +80,18 @@ test('the washes are mixed from the token, not hand-picked', () => {
   }
 });
 
-test('the card stacks below 900px, at the same breakpoint as the rail', () => {
-  // Two 645px columns do not survive a phone, and neither does a half-width event row
-  // carrying a currency, a title, a time and a badge on one line. Same breakpoint as
-  // the rail's drawer so the shell reorganises once rather than twice.
-  assert.match(brief, /max-\[900px\]:grid-cols-1/);
+test('the columns stack at 1200, not at the rail\'s 900', () => {
+  /* THESE ARE TWO DIFFERENT QUESTIONS and they were briefly conflated. The rail leaves
+   * the flow at 900 because a 248px rail on a phone is unusable. These columns stop
+   * working at 1200 — that is where each half drops under ~380px, and an event row has
+   * to hold a currency chip, a title, a time and an impact badge on ONE line. Below
+   * 1200 the title truncates to nothing while the badges keep their width, so the list
+   * stops being readable well before the rail stops fitting.
+   *
+   * Asserting the 900 is ABSENT is the half that matters: reaching for the rail's
+   * number here is the mistake, and it looks tidy. */
+  assert.match(brief, /max-\[1200px\]:grid-cols-1/);
+  assert.doesNotMatch(brief, /max-\[900px\]/, "the brief must not borrow the rail's breakpoint");
 });
 
 test('the brief is presentation only — the feed and the prefs stay in Dashboard', () => {

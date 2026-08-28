@@ -9,7 +9,7 @@ import TradeSettingsModal from './TradeSettingsModal.jsx';
 import TradePreview from './TradePreview.jsx';
 import ReplayModal from './ReplayModal.jsx';
 import Explain from '../../components/Explain.jsx';
-import { Button, EmptyState } from '@/components/primitives';
+import { Button, EmptyState, KpiRow } from '@/components/primitives';
 import { activeFilterCount } from '../filters/filters.js';
 import { NetPnlCard, ProfitFactorCard, TradeWinCard, AvgWinLossCard } from '../dashboard/KpiCards.jsx';
 import BulkActions from './BulkActions.jsx';
@@ -129,12 +129,12 @@ export default function TradeLog() {
       <div className="page-body">
         {/* Same four cards the Dashboard renders, from the same components — Net
             P&L is the locked master card and the others match its geometry. */}
-        <div className="jo-kpis dash-stats log-kpis" style={{ '--kpi-count': 4 }}>
+        <KpiRow>
           <NetPnlCard m={m} unit={unit} />
           <ProfitFactorCard m={m} />
           <TradeWinCard m={m} />
           <AvgWinLossCard m={m} />
-        </div>
+        </KpiRow>
 
         <div className="log-toolbar">
           <span className="log-count">{trades.length} trade{trades.length === 1 ? '' : 's'}</span>

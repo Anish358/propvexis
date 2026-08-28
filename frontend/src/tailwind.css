@@ -70,5 +70,35 @@
    will NOT compile until that path is added here. Pages migrate by composing
    primitives, not by writing utilities in place; when a page genuinely needs its
    own utilities, widening this scope is a deliberate, reviewable change. */
+/* ---------------------------------------------------------------------------
+   BREAKPOINTS — the app's real range is 1080 to 1920, fluid, with no max-width.
+
+   Tailwind's defaults (sm 640 / md 768 / lg 1024 / xl 1280) are written for pages that
+   start at a phone. This is a fixed-rail data app: a trader on a 1920 monitor wants the
+   calendar and the trade table to use it, not to stare at a 1440 column in the middle
+   of the screen. The Figma frames are drawn at 1440, which is one point inside the
+   range rather than the design's own width.
+
+   The rail is 248 wide and the page pads 24 a side, so the content column is roughly
+   (viewport - 300):
+
+     1920  ->  ~1620   everything at full width, five KPI cards across
+     1440  ->  ~1140   still five across; the frame's own layout
+     1280  ->  ~980    five across at ~196 each, the floor for a 26px figure + label
+     1080  ->  ~780    paired columns stop working; the KPI row wraps to 3 + 2
+
+   THREE NUMBERS, AND THEY ARE NOT INTERCHANGEABLE:
+
+     1200   paired columns (brief, content grid) become one column
+     1080   the KPI row stops fitting on one line
+      900   the rail leaves the flow and becomes an off-canvas drawer
+
+   These are written as arbitrary variants (`max-[1200px]:grid-cols-1`) rather than
+   `@theme` screens, because v4 screens generate MIN-width variants and every one of
+   these is a max: the app narrows out of a desktop layout rather than building up from
+   a phone. utility-collisions.test.js asserts no fourth number appears — a stray
+   `max-[1024px]:` is how two sections come to reorganise at widths 24px apart.
+--------------------------------------------------------------------------- */
+
 @source "./components/ui";
 @source "./components/primitives";

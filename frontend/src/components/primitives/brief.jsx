@@ -131,16 +131,20 @@ export const BriefAction = React.forwardRef(function BriefAction({ className, ch
   );
 });
 
-/* Two equal halves at desktop, stacked below 900px — the same breakpoint the rail
- * uses, so the shell reorganises in one step rather than twice. Two 645px columns do
- * not survive a phone, and neither does a half-width event row that has to hold a
- * currency, a title, a time and a badge on one line. */
+/* Two equal halves, stacked below BP_STACK (1200) — NOT at the rail's own 900.
+ *
+ * The two are different questions and were briefly conflated here. The rail leaves the
+ * flow at 900 because a 248px rail on a phone is unusable; these columns stop working
+ * at 1200 because that is where each half drops under ~380px, and an event row has to
+ * hold a currency chip, a title, a time and an impact badge on ONE line. Below 1200 the
+ * title truncates to nothing while the badges keep their width — the list stops being
+ * readable well before the rail stops fitting. */
 export function BriefColumns({ className, children, ...rest }) {
   return (
     <div
       data-slot="brief-columns"
       className={cn(
-        'grid grid-cols-2 gap-6 max-[900px]:grid-cols-1 max-[900px]:gap-4',
+        'grid grid-cols-2 gap-6 max-[1200px]:grid-cols-1 max-[1200px]:gap-4',
         /* A LONE COLUMN TAKES THE WHOLE WIDTH. `hideEmpty` can switch either section
          * off, and a single half-width list beside an empty half reads as a column that
          * failed to load rather than one the user turned off. `:only-child` says it in

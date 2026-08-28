@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { legacyCss } from './helpers/app-css.js';
-import { appFiles, readSrc, stripComments } from './helpers/src-files.js';
+import { appFiles, libraryFiles, readSrc, stripComments } from './helpers/src-files.js';
 
 /* Tailwind utility names and this app's 862 legacy class names share one global
  * namespace. When a generated component uses `grid` and a legacy <table> also has
@@ -232,4 +232,34 @@ test('scanning stays scoped to the component library', () => {
   for (const s of sources) {
     assert.match(s, /^\.\/components\//, `@source "${s}" is wider than the component library`);
   }
+});
+
+test('the component library uses three breakpoints and no others', () => {
+  /* THE APP'S RANGE IS 1080 -> 1920 (tailwind.css, "BREAKPOINTS"), and exactly three
+   * numbers reorganise it:
+   *
+   *   1200  paired columns become one column
+   *   1080  the KPI row stops fitting on one line
+   *    900  the rail leaves the flow and becomes a drawer
+   *
+   * A fourth number is how two sections come to reorganise at widths 24px apart — the
+   * user sees one column collapse, resizes 30px, and watches a different one collapse.
+   * Tailwind's own named screens are not in play here (v4 generates min-width variants
+   * and these are all max), so a stray `max-[1024px]:` would look perfectly idiomatic
+   * and never be questioned.
+   *
+   * Both directions are checked: `max-[n]px` and `min-[n]px`, since the hero's flex
+   * ratio is applied as a min. */
+  const ALLOWED = new Set(['900', '1080', '1200']);
+  const offenders = [];
+  for (const dir of ['max', 'min']) {
+    const re = new RegExp(`${dir}-\\[(\\d+)px\\]`, 'g');
+    for (const f of libraryFiles()) {
+      for (const m of stripComments(readSrc(f)).matchAll(re)) {
+        if (!ALLOWED.has(m[1])) offenders.push(`${f}: ${dir}-[${m[1]}px]`);
+      }
+    }
+  }
+  assert.deepEqual([...new Set(offenders)], [],
+    `unknown breakpoint(s) — the set is 900 / 1080 / 1200:\n${offenders.join('\n')}`);
 });

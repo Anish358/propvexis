@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readSrc, stripComments } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
@@ -405,9 +406,21 @@ test('layout state is global and persisted, not per account scope', () => {
   }
 });
 
-test('CSS drives the KPI column count, and grid rows size to content', () => {
-  assert.match(css, /\.dash-stats \{ grid-template-columns: repeat\(var\(--kpi-count, 5\)/);
-  assert.match(dash, /'--kpi-count': visibleKpis\.length/);
+test('the KPI row re-splits itself, and grid rows size to content', () => {
+  /* `--kpi-count` IS GONE (2026-08-28). The row was a CSS grid told how many columns to
+   * draw, so hiding a card meant passing a new number or leaving a hole. KpiRow is flex:
+   * the cards share the space, and the hero keeps the frame's 392:231 proportion by
+   * ratio rather than by track. Same guarantee — hide a card and the rest widen — with
+   * nothing to keep in sync. Asserted at the primitive, since the legacy `.dash-stats`
+   * rule no longer applies to anything. */
+  const kpi = readSrc('components/primitives/kpi.jsx');
+  assert.match(kpi, /\[&>\*\]:min-w-\[12\.5rem\] \[&>\*\]:flex-1/);
+  assert.match(kpi, /min-\[1080px\]:\[&>\[data-kpi=hero\]\]:flex-\[1\.7\]/,
+    'the hero keeps its extra width — but only while the row is on one line');
+  assert.match(dash, /<KpiRow>/);
+  // stripComments, because the note above KpiRow in Dashboard.jsx explains what
+  // `--kpi-count` was — a rule that forbids a name cannot be explained using it.
+  assert.doesNotMatch(stripComments(dash), /--kpi-count/, 'the column-count property is retired');
   // Rows must NOT be pinned to a fixed unit: that would stretch Account Health
   // (which has no height of its own) to a 355px row and change the page.
   assert.ok(!/\.dash-grid \{[^}]*grid-auto-rows/.test(css), 'grid rows should size to content');

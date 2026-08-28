@@ -235,7 +235,9 @@ test('nothing but the top bar is pinned', () => {
   const pinned = css.split('\n')
     .filter((l) => /\.log-kpis|\.log-toolbar/.test(l) && /position:\s*(sticky|fixed)/.test(l));
   assert.deepEqual(pinned, [], `nothing on the trade log may be pinned:\n${pinned.join('\n')}`);
-  assert.match(log, /className="jo-kpis dash-stats log-kpis"/);
+  // The row is <KpiRow> now, so there is no `.log-kpis` element left to pin — but the
+  // rule above still scans for one, which is what keeps this honest if the class returns.
+  assert.match(log, /<KpiRow>/);
 });
 
 test('the KPI row is spaced by the standard gap, not a margin on top of it', () => {
@@ -405,9 +407,10 @@ test('the trade log shows the four requested KPI cards', () => {
   assert.match(log, /<ProfitFactorCard m=\{m\} \/>/);
   assert.match(log, /<TradeWinCard m=\{m\} \/>/);
   assert.match(log, /<AvgWinLossCard m=\{m\} \/>/);
-  // Four columns, so the row splits evenly instead of leaving a fifth gap.
-  assert.match(log, /style=\{\{ '--kpi-count': 4 \}\}/);
-  assert.match(css, /\.dash-stats \{ grid-template-columns: repeat\(var\(--kpi-count, 5\)/);
+  // Four cards in the shared KpiRow, which splits itself — the `--kpi-count: 4` this
+  // used to pass is retired along with the CSS grid that read it (2026-08-28).
+  assert.match(log, /<KpiRow>/);
+  assert.doesNotMatch(log, /--kpi-count/);
 });
 
 test('the cards describe the filtered rows underneath them', () => {
