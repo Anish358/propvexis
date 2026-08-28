@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readSrc } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defaultDashLayout } from '../frontend/src/features/dashboard/dashLayout.js';
@@ -31,16 +32,24 @@ test('action strip uses the shared Button primitive, not bespoke buttons', () =>
 });
 
 test('Today\'s Brief banner has a titled head with a settings control', () => {
+  /* REWRITTEN FOR THE 2026-08-28 FIGMA REBUILD. The `.dash-banner-*` markup this pinned
+   * is gone — the card is composed from Brief* primitives now — so the class-name
+   * assertions could only have gone on passing against legacy CSS that nothing wears.
+   * What they were protecting survives verbatim and is what is asserted here: the card
+   * has a real heading, the settings control carries a visible name rather than being a
+   * bare icon, and the head comes before the content it titles. */
   const block = dash.slice(dash.indexOf('function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
-  assert.match(block, /<div className="dash-banner-head">/);
-  assert.match(block, /<h3>Today's Brief<\/h3>/);
-  // Icon-only, so it needs an accessible name. (The class is now a template
-  // literal — it also carries an is-open state for the settings popover.)
-  assert.match(block, /className=\{`dash-banner-settings [\s\S]*aria-label="Brief settings"/);
+  assert.match(block, /<BriefHeader/);
+  assert.match(block, /title="Today's Brief"/);
+  // Was icon-only and needed an aria-label; the frame gives it a text label instead,
+  // which is strictly better — the name is visible to everyone, not just a screen reader.
+  assert.match(block, /<BriefAction[\s\S]*?Brief settings\s*<\/BriefAction>/);
+  assert.match(block, /aria-expanded=\{settingsOpen\}/);
   // Head must precede the events/alerts content it titles.
-  assert.ok(block.indexOf('dash-banner-head') < block.indexOf('dash-banner-news'));
-  // Title uses the app's section-title tokens, not a bespoke size/weight.
-  assert.match(css, /\.dash-banner-head h3 \{[^}]*font-size: var\(--fs-section-title\)/);
+  assert.ok(block.indexOf('<BriefHeader') < block.indexOf('<BriefColumns'));
+  // The title is the frame's 18/28 semibold, declared once in the primitive.
+  const brief = readSrc('components/primitives/brief.jsx');
+  assert.match(brief, /text-\[18px\] leading-7 font-semibold/);
 });
 
 test('action strip carries no container chrome', () => {

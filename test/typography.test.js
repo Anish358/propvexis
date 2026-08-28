@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { titleCase } from '../frontend/src/lib/constants.js';
 
 import { appCss } from './helpers/app-css.js';
-import { appJsx, readSrc, stripComments } from './helpers/src-files.js';
+import { appJsx, libraryFiles, readSrc, stripComments } from './helpers/src-files.js';
 // TYPOGRAPHY RULE: this app writes in Title Case. Never SHOUTED — not via
 // `text-transform: uppercase` in CSS, not by `.toUpperCase()` on display text, and
 // not by typing a label in caps in the markup.
@@ -21,6 +21,20 @@ const jsxFiles = appJsx();
 // The ONE documented exception. A wordmark is a logo, not UI text: its letterforms
 // and tracking are the brand's, and title-casing it would be redrawing the mark.
 const CAPS_EXCEPTIONS = ['.auth-mark'];
+
+/* THE RULE NOW COVERS THE COMPONENT LIBRARY TOO (2026-08-28), and it had to: it only
+ * ever scanned legacy CSS, so the redesign could have introduced `uppercase` in a
+ * primitive and never been asked about it. That is not hypothetical — Today's Brief
+ * needed exactly one, and this is where it had to come and argue for itself.
+ *
+ * The exception is the brief's column eyebrows ("HIGH & MEDIUM EVENTS", "ACCOUNT
+ * ALERTS"): 12px, medium weight, muted, letterspaced, naming a column rather than
+ * saying anything. That is the one register where small caps reads as structure instead
+ * of emphasis, and the Figma frame draws them that way. Anything larger, darker, or in
+ * a sentence is shouting and belongs in title case. */
+const UPPERCASE_EXCEPTIONS = [
+  { file: 'components/primitives/brief.jsx', what: "the brief's column eyebrows" },
+];
 
 test('no uppercase text-transform outside the brand wordmark', () => {
   const offenders = [];
@@ -106,5 +120,25 @@ test('caps tracking went with the caps', () => {
     // non-zero value is leftover caps tracking.
     const tracking = rule.match(/letter-spacing:\s*(-?[.0-9]+)/);
     assert.ok(!tracking || Number(tracking[1]) === 0, `${sel} still carries caps tracking`);
+  }
+});
+
+test('no `uppercase` utility outside the one place it is argued for', () => {
+  // Utilities compile only under components/{ui,primitives}, so that is the whole
+  // surface. A page cannot introduce one — its class would emit nothing at all.
+  const offenders = [];
+  for (const f of libraryFiles()) {
+    if (UPPERCASE_EXCEPTIONS.some((e) => f.endsWith(e.file))) continue;
+    if (/\buppercase\b/.test(stripComments(readSrc(f)))) offenders.push(f);
+  }
+  assert.deepEqual(offenders, [], `these SHOUT — use title case:\n${offenders.join('\n')}`);
+});
+
+test('each uppercase exception is still real', () => {
+  // If an exempted file stops using it, the exemption is dead weight that would let the
+  // next one in unnoticed — the same reason the .auth-mark exception is asserted above.
+  for (const { file, what } of UPPERCASE_EXCEPTIONS) {
+    assert.match(stripComments(readSrc(file)), /\buppercase\b/,
+      `${file} no longer uppercases anything (${what}) — drop it from UPPERCASE_EXCEPTIONS`);
   }
 });

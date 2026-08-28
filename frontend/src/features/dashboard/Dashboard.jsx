@@ -2,6 +2,7 @@ import React, {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { AlertTriangle, Clock, Flag, SlidersHorizontal, Sparkles, Sun } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
 import DayTradesModal from '../calendar/DayTradesModal.jsx';
@@ -23,7 +24,10 @@ import Explain from '../../components/Explain.jsx';
 // Modal is here for SetTargetModal below — the TWELFTH modal, which the Phase 4b audit
 // counted as eleven because it is declared inline in a page rather than in its own
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
-import { Button, Card, Tabs, EmptyState, Modal } from '@/components/primitives';
+import {
+  BriefAction, BriefAlert, BriefCard, BriefClock, BriefColumns, BriefEvent, BriefHeader,
+  BriefNote, BriefSection, Button, Card, Tabs, EmptyState, Modal,
+} from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
@@ -84,7 +88,24 @@ const EMPTY_EVENT_COPY = {
   'no-events': 'No events on the calendar right now.',
 };
 
-function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBriefSection, resetBriefPrefs }) {
+// The feed's closed impact set (see normalizeImpact in src/platform/calendar.js)
+// rendered as the badge that ends each event row. `low` is spelled out rather than
+// left blank: a row with no badge reads as "unknown", not "unimportant".
+const IMPACT_LABEL = { high: 'High', medium: 'Medium', low: 'Low', holiday: 'Holiday' };
+
+// One glyph per severity, so an alert is recognisable before it is read. Nothing
+// on the notification carries an icon, so severity is the only honest source —
+// which also means the glyph can never disagree with the row's colour.
+const ALERT_ICON = { crit: AlertTriangle, warn: Flag, info: Sparkles };
+
+function AlertGlyph({ severity }) {
+  const Icon = ALERT_ICON[sevClass(severity)] || Sparkles;
+  return <Icon aria-hidden="true" />;
+}
+
+// Exported for the gitignored visual harness (frontend/.preview.jsx), which is the
+// only way to SEE this card — there is no jsdom here, so nothing else renders it.
+export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBriefSection, resetBriefPrefs }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const alerts = notifications.filter((n) => !n.read_at || n.severity !== 'info').slice(0, 3);
 
@@ -119,75 +140,81 @@ function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBriefSecti
   const allQuiet = !showEvents && !showAlerts;
 
   return (
-    <div className="dash-banner">
-      <div className="dash-banner-head">
-        <h3>Today's Brief</h3>
-        <span className="dash-banner-date">
-          {formatBriefDate(now, prefs.timezone)}
-          <span className="dash-banner-clock">{formatBriefClock(now, prefs.timezone)}</span>
-        </span>
-        <div className="bs-anchor">
-        <button
-          type="button"
-          className={`dash-banner-settings ${settingsOpen ? 'is-open' : ''}`}
-          title="Brief settings"
-          aria-label="Brief settings"
-          aria-expanded={settingsOpen}
-          onClick={() => setSettingsOpen((o) => !o)}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V10a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
-        <BriefSettingsPopover
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          prefs={prefs}
-          patchBriefPrefs={patchBriefPrefs}
-          setBriefSection={setBriefSection}
-          resetBriefPrefs={resetBriefPrefs}
-        />
-        </div>
-      </div>
-
-      {showEvents && (
-      <div className="dash-banner-news">
-        <div className="dash-banner-label">{briefEventsLabel(prefs)}</div>
-        {events == null ? (
-          <div className="dash-banner-empty muted">Loading economic calendar…</div>
-        ) : shown.length === 0 ? (
-          <div className="dash-banner-empty muted">{EMPTY_EVENT_COPY[emptyReason] || EMPTY_EVENT_COPY['no-events']}</div>
-        ) : (
-          <ul className="dash-events">
-            {shown.map((e, i) => (
-              <li key={`${e.date}-${e.title}-${i}`} className="dash-event">
-                <span className="dash-event-ccy">{e.country}</span>
-                <span className="dash-event-title" title={e.title}>{e.title}</span>
-                <span className="dash-event-time">{formatBriefTime(e.date, prefs.timezone, now)}</span>
-              </li>
-            ))}
-          </ul>
+    <BriefCard>
+      <BriefHeader
+        icon={<Sun aria-hidden="true" />}
+        title="Today's Brief"
+        date={formatBriefDate(now, prefs.timezone)}
+        clock={<BriefClock icon={<Clock aria-hidden="true" />}>{formatBriefClock(now, prefs.timezone)}</BriefClock>}
+        action={(
+          <div className="bs-anchor">
+            <BriefAction
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((o) => !o)}
+            >
+              <SlidersHorizontal aria-hidden="true" />
+              Brief settings
+            </BriefAction>
+            <BriefSettingsPopover
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              prefs={prefs}
+              patchBriefPrefs={patchBriefPrefs}
+              setBriefSection={setBriefSection}
+              resetBriefPrefs={resetBriefPrefs}
+            />
+          </div>
         )}
-      </div>
-      )}
+        /* THE FRAME'S SECOND, UNLABELLED 36px BUTTON IS NOT BUILT. It sits top-right of
+           the header with no icon resolved and no behaviour implied, and the settings
+           control it might duplicate is already there and labelled. A button that does
+           nothing is worse than an absent one, so `aside` is left empty until someone
+           says what it is for. */
+      />
 
-      {showAlerts && (
-        <div className="dash-banner-alerts">
-          {alerts.length === 0 ? (
-            <span className="muted">No account alerts right now.</span>
-          ) : alerts.map((n) => (
-            <span key={n.id} className={`dash-banner-alert ${sevClass(n.severity)}`}>{n.title}</span>
-          ))}
-        </div>
-      )}
-
-      {allQuiet && (
-        <div className="dash-banner-empty muted">
+      {allQuiet ? (
+        <BriefNote>
           Every Brief section is hidden or empty — turn one back on in Brief settings.
-        </div>
+        </BriefNote>
+      ) : (
+        <BriefColumns>
+          {showEvents && (
+            <BriefSection label={briefEventsLabel(prefs)}>
+              {events == null ? (
+                <BriefNote>Loading economic calendar…</BriefNote>
+              ) : shown.length === 0 ? (
+                <BriefNote>{EMPTY_EVENT_COPY[emptyReason] || EMPTY_EVENT_COPY['no-events']}</BriefNote>
+              ) : shown.map((e, i) => (
+                <BriefEvent
+                  key={`${e.date}-${e.title}-${i}`}
+                  currency={e.country}
+                  title={e.title}
+                  time={formatBriefTime(e.date, prefs.timezone, now)}
+                  impact={e.impact}
+                  impactLabel={IMPACT_LABEL[e.impact]}
+                />
+              ))}
+            </BriefSection>
+          )}
+
+          {showAlerts && (
+            <BriefSection label="Account alerts" gap="alerts">
+              {alerts.length === 0 ? (
+                <BriefNote>No account alerts right now.</BriefNote>
+              ) : alerts.map((n) => (
+                <BriefAlert
+                  key={n.id}
+                  severity={n.severity}
+                  icon={<AlertGlyph severity={n.severity} />}
+                >
+                  {n.title}
+                </BriefAlert>
+              ))}
+            </BriefSection>
+          )}
+        </BriefColumns>
       )}
-    </div>
+    </BriefCard>
   );
 }
 

@@ -108,3 +108,9 @@ export {
   Rail, RailAction, RailAvatar, RailBrand, RailFooter, RailItem, RailNav,
   RailNudge, RailSoon, RailSub, RailSubItem, RailUser,
 } from './rail.jsx';
+
+// Today's Brief — the dashboard's top card. Here for the same reason as the rail.
+export {
+  BriefAction, BriefAlert, BriefCard, BriefClock, BriefColumns, BriefEvent, BriefHeader,
+  BriefNote, BriefSection,
+} from './brief.jsx';

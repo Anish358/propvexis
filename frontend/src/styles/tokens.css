@@ -219,6 +219,13 @@
   --brand-mark-ink:var(--surface);        /* the chevron, stroked in the surface it sits on */
   --rail-avatar-bg:rgba(229,229,229,0.20);
   --nudge-bg:rgba(255,185,0,0.05);
+  /* Today's Brief. The tile wash is amber because the brief is the morning read, not
+     because anything is wrong — deliberately lighter than the 10% an actual alert row
+     uses. The row and chip values are neutral scaffolding, alpha rather than a flat
+     grey so a row still reads as raised on either surface it lands on. */
+  --brief-tile-bg:rgba(255,185,0,0.10);
+  --brief-row-bg:rgba(38,38,38,0.60);
+  --brief-chip-border:rgba(255,255,255,0.10);
   --skeleton-sheen:rgba(255,255,255,.05);
 
   /* ===== CHART CATEGORICAL PALETTE =====
