@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readSrc } from './helpers/src-files.js';
+import { readSrc, stripComments } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defaultDashLayout } from '../frontend/src/features/dashboard/dashLayout.js';
@@ -24,11 +24,39 @@ test('out of the box, the strip sits between Today\'s Brief and the KPI row', ()
   assert.match(dash, /stripAfter = isDashVisible\(layout, 'brief'\) \? 'brief'/, 'the anchor should be the brief');
 });
 
-test('action strip uses the shared Button primitive, not bespoke buttons', () => {
+test('the action strip is the shared Button plus strip primitives, never a raw button', () => {
+  /* THREE THINGS CHANGED WITH THE 2026-08-28 REBUILD and one did not.
+   *
+   * Sync Trades is `primary` now, not `secondary`: it is the only action on the page
+   * and the frame fills it. Primary is a LIGHT fill since this redesign (see
+   * token-bridge.test.js), not the brand blue it used to be.
+   *
+   * `.dash-actions-status` is gone with the rest of the legacy classes, and the copy it
+   * held has changed on purpose — see the test below.
+   *
+   * What did not change is the rule this test exists for: no raw <button> in a page.
+   * The strip's own quiet control is a primitive (ActionLink) so its focus ring, hover
+   * and hit area match every other chrome control instead of being re-derived here. */
   const block = dash.slice(dash.indexOf('function DashActions'), dash.indexOf('// ---- Section 2'));
-  assert.match(block, /<Button\b[\s\S]*variant="secondary"/, 'buttons should be secondary Button primitives');
+  assert.match(block, /<Button\b[\s\S]*variant="primary"/, 'Sync Trades is the page\'s primary action');
   assert.doesNotMatch(block, /<button\b/, 'no raw <button> in the strip');
-  assert.match(block, /dash-actions-status/, 'missing the last-synced status line');
+  assert.match(block, /<ActionLink/);
+  assert.match(block, /<ActionStatus/, 'the strip still reports sync state');
+});
+
+test('the sync status does not invent a timestamp', () => {
+  /* IT USED TO READ "Last synced: 2 min ago" AND IT WAS STATIC COPY. The frame draws a
+   * green tick beside the button, but this page has no sync-status feed behind it, so
+   * any elapsed time printed here is a number with nothing under it — the kind a trader
+   * reasonably acts on ("it synced two minutes ago, so this P&L is current") when in
+   * fact nothing has run at all. An honest label costs nothing and does not have to be
+   * un-lied about when the feed lands. */
+  // stripComments: the note in DashActions explaining what the old copy claimed
+  // necessarily quotes it. Fifth scanner in this suite to need this.
+  const code = stripComments(dash);
+  const block = code.slice(code.indexOf('function DashActions'), code.indexOf('Section 2'));
+  assert.doesNotMatch(block, /Last synced/, 'a hardcoded elapsed time is a claim we cannot make');
+  assert.match(block, /not yet wired/);
 });
 
 test('Today\'s Brief banner has a titled head with a settings control', () => {

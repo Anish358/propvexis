@@ -4,7 +4,7 @@ import React, {
 import { useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
-  ShieldCheck, SlidersHorizontal, Sparkles, Sun,
+  RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Sun,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
@@ -31,7 +31,8 @@ import {
   AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell, AccountTab,
   AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  PanelBody, PanelCard, PanelHead, PanelMeta, Tabs, EmptyState, Modal,
+  ActionLink, ActionStatus, ActionStrip, PanelBody, PanelCard, PanelHead, PanelMeta,
+  Tabs, EmptyState, Modal,
 } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
@@ -233,37 +234,29 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
 // opens the layout panel.
 function DashActions({ onCustomize }) {
   return (
-    <div className="dash-actions">
-      <div className="dash-actions-left">
-        <Button variant="secondary" size="sm" type="button">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path d="M3 3v5h5" />
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-            <path d="M21 21v-5h-5" />
-          </svg>
+    <ActionStrip
+      action={(
+        <Button variant="primary" size="sm" type="button">
+          <RefreshCw aria-hidden="true" />
           Sync Trades
         </Button>
-        <span className="dash-actions-status">Last synced: 2 min ago</span>
-      </div>
-
-      <Button
-        variant="secondary"
-        // icon-only: the library has a square size for this, which is what the
-        // `padding: 5px 9px` override in .dash-actions-customize used to fake.
-        size="icon-sm"
+      )}
+      /* STILL A PLACEHOLDER, and it says so rather than inventing a timestamp. The
+         frame draws a green tick beside the button; the app has no sync-status feed on
+         this page yet, so printing "Last synced: 2 min ago" (which is what stood here)
+         is a number with nothing behind it. An honest label costs nothing and does not
+         have to be un-lied about when the feed arrives. */
+      status={<ActionStatus>Manual sync — not yet wired</ActionStatus>}
+    >
+      <ActionLink
         type="button"
-        className="dash-actions-customize"
         title="Customize layout"
-        aria-label="Customize layout"
         onClick={onCustomize}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3" />
-          <path d="M14 2v4M8 10v4M16 18v4" />
-        </svg>
-      </Button>
-    </div>
+        <SlidersHorizontal aria-hidden="true" />
+        Customize layout
+      </ActionLink>
+    </ActionStrip>
   );
 }
 

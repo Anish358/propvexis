@@ -64,9 +64,19 @@ test('the --accent collision stays resolved in our favour', () => {
   // grayscale (DESIGN-LANGUAGE N4). Our brand blue is exposed as brand-*.
   assert.match(bridgeCode, /--color-accent:\s*var\(--surface-hover\)/);
   assert.match(bridgeCode, /--color-brand:\s*var\(--accent\)/);
-  assert.match(bridgeCode, /--color-primary:\s*var\(--accent\)/);
-  // Which blue step is a foundation value (preset b2qKmlY80 uses blue-800 in
-  // dark); that it is a blue at all is the invariant.
+  /* PRIMARY IS NO LONGER THE ACCENT (2026-08-28). This asserted
+   * `--color-primary: var(--accent)`, on the reading that a primary button is a
+   * brand-filled one. The Figma redesign fills it light instead: on a near-black page a
+   * light fill outranks any hue, and pointing primary at the brand forced blue to be
+   * both "the product" and "the button you press" — which is exactly why the accent
+   * needed a SECOND value (--accent-on-surface) to stay legible as a link.
+   *
+   * The collision this test is named for is untouched and is still the point: shadcn's
+   * "accent" means a subtle hover background, ours means brand blue, and their name is
+   * still served from our neutral hover token. */
+  assert.match(bridgeCode, /--color-primary:\s*var\(--action\)/);
+  assert.match(bridgeCode, /--color-primary-foreground:\s*var\(--on-action\)/);
+  // Blue remains the brand — it just stopped being the fill of every primary button.
   assert.match(tokensCss, /--accent:\s*var\(--blue-\d00\)/);
 });
 

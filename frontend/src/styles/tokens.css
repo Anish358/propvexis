@@ -216,6 +216,14 @@
      the same hue at any real opacity reads as the warning state it must not be
      confused with), which belongs where the palette is, not in a class string. */
   --brand-mark-bg:#e5e5e5;                /* the brand tile (Logo.jsx) + initials avatar ink */
+  /* PRIMARY ACTIONS ARE LIGHT, NOT BLUE (2026-08-28 Figma). The frame fills its one
+     primary button — Sync Trades — with #e5e5e5 and sets the label in the surface
+     colour. That is a foundation change and it is deliberate: on a near-black page a
+     light fill is the strongest thing that can be drawn, and it leaves blue free to
+     mean "brand / link / data line" instead of competing with it for "the button you
+     press". --accent is untouched and still does that job. */
+  --action:#e5e5e5;
+  --on-action:var(--surface);
   --brand-mark-ink:var(--surface);        /* the chevron, stroked in the surface it sits on */
   --rail-avatar-bg:rgba(229,229,229,0.20);
   --nudge-bg:rgba(255,185,0,0.05);

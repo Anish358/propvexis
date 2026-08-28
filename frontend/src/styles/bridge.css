@@ -31,9 +31,16 @@
   --color-popover: var(--surface-2);
   --color-popover-foreground: var(--text);
 
-  /* Their "primary" is a brand-filled action — exactly our accent. */
-  --color-primary: var(--accent);
-  --color-primary-foreground: var(--on-accent);
+  /* THEIR "primary" IS OUR PRIMARY ACTION, AND THAT IS NO LONGER THE ACCENT.
+     Until 2026-08-28 this pointed at --accent, on the reading that a primary button is
+     a brand-filled one. The Figma redesign fills it light instead (see --action in
+     tokens.css): on a near-black page a light fill outranks any hue, and pointing
+     primary at the brand meant blue had to be both "the product" and "the button",
+     which is why the accent needed a second value (--accent-on-surface) to stay
+     legible. One line here moves every primary button in the app, which is the whole
+     reason the bridge exists. */
+  --color-primary: var(--action);
+  --color-primary-foreground: var(--on-action);
 
   --color-secondary: var(--sel-bg);
   --color-secondary-foreground: var(--text);

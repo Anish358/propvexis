@@ -128,8 +128,8 @@ export {
 
 // The dashboard's generic content card, and the P&L calendar's cells.
 export {
-  PanelBody, PanelCard, PanelCell, PanelHead, PanelMeta, PanelRow, PanelRowHead,
-  PanelValue,
+  ActionLink, ActionStatus, ActionStrip, PanelBody, PanelCard, PanelCell, PanelHead,
+  PanelMeta, PanelRow, PanelRowHead, PanelValue,
 } from './panel.jsx';
 export {
   CalCell, CalCellBody, CalDayNum, CalDow, CalGrid, CalNavButton, CalRoot, CalWeek,
