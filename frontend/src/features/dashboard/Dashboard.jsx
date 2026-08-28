@@ -2,7 +2,10 @@ import React, {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { AlertTriangle, Clock, Flag, SlidersHorizontal, Sparkles, Sun } from 'lucide-react';
+import {
+  AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
+  ShieldCheck, SlidersHorizontal, Sparkles, Sun,
+} from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
 import DayTradesModal from '../calendar/DayTradesModal.jsx';
@@ -25,8 +28,10 @@ import Explain from '../../components/Explain.jsx';
 // counted as eleven because it is declared inline in a page rather than in its own
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
-  BriefAction, BriefAlert, BriefCard, BriefClock, BriefColumns, BriefEvent, BriefHeader,
-  BriefNote, BriefSection, Button, Card, KpiRow, Tabs, EmptyState, Modal,
+  AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell, AccountTab,
+  AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock,
+  BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
+  Tabs, EmptyState, Modal,
 } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
@@ -340,30 +345,21 @@ function CumulativePnlCard({ days, unit }) {
 
 const PHASE_LABEL = { funded: 'Funded', p2: 'Phase 2', p1: 'Phase 1' };
 
-// Attention icon shown next to an account's name — ONLY for warn/bad. A
-// healthy account gets no icon at all (zero visual emphasis is the point);
-// warning gets a triangle, critical gets a fuller alert-circle so severity
-// reads as a shape difference too, not just color.
+/* Attention glyph beside an account's name — ONLY for warn/bad.
+ *
+ * A healthy account gets NOTHING, and that is the point: zero emphasis is what makes
+ * the two states that need attention visible. Warn is a triangle, critical a filled
+ * alert-circle, so severity reads as a shape difference and not only as a colour — the
+ * dot beside it already carries the hue, and a trader who cannot separate amber from
+ * red would otherwise have one encoding of the fact that matters most.
+ *
+ * lucide since the 2026-08-28 rebuild; the two inline <svg> bodies this replaced drew
+ * the same two glyphs at a hardcoded 12px. */
 function AccountAlertIcon({ status }) {
   if (status === 'good') return null;
   const label = status === 'warn' ? 'Warning' : 'Critical';
-  return (
-    <span className={`dash-acct-tab-alert dash-acct-tab-alert--${status}`} title={label} aria-label={label}>
-      {status === 'warn' ? (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      ) : (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-      )}
-    </span>
-  );
+  const Icon = status === 'warn' ? AlertTriangle : AlertCircle;
+  return <Icon role="img" aria-label={label} />;
 }
 
 // Account header — a row of compact, tab-like account blocks (name / type /
@@ -392,55 +388,49 @@ function AccountHeader({ candidates, selectedId, onSelect }) {
   const overflow = candidates.filter((a) => !visibleIds.has(String(a.account_id)));
 
   return (
-    <div className="dash-acct-header">
-      <div className="dash-acct-tabs">
-        {visible.map((a) => {
-          const st = healthStatus(a.health.score, a.breach.breached);
-          const active = String(a.account_id) === String(selectedId);
-          return (
-            <div key={a.account_id} className="dash-acct-tab-cell">
-              <button
-                type="button"
-                className={`dash-acct-tab ${active ? 'is-active' : ''}`}
-                onClick={() => onSelect(a.account_id)}
-              >
-                <span className={`dash-acct-tab-dot dash-acct-tab-dot--${st}`} />
-                <span className="dash-acct-tab-text">
-                  <span className="dash-acct-tab-name-row">
-                    <span className="dash-acct-tab-name">{a.label || `Account ${a.account_id}`}</span>
-                    <AccountAlertIcon status={st} />
-                  </span>
-                  <span className="dash-acct-tab-type">{PHASE_LABEL[a.phase] || a.phase}</span>
-                </span>
-              </button>
+    <AccountTabs>
+      {visible.map((a) => {
+        const st = healthStatus(a.health.score, a.breach.breached);
+        const active = String(a.account_id) === String(selectedId);
+        return (
+          <AccountTab
+            key={a.account_id}
+            tone={st}
+            selected={active}
+            alert={<AccountAlertIcon status={st} />}
+            onClick={() => onSelect(a.account_id)}
+          >
+            {/* ONE LINE, not the old stacked name-over-phase. The frame writes it as
+                "#5521 · Phase 2", and a two-line tab is 48 tall against the meters'
+                own rhythm — the phase is a qualifier on the name, not a second fact. */}
+            {`${a.label || `Account ${a.account_id}`} · ${PHASE_LABEL[a.phase] || a.phase}`}
+          </AccountTab>
+        );
+      })}
+      {overflow.length > 0 && (
+        <div className="dash-acct-more" ref={ref}>
+          <AccountTabMore onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            <ChevronDown aria-hidden="true" />
+            +{overflow.length} Account{overflow.length > 1 ? 's' : ''}
+          </AccountTabMore>
+          {open && (
+            <div className="wcz-menu dash-acct-more-menu">
+              {overflow.map((a) => (
+                <button
+                  key={a.account_id}
+                  type="button"
+                  className="wcz-opt"
+                  onClick={() => { onSelect(a.account_id); setOpen(false); }}
+                >
+                  <span>{a.label || `Account ${a.account_id}`}</span>
+                  {a.phase && <span className="muted">{PHASE_LABEL[a.phase] || a.phase}</span>}
+                </button>
+              ))}
             </div>
-          );
-        })}
-        {overflow.length > 0 && (
-          <div className="dash-acct-tab-cell dash-acct-more" ref={ref}>
-            <button type="button" className="dash-acct-more-btn" onClick={() => setOpen((o) => !o)}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-              +{overflow.length} Account{overflow.length > 1 ? 's' : ''}
-            </button>
-            {open && (
-              <div className="wcz-menu dash-acct-more-menu">
-                {overflow.map((a) => (
-                  <button
-                    key={a.account_id}
-                    type="button"
-                    className="wcz-opt"
-                    onClick={() => { onSelect(a.account_id); setOpen(false); }}
-                  >
-                    <span>{a.label || `Account ${a.account_id}`}</span>
-                    {a.phase && <span className="dash-acct-tab-type muted">{PHASE_LABEL[a.phase] || a.phase}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+        </div>
+      )}
+    </AccountTabs>
   );
 }
 
@@ -537,22 +527,34 @@ function AccountCard({
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
 
   return (
-    <Card className="dash-acct-card dash-acct-card-wide">
+    <AccountCardShell>
+      <AccountCardHead icon={<ShieldCheck aria-hidden="true" />}>Account Health</AccountCardHead>
+
       <AccountHeader candidates={candidates} selectedId={selectedId} onSelect={onSelect} />
 
-      {/* The three rule meters live in AccountDetails.jsx now — Accounts › Details
-          renders the same section, and one component is what keeps the two from
-          drifting. This page keeps the target-editing flow (SetTargetModal below),
-          which it hands in; a surface without that flow passes nothing. */}
+      {/* The three rule meters live in AccountDetails.jsx — Accounts › Details renders
+          the same section, and one component is what keeps the two from drifting. This
+          page keeps the target-editing flow (SetTargetModal below), which it hands in;
+          a surface without that flow passes nothing. */}
       <AccountDetails
         data={data}
         onSetTarget={acctRecord ? () => setTargetOpen(true) : null}
       />
 
-      <div className="dash-acct-foot">
-        <span className="dash-acct-days">{data.tradingDays.completed}/{data.tradingDays.required} days completed</span>
-        <button type="button" className="dash-acct-view" onClick={onOpen}>View account →</button>
-      </div>
+      {/* The day count appears ONCE — here. The frame prints it twice, in the header
+          and again in the footer; the same seven words in two places inside one card
+          teaches the reader that neither is worth reading. */}
+      <AccountCardFoot
+        action={(
+          <AccountCardLink onClick={onOpen}>
+            View account
+            <ArrowRight aria-hidden="true" />
+          </AccountCardLink>
+        )}
+      >
+        <CalendarDays aria-hidden="true" />
+        {data.tradingDays.completed}/{data.tradingDays.required} minimum trading days completed
+      </AccountCardFoot>
 
       {targetOpen && acctRecord && (
         <SetTargetModal
@@ -565,7 +567,7 @@ function AccountCard({
           onSaved={() => { setTargetOpen(false); onChanged(); }}
         />
       )}
-    </Card>
+    </AccountCardShell>
   );
 }
 
@@ -643,12 +645,12 @@ export default function Dashboard() {
   // ordinal position + its catalogue size — no coordinates anywhere.
   const gridWidget = {
     account: () => (!selectedAccount ? (
-      <Card className="dash-acct-card dash-acct-card-wide">
+      <AccountCardShell>
         <EmptyState
           title="No prop accounts yet"
           description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
         />
-      </Card>
+      </AccountCardShell>
     ) : (
       <AccountCard
         data={selectedAccount}

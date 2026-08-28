@@ -1,4 +1,6 @@
 import React from 'react';
+import { AlertCircle, AlertTriangle, Coins, Target } from 'lucide-react';
+import { Meter, MeterRow } from '@/components/primitives';
 import { fmtMoney } from '../../lib/metrics.js';
 import { roomStatus } from './PropOS.jsx';
 
@@ -30,21 +32,43 @@ import { roomStatus } from './PropOS.jsx';
 const money = (n) => (n == null ? '—' : fmtMoney(n));
 const pct1 = (f) => `${((f || 0) * 100).toFixed(1)}%`;
 
-// A single "$used / $limit" row with a fill bar — used/limit framing (bar fills
-// UP as risk grows) rather than a room-remaining framing, so a nearly-full bar
-// reads as a warning at a glance.
+/* A single "$used / $limit" row with a fill bar.
+ *
+ * USED/LIMIT FRAMING, and the bar fills UP as risk grows. A room-remaining bar empties
+ * toward danger, so the most alarming state would be the one with the least ink on
+ * screen — backwards for the one number that ends accounts. Unchanged by the redesign.
+ *
+ * THE SKIN MOVED, THE API DID NOT (2026-08-28). The `.dash-usage` / `.prop-meter-*`
+ * markup is replaced by the `Meter` primitive, so this component's five props and all
+ * of its callers are untouched. `tone` is still roomStatus()'s vocabulary — the
+ * primitive speaks the same words plus `target`/`payout`, which this file already
+ * passed.
+ *
+ * THE ICON IS DERIVED FROM THE TONE HERE rather than being a sixth prop, because the
+ * mapping is a fact about the tone and not about the meter: a warn meter is a triangle
+ * and a bad one is a filled circle, everywhere, or the shapes stop meaning anything.
+ * Colour alone is never the escalation (DESIGN-LANGUAGE §a11y). */
+const TONE_ICON = {
+  warn: AlertTriangle,
+  bad: AlertCircle,
+  target: Target,
+  payout: Coins,
+};
+
 export function UsageMeter({
   label, used, limit, pct, tone, sub,
 }) {
+  const Icon = TONE_ICON[tone] || null;
   return (
-    <div className={`dash-usage prop-${tone}`}>
-      <div className="dash-usage-head">
-        <span className="dash-usage-label">{label}</span>
-        <span className="dash-usage-val">{money(used)} <span className="muted">/ {money(limit)}</span></span>
-      </div>
-      <div className="prop-meter-track"><div className="prop-meter-fill" style={{ width: `${Math.round((pct || 0) * 100)}%` }} /></div>
-      {sub && <div className="dash-usage-sub">{sub}</div>}
-    </div>
+    <Meter
+      label={label}
+      icon={Icon ? <Icon aria-hidden="true" /> : null}
+      value={money(used)}
+      limit={limit == null ? null : `/ ${money(limit)}`}
+      pct={pct}
+      tone={tone}
+      sub={sub}
+    />
   );
 }
 
@@ -60,7 +84,7 @@ export default function AccountDetails({ data, onSetTarget = null }) {
     : null;
 
   return (
-    <div className="dash-acct-usages dash-acct-usages-grid">
+    <MeterRow>
       <UsageMeter
         label="Daily drawdown"
         used={data.dailyDd?.usedToday}
@@ -104,20 +128,23 @@ export default function AccountDetails({ data, onSetTarget = null }) {
           )}
         />
       ) : data.phase === 'funded' ? (
-        <div className="dash-usage prop-na">
-          <div className="dash-usage-head">
-            <span className="dash-usage-label">Payout</span>
-            <span className="dash-usage-val">{money(fundedProfit)}</span>
-          </div>
-          <div className="prop-meter-track"><div className="prop-meter-fill" style={{ width: '0%' }} /></div>
-          <div className="dash-usage-sub">
-            No payout target set for this funded account.{' '}
-            {onSetTarget && (
-              <button type="button" className="dash-usage-settarget" onClick={onSetTarget}>Set payout target</button>
-            )}
-          </div>
-        </div>
-      ) : <div className="dash-usage dash-usage-empty" />}
-    </div>
+        /* A funded account with no target. `na` rather than a tone: there is no rule
+           to be near, and drawing this green would claim a target had been met. */
+        <Meter
+          label="Payout"
+          value={money(fundedProfit)}
+          pct={0}
+          tone="na"
+          sub={(
+            <>
+              No payout target set for this funded account.{' '}
+              {onSetTarget && (
+                <button type="button" className="dash-usage-settarget" onClick={onSetTarget}>Set payout target</button>
+              )}
+            </>
+          )}
+        />
+      ) : null}
+    </MeterRow>
   );
 }

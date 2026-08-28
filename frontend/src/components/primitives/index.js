@@ -119,3 +119,9 @@ export {
 export {
   KpiCard, KpiFoot, KpiLabel, KpiPill, KpiRow, KpiSpacer, KpiSplitBar, KpiValue,
 } from './kpi.jsx';
+
+// Account Health — the full-width rule-meter card. Same reasoning as the rail.
+export {
+  AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell, AccountTab,
+  AccountTabMore, AccountTabs, Meter, MeterRow,
+} from './account.jsx';
