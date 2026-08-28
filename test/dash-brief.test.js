@@ -17,15 +17,17 @@ const dash = readSrc('features/dashboard/Dashboard.jsx');
 
 test('the card carries the frame\'s geometry', () => {
   const geometry = [
-    ['card radius + padding', /rounded-\[24px\] bg-\[var\(--surface\)\] p-7/],
-    ['blocks 24 apart', /flex flex-col gap-6 rounded-\[24px\]/],
-    ['header tile', /size-11 shrink-0 items-center justify-center rounded-\[16px\]/],
-    ['title', /text-\[18px\] leading-7 font-semibold/],
-    ['date and clock', /text-\[14px\] leading-5 font-normal text-\[var\(--muted\)\]/],
-    ['two columns, 32 apart', /grid grid-cols-2 gap-8/],
-    ['event row', /rounded-\[16px\] bg-\[var\(--brief-row-bg\)\] p-3/],
-    ['alert row', /rounded-\[16px\] border p-4/],
-    ['pill chips', /rounded-full border border-\[var\(--brief-chip-border\)\] px-2 py-0\.5/],
+    // One step down the frame's own scale (owner call, 2026-08-28): 28->20, 24->16,
+    // 18->16, 14->13. Proportions are the frame's; the card is one size smaller.
+    ['card radius + padding', /rounded-\[20px\] bg-\[var\(--surface\)\] p-5/],
+    ['blocks 16 apart', /flex flex-col gap-4 rounded-\[20px\]/],
+    ['header tile', /size-9 shrink-0 items-center justify-center rounded-\[12px\]/],
+    ['title', /text-\[16px\] leading-6 font-semibold/],
+    ['date', /text-\[13px\] leading-5 font-normal text-\[var\(--muted\)\]/],
+    ['two columns, 24 apart', /grid grid-cols-2 gap-6/],
+    ['event row', /rounded-\[12px\] bg-\[var\(--brief-row-bg\)\] px-3 py-2/],
+    ['alert row', /rounded-\[12px\] border px-3 py-2\.5/],
+    ['pill chips', /rounded-full border border-\[var\(--brief-chip-border\)\] px-1\.5 py-0\.5/],
   ];
   for (const [what, re] of geometry) {
     assert.match(brief, re, `${what} has drifted from the Figma frame`);
@@ -104,4 +106,27 @@ test('the frame\'s unlabelled second button is deliberately not built', () => {
    * the slot survives — if it is deleted, the decision is lost with it. */
   assert.match(brief, /aside/, 'the header must keep a slot for the frame\'s second control');
   assert.ok(!/aside=\{/.test(dash), 'nothing should fill `aside` until it has a purpose');
+});
+
+test('the settings control is an icon button in the title row, and still has a name', () => {
+  /* IT WAS A TEXT BUTTON ON A SECOND LINE (owner call, 2026-08-28). Two things had to
+   * move together and this holds both: the control is in the header's action slot
+   * rather than stacked under the title, and — because the visible word "Brief
+   * settings" is gone — the accessible name is now carried by an attribute. A bare
+   * glyph with no label is the standard way this exact refactor breaks a control. */
+  assert.match(brief, /flex size-8 shrink-0 items-center justify-center rounded-\[6px\]/,
+    'the trigger must be a square icon button');
+  assert.doesNotMatch(brief, /flex min-w-0 flex-col gap-2/,
+    'the header must be one row — no stacked second line under the title');
+  const banner = dash.slice(dash.indexOf('export function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
+  assert.match(banner, /<BriefAction[\s\S]*?aria-label="Brief settings"/,
+    'an icon-only trigger must carry an accessible name');
+  assert.doesNotMatch(banner, /Brief settings\s*<\/BriefAction>/, 'the visible label is gone');
+});
+
+test('a lone column takes the full width', () => {
+  /* `hideEmpty` can switch either section off. A single half-width list beside an empty
+   * half reads as a column that failed to load rather than one the user turned off —
+   * which is exactly what the owner saw in the real shell with no calendar events. */
+  assert.match(brief, /\[&>\*:only-child\]:col-span-2/);
 });

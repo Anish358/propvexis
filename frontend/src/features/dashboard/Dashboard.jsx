@@ -149,11 +149,14 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
         action={(
           <div className="bs-anchor">
             <BriefAction
+              // Icon-only now, so the name lives here — there is no visible text left
+              // to carry it.
+              aria-label="Brief settings"
+              title="Brief settings"
               aria-expanded={settingsOpen}
               onClick={() => setSettingsOpen((o) => !o)}
             >
               <SlidersHorizontal aria-hidden="true" />
-              Brief settings
             </BriefAction>
             <BriefSettingsPopover
               open={settingsOpen}

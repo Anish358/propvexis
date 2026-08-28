@@ -358,10 +358,10 @@ test('the banner filters and formats through the prefs', () => {
   assert.match(dash, /formatBriefClock\(now, prefs\.timezone\)/);
   /* The date used to be pushed away from the title by `margin-right: auto` on
    * `.dash-banner-date`. The rebuilt header is a flex row with an explicit 16px gap and
-   * a baseline alignment, so the spacing is declared rather than squeezed out of a
+   * a centred alignment, so the spacing is declared rather than squeezed out of a
    * margin — asserted at the primitive, since the legacy rule no longer applies to
    * anything. */
-  assert.match(readSrc('components/primitives/brief.jsx'), /flex flex-wrap items-baseline gap-4/);
+  assert.match(readSrc('components/primitives/brief.jsx'), /flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1/);
   // Hide-empty gates each section, and the all-hidden case says something.
   assert.match(dash, /briefSectionOn\(prefs, 'events'\) && \(!prefs\.hideEmpty \|\| shown\.length > 0\)/);
   assert.match(dash, /briefSectionOn\(prefs, 'alerts'\) && \(!prefs\.hideEmpty \|\| alerts\.length > 0\)/);

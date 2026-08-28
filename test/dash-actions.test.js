@@ -43,13 +43,14 @@ test('Today\'s Brief banner has a titled head with a settings control', () => {
   assert.match(block, /title="Today's Brief"/);
   // Was icon-only and needed an aria-label; the frame gives it a text label instead,
   // which is strictly better — the name is visible to everyone, not just a screen reader.
-  assert.match(block, /<BriefAction[\s\S]*?Brief settings\s*<\/BriefAction>/);
+  // Icon-only since 2026-08-28, so the name is an attribute rather than a child.
+  assert.match(block, /<BriefAction[\s\S]*?aria-label="Brief settings"/);
   assert.match(block, /aria-expanded=\{settingsOpen\}/);
   // Head must precede the events/alerts content it titles.
   assert.ok(block.indexOf('<BriefHeader') < block.indexOf('<BriefColumns'));
   // The title is the frame's 18/28 semibold, declared once in the primitive.
   const brief = readSrc('components/primitives/brief.jsx');
-  assert.match(brief, /text-\[18px\] leading-7 font-semibold/);
+  assert.match(brief, /text-\[16px\] leading-6 font-semibold/);
 });
 
 test('action strip carries no container chrome', () => {
