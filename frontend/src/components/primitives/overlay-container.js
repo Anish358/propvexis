@@ -36,7 +36,7 @@ import { createContext, useContext } from 'react';
  */
 const OverlayContainerContext = createContext(undefined);
 
-if (process.env.NODE_ENV !== 'production') {
+if (import.meta.env.DEV) {
   OverlayContainerContext.displayName = 'OverlayContainerContext';
 }
 

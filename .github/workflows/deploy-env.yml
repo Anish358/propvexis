@@ -38,6 +38,7 @@ jobs:
         run: |
           npm ci
           npm test
+          npm run lint
 
       - name: Build frontend
         env:
