@@ -55,10 +55,16 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
       for (const c of week) if (c?.data) { pnl += c.data.pnl; days += 1; }
       rows.push({ week, pnl: round2(pnl), days });
     }
-    // Always 6 week-rows (the max any month needs) so every row gets the same
-    // share of the grid's fixed height — a 4- or 5-row month gets blank
-    // trailing row(s) instead of shorter months growing taller cells.
-    while (rows.length < 6) rows.push({ blank: true });
+    /* NO PADDING TO SIX ROWS ANY MORE (2026-08-28).
+     *
+     * It used to pad every month out to six week-rows, because the card had a FIXED
+     * height (`card-lg`) and six equal rows were how the grid divided it — a 4- or
+     * 5-row month would otherwise have grown taller cells. The rebuilt cells size
+     * themselves (`min-h` on CalCell), so the card can size to its content instead, and
+     * the padding became what it looks like: one or two rows of empty boxes and a
+     * "Week 6 · 0 days · 0R" summary for a week that does not exist in this month.
+     *
+     * A month renders the weeks it has. August 2026 has five. */
     return { rows, monthTotal: round2(monthTotal), tradingDays };
   }, [year, month, dayMap]);
 

@@ -452,8 +452,37 @@ test('the fallback is labelled as a substitute, not blended into the real list',
    * setting does nothing. The column heading changes AND a note under the rows says
    * what happened. */
   const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
-  assert.match(dashSrc, /label=\{shown\.length \? briefEventsLabel\(prefs\) : 'Next high-impact events'\}/);
+  assert.match(dashSrc, /shown\.length \? briefEventsLabel\(prefs\) : \(samples\.length \? 'Sample events' : 'Next high-impact events'\)/);
   assert.match(dashSrc, /Nothing inside your Brief window/);
   // And it is only computed when the real list is empty — never merged in alongside.
   assert.match(dashSrc, /shown\.length \? \[\] : fallbackBriefEvents/);
+});
+
+test('sample events exist only behind the dev gate', () => {
+  /* THESE ARE INVENTED ECONOMIC RELEASES. A trader who reads "USD Core CPI 13:30" on a
+   * dashboard plans a session around it — that is what the card is FOR — and being wrong
+   * about when the market moves is not a cosmetic bug. They exist so the design can be
+   * looked at during the third of every week when the provider's feed has no future
+   * events left (config.js records that finding), and they must never reach a real
+   * screen.
+   *
+   * `import.meta.env.DEV` is statically replaced with `false` by Vite in a production
+   * build, so the branch and everything it references are dropped by the bundler —
+   * verified by grepping dist/ after a real build: neither `sampleBriefEvents` nor any
+   * of the invented titles survives.
+   *
+   * What this test protects is the GATE, which is the part a refactor can quietly lose:
+   * the moment the call is not behind it, the samples ship. */
+  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
+  const calls = [...dashSrc.matchAll(/sampleBriefEvents\(/g)];
+  assert.equal(calls.length, 1, 'exactly one call site, so there is one thing to gate');
+  const line = dashSrc.slice(0, calls[0].index).split('\n').pop()
+    + dashSrc.slice(calls[0].index).split('\n')[0];
+  assert.match(line, /import\.meta\.env\.DEV/,
+    'sampleBriefEvents must be called only behind import.meta.env.DEV');
+  // And the samples must never merge with real data — they stand in for an empty list,
+  // they do not pad a short one.
+  assert.match(dashSrc, /!shown\.length && !fallback\.length \? sampleBriefEvents/);
+  // Labelled in the UI as well as gated, so a dev never mistakes them for the feed.
+  assert.match(dashSrc, /Sample events — development build only/);
 });

@@ -282,3 +282,35 @@ export function fallbackBriefEvents(events, prefs, now = new Date(), limit = 4) 
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(0, limit);
 }
+
+/* ---- SAMPLE EVENTS — DEVELOPMENT BUILDS ONLY --------------------------------
+ *
+ * WHY THIS IS GATED AND NOT JUST SEEDED. These are invented economic releases. A trader
+ * who reads "USD Non-Farm Employment Change 13:30" on a dashboard will plan a session
+ * around it — that is the entire purpose of the card — and being wrong about when the
+ * market moves is not a cosmetic bug. So they exist to make the design visible while
+ * building it and must never reach anyone's real screen.
+ *
+ * The gate is the CALLER's (`import.meta.env.DEV`, which Vite statically replaces with
+ * `false` in a production build, so a bundler drops this branch entirely). This function
+ * stays pure and dateless — it takes `now` and generates times relative to it, so the
+ * list is always plausibly "upcoming" whenever you happen to look, and node:test can
+ * assert on it without a clock.
+ *
+ * Real-looking on purpose: sample data that says "Event One" tells you nothing about
+ * whether a title truncates at 380px. The FALLBACK NOTE that renders alongside is what
+ * says they are samples.
+ */
+export function sampleBriefEvents(now = new Date()) {
+  const at = (hours, minutes = 0) => {
+    const d = new Date(now.getTime() + hours * 3600_000);
+    d.setMinutes(minutes, 0, 0);
+    return d.toISOString();
+  };
+  return [
+    { title: 'Core CPI m/m', country: 'USD', impact: 'high', date: at(2, 30) },
+    { title: 'FOMC Statement', country: 'USD', impact: 'high', date: at(5, 0) },
+    { title: 'ECB President Speaks', country: 'EUR', impact: 'medium', date: at(7, 15) },
+    { title: 'Retail Sales m/m', country: 'GBP', impact: 'medium', date: at(9, 30) },
+  ];
+}

@@ -38,7 +38,8 @@ import {
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
-  filterBriefEvents, fallbackBriefEvents, briefEmptyReason, briefSectionOn, formatBriefTime,
+  filterBriefEvents, fallbackBriefEvents, sampleBriefEvents, briefEmptyReason,
+  briefSectionOn, formatBriefTime,
   briefEventsLabel, defaultBriefPrefs, formatBriefDate, formatBriefClock,
 } from './briefPrefs.js';
 import {
@@ -161,7 +162,18 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
     () => (shown.length ? [] : fallbackBriefEvents(events || [], prefs, now)),
     [shown, events, prefs, now],
   );
-  const eventRows = shown.length ? shown : fallback;
+  /* SAMPLES, IN DEV BUILDS ONLY, and only when both real lists are empty.
+   *
+   * The provider publishes the current week only, so for a third of every week there is
+   * genuinely nothing to render and the design cannot be looked at. `import.meta.env.DEV`
+   * is statically replaced with `false` when Vite builds for production, so this branch
+   * is dropped from the bundle — invented release times cannot reach a real trader, who
+   * would reasonably plan a session around them. */
+  const samples = useMemo(
+    () => (import.meta.env.DEV && !shown.length && !fallback.length ? sampleBriefEvents(now) : []),
+    [shown, fallback, now],
+  );
+  const eventRows = shown.length ? shown : (fallback.length ? fallback : samples);
   const emptyReason = events == null ? null : briefEmptyReason(events, prefs, now);
 
   // A section is rendered when its toggle is on AND either it has content or the
@@ -216,7 +228,7 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
       ) : (
         <BriefColumns>
           {showEvents && (
-            <BriefSection label={shown.length ? briefEventsLabel(prefs) : 'Next high-impact events'}>
+            <BriefSection label={shown.length ? briefEventsLabel(prefs) : (samples.length ? 'Sample events' : 'Next high-impact events')}>
               {events == null ? (
                 <BriefNote>Loading economic calendar…</BriefNote>
               ) : eventRows.length === 0 ? (
@@ -233,6 +245,9 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
               ))}
               {!shown.length && fallback.length > 0 && (
                 <BriefNote>Nothing inside your Brief window — showing the next high-impact releases instead.</BriefNote>
+              )}
+              {samples.length > 0 && (
+                <BriefNote>Sample events — development build only. The live calendar covers the current week, which has no releases left.</BriefNote>
               )}
             </BriefSection>
           )}
@@ -776,8 +791,14 @@ export default function Dashboard() {
         onChanged={loadProp}
       />
     )),
+    /* NO `card-lg`. Its fixed height existed for the old calendar, whose six week rows
+       divided the panel to fill it; the rebuilt cells carry their own height, so a
+       forced 2-row-span height is just empty space under a five-week month. The grid is
+       `align-items: start`, so a shorter calendar simply ends where its content does.
+       The RIGHT column keeps its card-md heights — those hold a scrolling list and a
+       chart, which do need a definite box to flex into. */
     calendar: () => (
-      <PanelCard className="dash-cal-panel card-lg">
+      <PanelCard className="dash-cal-panel">
         <MonthCalendar
           year={calYear}
           month={calMonth}

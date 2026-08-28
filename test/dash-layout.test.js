@@ -429,44 +429,24 @@ test('the KPI row re-splits itself, and grid rows size to content', () => {
   assert.match(css, /\.dash-grid > \.dash-grid-cell \{ grid-column: span 1 !important; grid-row: span 1 !important; \}/);
 });
 
-test('a widget\'s card height class matches its declared row span', () => {
-  // Content-sized rows mean each card supplies its own height, so the two must
-  // agree or the columns misalign. --dash-card-h-lg is defined as (md*2 + gap),
-  // which is exactly why a 2-row card-lg lines up with two stacked card-md.
-  assert.match(css, /--dash-card-h-lg:calc\(var\(--dash-card-h-md\) \* 2 \+ var\(--dash-card-gap\)\)/);
-  assert.match(css, /\.card-md \{ height: var\(--dash-card-h-md\); \}/);
-  assert.match(css, /\.card-lg \{ height: var\(--dash-card-h-lg\); \}/);
-
-  const classFor = { 1: 'card-md', 2: 'card-lg' };
-  // The height class may sit on the thunk's own markup (calendar) or inside the
-  // component it renders (ActivityCard/CumulativePnlCard), so follow the
-  // reference one hop before deciding.
-  const heightClassOf = (id) => {
-    const from = dash.indexOf(`    ${id}: () =>`);
-    const thunk = dash.slice(from, from + 400);
-    const direct = /card-(md|lg)/.exec(thunk);
-    if (direct) return `card-${direct[1]}`;
-    const comp = /<([A-Z]\w+)/.exec(thunk)?.[1];
-    if (!comp) return null;
-    const defAt = dash.indexOf(`function ${comp}(`);
-    if (defAt < 0) return null;
-    const hit = /card-(md|lg)/.exec(dash.slice(defAt, defAt + 700));
-    return hit ? `card-${hit[1]}` : null;
-  };
-
-  for (const w of MAIN_WIDGETS) {
-    const rows = widgetSpan(w.id).rows;
-    if (w.id === 'account') {
-      // The one intentional exception: a full-width banner sized by its content,
-      // which is what keeps it from being stretched to a fixed row height.
-      assert.equal(heightClassOf('account'), null, 'Account Health should stay content-sized');
-      assert.equal(rows, 1);
-      continue;
-    }
-    assert.equal(heightClassOf(w.id), classFor[rows], `${w.id} spans ${rows} row(s) so it needs ${classFor[rows]}`);
-  }
-
-  // The calendar specifically NEEDS a definite height: .cal divides the panel
-  // height across its 6 week rows, so a content-sized panel would collapse it.
-  assert.match(dash, /className="dash-cal-panel card-lg"/);
+test('a widget with a fixed height still matches its declared row span', () => {
+  /* THE CALENDAR LEFT THIS RULE ON 2026-08-28, and the rule is still right for the
+   * widgets that remain under it.
+   *
+   * `--dash-card-h-lg` is (md * 2 + gap), so a `large` widget spanning two rows lines up
+   * with two `small` card-md widgets stacked beside it — arithmetic that only matters
+   * for a card whose height is DECLARED. The calendar's was, because its six week rows
+   * divided the panel to fill it; the rebuilt cells carry their own height, so it sizes
+   * to content now and a forced two-row height was just empty space under a five-week
+   * month.
+   *
+   * Recent Activity and the chart keep theirs: one holds a scrolling list, the other a
+   * ResponsiveContainer, and both need a definite box to flex into. */
+  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
+  assert.match(dashSrc, /<PanelCard className="dash-cal-panel">/, 'the calendar sizes to content');
+  assert.ok(!/dash-cal-panel card-lg/.test(dashSrc), 'no fixed height on the calendar');
+  // Three: the activity list, the chart, and the loading skeleton's stand-in for the
+  // activity list — which has to reserve the same box or the page jumps when data lands.
+  const md = (dashSrc.match(/className="card-md"/g) || []).length;
+  assert.equal(md, 3, `card-md is for the activity list, the chart and the skeleton — found ${md}`);
 });
