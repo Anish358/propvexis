@@ -1,10 +1,20 @@
 import React, { useMemo } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  CalCell, CalCellBody, CalDayNum, CalDow, CalGrid, CalNavButton, CalRoot, CalWeek,
+  PanelHead, PanelMeta,
+} from '@/components/primitives';
 import { dayKey, fmtValShort } from '../../lib/metrics.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const round2 = (n) => Math.round(n * 100) / 100;
-const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : '');
+/* A day's tone. 'flat' is a real value and not a fallback: a day that was TRADED and
+ * closed at zero is a result, and drawing it like an untraded day would turn a week of
+ * scratches into a week off. `cellTone` is what distinguishes the two — it is handed
+ * the day's data, not just its number. */
+const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : 'flat');
+const cellTone = (data) => (data ? tone(data.pnl) : 'idle');
 
 // Marker glyphs for the optional business-event layer. Deliberately shapes, not
 // just colours: a payout, a milestone and a breach must be distinguishable
@@ -56,47 +66,57 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
 
   return (
-    <div className="cal">
-      <div className="cal-head">
-        <div className="cal-nav">
-          <button onClick={onPrev} aria-label="Previous month">‹</button>
-          <h3>{MONTHS[month]} {year}</h3>
-          <button onClick={onNext} aria-label="Next month">›</button>
-        </div>
-        {onToday && isCurrentMonth && (
-          <button type="button" className="cal-today-btn" onClick={onToday}>
-            This month
-          </button>
+    <CalRoot>
+      <PanelHead
+        sub="Daily performance"
+        meta={(
+          <>
+            <PanelMeta label="Month total" tone={monthTotal > 0 ? 'pos' : monthTotal < 0 ? 'neg' : undefined}>
+              {fmtValShort(monthTotal, unit)}
+            </PanelMeta>
+            <PanelMeta label="Traded">{tradingDays} day{tradingDays === 1 ? '' : 's'}</PanelMeta>
+          </>
         )}
-        <div className="cal-head-stats">
-          <span className="cal-stats-label">Monthly stats:</span>
-          <span className={`cal-stats-pill ${tone(monthTotal)}`}>{fmtValShort(monthTotal, unit)}</span>
-          <span className="cal-stats-pill days">{tradingDays} day{tradingDays === 1 ? '' : 's'}</span>
-        </div>
-      </div>
+        action={(
+          /* The month stepper sits with the title rather than off to one side: it
+             CHANGES the title, and a control that rewrites a heading belongs next to
+             the heading it rewrites. "This month" only appears when you have left it. */
+          <span className="cal-nav">
+            <CalNavButton onClick={onPrev} aria-label="Previous month"><ChevronLeft aria-hidden="true" /></CalNavButton>
+            <CalNavButton onClick={onNext} aria-label="Next month"><ChevronRight aria-hidden="true" /></CalNavButton>
+          </span>
+        )}
+      >
+        {MONTHS[month]} {year}
+        {onToday && !isCurrentMonth && (
+          <button type="button" className="cal-today-btn" onClick={onToday}>This month</button>
+        )}
+      </PanelHead>
 
-      <div className="cal-grid-v2">
-        {WD.map((d) => <div key={d} className="cal-dow-cell">{d}</div>)}
-        <div className="cal-week-head" />
+      <CalGrid>
+        {WD.map((d) => <CalDow key={d}>{d}</CalDow>)}
+        <CalDow />
 
         {rows.map((r, ri) => (
           <React.Fragment key={ri}>
             {r.blank ? (
-              Array.from({ length: 8 }, (_, i) => <div key={`blank-${ri}-${i}`} className="cal-cell cal-empty" />)
+              Array.from({ length: 8 }, (_, i) => <div key={`blank-${ri}-${i}`} />)
             ) : (
               <>
                 {r.week.map((c, i) => {
-                  if (!c) return <div key={`pad-${ri}-${i}`} className="cal-cell cal-empty" />;
-                  const t = !c.data ? '' : tone(c.data.pnl);
+                  if (!c) return <div key={`pad-${ri}-${i}`} />;
+                  const t = cellTone(c.data);
                   const winPct = c.data && (c.data.wins + c.data.losses) > 0 ? Math.round((100 * c.data.wins) / (c.data.wins + c.data.losses)) : null;
                   const marks = markers?.get(c.key);
+                  const clickable = !!(onSelectDay && c.data);
                   return (
-                    <div
+                    <CalCell
                       key={c.key}
-                      className={`cal-cell ${t} ${onSelectDay && c.data ? 'clickable' : ''}`}
-                      onClick={() => onSelectDay && c.data && onSelectDay(c)}
+                      tone={t}
+                      clickable={clickable}
+                      onClick={clickable ? () => onSelectDay(c) : undefined}
                     >
-                      <div className="cal-daynum">
+                      <CalDayNum idle={t === 'idle'}>
                         {c.day}
                         {marks?.length > 0 && (
                           // Title carries the full text: a day can hold several
@@ -109,27 +129,28 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
                             ))}
                           </span>
                         )}
-                      </div>
+                      </CalDayNum>
                       {c.data && (
-                        <div className="cal-cell-body">
-                          <div className="cal-pnl">{fmtValShort(c.data.pnl, unit)}</div>
-                          <div className="cal-tcount">{c.data.trades} trade{c.data.trades === 1 ? '' : 's'}</div>
-                          {winPct != null && <div className="cal-winpct">{winPct}%</div>}
-                        </div>
+                        <CalCellBody
+                          tone={t}
+                          value={fmtValShort(c.data.pnl, unit)}
+                          sub={`${c.data.trades} trade${c.data.trades === 1 ? '' : 's'}${winPct != null ? ` · ${winPct}%` : ''}`}
+                        />
                       )}
-                    </div>
+                    </CalCell>
                   );
                 })}
-                <div className="cal-week-card">
-                  <div className="cal-week-label">Week {ri + 1}</div>
-                  <div className={`cal-week-val ${tone(r.pnl)}`}>{fmtValShort(r.pnl, unit)}</div>
-                  <span className="cal-week-days">{r.days} day{r.days === 1 ? '' : 's'}</span>
-                </div>
+                <CalWeek
+                  label={`Week ${ri + 1}`}
+                  tone={tone(r.pnl)}
+                  value={fmtValShort(r.pnl, unit)}
+                  sub={`${r.days} day${r.days === 1 ? '' : 's'}`}
+                />
               </>
             )}
           </React.Fragment>
         ))}
-      </div>
-    </div>
+      </CalGrid>
+    </CalRoot>
   );
 }

@@ -468,5 +468,5 @@ test('a widget\'s card height class matches its declared row span', () => {
 
   // The calendar specifically NEEDS a definite height: .cal divides the panel
   // height across its 6 week rows, so a content-sized panel would collapse it.
-  assert.match(dash, /className="panel dash-cal-panel card-lg"/);
+  assert.match(dash, /className="dash-cal-panel card-lg"/);
 });

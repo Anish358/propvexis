@@ -176,7 +176,12 @@ test('Recent Trades is the Dashboard\'s table, moved rather than copied', () => 
   assert.match(dash, /import RecentTrades from '[^']*RecentTrades\.jsx'/);
   assert.match(workspace, /import RecentTrades from '[^']*RecentTrades\.jsx'/);
   assert.ok(!dash.includes('function RecentTrades'), 'the Dashboard must not keep a copy');
-  assert.match(recent, /className="jo-recent-table"/, 'same markup, same classes');
+  /* WAS `className="jo-recent-table"`. The list is Panel* primitives since the
+   * 2026-08-28 rebuild, so the class is gone — but what this test protects is that
+   * BOTH surfaces render the same component, not which class it wears. Pinned on the
+   * shared row primitive instead, which is the thing that would actually have to be
+   * duplicated for the two to drift. */
+  assert.match(recent, /<PanelRow key=\{t\.id\}>/, 'one list component, two surfaces');
   // The only difference between the two call sites is a row count, not a design.
   assert.match(recent, /limit = 6/);
   assert.match(workspace, /limit=\{14\}/);

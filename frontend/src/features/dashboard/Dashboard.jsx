@@ -31,7 +31,7 @@ import {
   AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell, AccountTab,
   AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  Tabs, EmptyState, Modal,
+  PanelBody, PanelCard, PanelHead, PanelMeta, Tabs, EmptyState, Modal,
 } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
@@ -287,16 +287,21 @@ function OpenPositions() {
 function ActivityCard({ trades, unit, beRounding }) {
   const [tab, setTab] = useState('recent');
   return (
-    <Card className="dash-activity card-md">
+    <PanelCard className="card-md">
+      <PanelHead>Recent Activity</PanelHead>
+      {/* The tab strip stays the shared Tabs primitive — it is a control, not a card,
+          and the frame draws no tabs at all here (its activity list is placeholder
+          rows). Replacing a working, keyboard-accessible control because a static
+          mockup omitted it would be reading the frame as a spec rather than a design. */}
       <Tabs
         tabs={[{ value: 'recent', label: 'Recent Trades' }, { value: 'open', label: 'Open Positions' }]}
         value={tab}
         onChange={setTab}
       />
-      <div className="dash-activity-body">
+      <PanelBody scroll>
         {tab === 'recent' ? <RecentTrades trades={trades} unit={unit} beRounding={beRounding} /> : <OpenPositions />}
-      </div>
-    </Card>
+      </PanelBody>
+    </PanelCard>
   );
 }
 
@@ -312,12 +317,19 @@ function CumulativePnlCard({ days, unit }) {
     });
   }, [days]);
 
+  const last = data.length ? data[data.length - 1].cum : 0;
   return (
-    <Card className="dash-equity card-md">
-      <div className="dash-equity-head">
-        <h3>Daily net cumulative {unit === 'USD' ? 'P&L' : 'R'}</h3>
+    <PanelCard className="card-md">
+      <PanelHead
+        meta={(
+          <PanelMeta tone={last > 0 ? 'pos' : last < 0 ? 'neg' : undefined}>
+            {fmtVal(last, unit)}
+          </PanelMeta>
+        )}
+      >
+        Daily net cumulative {unit === 'USD' ? 'P&L' : 'R'}
         <Explain>Running total of each day's closed P&amp;L, in order, across all trades.</Explain>
-      </div>
+      </PanelHead>
       {data.length === 0 ? (
         <EmptyState title="No closed trades yet" description="Your cumulative P&L will chart here once you have closed trades." />
       ) : (
@@ -337,7 +349,7 @@ function CumulativePnlCard({ days, unit }) {
           </AreaChart>
         </ResponsiveContainer>
       )}
-    </Card>
+    </PanelCard>
   );
 }
 
@@ -663,7 +675,7 @@ export default function Dashboard() {
       />
     )),
     calendar: () => (
-      <div className="panel dash-cal-panel card-lg">
+      <PanelCard className="dash-cal-panel card-lg">
         <MonthCalendar
           year={calYear}
           month={calMonth}
@@ -674,7 +686,7 @@ export default function Dashboard() {
           onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
           onSelectDay={(c) => setSelectedDay(c.key)}
         />
-      </div>
+      </PanelCard>
     ),
     activity: () => <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />,
     cumulative: () => <CumulativePnlCard days={m.days} unit={unit} />,
