@@ -71,7 +71,7 @@ export default function CapitalStep() {
           2026-08-25). What stood here explained what the answer decides; the two cards
           below already say what we DO with each answer, which is the same fact in the
           place the user is looking. */}
-      <WizardHeading align="center" eyebrow="Add Account" title="Whose money are you trading?" />
+      <WizardHeading align="center" title="Whose money are you trading?" />
       <ChoiceGrid>
         {KINDS.map(({ capital_kind, icon: Icon, title, description }) => (
           <ChoiceCard

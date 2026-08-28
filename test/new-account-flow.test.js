@@ -28,6 +28,10 @@ const fresh = (over = {}) => ({ ...emptyDraft({ provisionKey: KEY }), ...over })
 const propUpToImport = (over = {}) => fresh({
   capital_kind: 'prop',
   firm_id: 'gft', firm_name: 'GoatFundedTrader',
+  // The account page's first question since 0027: is this a new challenge, or the next
+  // phase of one already tracked? 'new' is the ordinary case every branch test below is
+  // about; the 'existing' branch has tests of its own further down.
+  challenge_mode: 'new',
   product_id: '2step',
   start_balance: 25000,
   account_type: 'eval',
@@ -208,7 +212,12 @@ test('the guard walks the branch in order, one answer at a time', () => {
   // partial state, which is what the merge must not lose: the page collects four things
   // and any one of them missing is still an unanswered step.
   assert.equal(firstIncomplete(d), 'account');
+  // The page's FIRST question, and the step stays unanswered until it is answered — a
+  // draft with rules but no challenge choice would otherwise provision an account whose
+  // challenge nobody picked.
   d = patchDraft(d, { product_id: '2step', start_balance: 25000, daily_dd_pct: 5, max_dd_pct: 10 });
+  assert.equal(firstIncomplete(d), 'account', 'rules without a challenge choice is not an answer');
+  d = patchDraft(d, { challenge_mode: 'new' });
   assert.equal(firstIncomplete(d), 'account', 'rules without a phase is not an answer');
   d = patchDraft(d, { phase: 'p1', account_type: 'eval', profit_target_pct: 8, min_trading_days: 3 });
   assert.equal(firstIncomplete(d), 'account', 'and neither is a phase without a label');
@@ -228,6 +237,7 @@ test('the account step is not done until it has a balance AND both drawdowns', (
   // unlisted firm's account would silently be judged against GoatFundedTrader's rules.
   const base = fresh({
     capital_kind: 'prop', firm_id: 'other', firm_name: 'FundedNext', product_id: 'custom',
+    challenge_mode: 'new',
     phase: 'p1', account_type: 'eval', profit_target_pct: 9, label: 'FundedNext 50K',
   });
   assert.equal(isStepComplete(base, 'account'), false, 'no balance, no drawdowns');
@@ -248,6 +258,7 @@ test('a zero drawdown is an answer, not a blank', () => {
   // is the exact bug numOrNull exists to avoid on the server. Same trap here.
   const d = fresh({
     capital_kind: 'prop', firm_id: 'other', firm_name: 'X', product_id: 'custom',
+    challenge_mode: 'new',
     start_balance: 50000, daily_dd_pct: 0, max_dd_pct: 0, min_trading_days: 0,
     phase: 'p1', account_type: 'eval', profit_target_pct: 0, label: 'X 50K',
   });

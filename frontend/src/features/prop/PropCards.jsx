@@ -3,10 +3,9 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Card, Tabs, EmptyState } from '@/components/primitives';
 import { fmtMoney } from '../../lib/metrics.js';
 import { chartPalette } from '../../lib/theme.js';
-import { advanceChallenge } from '../../lib/api.js';
+import { settlePhase } from '../../lib/api.js';
 import PayoutCycleModal from './PayoutCycleModal.jsx';
 import { PHASE_LABEL } from './propAccounts.js';
-import { phasesFor } from './propFirms.js';
 
 // The Prop OS Overview's content cards. All data comes server-computed from
 // GET /api/prop/overview (src/domain/prop/propOverview.js) — these components format and
@@ -214,18 +213,25 @@ function AccountsRing({ ring }) {
   );
 }
 
-// Advancing a phase is the one action the deleted per-account Overview genuinely
-// owned. It belongs on the row for the account it acts on, which is here.
+/* Marking a phase passed by hand — the manual override, on the row for the account it
+ * acts on.
+ *
+ * IT SETTLES THE PHASE AND OPENS NOTHING (rewritten 2026-08-27). It used to call
+ * /api/prop/advance, which closes the active challenge AND opens the next phase's
+ * challenge on the SAME account — correct while a challenge WAS an account, and wrong
+ * since 0027: a firm issues a NEW LOGIN per phase, so that write invented a Phase 2 on
+ * the Phase 1 account and swallowed the "add the next phase account" invitation the whole
+ * multi-account model exists to give. `settlePhase` closes the phase and leaves the
+ * challenge waiting for the login that is actually coming.
+ *
+ * Which also removes the next-phase arithmetic this function used to carry: there is no
+ * `to_phase` to compute any more, so `phasesFor` is no longer this component's business —
+ * the ladder is read where the next account is ADDED, not where a phase is closed.
+ *
+ * The same override, with the reopen half, is on Prop OS › Challenges' phase panel, where
+ * the rail shows which phase it acts on. Both call one endpoint on purpose. */
 function AdvanceButton({ row, onChanged }) {
   const [busy, setBusy] = useState(false);
-  // FROM THE ACCOUNT TYPE, not from a two-step assumption. `p1 ? 'p2' : 'funded'` was
-  // right while 2-Step was the only type the wizard could produce; a 3-Step account
-  // passing Phase 2 would have skipped Phase 3 and been marked funded. Falls back to the
-  // old rule when the type is unknown (accounts created before the fixed taxonomy).
-  const stages = phasesFor(row.productId);
-  const next = stages.length
-    ? stages[Math.min(stages.indexOf(row.phase) + 1, stages.length - 1)]
-    : (row.phase === 'p1' ? 'p2' : 'funded');
   return (
     <button
       type="button"
@@ -236,7 +242,7 @@ function AdvanceButton({ row, onChanged }) {
       onClick={async () => {
         setBusy(true);
         try {
-          await advanceChallenge({ account_id: row.accountId, to_phase: next, mark: 'passed' });
+          await settlePhase({ account_id: row.accountId, status: 'passed' });
           onChanged?.();
         } finally {
           setBusy(false);

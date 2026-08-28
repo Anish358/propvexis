@@ -59,7 +59,7 @@ test('insertAccountQuery: the values array is pinned position-for-position', () 
   // `q.values.includes(x)` (used above) is position-blind — it cannot tell a
   // correctly-placed value from one swapped with its neighbour (e.g.
   // capital_kind and platform, both strings). This snapshot is what makes the
-  // 22-column placeholder/values audit permanent rather than a one-time count.
+  // 23-column placeholder/values audit permanent rather than a one-time count.
   const q = insertAccountQuery(7, propValue(), 314943467);
   assert.deepEqual(q.values, [
     7, 'GFT 50K', null, 'USD', 50000, 'eval',
@@ -67,7 +67,18 @@ test('insertAccountQuery: the values array is pinned position-for-position', () 
     'static', 3, 'gft', 'GoatFundedTrader', '2step',
     'prop', 'mt5', 'auto_sync', 'synced', 314943467,
     null, null,
+    // challenge_group_id (0027). Null here because propValue() names no challenge —
+    // provisionAccount is what fills it, from the group it created or locked.
+    null,
   ]);
+
+  // AND IT REALLY IS WRITTEN when there is one, rather than being a placeholder the
+  // INSERT accepts and drops. A Phase 2 account that lands with a null group is the
+  // failure this whole feature is about, and it is invisible until the Challenges page
+  // draws the phase as a separate challenge days later.
+  const joined = insertAccountQuery(7, propValue({ challenge_group_id: 91 }), 314943467);
+  assert.equal(joined.values.at(-1), 91);
+  assert.match(joined.text, /challenge_group_id/);
 });
 
 test('assignSyntheticLoginQuery keeps manual accounts in the negative space', () => {

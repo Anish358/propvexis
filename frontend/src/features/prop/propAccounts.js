@@ -31,12 +31,24 @@ export const PORTFOLIO_TABS = [
   { value: 'breached', label: 'Breached' },
 ];
 
-// Mirrors src/domain/prop/propOverview.js's predicates rather than restating them
-// loosely. A state with `challenge: null` is an account with no rules to be judged
-// against, so it belongs in no status bucket at all — it is not "evaluation by
-// default".
-export const isLive = (s) => Boolean(s && s.challenge !== null && s.phase != null);
-export const isBreached = (s) => Boolean(s?.breach?.breached);
+/* Mirrors src/domain/prop/propOverview.js's predicates rather than restating them
+ * loosely. A state with `challenge: null` is an account with no rules to be judged
+ * against, so it belongs in no status bucket at all — it is not "evaluation by default".
+ *
+ * `isLive` MEANS "STILL TRADING IT". Since the phase status went automatic (2026-08-27) a
+ * settled phase KEEPS its challenge row — the read path reads the latest one so a breached
+ * account still has figures to draw — so "has a challenge" stopped meaning "is running
+ * it". Without the status check a passed Phase 1 would sit in the Evaluation tab for
+ * weeks after the firm closed it, beside the Phase 2 account that replaced it.
+ *
+ * `isBreached` reads the engine's live verdict OR the settled row's, and needs both: the
+ * engine sees a floor break the moment it happens, and the stored status is what survives
+ * once the row is closed and the engine stops judging it. Without the second half a
+ * breached account fell out of every bucket the moment its breach was recorded — the
+ * account most worth looking at was the one the page stopped drawing. */
+export const isSettled = (s) => s?.status === 'passed' || s?.status === 'breached';
+export const isLive = (s) => Boolean(s && s.challenge !== null && s.phase != null && !isSettled(s));
+export const isBreached = (s) => Boolean(s?.breach?.breached) || s?.status === 'breached';
 
 export const PHASE_LABEL = { p1: 'Phase 1', p2: 'Phase 2', p3: 'Phase 3', funded: 'Funded' };
 
@@ -102,9 +114,19 @@ export function bucketAccounts({ states = [], passed = [], accounts = [] } = {})
   const breached = [];
 
   for (const s of states) {
-    if (!isLive(s)) continue;
+    // A state with no challenge at all has no bucket — that is a live-capital account or
+    // one with no rules, and it is not "evaluation by default".
+    if (!s || s.challenge === null || s.phase == null) continue;
     const row = accountRow(s, acctByLogin.get(String(s.account_id)));
+    // BREACHED IS CHECKED FIRST AND IS EXCLUSIVE, and it is checked BEFORE isLive: a
+    // breached phase is settled, so isLive is false for it, and testing that first would
+    // drop the account out of every bucket. Which is exactly what happened when the
+    // status became automatic.
     if (isBreached(s)) breached.push(row);
+    // A PASSED phase belongs to the Passed tab, which is fed from the pass HISTORY below
+    // — one entry per pass event. Leaving it out here is what stops it appearing twice,
+    // once as a pass and once as an evaluation still in progress.
+    else if (!isLive(s)) continue;
     else if (s.phase === 'funded') funded.push(row);
     else if (EVAL_PHASES.has(s.phase)) evaluation.push(row);
   }

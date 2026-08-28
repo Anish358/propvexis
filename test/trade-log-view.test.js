@@ -16,6 +16,7 @@ const table = read('../frontend/src/features/trades/TradesTable.jsx');
 const spec = read('../frontend/src/features/trades/tradeColumns.js');
 const log = read('../frontend/src/features/trades/TradeLog.jsx');
 const cards = read('../frontend/src/features/dashboard/KpiCards.jsx');
+const addTrade = read('../frontend/src/features/trades/AddTradeModal.jsx');
 const bulk = read('../frontend/src/features/trades/BulkActions.jsx');
 const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
 const bar = read('../frontend/src/features/filters/FilterBar.jsx');
@@ -428,4 +429,42 @@ test('both pages render the SAME card components', () => {
   // Dashboard keeps Day win %, which the trade log doesn't show.
   assert.match(cards, /export function DayWinCard/);
   assert.ok(!log.includes('DayWinCard'), 'the trade log shows four cards, not five');
+});
+
+// ---- the Add trade modal (owner pass 2026-08-27) ---------------------------
+
+test('the modal and its button are called "Add trade", once', () => {
+  // The name used to switch on whether a manual account was selected — "Add strategy
+  // trade" when it was not, because an account-less trade lives only in the all-accounts
+  // view. But the modal serves BOTH cases and its own Account field is what decides
+  // which, so two names for one action (differing by a field the user has not reached
+  // yet) read as two features.
+  assert.equal(/Add strategy trade/.test(addTrade), false, 'the modal keeps one name');
+  assert.equal(/Add strategy trade/.test(log), false, 'and so does the button that opens it');
+  assert.match(addTrade, /<h3>Add trade<\/h3>/);
+  assert.match(addTrade, /label="Add trade"/, 'the accessible name must match the visible one');
+  assert.match(log, /onClick=\{\(\) => setAdding\(true\)\}>\+ Add trade<\/button>/);
+});
+
+test('the modal states no rule under its title', () => {
+  // It restated the Account select in a sentence, immediately above the select itself.
+  // Same reason the wizard's explanation text came out. The Explain beside the Trade
+  // Log's button is where the manual-vs-account distinction is actually explained, and
+  // that stays.
+  assert.equal(/at-note/.test(addTrade), false);
+  assert.match(log, /<Explain align="right">/, 'the explanation itself must not go with it');
+});
+
+test('a manual trade can carry its P&L, and blank means NULL not zero', () => {
+  // The journal is R-based in the god view (`fixed_r`) and DOLLAR-based per account
+  // (`pnl_money`), and the two are NOT derivable from each other — inferring one would
+  // need a risk-per-trade figure this modal never asks for. Before this, a hand-entered
+  // trade had no money figure at all and read as $0 on every single-account surface.
+  assert.match(addTrade, /P&amp;L \(\$\)/);
+  assert.match(addTrade, /pnl_money: f\.pnl_money === '' \? null : Number\(f\.pnl_money\)/,
+    "blank must be null — Number('') is 0, which would file it as a breakeven");
+  // R stays required: every R-based aggregate is computed from it, and the route refuses
+  // a trade without one.
+  assert.match(addTrade, /value=\{f\.fixed_r\} onChange=\{set\('fixed_r'\)\} required/);
+  assert.equal(/value=\{f\.pnl_money\}[^/]*required/.test(addTrade), false, 'P&L is optional');
 });

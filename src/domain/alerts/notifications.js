@@ -2,7 +2,9 @@ import { query } from '../../platform/db.js';
 import { activeChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from '../prop/challenges.js';
 import { listPayouts } from '../finance/payouts.js';
 import { challengeState } from '../prop/prop.js';
-import { deriveAlerts } from './alerts.js';
+import { applyChallengeOutcome } from '../prop/challengeGroups.js';
+import { resolveChallengeOutcome } from '../prop/challengeStatus.js';
+import { deriveAlerts, phaseOutcomeAlert } from './alerts.js';
 
 // Notifications data layer + the alert evaluator. The evaluator recomputes ONE
 // account's engine state on a live ingest, derives crossed-threshold alerts
@@ -74,8 +76,31 @@ export async function markRead(userId, { ids, all } = {}) {
   return rows[0].n;
 }
 
-// Recompute one account's state and persist any newly-crossed alerts. Returns the
-// created rows (empty when nothing new / no active challenge / no drawdown rules).
+/**
+ * Recompute one account's state, persist any newly-crossed alerts, AND settle the
+ * phase's status. Returns the created notification rows (empty when nothing new / no
+ * active challenge / no drawdown rules).
+ *
+ * THE STATUS TRANSITION LIVES HERE because this is the one place in the app that
+ * already computes a single account's engine state on every ingest — and the owner's
+ * spec (2026-08-27) is that Evaluation → Passed and Evaluation → Breached happen by
+ * themselves, off the trading, with nobody pressing anything. Adding a second
+ * evaluator for it would be a second reading of the same numbers, which is how the
+ * badge on a card and the row in the table come to disagree.
+ *
+ * IT IS NOT DONE ON A READ. Writing status from GET /api/prop/portfolio was the other
+ * candidate and is worse in a way that matters at our scale bar: the portfolio route
+ * is polled by every open tab, so the write would run on page loads rather than on
+ * events, and a read handler that mutates cannot be cached. Ingest is where the facts
+ * change — EA trades, manual trades, CSV imports and the candles route all funnel
+ * through runAlerts (src/app.js), so every path that can move an account past its
+ * target or through its floor arrives here.
+ *
+ * ORDER MATTERS: the alerts are derived from the state BEFORE the row is closed. They
+ * describe what the engine just saw (breach, target reached, days met), and
+ * deriveAlerts needs the challenge to still be the active one it was computed against.
+ * The outcome write follows, and adds its own one-line milestone.
+ */
 export async function evaluateAccountAlerts(userId, login) {
   const challenge = (await activeChallengesByLogin([login])).get(Number(login));
   if (!challenge) return [];
@@ -93,5 +118,25 @@ export async function evaluateAccountAlerts(userId, login) {
     label: challenge.label,
     state,
   });
+
+  // The verdict is a pure function of the state (challengeStatus.js); the write is
+  // idempotent by its own `status = 'active'` guard, so this runs on every ingest and
+  // does something exactly once. A null return means nothing changed — the ordinary
+  // case, and the reason no notification is appended for it.
+  const outcome = resolveChallengeOutcome({ challenge, state });
+  if (outcome.status !== 'active') {
+    const settled = await applyChallengeOutcome(challenge.mt5_account_id, outcome);
+    if (settled) {
+      alerts.push(phaseOutcomeAlert({
+        accountId: Number(login),
+        label: challenge.label,
+        phase: settled.phase,
+        status: settled.status,
+        reason: outcome.reason,
+        challengeId: settled.challengeId,
+      }));
+    }
+  }
+
   return insertNotifications(userId, alerts);
 }

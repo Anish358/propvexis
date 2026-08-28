@@ -4,7 +4,7 @@
 // data-access layers — no new analytics math, no new tables. See CLAUDE.md.
 import { computeStats, computeYearly } from './aggregations.js';
 import { challengeState } from '../prop/prop.js';
-import { activeChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from '../prop/challenges.js';
+import { currentChallengesByLogin, tradesForEngine, equitySnapshotsForEngine } from '../prop/challenges.js';
 import { listPayouts } from '../finance/payouts.js';
 import { listFees } from '../finance/fees.js';
 import { financeSummary } from '../finance/finance.js';
@@ -19,7 +19,7 @@ export async function propStatesForScope(scope, asOf = new Date()) {
   if (!logins.length) return scope.god ? { god: true, accounts: [] } : null;
 
   const [challenges, trades, snaps, payouts, accts] = await Promise.all([
-    activeChallengesByLogin(logins),
+    currentChallengesByLogin(logins),
     tradesForEngine(logins),
     equitySnapshotsForEngine(logins),
     listPayouts(logins),

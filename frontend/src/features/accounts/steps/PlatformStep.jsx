@@ -84,7 +84,7 @@ export default function PlatformStep() {
 
   return (
     <>
-      <WizardHeading align="center" eyebrow="Add Account" title="Which broker or platform?" />
+      <WizardHeading align="center" title="Which broker or platform?" />
 
       <WizardGroup>
         <Field>

@@ -36,13 +36,13 @@ export function insertAccountQuery(userId, v, login) {
               daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct,
               dd_type, min_trading_days, firm_id, firm_name, product_id,
               capital_kind, platform, import_method, kind, mt5_login,
-              ingest_token, provision_key)
+              ingest_token, provision_key, challenge_group_id)
            VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'eval'),
                    COALESCE($7, 5::numeric), COALESCE($8, 10::numeric),
                    COALESCE($9, 8::numeric), COALESCE($10, 80::numeric),
                    COALESCE($11, 'static'), COALESCE($12, 0), $13, $14, $15,
                    $16, $17, $18, $19, $20,
-                   $21, $22)
+                   $21, $22, $23)
            RETURNING ${ACCOUNT_COLUMNS};`,
     values: [
       userId, v.label, v.broker, v.currency, v.start_balance, v.account_type,
@@ -50,6 +50,12 @@ export function insertAccountQuery(userId, v, login) {
       v.dd_type, v.min_trading_days, v.firm_id, v.firm_name, v.product_id,
       v.capital_kind, v.platform, v.import_method, v.kind, login,
       v.ingest_token ?? null, v.provision_key,
+      // The challenge this account is a phase of (migration 0027). Set HERE rather
+      // than by an UPDATE after the insert: the link is part of what the account IS,
+      // and a follow-up write is a second statement that can be forgotten on a path
+      // that skips it — which is how a Phase 2 account ends up in no challenge.
+      // Null for a live account, which has no challenge by construction.
+      v.challenge_group_id ?? null,
     ],
   };
 }

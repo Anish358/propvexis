@@ -10,12 +10,31 @@ const SESSIONS = ['', 'ASIA', 'LDN', 'NY'];
 // (used to derive Max R). Optionally scoped to a manual account for a segregated
 // per-account view, else account-less (god view only). Strategy options come from
 // the user's live catalog.
+//
+// IT IS "ADD TRADE", NOT "ADD STRATEGY TRADE" (owner decision 2026-08-27). The old name
+// described the account-less case — a trade with no account exists only in the
+// all-accounts view, which the app calls the strategy view — but the modal serves BOTH
+// cases and the Account field above is what says which one this is. Two names for one
+// action, differing by a field the user has not filled in yet, is a name that reads as
+// two features. The Trade Log's button lost the same split.
+//
+// AND THE NOTE UNDER THE TITLE IS GONE with it (same pass, same reason the wizard's
+// explanation text went): it restated the Account select in a sentence, directly above
+// the select itself.
+//
+// P&L IS COLLECTED TOO, and the server has always accepted it — POST /api/trades reads
+// `pnl_money` and stores it nullable, so this field is the client half of a column that
+// existed with nothing to fill it. It matters because the two units are not derivable
+// from each other: the journal is R-based in the god view (`fixed_r`) and DOLLAR-based
+// per account (`pnl_money`), and a manual trade with no money figure showed as $0 on
+// every single-account surface. R stays REQUIRED — it is what every R-based aggregate is
+// computed from, and the route rejects a trade without it.
 export default function AddTradeModal({ onClose, onAdd, strategies = [], manualAccounts = [], defaultAccountId = '' }) {
   const setupOptions = ['', ...strategies.map((s) => s.name)];
   const today = new Date().toISOString().slice(0, 10);
   const [accountId, setAccountId] = useState(defaultAccountId || '');
   const [f, setF] = useState({
-    close_date: today, symbol: '', direction: '', fixed_r: '',
+    close_date: today, symbol: '', direction: '', fixed_r: '', pnl_money: '',
     sl_size_pips: '', mfe_pips: '', setup: '', session: '', comments: '',
   });
   const [busy, setBusy] = useState(false);
@@ -35,6 +54,10 @@ export default function AddTradeModal({ onClose, onAdd, strategies = [], manualA
         symbol: f.symbol.trim() || 'MANUAL',
         direction: f.direction || null,
         fixed_r: Number(f.fixed_r),
+        // Blank means NULL, not 0 — the same distinction numOrNull draws server-side, and
+        // the reason a plain `Number('')` (which is 0) would be wrong here: it would file
+        // every trade whose P&L was not recorded as a breakeven.
+        pnl_money: f.pnl_money === '' ? null : Number(f.pnl_money),
         sl_size_pips: f.sl_size_pips === '' ? null : Number(f.sl_size_pips),
         mfe_pips: f.mfe_pips === '' ? null : Number(f.mfe_pips),
         setup: f.setup || null,
@@ -50,15 +73,10 @@ export default function AddTradeModal({ onClose, onAdd, strategies = [], manualA
   }
 
   return (
-    <Modal onClose={onClose} className="add-trade-modal" label="Add strategy trade">
+    <Modal onClose={onClose} className="add-trade-modal" label="Add trade">
         <div className="modal-head">
-          <h3>Add strategy trade</h3>
+          <h3>Add trade</h3>
           <button className="modal-x" onClick={onClose}>✕</button>
-        </div>
-        <div className="at-note">
-          {accountId === ''
-            ? 'Not linked to any account — appears only in the All-accounts (strategy) view.'
-            : 'Linked to this manual account — appears in its per-account view and the All-accounts view.'}
         </div>
 
         <form className="at-form" onSubmit={submit}>
@@ -74,6 +92,12 @@ export default function AddTradeModal({ onClose, onAdd, strategies = [], manualA
           )}
           <label>Date<input type="date" value={f.close_date} onChange={set('close_date')} required /></label>
           <label>Result (R)<input type="number" step="0.01" placeholder="e.g. 2 or -1" value={f.fixed_r} onChange={set('fixed_r')} required /></label>
+          {/* Optional, and NOT derived from R: the two are independent facts about the
+              same trade, and inferring one from the other would need a risk-per-trade
+              figure this modal never asks for. Left blank it stays NULL rather than 0 —
+              "not recorded" and "broke even" are different trades. `step="0.01"` because
+              a P&L is cents, and the sign carries the direction of the result. */}
+          <label>P&amp;L ($)<input type="number" step="0.01" placeholder="optional, e.g. 250 or -120" value={f.pnl_money} onChange={set('pnl_money')} /></label>
           <label>Symbol<input placeholder="EURUSD" value={f.symbol} onChange={set('symbol')} /></label>
           <label>Direction
             <select value={f.direction} onChange={set('direction')}>

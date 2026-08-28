@@ -61,6 +61,10 @@ export async function listAccounts(userId) {
             a.firm_id, a.firm_name,
             a.product_id, a.capital_kind, a.platform, a.import_method,
             a.ingest_token, a.kind, a.is_active, a.created_at,
+            -- The challenge this account is a phase of (migration 0027). It rides on
+            -- the account list on purpose: every client already holds that list, so
+            -- grouping accounts into challenges costs no second request.
+            a.challenge_group_id,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
        LEFT JOIN accounts acc ON acc.account_id = a.mt5_login
@@ -77,7 +81,7 @@ export async function listAccounts(userId) {
 // Exported so provisionQueries.js returns the same shape and test/provision-tx
 // can assert the new columns are actually reachable through the API.
 export const ACCOUNT_COLUMNS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at';
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at, challenge_group_id';
 const ACCT_COLS = ACCOUNT_COLUMNS;
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a

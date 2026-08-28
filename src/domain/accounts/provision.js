@@ -112,11 +112,29 @@ export function validateProvision(body = {}) {
     if (!product_id) return { ok: false, error: 'A prop account needs an account type' };
     if (!PHASES.includes(body.phase)) return { ok: false, error: 'A prop account needs a valid phase' };
     phase = body.phase;
-  } else if (body.firm_id || body.product_id || body.phase) {
+  } else if (body.firm_id || body.product_id || body.phase || body.challenge_group_id) {
     // Not merely ignored: silently dropping these would make a live account that
     // the user believes is tracking firm rules, which is the bug capital_kind
-    // exists to end.
-    return { ok: false, error: 'A live account has no prop firm, account type or phase' };
+    // exists to end. `challenge_group_id` joins the list for the same reason — a
+    // live account inside a prop challenge is the same category error, one level up.
+    return { ok: false, error: 'A live account has no prop firm, account type, phase or challenge' };
+  }
+
+  /* WHICH CHALLENGE THIS ACCOUNT JOINS, or null to start a new one (migration 0027).
+   *
+   * SHAPE ONLY HERE, OWNERSHIP IN THE TRANSACTION. This is an id the client did not
+   * create in this request — the whole point of the existing-challenge branch is that
+   * it names a row that already exists — so the check that matters is `user_id`, and
+   * that can only be done against the database. provisionAccount does it under FOR
+   * UPDATE (lockJoinableGroup); this only rejects what cannot be an id at all, so a
+   * malformed value fails before any work is done. */
+  let challenge_group_id = null;
+  if (capital_kind === 'prop' && body.challenge_group_id != null) {
+    const n = Number(body.challenge_group_id);
+    if (!Number.isInteger(n) || n <= 0) {
+      return { ok: false, error: 'Invalid challenge' };
+    }
+    challenge_group_id = n;
   }
 
   const provision_key = strOrNull(body.provision_key);
@@ -138,6 +156,7 @@ export function validateProvision(body = {}) {
       firm_name,
       product_id,
       phase,
+      challenge_group_id,
       start_balance: numOrNull(body.start_balance),
       account_type: body.account_type === 'funded' ? 'funded' : 'eval',
       daily_dd_pct: numOrNull(body.daily_dd_pct),
@@ -189,9 +208,18 @@ import { enqueueQuery } from '../sync/queue.js';
 import {
   findByProvisionKeyQuery, insertAccountQuery, assignSyntheticLoginQuery, insertChallengeQuery,
 } from './provisionQueries.js';
+import { insertGroup, lockJoinableGroup } from '../prop/challengeGroups.js';
 
 /** Typed conflicts, so the route can pick a status code without parsing pg text. */
-export const PROVISION_CONFLICT = { LOGIN: 'login_taken', KEY: 'key_replayed' };
+export const PROVISION_CONFLICT = {
+  LOGIN: 'login_taken',
+  KEY: 'key_replayed',
+  // The named challenge is not one this user can add a phase to: it does not exist,
+  // it belongs to someone else, or it has already failed. ONE code for all three,
+  // deliberately — telling a caller apart "not yours" from "does not exist" confirms
+  // the existence of another tenant's row.
+  GROUP: 'challenge_unavailable',
+};
 
 const genToken = () => crypto.randomBytes(24).toString('hex');
 const shape = (row) => ({
@@ -204,11 +232,16 @@ const shape = (row) => ({
  * Create an account and everything that must exist with it, in ONE transaction.
  *
  * The ordering is not incidental:
- *   1. the account, because the credential is sealed under its id (credAad) and
+ *   1. THE CHALLENGE GROUP — the challenge this account is a phase of (migration
+ *      0027). Resolved FIRST because the account row carries the link, and because
+ *      joining an existing challenge is the one step that can be refused on grounds
+ *      only the database knows (not yours / already failed): finding that out after
+ *      writing the account would mean rolling back work that was never allowed.
+ *   2. the account, because the credential is sealed under its id (credAad) and
  *      the challenge references it;
- *   2. the challenge — ONLY for a prop account. A live account getting one is the
+ *   3. the challenge — ONLY for a prop account. A live account getting one is the
  *      bug this whole change exists to fix;
- *   3. the credential, then the job. A job leased before its credential exists is
+ *   4. the credential, then the job. A job leased before its credential exists is
  *      handed no payload, so the agent reports nothing, the lease expires, and
  *      reclaimExpired re-queues it forever with no error anywhere.
  *
@@ -228,11 +261,60 @@ export async function provisionAccount(userId, v, opts = {}) {
       if (rows.length) return { account: shape(rows[0]), replayed: true };
     }
 
+    /* THE CHALLENGE THIS ACCOUNT BELONGS TO.
+     *
+     * JOINING: the id came in on the request, so the row is locked and re-checked
+     * against this user and against `status = 'active'`. A null return is refused with
+     * a typed conflict rather than by falling back to a new challenge — silently
+     * starting a fresh challenge when the trader asked to continue one would split a
+     * journey in two, and they would find out on the Challenges page days later.
+     *
+     * AND THE CHALLENGE'S IDENTITY WINS OVER THE PAYLOAD. firm, product and size are
+     * properties of the CHALLENGE, not of this phase, so they are taken from the group
+     * row and overwrite whatever the client sent. The wizard shows them read-only, so
+     * this can only differ from the payload when a client is wrong — and the failure it
+     * prevents is a Phase 2 account filed under a different firm or size than the Phase
+     * 1 it continues, which mis-scores it for the length of the challenge. The RULES
+     * (drawdowns, target, minimum days) are deliberately NOT taken from the group: they
+     * are per phase, and a firm's Phase 2 terms are routinely not its Phase 1 terms.
+     *
+     * STARTING ONE: every prop account is a phase of something, so an account with no
+     * group named creates its own — a challenge of one, which is what it is until its
+     * next phase is added.
+     */
+    let group = null;
+    if (v.capital_kind === 'prop') {
+      if (v.challenge_group_id != null) {
+        group = await lockJoinableGroup(client, v.challenge_group_id, userId);
+        if (!group) {
+          const err = new Error('That challenge is no longer available to add a phase to');
+          err.conflict = PROVISION_CONFLICT.GROUP;
+          throw err;
+        }
+      } else {
+        group = await insertGroup(client, userId, v);
+      }
+    }
+
+    const identity = group && v.challenge_group_id != null
+      ? {
+        firm_id: group.firm_id,
+        firm_name: group.firm_name,
+        product_id: group.product_id,
+        start_balance: group.start_balance,
+      }
+      : {};
+
     const synced = v.kind === 'synced';
     const login = v.import_method === 'auto_sync' && credential ? credential.login : null;
     const insert = insertAccountQuery(
       userId,
-      { ...v, ingest_token: synced ? genToken() : null },
+      {
+        ...v,
+        ...identity,
+        challenge_group_id: group?.id ?? null,
+        ingest_token: synced ? genToken() : null,
+      },
       login,
     );
 

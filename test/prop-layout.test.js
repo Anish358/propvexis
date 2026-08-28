@@ -313,23 +313,28 @@ test('calendar markers are glyphs, not colour alone', () => {
   assert.match(cal, /title=\{marks\.map\(\(m\) => m\.label\)\.join\(/);
 });
 
-test('phase advance is re-homed onto the account row it acts on', () => {
-  // It was the one thing the deleted per-account Overview genuinely owned;
-  // without it there is no way to progress a challenge, and the Evaluation
-  // Success Rate KPI has no data source (pass rates come from the history that
-  // only this route writes).
+test('the manual override is on the account row it acts on, and it SETTLES', () => {
+  /* It was the one thing the deleted per-account Overview genuinely owned; without a
+   * manual path there is no way to progress a challenge the engine has not settled, and
+   * the Evaluation Success Rate KPI has no data source (pass rates come from the challenge
+   * history these writes produce).
+   *
+   * WHAT CHANGED (2026-08-27): it called /api/prop/advance, which closes the active
+   * challenge AND opens the next phase's on the SAME account. That was right while a
+   * challenge WAS an account and is wrong since 0027 — a firm issues a NEW LOGIN per
+   * phase, so it invented a Phase 2 on the Phase 1 account and swallowed the "add the next
+   * phase account" invitation the multi-account model exists to give. It now settles the
+   * phase and opens nothing, through the SAME writer the automatic settlement uses.
+   *
+   * Which is also why the next-phase arithmetic is gone from this file: there is no
+   * `to_phase` to compute, so the ladder is read where the next account is ADDED. */
   const cards2 = read('../frontend/src/features/prop/PropCards.jsx');
-  assert.match(cards2, /import \{ advanceChallenge \} from '[^']*api\.js'/);
-  assert.match(cards2, /advanceChallenge\(\{ account_id: row\.accountId, to_phase: next, mark: 'passed' \}\)/);
+  assert.match(cards2, /import \{ settlePhase \} from '[^']*api\.js'/);
+  assert.match(cards2, /settlePhase\(\{ account_id: row\.accountId, status: 'passed' \}\)/);
+  assert.equal(/advanceChallenge\(/.test(cards2), false, 'the pre-0027 write must not be called here');
+  assert.equal(/phasesFor\(/.test(cards2), false, 'and the ladder is not this file\'s business');
   // Offered only once the target is actually met.
   assert.match(cards2, /\{r\.targetReached && <AdvanceButton/);
-  // THE TARGET COMES FROM THE ACCOUNT TYPE. `p1 ? 'p2' : 'funded'` was right while
-  // 2-Step was the only type the wizard could produce; a 3-Step account passing Phase 2
-  // would have skipped Phase 3 and been marked funded. The old rule survives as the
-  // fallback for a row whose type is unknown.
-  assert.match(cards2, /const stages = phasesFor\(row\.productId\)/);
-  assert.match(cards2, /stages\[Math\.min\(stages\.indexOf\(row\.phase\) \+ 1, stages\.length - 1\)\]/);
-  assert.match(cards2, /row\.phase === 'p1' \? 'p2' : 'funded'/);
 });
 
 test('each accounts slice carries the columns that slice needs', () => {

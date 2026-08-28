@@ -105,7 +105,7 @@ export default function ConnectStep() {
     const created = (accounts || []).find((a) => a.id === draft.account?.id) || null;
     return (
       <>
-        <WizardHeading align="center" eyebrow="Add Account" title="Attach the EA" />
+        <WizardHeading align="center" title="Attach the EA" />
         <WizardGroup>
           {created ? <SetupCard account={created} /> : (
             <Alert variant="warning">
@@ -127,7 +127,7 @@ export default function ConnectStep() {
 
   return (
     <>
-      <WizardHeading align="center" eyebrow="Add Account" title="Connect your account" />
+      <WizardHeading align="center" title="Connect your account" />
 
       <WizardGroup>
         {err ? (

@@ -88,6 +88,16 @@ export function emptyDraft({ provisionKey = null, firstRun = false } = {}) {
     capital_kind: null,          // 'prop' | 'live'
     firm_id: null,
     firm_name: null,             // for firm_id 'other' this is what the user TYPED
+    /* NEW CHALLENGE OR AN EXISTING ONE — the first question of the account page, and
+     * the branch the whole 0027 model exists to serve. 'new' starts a challenge of its
+     * own; 'existing' makes this account the next PHASE of one that is already tracked,
+     * and then `challenge_group_id` names it.
+     *
+     * Null until answered, and the account step is incomplete until it is, so a draft
+     * revived mid-page cannot commit an account whose challenge nobody chose. Only the
+     * prop path ever asks: a live account has no phases. */
+    challenge_mode: null,        // 'new' | 'existing'
+    challenge_group_id: null,    // the challenge this account is a phase OF
     product_id: null,
     phase: null,                 // one of PHASES
 
@@ -257,6 +267,13 @@ const COMPLETE = {
   account: (d) => {
     if (String(d.label ?? '').trim() === '') return false;
     if (d.capital_kind !== 'prop') return true;
+    // The page's FIRST question, so it gates everything under it. 'existing' additionally
+    // needs the challenge itself — the mode alone says only that a list was opened, and
+    // an account provisioned from that state would silently start a challenge of its own
+    // rather than continuing the one the trader was looking at (Ruling 8's shape again:
+    // a step that exists to collect an identity must not pass without one).
+    if (d.challenge_mode !== 'new' && d.challenge_mode !== 'existing') return false;
+    if (d.challenge_mode === 'existing' && d.challenge_group_id == null) return false;
     if (!d.product_id) return false;
     if (!has(d.start_balance) || !has(d.daily_dd_pct) || !has(d.max_dd_pct)) return false;
     if (!PHASES.includes(d.phase)) return false;
@@ -373,7 +390,15 @@ const RULES_CLEARED = {
   dd_type: 'static',
   min_trading_days: null,
 };
-const FIRM_CLEARED = { firm_id: null, firm_name: null, product_id: null, phase: null };
+/* The challenge choice hangs off the FIRM: the list a trader picks from is that firm's
+ * challenges only, so changing the firm invalidates both the mode and the id. Leaving
+ * the id behind is the failure this prevents — a GoatFundedTrader challenge id riding
+ * on a payload that now names FTMO, which the server would refuse at the very end of
+ * the flow (the group's firm wins over the payload) after nine more questions. */
+const CHALLENGE_CLEARED = { challenge_mode: null, challenge_group_id: null };
+const FIRM_CLEARED = {
+  firm_id: null, firm_name: null, product_id: null, phase: null, ...CHALLENGE_CLEARED,
+};
 
 /**
  * Apply a patch, invalidating whatever it contradicts.
@@ -405,8 +430,21 @@ export function patchDraft(draft, patch = {}) {
 
   let next = { ...d };
   if (changed('capital_kind')) next = { ...next, ...FIRM_CLEARED, ...RULES_CLEARED, broker: null };
-  if (changed('firm_id')) next = { ...next, product_id: null, phase: null, ...RULES_CLEARED };
+  if (changed('firm_id')) next = { ...next, product_id: null, phase: null, ...RULES_CLEARED, ...CHALLENGE_CLEARED };
   if (changed('product_id')) next = { ...next, phase: null, ...RULES_CLEARED };
+  /* LEAVING the existing-challenge branch drops the challenge AND the identity it
+   * dictated. Without the identity going too, a trader who picked their Phase 1-passed
+   * 25K challenge, changed their mind and chose New would carry that challenge's type,
+   * size and phase into a brand-new challenge as if they had typed them — the page's
+   * locked fields would simply become editable with someone else's answers in them.
+   *
+   * ONLY WHEN THE PREVIOUS ANSWER WAS 'existing', which is narrower than "the mode
+   * changed" and has to be: answering the question for the FIRST time is also a change,
+   * and clearing on that would wipe the product, phase and rules of a draft being
+   * revived — the page would re-render with its own stored answers gone. */
+  if (d.challenge_mode === 'existing' && changed('challenge_mode')) {
+    next = { ...next, challenge_group_id: null, product_id: null, phase: null, ...RULES_CLEARED };
+  }
 
   next = { ...next, ...patch };
 
@@ -474,8 +512,22 @@ export function suggestedLabel(draft) {
     if (short) parts.push(short);
   }
   if (has(d.start_balance)) parts.push(sizeLabel(d.start_balance));
+  /* THE PHASE, BUT ONLY WHEN JOINING AN EXISTING CHALLENGE — and this is a correctness
+   * fix, not a nicety. Every phase of one challenge shares its firm, type and size, so
+   * without the phase the Phase 2 account is suggested the name the Phase 1 account
+   * already has: the page's own uniqueness check then reports a duplicate and blocks
+   * Continue on a name the wizard itself proposed. A new challenge keeps the plain name,
+   * because there is nothing yet for it to collide with.
+   *
+   * A SHORT TAG, not PHASE_LABEL's "Phase 2": this is a name in an account switcher, and
+   * "GoatFundedTrader 2-Step 25K Phase 2" is longer than the column that shows it. */
+  if (d.challenge_group_id != null && PHASE_TAG[d.phase]) parts.push(PHASE_TAG[d.phase]);
   return parts.join(' ');
 }
+
+/** The phase as a NAME SUFFIX. Deliberately not PHASE_LABEL (features/prop) — that is
+ *  the phase as prose, for a heading or a rail; this is what fits in an account name. */
+const PHASE_TAG = { p1: 'P1', p2: 'P2', p3: 'P3', funded: 'Funded' };
 
 /**
  * The POST /api/accounts/provision body.
@@ -504,6 +556,11 @@ export function toProvisionPayload(draft) {
     firm_name: prop ? d.firm_name : null,
     product_id: prop ? d.product_id : null,
     phase: prop ? d.phase : null,
+    // Null on the 'new' branch as well as on the live path: no id means "start a
+    // challenge of its own", which is what provisionAccount does with it. `challenge_mode`
+    // itself is never sent — it is how the PAGE was answered, and the server only needs
+    // to know whether there is a challenge to join.
+    challenge_group_id: prop && d.challenge_mode === 'existing' ? d.challenge_group_id : null,
     start_balance: d.start_balance,
     account_type: d.account_type,
     daily_dd_pct: prop ? d.daily_dd_pct : null,

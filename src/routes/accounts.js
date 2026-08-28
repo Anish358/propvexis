@@ -157,6 +157,14 @@ export default function accountRoutes(app, ctx) {
       if (err.conflict === PROVISION_CONFLICT.LOGIN) {
         return reply.code(409).send({ error: err.message, conflict: err.conflict });
       }
+      if (err.conflict === PROVISION_CONFLICT.GROUP) {
+        // The named challenge is not one this user can add a phase to: it does not
+        // exist, it is someone else's, or it has already failed. A 400 rather than a 409
+        // — nothing is in conflict, the request names a challenge that cannot be joined —
+        // and ONE message for all three, because telling "not yours" apart from "does not
+        // exist" confirms the existence of another tenant's row.
+        return reply.code(400).send({ error: err.message, conflict: err.conflict });
+      }
       if (err.conflict === PROVISION_CONFLICT.KEY) {
         // Two simultaneous requests carrying the same provision_key: the winner
         // commits, the loser trips this unique violation instead of the

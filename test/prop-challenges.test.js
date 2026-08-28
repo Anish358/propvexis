@@ -6,8 +6,8 @@ import { legacyCss } from './helpers/app-css.js';
 import { NAV, navRoutes, navTitle, isSingleAccountRoute } from '../frontend/src/app/nav.js';
 import {
   ALL_FIRMS, CHALLENGE_TABS, DEFAULT_STAGES, STAGE_ORDER, STAGE_STATUS_LABEL,
-  challengeCounts, challengeLifecycle, challengeRows, challengeStages, currentStageMetrics,
-  firmKeyOf, firmOptions, groupByFirm, stageFigures,
+  challengeLifecycle, challengeRows, challengeStages, currentStageMetrics,
+  firmKeyOf, firmOptions, stageFigures,
 } from '../frontend/src/features/prop/challengesData.js';
 import { byRisk } from '../frontend/src/features/prop/propAccounts.js';
 
@@ -97,7 +97,10 @@ test('the page keeps the prop-firm hierarchy in BOTH firm views', () => {
   assert.match(page, /const shown = firm === ALL_FIRMS \? groups : groups\.filter\(\(g\) => g\.key === firm\)/);
   assert.match(page, /shown\.map\(section\)/);
   assert.match(page, /<section className="pc-firm"/);
-  assert.match(page, /className="pc-firm-name">\{group\.name\}/);
+  // `firmGroup`, not `group`: since 0027 a "group" is a CHALLENGE (challenge_groups),
+  // so the firm section's variable had to be renamed or the page would read as if a
+  // firm and a challenge were the same object.
+  assert.match(page, /className="pc-firm-name">\{firmGroup\.name\}/);
   assert.match(page, /<div className="pc-grid">/);
   // The firms are the trader's own, not a hardcoded list on the page.
   assert.ok(!/FTMO|Topstep|FundingPips|5%ers/.test(code(page)), 'no firm names typed into the page');
@@ -118,10 +121,16 @@ test('the page adds NO dashboard KPI band — that is the Overview\'s job', () =
 
 test('selecting a challenge writes the app-wide selection, then flips to Details', () => {
   assert.match(page, /const select = \(accountLogin\) => \{\s*setAccountId\(String\(accountLogin\)\);\s*setTab\('details'\);/);
-  assert.match(page, /<ChallengeCard[^>]*onSelect=\{\(\) => select\(r\.accountId\)\}/s);
-  assert.match(card, /<Button variant="secondary" size="sm" onClick=\{onSelect\}>View Details<\/Button>/);
-  // No local selected-challenge state — that would be a second source of truth.
+  // THE ACCOUNT IS THE SELECTED PHASE'S now, which is the whole difference 0027 makes: a
+  // challenge has several accounts, so "open this challenge" is not a single login any
+  // more — the phase the trader is looking at is.
+  assert.match(page, /onOpenAccount=\{select\}/);
+  assert.match(card, /onClick=\{\(\) => onOpenAccount\(stage\.account\.mt5_login\)\}/);
+  // No local selected-challenge state — that would be a second source of truth. The
+  // per-card PHASE is local and is a different thing: it says which phase of a challenge
+  // the card is showing, not which account the app is scoped to.
   assert.ok(!/useState\([^)]*selectedChallenge/i.test(page));
+  assert.match(page, /const \[phaseByCard, setPhaseByCard\] = useState\(\{\}\)/);
   // The selection is read back through the SAME resolver the Accounts page uses.
   // The regex deliberately does not pin the import's brace contents -- what matters
   // is that selectedLogin comes from the shared module, not how many other symbols
@@ -165,9 +174,21 @@ test('the challenge card reuses the accounts card\'s meter, not a copy of it', (
 test('the lifecycle rail is ONE implementation at two densities', () => {
   assert.match(lifecycle, /export function LifecycleRail/);
   assert.match(card, /import \{ LifecycleRail \} from '[^']*ChallengeLifecycle\.jsx'/);
-  assert.match(card, /<LifecycleRail stages=\{stages\} activeTone=\{health\} compact \/>/);
+  // The card's rail is INTERACTIVE (owner spec 2026-08-27) and the Details lifecycle's is
+  // not — one implementation, and the difference is whether `onSelect` is passed. Since
+  // each phase now lives on its own account, the rail is the only control that can move
+  // between them, which is why the card needs it and the single-account Details tab does
+  // not.
+  assert.match(card, /<LifecycleRail[\s\S]{0,200}?onSelect=\{onSelectPhase\}/);
+  assert.match(card, /compact/);
   assert.match(lifecycle, /<LifecycleRail stages=\{stages\} activeTone=\{activeTone\} \/>/);
   assert.ok(!card.includes('pc-step-node'), 'the card must not draw its own stepper');
+  // A REAL BUTTON, so Tab, Enter and Space work for free, and only where the stage says
+  // there is somewhere to go — a disabled stop that can never be enabled explains nothing.
+  assert.match(lifecycle, /const clickable = Boolean\(onSelect\) && s\.selectable === true/);
+  assert.match(lifecycle, /<button\s+type="button"\s+className="pc-step-btn"/);
+  assert.match(lifecycle, /aria-current=\{selected === s\.id \? 'step' : undefined\}/,
+    'the selection must be announced, not only drawn');
 });
 
 test('the drawdown/health thresholds are the shared ones, not a second set', () => {
@@ -178,7 +199,14 @@ test('the drawdown/health thresholds are the shared ones, not a second set', () 
     assert.ok(!/function roomStatus|function healthStatus/.test(f), 'thresholds must not be re-derived');
   }
   // The row join and the attention ordering come from the Accounts module's one copy.
-  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk, isBreached, isLive,\s*\} from '\.\/propAccounts\.js'/);
+  // `isBreached` came off this import with challengeCounts, which was its only caller —
+  // the breach predicate is still ONE implementation (propAccounts.js), it is just read by
+  // the pages that ask the question now rather than by this module.
+  // `isLive` came off this import too. It is still ONE implementation (propAccounts.js) —
+  // it just narrowed to "still trading it" when the phase status went automatic, and this
+  // module wants "has a challenge": a challenge you broke is still one of your challenges,
+  // and the Details tab is where a trader reads what happened to it.
+  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk,\s*\} from '\.\/propAccounts\.js'/);
   assert.equal(typeof byRisk, 'function');
 });
 
@@ -210,7 +238,11 @@ test('status is a word plus a colour, never a colour alone', () => {
   assert.match(lifecycle, /if \(stage\.status === 'complete'\) return '✓'/);
   assert.match(lifecycle, /if \(stage\.status === 'breached'\) return '✕'/);
   assert.match(card, /const HEALTH_LABEL = \{ good: 'On Track', warn: 'At Risk', bad: 'Critical', na: 'No Data' \}/);
-  assert.match(card, /\{HEALTH_LABEL\[health\]\}/);
+  assert.match(card, /HEALTH_LABEL\[health\]/);
+  // The CHALLENGE's own badge is a word too, and it is a different fact from any one
+  // phase's: a failed challenge is failed however well its Phase 1 went.
+  assert.match(card, /const GROUP_BADGE = \{/);
+  assert.match(card, /failed: \{ tone: 'loss', label: 'Failed' \}/);
 });
 
 test('no raw colour value, and no second charting or icon system', () => {
@@ -229,8 +261,17 @@ test('no raw colour value, and no second charting or icon system', () => {
 test('the grid and Details read ONE portfolio payload; only history is extra', () => {
   // A card and the lifecycle it opens must not be able to show different numbers for
   // the same challenge, which a second per-account state fetch would allow.
-  assert.match(page, /import \{ fetchPropHistory, fetchPropPortfolio \} from '[^']*api\.js'/);
+  /* TWO REQUESTS NOW, answering two different questions: /api/prop/challenges says which
+   * CHALLENGES exist and which accounts are their phases (0027), /api/prop/portfolio says
+   * how each of those accounts is DOING. The property this test has always protected is
+   * unchanged and is the reason they stay split: there is one source for the figures, so
+   * a card and the lifecycle it opens cannot show different numbers for the same phase. */
+  assert.match(page, /import \{ fetchChallengeGroups, fetchPropHistory, fetchPropPortfolio \} from '[^']*api\.js'/);
   assert.match(page, /fetchPropPortfolio\(\)/);
+  assert.equal((page.match(/fetchChallengeGroups\(/g) || []).length, 1, 'the challenges are fetched once');
+  // Both payloads before the grid renders: drawing on the first to land would show every
+  // meter empty for a frame, which reads as a portfolio in trouble.
+  assert.match(page, /!data \|\| groupData == null \?/);
   assert.ok(!page.includes('fetchProp('), 'no second per-account state fetch');
   assert.equal((page.match(/fetchPropHistory\(/g) || []).length, 1, 'history is fetched once, for the selected challenge');
   // Both routes already existed — this module adds no endpoint.
@@ -394,47 +435,6 @@ test('firmKeyOf: one firm is one tab, however the account was created', () => {
   // An account with no firm at all still lands somewhere nameable.
   assert.equal(firmKeyOf({}), 'name:other');
   assert.equal(firmKeyOf(undefined), 'name:other');
-});
-
-test('groupByFirm + firmOptions: the sections and the selector agree on order', () => {
-  const rows = challengeRows({
-    states: [state(1), state(2), state(3), state(4)],
-    accounts: [
-      acct(1, { firm_id: null, firm_name: 'Topstep' }),
-      acct(2),
-      acct(3),
-      acct(4, { firm_id: null, firm_name: 'Topstep' }),
-    ],
-  });
-  const groups = groupByFirm(rows);
-  // Two firms, two challenges each → tie broken by name, so the order is stable.
-  assert.deepEqual(groups.map((g) => g.name), ['FTMO', 'Topstep']);
-  assert.deepEqual(groups.map((g) => g.rows.length), [2, 2]);
-
-  const opts = firmOptions(groups);
-  assert.equal(opts[0].value, ALL_FIRMS);
-  assert.equal(opts[0].label, 'All');
-  assert.equal(opts[0].count, 4, 'All counts every challenge');
-  assert.deepEqual(opts.slice(1).map((o) => o.label), ['FTMO', 'Topstep']);
-  assert.deepEqual(opts.slice(1).map((o) => o.value), groups.map((g) => g.key));
-});
-
-test('groupByFirm: the firm with the most challenges leads', () => {
-  const rows = challengeRows({
-    states: [state(1), state(2), state(3)],
-    accounts: [acct(1, { firm_id: null, firm_name: 'Topstep' }), acct(2), acct(3)],
-  });
-  assert.deepEqual(groupByFirm(rows).map((g) => [g.name, g.rows.length]), [['FTMO', 2], ['Topstep', 1]]);
-});
-
-test('challengeCounts: the section subtitle counts what it shows', () => {
-  const clean = [{ breach: { breached: false } }, { breach: { breached: false } }];
-  assert.deepEqual(challengeCounts(clean), { total: 2, active: 2, breached: 0 });
-  assert.deepEqual(
-    challengeCounts([...clean, { breach: { breached: true } }]),
-    { total: 3, active: 2, breached: 1 },
-  );
-  assert.deepEqual(challengeCounts(), { total: 0, active: 0, breached: 0 });
 });
 
 test('challengeStages: the lifecycle adapts to the firm, and never invents one', () => {

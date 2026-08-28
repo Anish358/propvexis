@@ -83,17 +83,72 @@ export function deriveAlerts({ accountId, challengeId, label, state }) {
       data: { account_id: accountId },
     });
   }
-  if (state.profitTarget?.reached) {
+  // REACHED BUT NOT YET A PASS — that is the whole condition this alert now covers.
+  // The phase settles itself the moment the target AND the minimum trading days are
+  // both in (resolveChallengeOutcome), and the pass milestone announces that; firing
+  // this one too would tell the trader the same thing twice in the same tick, once in
+  // copy that is no longer true ("you can pass this phase" — it already has). What is
+  // left is the genuinely useful case: the number is hit and the days are what is
+  // holding the phase open.
+  if (state.profitTarget?.reached && !state.tradingDays?.met) {
+    const left = Math.max(0, (state.tradingDays?.required ?? 0) - (state.tradingDays?.completed ?? 0));
     out.push({
       type: 'target_reached',
       severity: 'info',
       title: `${acct}: profit target reached`,
-      body: `Profit target of ${money(state.profitTarget.target)} reached — you can pass this phase.`,
+      body: `Profit target of ${money(state.profitTarget.target)} reached — ${left} more trading day${left === 1 ? '' : 's'} required to pass.`,
       dedupKey: `${accountId}:target_reached:${challengeId}`,
       data: { account_id: accountId },
     });
   }
   return out;
+}
+
+/**
+ * The phase settled itself — passed on its own numbers, or breached.
+ *
+ * EMITTED BY THE STATUS APPLIER, not by deriveAlerts, and the difference is not
+ * cosmetic: deriveAlerts is pure and says what the engine SEES, while this says what
+ * was WRITTEN. The applier only calls it when a row actually changed (its UPDATE is
+ * guarded on `status = 'active'`), so the "fires once" property comes from the
+ * database rather than from a threshold that could be re-crossed.
+ *
+ * THE DEDUP KEY IS SHARED WITH phasePassedAlert BY DESIGN — `phase_passed:<challengeId>`
+ * — so a phase that settles automatically and is then also advanced by hand through
+ * /api/prop/advance (kept as an override, owner decision 2026-08-27) announces itself
+ * once, not twice. The manual route and the automatic one are two ways of recording the
+ * same event about the same challenge row.
+ *
+ * The pass copy names the NEXT step rather than the achievement, because there is one:
+ * the trader now has to add the account their firm just issued them. It does not name
+ * WHICH phase comes next — that is the catalog's answer (phasesFor), and the backend
+ * cannot read the catalog.
+ */
+export function phaseOutcomeAlert({ accountId, label, phase, status, reason, challengeId }) {
+  const acct = label || `Account ${accountId}`;
+  const name = PHASE_LABEL[phase] ?? phase;
+  if (status === 'breached') {
+    return {
+      type: 'breach',
+      severity: 'critical',
+      title: `${acct}: ${name} breached`,
+      body: reason === 'daily_dd'
+        ? 'Daily drawdown limit hit — this challenge has failed.'
+        : 'Max drawdown limit hit — this challenge has failed.',
+      // The SAME key deriveAlerts uses for its breach alert, so the engine's warning
+      // and this settlement are one notification about one challenge.
+      dedupKey: `${accountId}:breach:${challengeId}`,
+      data: { account_id: accountId, reason: reason ?? null, phase },
+    };
+  }
+  return {
+    type: 'phase_passed',
+    severity: 'info',
+    title: `${acct}: ${name} passed`,
+    body: 'Target and trading days both met — add the next phase account to this challenge.',
+    dedupKey: `${accountId}:phase_passed:${challengeId}`,
+    data: { account_id: accountId, phase },
+  };
 }
 
 // Explicit milestone for a manual phase advance (emitted by the advance route, not

@@ -89,7 +89,7 @@ export default function UploadStep() {
 
   return (
     <>
-      <WizardHeading align="center" eyebrow="Add Account" title="Import your history?" />
+      <WizardHeading align="center" title="Import your history?" />
 
       <WizardGroup>
         <Field>
