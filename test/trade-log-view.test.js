@@ -416,7 +416,10 @@ test('the trade log shows the four requested KPI cards', () => {
   assert.match(log, /<NetPnlCard m=\{m\} unit=\{unit\} \/>/);
   assert.match(log, /<ProfitFactorCard m=\{m\} \/>/);
   assert.match(log, /<TradeWinCard m=\{m\} \/>/);
-  assert.match(log, /<AvgWinLossCard m=\{m\} \/>/);
+  /* `unit` IS REQUIRED HERE AS OF RHEA, and forgetting it is a silent bug rather than
+   * a crash: the card's chips print the average win and loss as figures, so without the
+   * prop they would format as R on a page showing dollars and nothing would say so. */
+  assert.match(log, /<AvgWinLossCard m=\{m\} unit=\{unit\} \/>/);
   // Four cards in the shared KpiRow, which splits itself — the `--kpi-count: 4` this
   // used to pass is retired along with the CSS grid that read it (2026-08-28).
   assert.match(log, /<KpiRow>/);

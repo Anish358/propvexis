@@ -414,12 +414,19 @@ test('the KPI row re-splits itself, and grid rows size to content', () => {
    * nothing to keep in sync. Asserted at the primitive, since the legacy `.dash-stats`
    * rule no longer applies to anything. */
   const kpi = readSrc('components/primitives/kpi.jsx');
-  assert.match(kpi, /\[&>\*\]:min-w-\[10rem\] \[&>\*\]:flex-1/);
+  // 12.5rem since Rhea (was 10rem): the cards gained a gauge beside the figure, so the
+  // width at which a card stops being legible moved with it.
+  assert.match(kpi, /\[&>\*\]:min-w-\[12\.5rem\] \[&>\*\]:flex-1/);
   /* FIVE EQUAL CARDS SINCE 2026-08-28 (owner call). The frame draws the hero at 1.7x a
    * default card (392 : 231) and it was built that way; in the real row the extra width
    * bought nothing — Net P&L's figure is no longer than "58.33%" — while making the row
-   * visibly lopsided. The hero keeps what actually marks it out, the signed wash of its
-   * own outcome colour, and gives up the width.
+   * visibly lopsided. The hero gives up the width.
+   *
+   * AND SINCE RHEA IT ALSO GAVE UP THE WASH (2026-08-29). What marks it out now is a
+   * step-brighter surface behind a stronger hairline, with the sign carried by the
+   * FIGURE — 25px of mono, coloured. The wash was solving a problem the old 20px figure
+   * had; three encodings of one fact (wash, trend arrow, colour) crowded out the four
+   * cards beside it.
    *
    * Asserted as ABSENT because the ratio is the tempting thing to re-add from the frame
    * without noticing it was tried. */

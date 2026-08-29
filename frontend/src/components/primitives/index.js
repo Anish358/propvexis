@@ -120,7 +120,8 @@ export {
 
 // The KPI row. Here for the same reason as the rail and the brief.
 export {
-  KpiCard, KpiFoot, KpiLabel, KpiPill, KpiRow, KpiSpacer, KpiSplitBar, KpiValue,
+  KpiAside, KpiCard, KpiChip, KpiChips, KpiGauge, KpiLabel, KpiMain, KpiPill,
+  KpiRing, KpiRow, KpiSpacer, KpiValue,
 } from './kpi.jsx';
 
 // Account Health — the full-width rule-meter card. Same reasoning as the rail.

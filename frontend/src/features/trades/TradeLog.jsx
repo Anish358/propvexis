@@ -133,7 +133,11 @@ export default function TradeLog() {
           <NetPnlCard m={m} unit={unit} />
           <ProfitFactorCard m={m} />
           <TradeWinCard m={m} />
-          <AvgWinLossCard m={m} />
+          {/* `unit` is required as of the Rhea rebuild — the card's chips print the
+              average win and loss as figures, so it has to know whether they are
+              dollars or R. Passing it here was easy to forget: without it the chips
+              would silently format as R on a page showing dollars. */}
+          <AvgWinLossCard m={m} unit={unit} />
         </KpiRow>
 
         <div className="log-toolbar">

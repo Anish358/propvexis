@@ -1,74 +1,65 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-/* THE KPI ROW — the dashboard's headline stats, on the 2026-08-28 Figma frame (node 1:2).
+/* THE KPI ROW — the dashboard's headline stats, on Base Rhea (2026-08-29).
  *
  * Presentation only, same contract as rail.jsx and brief.jsx. Nothing here computes a
  * metric or knows what R means; KpiCards.jsx does the arithmetic and hands down strings.
  *
- * THE FRAME'S TWO CARD SHAPES, and the one that matters:
+ * WHAT RHEA CHANGED, and the through-line is that a KPI card now SHOWS ITS SHAPE:
  *
- *   hero      no border, a 10% wash of its OWN OUTCOME COLOUR, a count pill, a trend
- *             glyph, and a "Today:" line under the number
- *   default   --surface behind a 10% white hairline, the number, one footer line
+ *   the hero's signed wash is GONE. The old card washed itself 10% in its own outcome
+ *   colour, so "am I up or down" was legible from across a desk. Rhea says it with the
+ *   FIGURE instead — 25px of mono, coloured by sign — and gives the card a plain raised
+ *   surface. The wash was solving a problem the old 20px figure had; at 25px mono the
+ *   number wins on its own, and a full-width green card behind a green number was the
+ *   same fact told twice at the cost of the row reading as one thing.
  *
- * THE HERO'S WASH IS SIGNED, and this is the whole reason it is a separate shape. The
- * frame draws it green because the account it draws is up. A losing account gets the
- * same card washed in --loss, and a flat one gets no wash at all -- so the single most
- * important fact on the page ("am I up or down") is legible from across a desk, before
- * any digit is read. Hardcoding the green would have made the card a lie exactly when
- * it matters most. `tone` is the prop; kpi.test.js pins all three branches.
+ *   the split bar and the footer line are replaced by A GAUGE AND CHIPS. This is the
+ *   real change. `58.33%` over `75W / 53L` is two facts stacked; an arc filled to 58%
+ *   with a green `75` and a red `53` beside it is the SAME two facts arranged so the
+ *   first is answerable without reading. The gauge is the value's shape, the chips are
+ *   its parts, and the number is still there for anyone who wants the digits.
  *
- * SCALED TWO STEPS DOWN from the frame (owner, 2026-08-28, after seeing one step in
- * the real shell): 24->16 padding and radius, 30->22 value, 16->10 gaps, 14->13 label,
- * 12->11 footer. The frame is drawn as five cards filling a viewport; in situ they are
- * one band of a page that also has to hold a brief, an account card and a calendar
- * above the fold. The card's PROPORTIONS are the frame's — it is the same card, smaller.
+ *   profit factor gets a RING rather than an arc, because it is the one metric here
+ *   that is not a percentage of a whole. The ring divides gross profit against gross
+ *   loss — the two quantities the ratio is made of — so a 0.78 reads as "more red than
+ *   green" rather than as a gauge pointing at 39% of nothing in particular.
  *
- * The row's floor drops to 11rem with it, which is what keeps five across at 1280.
+ * ESCALATION IS NEVER COLOUR ALONE. A gauge's fill is also its ANGLE, and the chips
+ * carry their own figures, so every state survives a greyscale screen.
  */
 
-// tone -> the CSS colour a card reads and washes itself with.
+// tone -> the CSS colour a figure reads in. `flat` is deliberately null: a breakeven is
+// a result, not a nothing, and painting it green would inflate a losing week.
 const TONE = {
   pos: 'var(--profit)',
   neg: 'var(--loss)',
-  flat: null,      // no wash, default text — a breakeven is a result, not a nothing
+  flat: null,
 };
 
 const toneColor = (tone) => TONE[tone] ?? null;
 
 /* The row. Flex rather than a fixed five-column grid, because the row is
  * user-configurable: any of the five cards can be hidden (dashLayout), and a grid with
- * five declared tracks would leave a hole where a hidden one used to be. The hero keeps
- * its extra width by flex ratio, so hiding a card re-splits the row and the frame's
- * 392-vs-231 proportion survives whatever is left.
+ * five declared tracks would leave a hole where a hidden one used to be.
  *
  * THE 12.5rem FLOOR IS THE RESPONSIVE BEHAVIOUR, and it is chosen rather than guessed.
- * The content column is about (viewport - 300) once the rail and page padding are out
- * (see breakpoints.js). A card holds a 26px figure over a 13px label, which stops being
- * legible under ~200px:
+ * The content column is about (viewport - 300) once the rail and page padding are out:
  *
  *   1920 -> ~1620 content   five across, 308 each
- *   1440 -> ~1140 content   five across, 212 each — the frame's own layout
- *   1280 -> ~980 content    five across, 180 each, at the floor
+ *   1440 -> ~1140 content   five across, 212 each
  *   1080 -> ~780 content    wraps to three + two rather than five 140px slivers
  *
- * flex-wrap does that on its own from the floor alone, with no breakpoint at all — the
- * row reflows continuously across the whole 1080-1920 range instead of snapping at one
- * width. Which is also why the floor is a rem and not a px: it tracks the type. */
+ * flex-wrap does that from the floor alone, with no breakpoint at all — the row reflows
+ * continuously across the whole 1080-1920 range instead of snapping at one width. Which
+ * is also why the floor is a rem and not a px: it tracks the type. */
 export function KpiRow({ className, children, ...rest }) {
   return (
     <div
       data-slot="kpi-row"
       className={cn(
-        /* FIVE EQUAL CARDS (owner call, 2026-08-28). The frame draws the hero at 1.7x
-         * a default card (392 : 231) and it was built that way; in the real row the
-         * extra width bought nothing — Net P&L's figure is no longer than "58.33%" —
-         * while making the row visibly lopsided. The hero keeps what actually marks it
-         * out, which is the signed wash of its own outcome colour, and gives up the
-         * width. Equal columns also mean the row stays even however many cards are
-         * hidden, with no ratio to re-tune. */
-        'flex flex-wrap gap-2.5 [&>*]:min-w-[10rem] [&>*]:flex-1',
+        'flex flex-wrap gap-4 [&>*]:min-w-[12.5rem] [&>*]:flex-1',
         className,
       )}
       {...rest}
@@ -78,23 +69,36 @@ export function KpiRow({ className, children, ...rest }) {
   );
 }
 
-export function KpiCard({ hero = false, tone = 'flat', className, children, ...rest }) {
-  const hue = toneColor(tone);
+/* One card. `hero` is the Net P&L card: a step brighter and behind a stronger hairline,
+ * because it is the one figure the whole page is about. That is the ONLY thing left
+ * marking it out — see the header on why the signed wash went. */
+export function KpiCard({ hero = false, className, children, ...rest }) {
   return (
     <div
       data-slot="kpi-card"
       data-kpi={hero ? 'hero' : undefined}
       className={cn(
-        'flex flex-col gap-2 rounded-[14px] p-3.5',
+        'flex min-h-32 min-w-0 items-start justify-between gap-3 rounded-[14px] border px-[17px] pb-6',
         hero
-          // The wash IS the border: a hero with both reads as two nested boxes.
-          ? 'border-0'
-          : 'border border-[var(--line)] bg-[var(--surface)]',
+          ? 'flex-col border-[var(--line-control)] bg-[var(--surface-raised)] pt-7'
+          : 'border-[var(--line)] bg-[var(--surface)] pt-[22px]',
         className,
       )}
-      style={hero
-        ? { background: hue ? `color-mix(in srgb, ${hue} 10%, var(--surface))` : 'var(--surface)' }
-        : undefined}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* The left-hand stack: the label row over the figure. Its own component because the
+ * non-hero cards put a gauge beside it, and "the words and the number" is the unit that
+ * has to stay together when they do. */
+export function KpiMain({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="kpi-main"
+      className={cn('flex min-w-0 flex-col gap-[13px] pt-1.5', className)}
       {...rest}
     >
       {children}
@@ -103,33 +107,36 @@ export function KpiCard({ hero = false, tone = 'flat', className, children, ...r
 }
 
 /* The label row: the metric's name, its explain affordance, and — on the hero — the
- * trade-count pill. `info` and `trailing` are slots so this file never imports the
+ * trade-count chip. `info` and `trailing` are slots so this file never imports the
  * app's Explain tooltip. */
 export function KpiLabel({ info, trailing, className, children, ...rest }) {
   return (
     <div
       data-slot="kpi-label"
-      className={cn('flex items-center gap-2', className)}
+      className={cn('flex items-center gap-1.5', className)}
       {...rest}
     >
-      <span className="text-[13px] leading-5 font-normal text-[var(--muted)]">{children}</span>
+      <span className="text-[13.5px] leading-5 font-[550] whitespace-nowrap text-[var(--muted)]">
+        {children}
+      </span>
       {info}
       {trailing && <span className="ml-auto shrink-0">{trailing}</span>}
     </div>
   );
 }
 
-/* The count pill — "128 Trades". Washed and coloured by the same tone as the hero it
- * sits in, so the card is one colour statement rather than two. */
-export function KpiPill({ tone = 'flat', className, children, ...rest }) {
-  const hue = toneColor(tone);
+/* The count chip — "128 trades". Neutral, always: it is a magnitude, not a verdict, and
+ * the old version tinted it with the hero's outcome colour, which made "you took 128
+ * trades" look like part of the good or bad news. */
+export function KpiPill({ className, children, ...rest }) {
   return (
     <span
       data-slot="kpi-pill"
-      className={cn('shrink-0 rounded-full px-2 py-0.5 text-[11px] leading-4 font-normal', className)}
-      style={hue
-        ? { background: `color-mix(in srgb, ${hue} 15%, transparent)`, color: hue }
-        : { background: 'var(--surface-2)', color: 'var(--muted)' }}
+      className={cn(
+        'shrink-0 rounded-[6px] border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
+        'text-[11px] leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
+        className,
+      )}
       {...rest}
     >
       {children}
@@ -137,73 +144,162 @@ export function KpiPill({ tone = 'flat', className, children, ...rest }) {
   );
 }
 
-/* The number. 26/32 semibold — the largest type on the page and the only place this app
- * goes above 18, which is what makes the row scannable in one pass.
- *
- * `tabular` is on by default and is not cosmetic: five cards in a row whose digits are
- * proportionally spaced jitter horizontally as the values tick, and a KPI row that
- * shifts under a live feed is unreadable. This is also why the redesign can drop the
- * monospace face entirely — tabular-nums is the property that was actually doing the
- * work. */
-export function KpiValue({ tone = 'flat', trailing, className, children, ...rest }) {
+/* The number. 25px mono, and the mono is doing real work: five cards in a row whose
+ * digits are proportionally spaced jitter horizontally as the values tick, and a KPI row
+ * that shifts under a live feed cannot be read. It is also the largest type on the page
+ * and the only place this app goes above 20, which is what makes the row scannable in
+ * one pass. */
+export function KpiValue({ tone = 'flat', className, children, ...rest }) {
   const hue = toneColor(tone);
   return (
-    <div data-slot="kpi-value" className={cn('flex items-end justify-between gap-3', className)} {...rest}>
-      <span
-        className="text-[20px] leading-7 font-semibold tabular-nums"
-        style={{ color: hue || 'var(--text)' }}
-      >
-        {children}
-      </span>
-      {trailing && <span className="shrink-0 [&_svg]:size-5" style={{ color: hue || 'var(--muted)' }}>{trailing}</span>}
-    </div>
-  );
-}
-
-/* The footer line — "Today: +8.4%", "26 of 42 days green", "Healthy · above 1.0".
- * `tone` colours it where the line is itself a verdict (the profit factor's), and is
- * left flat where it is merely context. */
-export function KpiFoot({ tone = 'flat', className, children, ...rest }) {
-  const hue = toneColor(tone);
-  return (
-    <p
-      data-slot="kpi-foot"
-      className={cn('m-0 text-[11px] leading-4 font-normal', className)}
-      style={{ color: hue || 'var(--muted)' }}
+    <div
+      data-slot="kpi-value"
+      className={cn(
+        'font-mono text-[25px] leading-[1.1] font-semibold tracking-[-0.6px] tabular-nums',
+        className,
+      )}
+      style={{ color: hue || 'var(--text)' }}
       {...rest}
     >
       {children}
-    </p>
-  );
-}
-
-/* The win/loss split bar under Trade Win %. The TRACK is --loss and the FILL is
- * --profit, so the bar reads as a whole divided rather than as a value on a neutral
- * scale — 58% wins is also 42% losses, and both halves are information. The track sits
- * at 50% opacity so the two halves are distinguishable as figure and ground; at full
- * strength the bar reads as two competing bars.
- *
- * `aria-hidden`, because the "75W / 53L" line beneath it says the same thing in text —
- * the bar is a second encoding of one fact, not a fact of its own. */
-export function KpiSplitBar({ share = 0, className, ...rest }) {
-  const pct = Math.max(0, Math.min(100, share * 100));
-  return (
-    <div
-      data-slot="kpi-split"
-      aria-hidden="true"
-      className={cn('h-2 w-full overflow-hidden rounded-full', className)}
-      style={{ background: 'color-mix(in srgb, var(--loss) 50%, transparent)' }}
-      {...rest}
-    >
-      <div className="h-full rounded-full bg-[var(--profit)]" style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
-/* Pushes whatever follows it to the bottom of the card, so five cards with different
- * amounts of footer content still line their numbers up. The frame does this with three
- * different bottom paddings (38, 54, 24) — one per card — which is the same layout
- * expressed as three numbers that would each need re-tuning on any copy change. */
+/* The right-hand column: a gauge or a ring, with its chips beneath. */
+export function KpiAside({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="kpi-aside"
+      className={cn('flex shrink-0 flex-col items-center justify-center gap-1.5 self-stretch', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* THE ARC GAUGE — a half-circle filled to `pct`.
+ *
+ * The path is drawn once and stroked twice: a track at --chart-grid and the value over
+ * it, clipped by `stroke-dasharray`. 131.9 is the arc's own length at r=42, so the dash
+ * is a straight percentage of it rather than a number that has to be re-derived if the
+ * radius moves.
+ *
+ * `tone` is the CALLER's verdict, not a threshold this file invents — a win rate has no
+ * absolute good/bad line (61% is excellent at 3:1 and ruinous at 1:3), so the component
+ * must not decide one. What it does guarantee is that the fill LENGTH always tracks the
+ * value, which is the encoding that survives without colour.
+ *
+ * `aria-hidden`, because the figure beside it says the same thing in digits. */
+const ARC_LENGTH = 131.9;
+
+export function KpiGauge({ pct = 0, tone = 'flat', className, ...rest }) {
+  const v = Math.max(0, Math.min(100, pct));
+  const hue = toneColor(tone) || 'var(--warning)';
+  return (
+    <svg
+      data-slot="kpi-gauge"
+      aria-hidden="true"
+      width="74"
+      height="42"
+      viewBox="0 0 100 56"
+      className={cn('block', className)}
+      {...rest}
+    >
+      <path d="M8 50 A42 42 0 0 1 92 50" fill="none" stroke="var(--chart-grid)" strokeWidth="8" strokeLinecap="round" />
+      <path
+        d="M8 50 A42 42 0 0 1 92 50"
+        fill="none"
+        stroke={hue}
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeDasharray={`${((v / 100) * ARC_LENGTH).toFixed(1)} ${ARC_LENGTH}`}
+      />
+    </svg>
+  );
+}
+
+/* THE RING — profit factor's own shape, and the reason it is not a gauge.
+ *
+ * Profit factor is the only metric in this row that is not a percentage of a whole, so a
+ * gauge pointing at "39%" would be pointing at nothing. The ring draws the two
+ * quantities the ratio is MADE of: gross loss all the way round in --loss, gross profit
+ * over it in --profit. A 0.78 then reads as "more red than green" — which is what a
+ * profit factor under 1 actually means — and a 1.84 as the reverse.
+ *
+ * `share` is profit / (profit + loss), so the ring is full green at "no losing trades"
+ * and full red at "no winners". 251.3 is the circumference at r=40. */
+const RING_LENGTH = 251.3;
+
+export function KpiRing({ share = 0, className, ...rest }) {
+  const v = Math.max(0, Math.min(1, share));
+  return (
+    <svg
+      data-slot="kpi-ring"
+      aria-hidden="true"
+      width="66"
+      height="66"
+      viewBox="0 0 100 100"
+      className={cn('block', className)}
+      {...rest}
+    >
+      <circle cx="50" cy="50" r="40" fill="none" stroke="var(--loss)" strokeWidth="10" />
+      <circle
+        cx="50"
+        cy="50"
+        r="40"
+        fill="none"
+        stroke="var(--profit)"
+        strokeWidth="10"
+        strokeDasharray={`${(v * RING_LENGTH).toFixed(1)} ${RING_LENGTH}`}
+        transform="rotate(-90 50 50)"
+      />
+    </svg>
+  );
+}
+
+/* The chips under a gauge — the value's PARTS. "75" green and "53" red beside a 58%
+ * arc, or "$122" and "$86" beside a 1.42 ratio.
+ *
+ * TONE IS THE OUTCOME VOCABULARY, so the chips are the one place in this row where green
+ * and red appear as fills rather than as a figure's colour — and they are still trade
+ * outcomes, which is what §4 reserves them for. `flat` is the neutral case (breakevens),
+ * which has no outcome and must not borrow one. */
+const CHIP = {
+  pos: ['var(--profit-bright)', 'color-mix(in srgb, var(--profit) 22%, transparent)'],
+  neg: ['var(--loss-bright)', 'color-mix(in srgb, var(--loss) 22%, transparent)'],
+  flat: ['var(--muted)', 'var(--sel-bg)'],
+};
+
+export function KpiChips({ className, children, ...rest }) {
+  return (
+    <div data-slot="kpi-chips" className={cn('flex gap-1', className)} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+export function KpiChip({ tone = 'flat', className, children, ...rest }) {
+  const [color, background] = CHIP[tone] || CHIP.flat;
+  return (
+    <span
+      data-slot="kpi-chip"
+      className={cn(
+        'rounded-[6px] px-[5px] py-px font-mono text-[10px] leading-4 font-semibold tracking-[-0.2px] whitespace-nowrap',
+        className,
+      )}
+      style={{ color, background }}
+      {...rest}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* Pushes whatever follows it to the bottom of the card, so cards with different amounts
+ * of content still line their numbers up. Kept for the hero, whose label row and figure
+ * are the only two children it has. */
 export function KpiSpacer() {
   return <div data-slot="kpi-spacer" className="flex-1" />;
 }
