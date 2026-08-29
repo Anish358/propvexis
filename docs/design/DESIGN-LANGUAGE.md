@@ -1,408 +1,560 @@
-# PropVexis Design Language
+# PropVexis Design Language — Base Rhea
 
-**Status:** authored 2026-08-23 · amended 2026-08-29 (see §22) ·
-**Foundation:** shadcn Build Your Own preset **`b2qKmlY80`** — 🔒 LOCKED 2026-08-04,
-re-affirmed 2026-08-29
-
-> **2026-08-29 — READ §22 FIRST.** The dashboard has been redesigned against the
-> preset's own **Base Rhea** language (`docs/design/dashboard/`), and that redesign
-> amends four 🔒 LOCKED rules and inverts one mechanical constraint. Every such
-> change is recorded in §22 with its reason. Sections §3, §4, §6 and §1 below carry
-> the amended rule inline; §22 is the log of what moved and why.
-
-## 0. What this document is
-
-**The preset is the single source of truth.** This document does not restate it.
-
-It exists for exactly two things:
-
-1. **The rule about how UI gets built** (§1).
-2. **A register of the intentional overrides** — the places where PropVexis
-   deliberately departs from the preset, and why (§3–§14).
-
-> **No value appears in this document unless it is an intentional override of the
-> preset.** And even then, the *value* lives in
-> [`frontend/src/styles/tokens.css`](../../frontend/src/styles/tokens.css) — this
-> document carries the **rule**. One fact, one home. A number written in both
-> places is a number that will disagree with itself.
-
-If the preset changes, this document changes. Nothing else.
-
-### The preset
-
-| | |
-|---|---|
-| Preset ID | `b2qKmlY80` |
-| Style | Base Rhea |
-| Typography | Geist |
-| Base colour | Neutral |
-| Theme | Blue |
-| Dark mode | Default |
-
-Applied with `pnpm dlx shadcn@latest apply --preset b2qKmlY80` (Existing Project →
-Full preset: components + theme + fonts). Local config:
-[`frontend/components.json`](../../frontend/components.json) (`style: base-rhea`,
-`baseColor: neutral`, `iconLibrary: lucide`, `tsx: false`).
-
-The preset owns, and this document will not describe: **colours · spacing · radii ·
-shadows · elevations · typography · buttons · inputs · dialogs · dropdowns · cards ·
-tabs · hover states · animations · focus states.**
-
-Changing a preset value requires owner approval + a new preset ID + a matching
-amendment here, committed together.
+**Status:** 🔒 LOCKED 2026-08-29 · rewritten from the shipped dashboard
+**Foundation:** shadcn **Build Your Own** preset `b2qKmlY80`, style **Base Rhea**
+**Reference implementation:** the dashboard — `features/dashboard/`,
+`components/primitives/{rail,topbar,brief,kpi,account,panel,calendar}.jsx`
 
 ---
 
-## 1. How UI gets built
+## §0 How to use this document
+
+This is the rulebook for building the rest of the app. It was **written from the
+dashboard after the dashboard was built**, so every rule below has a working
+implementation you can open, and the component headers carry the reasoning this file
+only summarises.
+
+**Three things, in order, when you build a page:**
+
+1. Read §1. It is the only section about *process*, and getting it wrong costs more
+   than every other rule combined.
+2. Find the closest thing the dashboard already does and copy its component. Most
+   "new" surfaces are a `PanelCard` with different children.
+3. If a rule here does not cover your case, that is a **design question**, not a
+   licence to invent. Say so and ask.
+
+**What is not here.** Values. Every number lives in
+[`frontend/src/styles/tokens.css`](../../frontend/src/styles/tokens.css); the colour
+derivation lives in [`dashboard/COLOUR-INVENTORY.md`](dashboard/COLOUR-INVENTORY.md).
+One fact, one home — a number written in two places is a number that will disagree with
+itself.
+
+> **Every 🔒 rule names the test that holds it.** Documentation states intent; tests
+> prevent regression. A rule with no test is a rule that will erode.
+
+---
+
+## §1 How UI gets built — 🔒 LOCKED
+
+### The build order
 
 **In this order. Stop at the first step that works.**
 
-1. **A component that already exists** — `@/components/primitives` is the single
-   component entry point for application code. Check it first.
-2. **A component from a registry** — `@coss` (configured in `components.json`,
-   `https://coss.com/ui/r/{name}.json`) then `@shadcn`. Reach for these *before*
-   writing anything. Use the **shadcn MCP** (`.mcp.json`, pointed at `frontend`)
-   to search and view: `search_items_in_registries`, `view_items_in_registries`,
-   `get_item_examples_from_registries`, and `get_add_command_for_items` for the
-   install command.
-3. **A composition of the above.** Most "new components" are two existing ones in
-   a wrapper.
-4. **Hand-written, last.** Writing a component from scratch when a registry ships
-   one is the failure this section exists to prevent — the preset's styling arrives
-   *through* those components, so a hand-rolled equivalent is off-foundation by
-   construction.
+1. **A component that already exists** in `@/components/primitives`. That directory is
+   the single component entry point for application code. Check it first.
+2. **A component from a registry** — `@shadcn` (and `@coss`, configured in
+   `components.json`). **shadcn is the default component system for this codebase.**
+   Do not write your own Button, Card, Dialog, Dropdown, Select, Tabs, Tooltip, Sheet,
+   Command, Table, Badge, Input or Sidebar. Search first with the shadcn MCP
+   (`search_items_in_registries`, `view_items_in_registries`), install with
+   `npx shadcn@latest add <name>`, then **customise its styling** in a wrapper.
+3. **A composition of the above.** Most new components are two existing ones in a
+   wrapper.
+4. **Hand-written, last** — and it needs an argument in the file saying why the registry
+   could not serve.
 
-**Generated components are not edited in place.** A generated file lands in
-`frontend/src/components/ui/`; if PropVexis needs it to behave differently, the
-difference goes in a thin wrapper under `frontend/src/components/primitives/`,
-which is what application code imports. That seam is what makes replacing an
-implementation a one-file change.
+**Install under `style: base-rhea`.** The registry serves a different implementation per
+style, and this project is Base UI, not Radix. `@shadcn/sidebar`'s *default* manifest
+lists `radix-ui`; its `base-rhea` manifest is Base UI like everything else here. Check
+the style before rejecting an item over its dependencies.
 
-### Two mechanical constraints that are easy to trip
+### The wrapper seam
 
-- **Tailwind utilities compile only under `components/ui` and
-  `components/primitives`.** `frontend/src/tailwind.css` scopes `@source` to those
-  two directories, deliberately: scanning all of `src/` harvests candidates out of
-  hyphenated legacy class names (`dash-grid` → `grid`) and emits live rules that
-  legacy markup collides with. **A Tailwind class written in a page emits no CSS
-  and fails silently.** So pages are built by composing components, not by writing
-  utilities in place. Widening that scope is a deliberate, reviewable change.
-- **Legacy CSS IS a layer, and it is the lowest one** (amended 2026-08-28; this
-  rule previously said the opposite). `styles/legacy/app.css` imports into
-  `layer(legacy)`, declared first in `tailwind.css`, so **no legacy rule can beat a
-  Tailwind, shadcn or `@coss` rule** at any specificity, with no `!important`.
-  `tokens.css` stays **unlayered** — unlayered beats layered — so token values still
-  win everywhere and remain the single rebrand surface.
+**Generated components land in `components/ui/` and are never edited in place.** A
+difference goes in a thin wrapper under `components/primitives/`, which is what
+application code imports. That seam is what makes `shadcn add --overwrite` safe.
 
-  The old arrangement (both unlayered) existed to make the component library a
-  visual no-op during a gradual migration. The redesign supersedes that: the new
-  components are the authority and legacy is what gets deleted, page by page.
+Customise by **props and utilities**, never by forking. The generated components expose
+more seams than they look like they do — the sidebar takes its two widths as custom
+properties on the provider, which is how the rail became 248/70px with no fork.
 
-  **What it cost, so the next reader knows where to look.** "Legacy always wins" was
-  also the backstop against utility/class-name collisions — 1,025 legacy class names
-  share a global namespace with Tailwind's utilities. The only guards left are the
-  `@source` scoping above and `utility-collisions.test.js`. Widening `@source`
-  without reading that test is how an un-migrated page silently breaks.
+### Two mechanical constraints that will bite you
 
-### Enforcement
+**A Tailwind class written outside `components/{ui,primitives}` emits NO CSS and fails
+silently.** `tailwind.css` scopes `@source` to those two directories, deliberately:
+scanning all of `src/` harvests candidates out of hyphenated legacy class names
+(`dash-grid` → `grid`) and emits live rules that legacy markup collides with.
 
-> **Documentation states intent; tests prevent regression. A rule with no test is
-> a rule that will erode.**
+This is the one failure in this repo with **no error message**. It has cost real
+debugging time five times:
 
-Every 🔒 rule below names the test that holds it. Adding a rule here without a test
-is half the work.
+| written in a page | what happened |
+|---|---|
+| `w-40` on a skeleton | rendered 36px tall and **zero wide** — reserving space, painting nothing |
+| `h-7` on a skeleton line | silently kept the default height |
+| `size-4` on a chevron | full-size glyph in a nav row |
+| `text-right` on a table header | left-aligned header over a right-aligned column |
+| `grid` anywhere | collided with legacy `.grid`, a 1012px `<table>` |
+
+**So: a caller-supplied dimension, alignment or column template is a PROP, turned into
+an inline style or a class inside the library.** `SkeletonBlock({w})`,
+`PanelTableCell({align})`, `PanelTableRow({cols})` all exist for this reason.
+
+**`hidden` does nothing when the element has an author `display`.** The UA's `[hidden]`
+rule loses to any author rule, and nearly everything here is inside a flex parent.
+**Conditionally render instead.**
+
+Held by: `utility-collisions.test.js`, `nav-rail.test.js`, `dash-panels.test.js`.
+
+### The cascade
+
+```
+layer(legacy)  →  theme  →  base  →  components  →  utilities      tokens.css: UNLAYERED
+```
+
+`styles/legacy/app.css` is the **lowest** layer, so no legacy rule can beat a Tailwind,
+shadcn or `@coss` rule at any specificity with no `!important`. `tokens.css` is
+**unlayered**, so token values win everywhere and stay the single rebrand surface.
+
+Legacy CSS cannot be deleted yet — ~800 of its 1,025 classes are still live, mostly Prop
+OS, the Trade Log and the Calendar page. It gets deleted **page by page** as each is
+rebuilt. The `--neutral-*` and `--tint-*` tokens exist only to feed it and are fenced off
+at the bottom of `tokens.css`: **do not reach for one in new work.**
 
 ---
 
-## 2. Structure is not a visual concern
+## §2 Structure is not a visual concern — 🔒 LOCKED
 
 Layouts, information hierarchy, user flows, interactions, responsive behaviour and
 business logic **do not change for visual work.** A reskin changes the visual
-implementation and nothing else. This is the invariant that makes a component-by-
-component migration safe.
+implementation and nothing else.
+
+This cuts both ways, and the second way matters more:
+
+- Do not restructure a page because a design frame is drawn differently.
+- **Do not delete a feature because the design omits it.** The prototype draws a bare
+  7-column calendar; the app's week-summary column is a *feature*, so it stayed and took
+  the design's vocabulary instead.
+
+Equally: **do not build a control the product cannot honour.** The prototype's
+Appearance toggle (there is no light theme) and its Lock-account button (there is no
+lock action) are deliberately not built. A control that does nothing is worse than an
+absent one — most of all on a banner a trader has to trust.
 
 ---
 
-# The override register
-
-Each entry is a deliberate departure from the preset or an extension the preset has
-no opinion on. Values live in `tokens.css`.
-
 ## §3 Typography — 🔒 LOCKED
 
-- **Type scale roles are ours, not the preset's sizes.** The preset's scale is
-  calibrated for marketing pages; this app is dense. The *shape* of the hierarchy
-  is kept and the sizes are re-calibrated. Roles are named in `tokens.css`
-  (`--fs-page-title`, `--fs-section-title`, `--fs-card-title`,
-  `--fs-primary-metric`, `--fs-body`, `--fs-label`) and `bridge.css` points
-  Tailwind's `text-sm`/`text-xs` at ours rather than its own defaults.
-- **Geist is the family** (`Geist` + `Geist Mono`), which is the preset's own
-  typography. Briefly Inter-only (2026-08-28) on the evidence of an intermediate
-  Figma pass; returned 2026-08-29 with the Rhea redesign. Self-hosted via
-  `@fontsource-variable/*`, never the Google Fonts CDN the prototype uses — offline
-  safe, no third-party request, no CSP exception.
-- **Weight ceiling is 650, and half-steps are legal** (amended 2026-08-29; was 600
-  and whole steps). Geist is a variable face and the redesign uses 450/500/550/600/
-  650 as a real hierarchy — 550 for a nav label against 500 for a resting one is a
-  distinction the whole-step scale could not express. **700 remains brand-lockup
-  only.**
-- **Numerics are mono** (`--font-mono` = Geist Mono). A column of figures that does
-  not align is a column you cannot scan. Briefly dropped for `tabular-nums` on
-  Inter (2026-08-28) and restored 2026-08-29 — tabular figures align digits but do
-  not give a figure the distinct texture that separates data from prose.
-- **Title Case for labels. All-caps is allowed for one register only:** a small,
-  muted, letterspaced *eyebrow* naming a column or section (11px or under). It is
-  the one place caps reads as structure rather than emphasis. Anything larger,
-  darker, or in a sentence is shouting. Held by an exception list in
-  `typography.test.js`, which fails if an exempted file stops using it — so the
-  list cannot quietly grow to cover the next one.
-- **Prose fields** (the journal note) get 1.6 leading and a ~68ch measure.
+- **Geist + Geist Mono**, self-hosted via `@fontsource-variable/*`. **Never the Google
+  CDN** — offline-safe, no third-party request, no CSP exception.
+- **Numerics are mono.** Every figure — P&L, R, drawdown, percentages, times, dates in a
+  table, the clock — is `--font-mono`. Prose is `--font-sans`. Tabular figures align
+  digits; mono also gives a figure the *texture* that separates data from prose, and
+  this app is mostly numbers.
+- **Weights: 400 / 450 / 500 / 550 / 600 / 650. Half-steps are legal.** Geist is variable
+  and 550-against-500 is a real hierarchy step. **700 is brand-lockup only** and has its
+  own token name (`--fw-lockup`) so it cannot be reached for by accident. Tailwind's
+  `font-bold` is repointed at 650.
+- **Title Case for labels. All-caps for exactly one register:** a small, muted,
+  letterspaced **eyebrow** (≤12.5px) naming a column, a section or a state. Anything
+  larger, darker, or in a sentence is shouting.
+  The exemption list is in `typography.test.js` and each entry names what it covers —
+  it fails if an exempted file stops using caps, so the list cannot quietly grow.
+  Current members: the brief's column eyebrows, the rail's *Soon* badge, the meter rule
+  names and the stop-trading banner's label.
+- **A title must not rewrite itself.** If a control elsewhere changes what a card shows,
+  the change goes in a **chip beside the title**, not in the title. ("Cumulative P&L"
+  with a `USD` chip, never "Daily net cumulative P&L".)
 - **Breakeven is written `BE`**, never a dash — a dash reads as missing data.
-- Tests: `typography.test.js`, `settings-module.test.js`, `day-journal.test.js`.
+- Prose fields (the journal note) get 1.6 leading and a ~68ch measure.
 
-## §4 Colour semantics — 🔒 LOCKED
+Tests: `typography.test.js`, `token-bridge.test.js`, `dash-brief.test.js`.
 
-The preset ships one `--primary`. PropVexis splits it and reserves three families.
+---
 
-- **Primary actions are LIGHT, not brand** (amended 2026-08-28). `--action` /
-  `--on-action` fill the one primary button on a screen; `bridge.css` points
-  `--color-primary` at them. On a near-black page a light fill outranks any hue,
-  and pointing primary at the brand forced blue to be both "the product" and "the
-  button you press" — which is why the accent needed a second value at all.
-- **Brand blue splits in two.** `--accent` is a **fill**, always paired with a light
-  foreground. Read as a foreground itself it measures 2.24:1 on `--bg` and fails
-  WCAG AA, so text and links use `--accent-on-surface` (5.26:1). This is an
-  accessibility override, not a preference.
-- **A single-series chart line is neutral** (`--chart-line`), not brand (amended
-  2026-08-28). A lone cumulative-P&L line is the figures drawn as a shape; colour on
-  a chart is reserved for series that mean something — profit, loss, payout.
-- **Selection chrome is grayscale, never tinted.** Active/selected states use
-  `--sel-bg`/`--sel-bg-strong`. Blue is reserved for primary actions and data.
-  `bridge.css` maps shadcn's `accent` (a *hover surface*, confusingly named) onto
-  our neutral hover, never onto brand blue.
-- **Green and red are trade outcomes only.** Never status, never chrome. Purple
-  (`--ai`) is AI/insight only. Cyan (`--payout`) is funded-account payouts only.
-- **Breakeven is the one place brand blue carries data meaning** — there is no
-  fourth outcome to confuse it with, and a breakeven cell is never a brand
-  affordance.
-- **No raw colour anywhere.** Components reference tokens; `tokens.css` is the
-  rebrand surface. A hex literal in a component is a bug.
-- **No gradients.** Flat surfaces, generous whitespace, subtle shadows.
-- **Dark is the only theme** (amended 2026-08-28). There is no light block and no
-  `data-theme` attribute; `:root` IS the theme and `dark:` matches unconditionally.
-  The architecture that made light cheap is intact — components reference tokens, so
-  it returns as one re-declaring block plus a toggle. It was deleted rather than
-  disabled because a palette no screen is designed against and no test renders
-  drifts out of true silently.
-- **Max-width breakpoints only, and the set is closed** — see §22 for the three.
-- Tests: `theme-tokens.test.js`, `token-bridge.test.js`, `design-tokens.test.js`.
+## §4 Colour — 🔒 LOCKED
+
+**The palette is zinc.** Ten of the design's greys are byte-exact Tailwind zinc steps
+and the rest are interpolations between them. `components.json` still says
+`baseColor: neutral` because the preset generates from neutral and the token layer
+overrides it — that override is the mechanism this document exists to record.
+
+**No raw colour anywhere.** Components reference tokens; `tokens.css` is the rebrand
+surface. A hex literal in a component is a bug, with one argued exemption (§12).
+
+### The reserved families
+
+| Family | Means | Never means |
+|---|---|---|
+| **green / red** | a **trade outcome** | status, chrome, notifications, health |
+| **amber → red ramp** | **risk consumption** (drawdown) | a trade result |
+| **light** (`--action`) | the primary action, and "attend to this" | data |
+| **brand blue** (`--accent`) | the product, links, breakeven | profit, or "good" |
+| **purple** (`--ai`) | AI / insight | anything else |
+| **cyan** (`--payout`) | funded-account payouts, calendar holidays | anything else |
+
+**Green and red are trade outcomes ONLY. Never status, never chrome.** The unread
+notification badge was red and is not any more: a red dot in the top bar of a trading app
+spends the one colour a trader reads as *money lost* on "you have mail". If you want to
+say "attend to this" in chrome, use light.
+
+**Two greens and two reds, and the split is load-bearing:**
+
+- `--profit` / `--loss` are **structural** — drawn on the page (a KPI figure, a gauge, a
+  ring).
+- `--profit-bright` / `--loss-bright` are drawn **on a tint of their own hue**, where the
+  structural colour does not carry (a day cell, a table row, a chart line over its own
+  area, an alert glyph).
+
+Collapsing them is the change that quietly makes a losing day cell unreadable.
+
+**Primary actions are LIGHT, not brand.** `--action` / `--on-action`. On a near-black
+page a light fill outranks any hue, and it leaves blue free to mean "brand / link / data"
+instead of competing for "the button you press".
+
+**Brand blue splits in two.** `--accent` is a **fill**, always under a light foreground.
+Read as a foreground itself it measures 2.24:1 on `--bg` and fails WCAG AA, so text and
+links use `--accent-on-surface` (5.26:1). This is an accessibility override, not a
+preference.
+
+**Selection chrome is grayscale, never tinted** — `--sel-bg` (raised, on the rail) and
+`--sel-well` (recessed, on a card). Those point in opposite directions and both are
+correct: selected reads as raised on a dark rail and recessed on a lighter card.
+
+**Dark is the only theme.** There is no light block and no `data-theme`; `:root` IS the
+theme. The architecture that made light cheap is intact — components reference tokens, so
+it returns as one re-declaring block plus a toggle. It was deleted rather than disabled
+because a palette no screen is designed against and no test renders drifts out of true
+silently.
+
+**No gradients** — except the one in §12, which encodes a value.
+
+Tests: `theme-tokens.test.js`, `token-bridge.test.js`, `design-tokens.test.js`.
+
+---
+
+### Surfaces — depth is a ramp, and each step means something
+
+`#09090b → #26262b`, and the design is consistent about which depth means what.
+
+| Token | What sits on it |
+|---|---|
+| `--bg` | the page |
+| `--rail-bg` | the rail; a weekend/no-trade calendar cell |
+| `--surface-sunken` | a card's footer strip, a meter cell, an untraded weekday |
+| `--surface` | **every card** |
+| `--surface-raised` | the one card that outranks the others (Net P&L) |
+| `--row-bg` | a row inside a card |
+| `--control-bg` | a pill control at rest |
+| `--control-bg-strong` | a filled quiet button |
+| `--surface-hover` | any control's or row's hover |
+
+**A card is a thing you read; a control is a thing you press.** Do not give a control
+card colours — at 92% opacity over a blurred bar, `--surface` reads as a hole.
+
+**Lines are a ramp too**, and a divider *inside* a card must not read as loud as the
+card's own edge: `--line-inset` < `--line` < `--line-control` < `--line-strong` <
+`--line-chip` < `--line-selected` < `--line-hover`.
+
+**A card border carries meaning in exactly one place:** the account card reddens its own
+edge when the account is inside its stop-trading zone. Do not add a second.
+
+---
 
 ## §5 → see §6
 
-Radius. Some files in `components/primitives/` cite this rule as §5. See the
-citation index (§20).
+Radius. Several files in `components/primitives/` cite the radius rule as §5. The rule
+is unchanged; only the number drifted, and the alias is recorded rather than swept
+because a silent renumber is worse than a documented one.
+
+---
 
 ## §6 Radius — assignment by surface — 🔒 LOCKED
 
-**This is the one rule that routinely corrects a generated component.** The
-generated Button draws `rounded-2xl`; the locked assignment gives buttons the
-smaller step and reserves the card radius for cards and floating overlays.
+**The scale is 5 / 6 / 10 / 12 / 14 / 99px, and 10 carries half of everything drawn.**
 
 | Surface | Token |
 |---|---|
-| Cards, floating overlays (menus, popovers, modals) | `--r-2xl` |
-| Buttons | `--r-lg` |
-| Inputs | `--r-input` |
-| Badges, pills, chips | `--r-full` |
-| Smaller chrome (icon buttons, menu rows) | `--r-sm` / `--r-md` |
+| Cards, floating overlays (menus, popovers, modals) | `--r-2xl` (14) |
+| Tiles, chips-with-content, a chart well | `--r-xl` (12) |
+| Buttons, inputs, nav rows, list rows, day cells | `--r-lg` (10) |
+| Small chrome, badges, menu rows | `--r-md` (6) / `--r-sm` (5) |
+| Pills: badges, toggles, icon buttons, progress bars | `--r-full` (99) |
 
-**The Rhea scale (amended 2026-08-29).** The redesign's radii are 5 / 6 / 10 / 12 /
-14 / 99px, with **10px carrying half of everything drawn** and 99px for every pill.
-The assignment-by-surface rule above is unchanged — what changes is the values the
-tokens hold. Rhea is rounder at small sizes and flatter at large ones than the scale
-it replaces, which is why a card and a nav row can share 10 and nothing looks
-mismatched.
+**An overlay is a card that floats**, so a menu and the card it opens over never disagree
+by two pixels. `bridge.css` maps the preset's `rounded-2xl/3xl/4xl` onto `--r-2xl` — that
+mapping is load-bearing and tested, because a missing one renders a popover at Tailwind's
+24px beside menus at 14px.
 
-**An overlay is a card that floats**, so a menu and the card it opens over never
-disagree by two pixels. `bridge.css` maps the preset's `rounded-2xl/3xl/4xl` onto
-`--r-2xl` so a generated component asking for a radius lands on our scale rather
-than Tailwind's — the mapping is load-bearing and tested, because a missing one
-renders a popover at Tailwind's 24px beside menus at 13px.
+**Chrome in the top bar is a capsule.** Everything in that bar is `--r-full` at one
+height; nothing outside it uses that shape.
 
 Test: `design-language.test.js` §6.
+
+---
 
 ## §7 Elevation — three levels, by detachment — 🔒 LOCKED
 
 | Level | Meaning |
 |---|---|
 | `--sh-1` | rests on the page (cards) |
-| `--sh-2` | raised above it, page still usable behind (menus, popovers, filter panel) |
+| `--sh-2` | raised above it, page still usable behind (menus, popovers, panels) |
 | `--sh-3` | blocks the page (anything with a backdrop) |
 
-**No component writes its own elevation shadow.** The discriminator between 2 and 3
-is *blocking*, not anchoring. Each level is themed for both modes — a level defined
-only for dark falls back to a dark shadow on a white surface.
+**No component writes its own elevation shadow.** The discriminator between 2 and 3 is
+*blocking*, not anchoring. One allowlisted exception by name: an edge-attached drawer
+casts along its edge (`.tp-panel`).
 
-One allowlisted exception, by name: an **edge-attached drawer** casts along its
-edge (`.tp-panel`), and the ladder has no directional variant.
-
-Test: `design-language.test.js` §7 — it scans the whole stylesheet for any
-`box-shadow` carrying both an offset and a blur.
-
-## §8 Dividers — ⬜ OPEN
-
-Inset vs. full-width is undecided. `Separator` is `bg-border` = `--line` and
-pre-empts nothing. Do not settle this in a side street.
-
-## §9 Focus — 🔒 LOCKED
-
-The focus ring is **neutral** (`--accent-ring`), not brand. It is `0 0 0 Npx` — no
-offset, no blur — which is what keeps it out of §7's business. Every interactive
-element has a visible focus state; the preset's is kept where it applies.
-
-## §10 Motion — 🔒 LOCKED
-
-- Two durations and one easing, from `tokens.css` (`--dur-fast`, `--dur`,
-  `--ease`). Enter at `--dur`, leave faster.
-- **`prefers-reduced-motion` collapses durations to zero — the state change still
-  happens.** A reduced-motion user gets the result instantly, never nothing.
-- **Motion is explicitly not a foundation concern**: the preset expresses it as
-  component animation, and the recipe is defined once in `bridge.css` rather than
-  per component.
-- Once a user has dismissed something, it does not animate back.
-- Tests: `topbar-overlays.test.js`, `token-bridge.test.js`.
-
-**Still open under this rule:** skeleton fidelity and loading-state timing
-thresholds; the modal entrance animation (see `primitives/dialog.jsx`, which
-records the gap rather than inventing a rule).
-
-## §11 Density and spacing — 🔒 LOCKED
-
-8px grid. The allowed steps are `--s-1 … --s-12`; **4px is the sole sub-8
-exception**, for hairline gaps. A value off the scale is a bug, not a nudge.
-
-## §12 Data visualisation — ⬜ PARTIALLY OPEN
-
-- **`--profit` and `--loss` are untouched** by any chart palette and remain the
-  outcome colours.
-- The categorical palette comes from the preset (`chartColor: green`) and is
-  **adopted provisionally**: green is this product's profit colour, so a
-  categorical chart in these hues can read as profit. **This is an open item** —
-  resolve before charts carry more than one category series.
-- Per-category domain hues (pair / session / setup / probability / MTF) are a block
-  of one-off values rather than tokens — each is used exactly once. Their light-theme
-  counterparts were deleted with the light theme (2026-08-28); they were the only
-  place component CSS was theme-aware, which is the thing §4 promises never happens.
-
-## §13 → see §14
-
-Hover. Some files in `components/primitives/` cite this rule as §13. See §20.
-
-## §14 Hover — intensify, never introduce — 🔒 LOCKED
-
-**Hover intensifies what the element already wears.** A hover to a brand fill is
-legal only on a control that is *already* in the brand family at rest — filled
-**or** edged. A neutral control hovering to a brand fill is a violation.
-
-Read literally: a control with a border brightens the edge; a control without one
-fills the surface.
-
-- **Only interactive elements respond to hover.** (Owner decision.)
-- **Every hover treatment has a keyboard twin.** A row styled for `:hover` alone is
-  interactive for the mouse and inert for the keyboard. Base UI marks the
-  arrow-key-focused item with `[data-highlighted]`; the generated menu item styles
-  `focus:`, which covers pointer and keyboard alike.
-- Tests: `design-language.test.js` §14, `dashboard-reskin.test.js`,
-  `settings-module.test.js`, `topbar-overlays.test.js`.
-
-## §15 Empty states — ⬜ OPEN
-
-**Presets ship components, not states** — no registry has an empty state, because
-what belongs in one is a product decision. What an empty state must contain, when
-it offers an action, and how it differs from a filtered-to-nothing result are all
-undecided. `primitives/empty-state.jsx` is where that decision will land.
-
-## §16 → see §10
-
-Motion. `primitives/dialog.jsx`, `skeleton.jsx` and `loading-block.jsx` cite the
-motion rule as §16. See §20.
-
-## §17 Error vs. loss — ⬜ OPEN
-
-The library has one `destructive` slot, meaning *a failed action*. **A losing trade
-is not a destructive action.** `bridge.css` currently maps `destructive` → `--loss`
-only because there is no other slot. Revisit; do not build on it.
-
-## §18 Destructive confirmation — ⬜ OPEN
-
-There is no confirmation pattern yet. Until there is, destructive actions use the
-same `confirm()` the rest of the app uses — inventing a bespoke dialog for one
-action would settle a pending question in a side street.
-
-## §19 Z-index — 🔒 LOCKED (order), preset-reconciled (values)
-
-The **order** is the rule: `nav < dropdown < toast < modal`. Values live in
-`tokens.css`. `--z-dropdown` was reconciled *toward* the preset (the generated
-dropdown hardcodes `z-50` and accepts no className), per "the preset outranks
-legacy CSS" — not toward our previous number.
+Test: `design-language.test.js` §7 — it scans the whole stylesheet for any `box-shadow`
+carrying both an offset and a blur.
 
 ---
 
-## §20 Citation index, and three legacy aliases
+## §8 Dividers — ⬜ OPEN
 
-Code comments cite sections by number. This is what each number means, so a
-citation resolves to a section rather than to a guess.
+Inset vs. full-width is undecided. `Separator` is `bg-border` = `--line` and pre-empts
+nothing. Do not settle this in a side street.
+
+*(`spec §8.x` in `App.jsx`, `newAccountFlow.js` and the wizard steps refers to the Add
+Account spec, not to this document. Check the surrounding comment before following a
+number here.)*
+
+---
+
+## §9 Focus — 🔒 LOCKED
+
+The ring is **neutral** (`--accent-ring`), not brand. It is `0 0 0 Npx` — no offset, no
+blur — which keeps it out of §7's business. **Every interactive element has a visible
+focus state.**
+
+---
+
+## §10 Motion — 🔒 LOCKED
+
+- Two durations and one easing (`--dur-fast`, `--dur`, `--ease`). Enter at `--dur`, leave
+  faster.
+- **`prefers-reduced-motion` collapses durations to zero — the state change still
+  happens.** A reduced-motion user gets the result instantly, never nothing.
+- **Animation settles.** One exception, and it is the only looping animation in the app:
+  the **stop-trading banner breathes**, because the condition does not settle either. An
+  account 88% through its daily loss limit is still 88% through it a minute later, and a
+  static red bar is something the eye stops seeing. It pulses a ring, not the fill, so no
+  text reflows — and it is gated behind `motion-safe:`.
+- Once a user has dismissed something, it does not animate back.
+
+**⬜ OPEN:** the modal entrance animation. `primitives/dialog.jsx` records the gap
+rather than inventing a rule.
+
+---
+
+## §11 Density and spacing — 🔒 LOCKED
+
+8px grid: `--s-1 … --s-12`. **4px is the sole sub-8 exception**, for hairline gaps. A
+value off the scale is a bug, not a nudge.
+
+---
+
+## §12 Data visualisation — shapes, and what each one is for — 🔒 LOCKED
+
+**A figure alone is a fact. A figure with its shape is an answer.** Every headline metric
+carries one of these, and which one is an argument, not a preference.
+
+| Shape | For | Because |
+|---|---|---|
+| **Arc gauge** | a percentage of a whole (win rate, day win rate) | it points at a position on a known scale |
+| **Ring** | a ratio of two quantities (profit factor) | it draws the two things the ratio is MADE of; a gauge would point at nothing |
+| **Chips** | the value's parts (`75` green, `53` red) | the number's components, without a second sentence |
+| **Stretched ramp bar** | risk consumption (drawdown) | see below |
+| **Tinted cell** | a distribution over time (the month) | pattern needs the cells themselves to carry the sign |
+| **Line + area** | a series over time (cumulative P&L) | — |
+
+**The drawdown bar is ONE gradient stretched, not a flat fill.**
+`background-size: (10000 / fill)% 100%` makes the gradient that many times wider than the
+bar, so the visible slice is exactly the first `fill`% of the ramp: 30% is yellow, 62%
+orange, 88% deep red, smoothly. A flat fill that switches colour at 70% and 90% teaches
+the *thresholds* rather than the *trajectory*. A plain gradient without the stretch is
+worse than either — the full ramp compresses into the bar and every meter ends in red
+however much room is left.
+
+**There is no green on the risk ramp at any fill.** Used drawdown is never good news,
+only less bad. A green drawdown bar is the app congratulating a trader for surviving.
+The one meter that fills up as *progress* — a profit target — opts out of the ramp
+entirely and takes a flat `--profit-fill`, and drops the 90% wall with it.
+
+**Draw the wall.** A risk meter marks 90% with a hairline: where "you have room" becomes
+"one trade could end this". The trader should see it coming, not be told they hit it.
+
+**NO DATA IS NOT A ZERO VALUE**, and this is the rule most likely to be broken by
+accident. A ring whose base stroke is `--loss` paints itself entirely red at `share = 0`
+— correct for "every trade lost", catastrophic for "you have not traded yet", which is
+the state a first-time user opens the product in. Empty is a **separate input** from
+zero. Likewise: a zero-length dash with a round linecap draws a **dot**, not nothing, so
+every empty gauge grew a stray pip that read as a value.
+
+**A single-series line is neutral** (`--chart-line`), not brand. A lone cumulative-P&L
+line is the figures drawn as a shape; colour on a chart is reserved for series that mean
+something.
+
+**Escalation is never colour alone.** Every state carries a second encoding: a gauge's
+fill is also its *angle*, a severity has a *word*, a health dot has a *glyph*, a meter
+prints its *percentage*.
+
+**⬜ OPEN — the categorical palette.** Multi-series chart colours come from the preset
+(`chartColor: green`) and are adopted **provisionally**: green is this product's profit
+colour, so a categorical chart in these hues can read as profit. Resolve before any
+chart carries more than one category series. `--profit` and `--loss` are untouched by it
+and remain the outcome colours.
+
+Tests: `dash-layout.test.js`, `account-health.test.js`, `design-tokens.test.js`.
+
+---
+
+## §13 → see §14
+
+Hover. `button.jsx` and `FilterBar.jsx` cite the hover rule as §13. See §20.
+
+---
+
+## §14 Hover — intensify, never introduce — 🔒 LOCKED
+
+**Hover intensifies what the element already wears.** A hover to a brand fill is legal
+only on a control already in the brand family at rest — filled *or* edged. A neutral
+control hovering to a brand fill is a violation. Read literally: a control with a border
+brightens the edge; a control without one fills the surface.
+
+- **Only interactive elements respond to hover.**
+- **Every hover treatment has a keyboard twin.** A row styled for `:hover` alone is
+  interactive for the mouse and inert for the keyboard. Use `group-hover` **plus**
+  `group-focus-within` — the brief's Clear button is the worked example, and the
+  prototype's own hover-index version was pointer-only.
+- **A hover affordance FADES, it does not unmount.** A list that reflows under the
+  pointer is harder to click than one that does not.
+
+Tests: `design-language.test.js` §13/§14, `dash-brief.test.js`.
+
+---
+
+## §15 States — 🔒 LOCKED
+
+**Four, and every one is wired to a real condition, never to a prop.**
+
+| State | Condition | Rule |
+|---|---|---|
+| **populated** | the default | — |
+| **loading** | a real signal (`tradesLoading`) | see below |
+| **empty** | no data at all | must not look like a bad result |
+| **bad** | the same signal the component's own numbers use | never a second threshold |
+
+**A skeleton mirrors the page, in the real card shells, at the real dimensions.** Every
+placeholder sits where its content will, so nothing rearranges when data lands. A
+skeleton that reserves a different *shape* from its content is the layout jump it exists
+to prevent — and it will, if you hand stacked lines to a card that became a flex row.
+Lines are pill-shaped (a rounded bar reads as "writing that has not arrived"); blocks
+keep the radius of what they stand in for. `aria-busy` and a label go on the region.
+
+**Say what is loading, not just that something is.** On a page with five independent
+loads, a bare spinner is the difference between "the app is working" and "the app is
+stuck".
+
+**An empty state is not an error state.** See §12's "no data is not a zero value".
+
+**Never invent a value to fill a state.** If the feed does not exist, the label says so
+("Manual sync — not yet wired"), because a trader will act on a timestamp.
+
+---
+
+## §16 → see §10
+
+Motion. `dialog.jsx`, `skeleton.jsx`, `loading-block.jsx`, `panel.jsx` and
+`progress.jsx` cite the motion rule as §16 — and several add "skeleton fidelity is
+undecided". **It is decided now: see §15.** Those comments are stale in that one
+respect; the motion rule they cite is §10 and is unchanged.
+
+---
+
+## §17 Error vs. loss — ⬜ OPEN
+
+The library has one `destructive` slot, meaning *a failed action*. **A losing trade is
+not a destructive action.** `bridge.css` maps `destructive` → `--loss` only because
+there is no other slot. Revisit; do not build on it. `alert.jsx` is the call site to
+revisit when it is decided.
+
+---
+
+## §18 Destructive confirmation — ⬜ OPEN
+
+There is no confirmation pattern yet. Until there is, destructive actions use the same
+`confirm()` the rest of the app uses — inventing a bespoke dialog for one action would
+settle a pending question in a side street.
+
+---
+
+## §19 Z-index — 🔒 LOCKED (order), preset-reconciled (values)
+
+The **order** is the rule: `nav < dropdown < toast < modal`. Values live in `tokens.css`.
+
+---
+
+## §20 Citation index
+
+Code comments cite sections by number. This is what each number resolves to, and the
+three aliases the component library still uses.
 
 | § | Topic | State |
 |---|---|---|
+| §1 | How UI gets built | 🔒 |
+| §2 | Structure is not visual | 🔒 |
 | §3 | Typography | 🔒 |
-| §4 | Colour semantics | 🔒 |
+| §4 | Colour, and the surface ramp | 🔒 |
+| §5 | *alias* → §6 Radius | — |
 | §6 | Radius assignment | 🔒 |
 | §7 | Elevation ladder | 🔒 |
 | §8 | Dividers | ⬜ |
 | §9 | Focus | 🔒 |
-| §10 | Motion | 🔒 (skeleton/modal-entrance open) |
+| §10 | Motion | 🔒 |
 | §11 | Density and spacing | 🔒 |
-| §12 | Data visualisation | ⬜ partially |
+| §12 | Data visualisation | 🔒 (categorical palette ⬜) |
+| §13 | *alias* → §14 Hover | — |
 | §14 | Hover | 🔒 |
-| §15 | Empty states | ⬜ |
+| §15 | States — loading, empty, bad | 🔒 |
+| §16 | *alias* → §10 Motion | — |
 | §17 | Error vs. loss | ⬜ |
 | §18 | Destructive confirmation | ⬜ |
 | §19 | Z-index | 🔒 order |
-| §22 | Breakpoints + the Rhea amendment log | 🔒 |
+| §20 | This index | — |
+| §21 | Amending this document | — |
+| §22 | Breakpoints | 🔒 |
+| §23 | Iconography | 🔒 |
+| §24 | Copy | 🔒 |
 
-**Three legacy aliases.** `components/primitives/*` was written against an earlier
-numbering and cites three rules by their old numbers. The rules are unchanged;
-only the numbers drifted. Recorded rather than swept, because a silent renumber is
-worse than a documented alias:
-
-| Cited as | Means | Where |
-|---|---|---|
-| §5 | §6 Radius | `button.jsx`, `count-badge.jsx`, `toggle-group.jsx`, `legacy/app.css` |
-| §13 | §14 Hover | `button.jsx`, `FilterBar.jsx` |
-| §16 | §10 Motion | `dialog.jsx`, `skeleton.jsx`, `loading-block.jsx` |
-
-**Not this document.** `§9`, `§19` and `§22` in `modal.jsx`, `tabs.jsx`,
-`dialog.jsx` and `ui.jsx` cite **`docs/architecture/UI-MIGRATION-PLAN.md`**, which
-numbers its own sections and phases. Those citations name that file explicitly;
-check the surrounding comment before following a number here.
+**Not this document.** `§9`, `§19` and `§22` inside `modal.jsx`, `tabs.jsx`,
+`dialog.jsx` and `ui.jsx` cite `docs/architecture/UI-MIGRATION-PLAN.md`, which numbers
+its own sections; `spec §8.x` cites the Add Account spec. Both name their file
+explicitly — check the surrounding comment before following a number here.
 
 `bridge.css` line 50 cites "DESIGN-LANGUAGE **N4**" — read as §4.
 
 ---
 
-## §22 Breakpoints and the Rhea amendment — 🔒 LOCKED
+## §21 Amending this document
 
-### The range
+- A new **override** needs four things: the rule, the reason, the token it lives in, and
+  the test that holds it. Four or it is not an override, it is a preference.
+- Changing a **preset value** needs owner approval, a new preset ID, and an amendment
+  here, committed together.
+- Closing an **⬜ OPEN** item needs a decision recorded here and a test added in the same
+  commit.
+- *"It looks better"* is not a justification for anything in this file.
 
-**1080 → 1920, fluid, no max-width.** A trader on a 1920 monitor gets the calendar
-and the trade table at full width, not a 1440 column in the middle of the screen.
-Design frames are drawn at 1440; that is one point inside the range, not the
-design's width.
+**Numbers are stable even when sections move.** Two hundred code comments cite this
+document by §, so a section keeps its number for the life of the citation. §5, §13 and
+§16 are aliases rather than reused slots for exactly that reason, and new sections take
+the next free number (§23, §24) rather than renumbering what exists.
 
-**Three breakpoints, and the set is closed.** All max-width — the app narrows out of
-a desktop layout rather than building up from a phone, which is why `@theme` screens
-(min-width) are not used:
+**History lives in git, not here.** This document was rewritten on 2026-08-29 to state
+the rules as they now stand rather than to accumulate a record of how they got here. Why
+a rule is what it is lives in the component that implements it — the headers in
+`components/primitives/*.jsx` carry the arguments, including the ones that were reversed
+and why.
+
+## §22 Breakpoints — the set is CLOSED — 🔒 LOCKED
+
+**1080 → 1920, fluid, no max-width.** A trader on a 1920 monitor gets the calendar and
+the trade table at full width. Design frames are drawn at 1440; that is one point inside
+the range, not the design's width.
+
+**Three numbers, all max-width** — the app narrows out of a desktop layout rather than
+building up from a phone, which is why `@theme` screens (min-width) are not used:
 
 | px | What reorganises |
 |---|---|
@@ -410,51 +562,52 @@ a desktop layout rather than building up from a phone, which is why `@theme` scr
 | 1080 | the KPI row stops fitting on one line |
 | 900 | the rail leaves the flow and becomes a drawer |
 
-A fourth number is how two sections come to reorganise at widths 24px apart — the
-user watches one column collapse, resizes 30px, and watches a different one
-collapse. `utility-collisions.test.js` fails on any other value in the component
-library. The arithmetic behind the three is in `tailwind.css`.
+**A fourth number is how two sections come to reorganise at widths 24px apart** — the
+user watches one column collapse, resizes 30px, and watches a different one collapse.
+`utility-collisions.test.js` fails on any other value in the component library.
 
-Prefer a **content floor plus `flex-wrap`** over a breakpoint where it works: the KPI
-row reflows continuously across the whole range from a `min-w` alone, with no
-snapping at one width.
+**900 is written in two places and they must agree:** `--breakpoint-md` in `bridge.css`
+(Tailwind's `md` screen is repointed at it) and `MOBILE_BREAKPOINT` in
+`hooks/use-mobile.js`. The generated Sidebar decides drawer-vs-rail in JS and paints the
+desktop rail in CSS; if the two drift, then *between* the numbers the rail is a drawer
+that still reserves its gap, or a rail with no way to open it — silently.
 
-### The 2026-08-29 Rhea amendment — what moved and why
+> **`--breakpoint-md` must live in a plain `@theme`, never `@theme inline`.** Declared
+> inline it does not register as a screen, `md:block` is emitted by nothing, and the
+> entire navigation disappears at every width. Found by grepping the served CSS.
 
-The dashboard was redesigned against the preset's own **Base Rhea** language
-(`docs/design/dashboard/`, a working HTML prototype with four states). Owner
-approved. It amends four 🔒 rules; each is stated inline in its own section and
-logged here so the change is auditable rather than discovered:
+**Prefer a content floor plus `flex-wrap` over a breakpoint** where it works: the KPI row
+reflows continuously across the whole range from a `min-w` alone.
 
-| § | Was | Is | Why |
-|---|---|---|---|
-| §3 | Inter only | **Geist + Geist Mono** | the preset's own typography; Inter was an intermediate Figma pass |
-| §3 | weight ceiling 600, whole steps | **650, half-steps legal** | Geist is variable; 550-vs-500 is a real hierarchy step |
-| §3 | numerics `tabular-nums` | **mono restored** | tabular aligns digits but does not separate data from prose |
-| §3 | never all-caps | **eyebrows ≤11px exempt** | small muted caps read as structure, not emphasis |
-| §4 | primary = `--accent` | **`--action`, a light fill** | on a near-black page light outranks any hue |
-| §4 | light theme exists | **dark only** | a palette nothing renders drifts silently |
-| §6 | preset rem radii | **Rhea px scale** | 10px carries half the design |
-| §1 | legacy CSS unlayered | **`layer(legacy)`, lowest** | the new components are the authority now |
-
-**Base colour departs from the preset.** The preset declares `neutral`; Rhea uses
-**zinc** — `#09090b` page, `#a1a1aa` muted, `#26262b` border. Zinc is blue-tinted
-where neutral is pure. Small per swatch, coherent across the palette, and the reason
-`components.json` still says `baseColor: neutral` while `tokens.css` does not: the
-preset generates from neutral and the token layer overrides it, which is exactly the
-override mechanism this document exists to record.
-
-**Outcome hues revert** to `#22c55e` / `#4ade80` green and `#f87171` red, from the
-Figma pass's `#00d492` / `#ff6467`.
+Test: `nav-rail.test.js`, `utility-collisions.test.js`.
 
 ---
 
-## §21 Amending this document
+## §23 Iconography — 🔒 LOCKED
 
-- A new **override** needs: the rule, the reason, the token it lives in, and the
-  test that holds it. Four things or it is not an override, it is a preference.
-- A change to a **preset value** needs owner approval, a new preset ID, and an
-  amendment here, committed together.
-- Closing an **⬜ OPEN** item needs a decision recorded here and a test added in the
-  same commit.
-- *"It looks better"* is not a justification for anything in this file.
+**lucide**, declared in `components.json`. Never hand-drawn SVG paths for UI icons — a
+bespoke path has to be re-tuned every time the label size changes.
+
+Sized by the parent (`[&_svg]:size-4`), never by width/height on the icon, so a row owns
+its own rhythm.
+
+The one exemption: **national flags**, whose colours are specified by law rather than by
+us. They are inline SVG with literal hex in `brief.jsx` and exempted by name. Only the
+three the design specifies are drawn — inventing six more from memory is how a product
+ships a wrong flag to someone's country — and **the currency code always renders beside
+the flag**, so the flag is a scanning aid and never the only thing carrying which market
+a row is about.
+
+---
+
+## §24 Copy — 🔒 LOCKED
+
+- **Do not say the same thing twice in one card.** Two identical facts teach the reader
+  that neither is worth reading. If a component renders a percentage, its footer must not
+  print the percentage again.
+- **A label is not a heading.** "Daily performance" over a grid of daily P&L figures is
+  the app narrating itself.
+- **Tabs that name themselves need no heading above them.**
+- Give a figure a **unit**, not a sentence, where one will do.
+
+---
