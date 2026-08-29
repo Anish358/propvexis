@@ -406,7 +406,7 @@ test('layout state is global and persisted, not per account scope', () => {
   }
 });
 
-test('the KPI row re-splits itself, and grid rows size to content', () => {
+test('the KPI row re-splits itself, and grid rows are a fixed unit', () => {
   /* `--kpi-count` IS GONE (2026-08-28). The row was a CSS grid told how many columns to
    * draw, so hiding a card meant passing a new number or leaving a hole. KpiRow is flex:
    * the cards share the space, and the hero keeps the frame's 392:231 proportion by

@@ -38,25 +38,39 @@ test('the action strip is the shared Button plus strip primitives, never a raw b
    * The strip's own quiet control is a primitive (ActionLink) so its focus ring, hover
    * and hit area match every other chrome control instead of being re-derived here. */
   const block = dash.slice(dash.indexOf('function DashActions'), dash.indexOf('// ---- Section 2'));
-  assert.match(block, /<Button\b[\s\S]*variant="primary"/, 'Sync Trades is the page\'s primary action');
+  /* SECONDARY SINCE RHEA (was `primary`, a light fill). The primary act on this page is
+   * READING it: a white button at the top of a dashboard pulls the eye to a control most
+   * traders touch once a session, and the design draws it as a quiet bordered pill. The
+   * rule this test protects — no raw <button> in a page, the strip's controls are
+   * primitives so their focus ring and hit area match the rest of the chrome — is
+   * unchanged. */
+  assert.match(block, /<Button\b[\s\S]*variant="secondary"/, 'Sync Trades is a quiet pill, not the page\'s primary action');
   assert.doesNotMatch(block, /<button\b/, 'no raw <button> in the strip');
   assert.match(block, /<ActionLink/);
   assert.match(block, /<ActionStatus/, 'the strip still reports sync state');
 });
 
-test('the sync status does not invent a timestamp', () => {
-  /* IT USED TO READ "Last synced: 2 min ago" AND IT WAS STATIC COPY. The frame draws a
-   * green tick beside the button, but this page has no sync-status feed behind it, so
-   * any elapsed time printed here is a number with nothing under it — the kind a trader
-   * reasonably acts on ("it synced two minutes ago, so this P&L is current") when in
-   * fact nothing has run at all. An honest label costs nothing and does not have to be
-   * un-lied about when the feed lands. */
-  // stripComments: the note in DashActions explaining what the old copy claimed
-  // necessarily quotes it. Fifth scanner in this suite to need this.
+test('the sync status is the design\'s label with a TRUE value in it', () => {
+  /* WHAT THIS USED TO PIN: that "Last synced: 2 min ago" — the design's copy, shipped as
+   * a static string — was absent, because an elapsed time with nothing behind it is a
+   * number a trader will act on ("it synced two minutes ago, so this P&L is current")
+   * when nothing has run. It asserted the honest placeholder instead.
+   *
+   * The design's LABEL is right and it is back; what was wrong was the hardcoded value.
+   * There is still no sync-status endpoint, but the newest ingested trade IS evidence
+   * that a sync happened and when — so the figure is derived, says "never" with no
+   * trades, and stops being a guess the day a real feed lands without the label
+   * changing at all.
+   *
+   * So this now pins the thing that actually matters: the value is COMPUTED, never a
+   * literal. */
   const code = stripComments(dash);
   const block = code.slice(code.indexOf('function DashActions'), code.indexOf('Section 2'));
-  assert.doesNotMatch(block, /Last synced/, 'a hardcoded elapsed time is a claim we cannot make');
-  assert.match(block, /not yet wired/);
+  assert.match(block, /Last synced: \{lastSynced \|\| 'never'\}/, "the label is the design's");
+  assert.doesNotMatch(code, /['"`]\s*\d+ min ago\s*['"`]/, 'no hardcoded elapsed time anywhere');
+  // And it is derived from the data, not from a constant.
+  assert.match(code, /const lastSynced = useMemo\(/);
+  assert.match(code, /Date\.now\(\) - newest/);
 });
 
 test('Today\'s Brief banner has a titled head with a settings control', () => {

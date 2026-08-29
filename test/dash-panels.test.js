@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readSrc, stripComments } from './helpers/src-files.js';
+import { tokensCss } from './helpers/app-css.js';
 
 /* THE CONTENT PANELS — calendar, Recent Activity, cumulative P&L — on the 2026-08-28
  * Figma frame. */
@@ -33,37 +34,60 @@ test('the three cards are one shell, not three', () => {
   }
 });
 
-test('the cell is one block and the result is in the text', () => {
-  /* REVISED 2026-08-28 TO MATCH THE FRAME, on the owner's call. The first build washed
-   * the whole tile in its outcome colour at 12% behind a 30% border; the frame draws
-   * every day as the same recessed block, and it was visibly a different calendar from
-   * the one designed.
+test('the cell is tinted by its outcome, and idle is not an outcome', () => {
+  /* THIS TEST IS REVERSED (2026-08-29), and the argument it used to carry is worth
+   * keeping because it was not wrong.
    *
-   * Beyond matching, what the block buys: forty-two tinted tiles is a lot of colour on a
-   * page whose OTHER reds and ambers mean "this account is about to be closed". A quiet
-   * grid leaves the account meters as the only alarming thing on screen, which is where
-   * alarm belongs. The day is still legible — its P&L figure carries the outcome colour,
-   * and that is the part you read.
+   * It asserted that the cell does NOT wash itself: "forty-two tinted tiles is a lot of
+   * colour on a page whose OTHER reds and ambers mean 'this account is about to be
+   * closed'. A quiet grid leaves the account meters as the only alarming thing on
+   * screen, which is where alarm belongs."
    *
-   * IDLE IS STILL NOT AN OUTCOME: same block at half strength, muted number. Present,
-   * clearly part of the month, clearly empty. A month with holes in it reads as a
-   * rendering fault. */
+   * Rhea answers that by SEPARATING the two vocabularies rather than suppressing one.
+   * The calendar is green/red at 22% — outcome colours, low saturation. The alarm is
+   * amber-to-red on a stretched ramp, a washed meter, a full-bleed banner and a pulse.
+   * Nothing on the calendar is amber and nothing in the meters is green, so they no
+   * longer compete. And a month is the one view whose question is DISTRIBUTIONAL — "am
+   * I losing on Mondays" — which is answered by pattern, and pattern needs the cells
+   * themselves to carry the sign.
+   *
+   * IDLE IS STILL NOT AN OUTCOME, and that half has never changed: a plain sunken block
+   * at reduced strength, a muted number. A weekend goes quieter again. Present, clearly
+   * part of the month, clearly empty. */
   assert.match(month, /const cellTone = \(data\) => \(data \? tone\(data\.pnl\) : 'idle'\)/);
   assert.match(month, /const tone = \(n\) => \(n > 0 \? 'win' : n < 0 \? 'loss' : 'flat'\)/);
-  assert.doesNotMatch(calCode, /color-mix\(in srgb, \$\{hue\} 12%/, 'the cell no longer washes itself');
-  assert.match(calCode, /background: idle \? 'color-mix\(in srgb, var\(--surface-2\) 20%, transparent\)' : 'var\(--brief-row-bg\)'/);
-  // The figure keeps its outcome colour — that is where the result lives now.
+  assert.match(calCode, /const CELL = \{/, 'a cell has its own wash + edge per tone');
+  assert.match(calCode, /color-mix\(in srgb, var\(--profit\) 22%, transparent\)/);
+  assert.match(calCode, /color-mix\(in srgb, var\(--loss\) 22%, transparent\)/);
+  assert.ok(!/CELL = \{[\s\S]*?idle:/.test(calCode), 'idle has no tint entry — it falls back to flat');
+  assert.match(calCode, /idle && \(weekend \? 'opacity-55' : 'opacity-80'\)/);
+  // TODAY IS AN EDGE, NEVER A FILL: a filled "today" competes with the outcome tints
+  // for the same channel and would argue with them on a losing day.
+  assert.match(calCode, /borderColor: today \? 'var\(--text-dim\)' : borderColor/);
+  // The figure still carries the outcome colour — the tint is a second encoding of it,
+  // not a replacement.
   assert.match(calCode, /color: hue \|\| 'var\(--text\)'/);
 });
 
 test('only the P&L is coloured inside a cell', () => {
-  // The trade count and win rate are context. Three coloured lines in a 100px tile make
-  // the cell compete with its own neighbours, and the figure stops being the figure.
+  // The trade count is context. Two coloured lines in an 82px tile make the cell compete
+  // with its own neighbours, and the figure stops being the figure.
   const body = calCode.slice(calCode.indexOf('export function CalCellBody'));
   const block = body.slice(0, body.indexOf('export function CalWeek'));
   assert.match(block, /color: hue \|\| 'var\(--text\)'/);
-  assert.match(block, /text-\[var\(--muted\)\]/, 'the sub-line stays muted');
+  assert.match(block, /text-\[var\(--text-3\)\]/, 'the sub-line stays muted');
   assert.equal((block.match(/color: hue/g) || []).length, 1, 'exactly one coloured element per cell');
+});
+
+test('the calendar day cell has ONE height floor, read by both the row and the cell', () => {
+  /* A cell's min-height cannot make a grid row GROW — it only stops it shrinking — so
+   * the row needs `minmax(floor, 1fr)` to stretch into a 2-unit card, and the cell needs
+   * the same floor so a one-column layout does not collapse it. Two consumers, one
+   * token: if they drift, a five-week month either overflows its card or leaves 250px of
+   * dead space under the last row. Both have happened. */
+  assert.match(calCode, /gridAutoRows: 'minmax\(var\(--cal-cell-h, 82px\), 1fr\)'/);
+  assert.match(calCode, /min-h-\[var\(--cal-cell-h,82px\)\]/);
+  assert.match(tokensCss, /--cal-cell-h:\s*\d+px/, 'the floor is a token, not a literal in two files');
 });
 
 test('the calendar owns the gap the old header used to supply', () => {

@@ -113,7 +113,7 @@ export function RailBrand({ mark, action, children, className, ...rest }) {
     <SidebarHeader
       data-slot="rail-brand"
       className={cn(
-        'gap-2.5 p-0 pb-5',
+        'gap-2.5 p-0 pb-4',
         /* THE TOGGLE STACKS UNDER THE MARK AT 70px, AND IT IS NOT OPTIONAL THAT IT
          * SURVIVES. The prototype draws the brand row only in the expanded rail, where
          * the 33px mark and the 32px control sit side by side. At 70px, minus 14px of
@@ -172,7 +172,7 @@ export function RailNav({ className, children, ...rest }) {
       className={cn('gap-0 overflow-x-hidden', className)}
       {...rest}
     >
-      <SidebarMenu className={cn(LIST_RESET, 'gap-1.5')}>{children}</SidebarMenu>
+      <SidebarMenu className={cn(LIST_RESET, 'gap-[5px]')}>{children}</SidebarMenu>
     </SidebarContent>
   );
 }
@@ -201,7 +201,12 @@ export function RailItem({
         tooltip={collapsed && typeof children === 'string' ? children : undefined}
         data-slot="rail-item"
         className={cn(
-          'h-11 gap-3 rounded-[10px] px-3 text-[14.5px] leading-5 font-medium',
+          /* 40px, NOT 44 — and 44 below 900px, where the rail is a touch drawer.
+             Rhea's row is 10px of padding around a 20px line, which puts the nav items
+             45px apart instead of 50 and is the difference the design shows. The 44px
+             floor exists for TOUCH targets, so it is kept exactly where touch happens
+             rather than applied to a pointer-driven desktop rail. */
+          'h-10 max-[900px]:h-11 gap-3 rounded-[10px] px-3 text-[14.5px] leading-5 font-medium',
           'transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0',
           active
             ? 'bg-[var(--sel-bg)] font-[550] text-[var(--text)]'

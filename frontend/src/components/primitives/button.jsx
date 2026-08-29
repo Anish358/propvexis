@@ -183,4 +183,51 @@ const Button = React.forwardRef(function Button({
   );
 });
 
-export { Button, buttonVariants };
+/* A BUTTON LABEL THAT DROPS AT THE NARROW END OF THE RANGE.
+ *
+ * It exists because a PAGE CANNOT WRITE `max-[1200px]:hidden` — utilities compile only
+ * under components/{ui,primitives}, so the class emits nothing and the label stays at
+ * every width, which is how the top bar overflows at 1080. The one control that needs
+ * this is the top bar's Filters button: Rhea labels it, and below 1200 the bar is
+ * carrying a title, a unit toggle, a scope summary and two glyphs already.
+ *
+ * `hidden` is safe HERE and nowhere else in this repo: it is applied to a bare <span>
+ * with no author `display` of its own, which is the one case the UA rule can win. */
+function ButtonLabel({ className, children, ...rest }) {
+  return (
+    <span data-slot="button-label" className={cn('max-[1200px]:hidden', className)} {...rest}>
+      {children}
+    </span>
+  );
+}
+
+/* A STATUS DOT INSIDE A BUTTON — the top bar's account scope wears one.
+ *
+ * Rhea opens the scope trigger with a dot rather than a layers glyph, and the swap is
+ * the point: the glyph said "this is a scope control", which the label already says,
+ * where the dot says whether the accounts in that scope are HEALTHY — which nothing
+ * else in the bar does.
+ *
+ * It is never the only carrier of that: the Alerts rail item, the bell's badge and the
+ * account card all say the same thing in words. A 6px dot is a reminder, not a report.
+ */
+const DOT = {
+  ok: 'var(--profit)',
+  warn: 'var(--warning)',
+  bad: 'var(--loss)',
+  none: 'var(--text-dim)',
+};
+
+function ButtonDot({ tone = 'ok', className, ...rest }) {
+  return (
+    <span
+      data-slot="button-dot"
+      aria-hidden="true"
+      className={cn('size-1.5 shrink-0 rounded-full', className)}
+      style={{ background: DOT[tone] || DOT.ok }}
+      {...rest}
+    />
+  );
+}
+
+export { Button, ButtonDot, ButtonLabel, buttonVariants };

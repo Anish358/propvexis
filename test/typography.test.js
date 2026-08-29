@@ -50,6 +50,12 @@ const UPPERCASE_EXCEPTIONS = [
    * when an account is inside its stop-trading zone, and it is the redundant encoding
    * that keeps severity legible without colour. Caps as structure, and once. */
   { file: 'components/primitives/account.jsx', what: "meter eyebrows and the stop-trading label" },
+  /* THE CALENDAR'S WEEKDAY HEADS (added 2026-08-29, Rhea) — "SUN MON TUE". 11px,
+   * letterspaced, at the faintest readable tier, naming seven columns. That is the
+   * eyebrow register exactly, and it is the case that lets seven three-letter labels
+   * read as a header row rather than as seven more words in a grid already full of
+   * them. */
+  { file: 'components/primitives/calendar.jsx', what: "the calendar's weekday column heads" },
 ];
 
 test('no uppercase text-transform outside the brand wordmark', () => {

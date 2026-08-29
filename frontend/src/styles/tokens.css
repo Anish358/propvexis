@@ -171,6 +171,9 @@
 
   /* ===== DASHBOARD CARD SIZE SYSTEM ===== */
   --dash-card-gap:16px;
+  /* The calendar day cell's FLOOR. Read by the grid's `minmax(floor, 1fr)` and by the
+     cell's own min-height, which must agree — see calendar.jsx. */
+  --cal-cell-h:82px;
   --dash-card-h-md:355px;
   --dash-card-h-lg:calc(var(--dash-card-h-md) * 2 + var(--dash-card-gap));
 

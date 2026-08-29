@@ -579,6 +579,39 @@ that still reserves its gap, or a rail with no way to open it — silently.
 **Prefer a content floor plus `flex-wrap` over a breakpoint** where it works: the KPI row
 reflows continuously across the whole range from a `min-w` alone.
 
+### A DESIGN IS ONE POINT IN THE RANGE, NEVER THE RANGE — 🔒 LOCKED
+
+**Every design handed over is drawn at one width. Shipping it means making it work at
+every width between 1080 and 1920, and that is part of implementing it, not a follow-up.**
+
+A frame drawn at 1440 says nothing about 1080 or 1920, and the two ends fail in opposite
+directions: the narrow end runs out of room, the wide end runs out of *reasons* — a card
+that was sized to its content at 1440 becomes a band of empty surface at 1920. Both are
+the implementer's to answer, and the answer is not "add a breakpoint".
+
+**In this order. Stop at the first that works:**
+
+1. **A content floor plus `flex-wrap`.** The row re-splits itself continuously; nothing
+   snaps at one width and there is no number to keep in sync. The KPI row is the worked
+   example — `[&>*]:min-w-[12.5rem] [&>*]:flex-1` and no media query at all.
+2. **`minmax()` / `fr` / `auto-fit` in a grid.** Lets a track absorb the slack rather
+   than being told a width. The calendar's rows are `minmax(var(--cal-cell-h), 1fr)`:
+   they take whatever height the card's span gives them, at every viewport.
+3. **A token re-declared at a breakpoint.** When a real size has to change, change the
+   TOKEN — `--dash-card-h-md`, `--cal-cell-h` — so the whole page narrows from one
+   declaration instead of a media query per component.
+4. **A layout breakpoint from the closed set of three,** and only for things that
+   genuinely reorganise.
+
+**Two things a laptop must never get:** a horizontal scrollbar on the page body, and a
+label truncated to nothing while the badges beside it keep their full width. If a
+control cannot fit, drop its *label* (`ButtonLabel`) rather than squeezing everything.
+
+**Verify by rendering at both ends before calling it done.** 1080 and 1920, every state.
+This is the check that has caught every responsive defect in this codebase — a 0-width
+skeleton, a truncated nav label, a dead 250px under a five-week month — and none of them
+were visible in the source.
+
 Test: `nav-rail.test.js`, `utility-collisions.test.js`.
 
 ---

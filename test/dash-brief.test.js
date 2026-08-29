@@ -75,8 +75,13 @@ test('an alert can be dismissed, and dismissing means marking it read', () => {
    * notification panel already uses. */
   const banner = dash.slice(dash.indexOf('export function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
   assert.match(banner, /markNotificationRead\(n\.id\)/);
-  // Only for an alert that IS unread — a read one has nothing left to clear.
-  assert.match(banner, /markNotificationRead && !n\.read_at/);
+  /* OFFERED ON EVERY ROW (2026-08-29). It used to be gated on `!n.read_at`, on the
+   * reasoning that a read alert has nothing left to clear. Wrong for this card: the
+   * brief shows read alerts too — a read `warning` still means an account is near its
+   * limit — so the gate meant the rows most likely to be lingering were exactly the ones
+   * with no way to dismiss them. */
+  assert.ok(!/markNotificationRead && !n\.read_at/.test(banner),
+    'Clear must be offered on every alert row, not only unread ones');
   const app = readSrc('App.jsx');
   assert.match(app, /markNotificationsRead\(\{ ids: \[id\] \}\)/, 'it must hit the real route');
 });

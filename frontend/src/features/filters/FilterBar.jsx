@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 // `Menu as MenuIcon` — the primitives barrel below already exports a `Menu`
 // component, and the icon would silently shadow it.
-import { Bell, ChevronDown, Filter, Layers, Menu as MenuIcon, Settings, Star } from 'lucide-react';
+import { Bell, ChevronDown, Filter, Menu as MenuIcon, Settings, Star } from 'lucide-react';
 import { activeFilterCount } from './filters.js';
 import { navTitle, isSingleAccountRoute } from '../../app/nav.js';
 import FilterPanel from './FilterPanel.jsx';
@@ -25,27 +25,23 @@ import FilterPanel from './FilterPanel.jsx';
 // may not originate visual values (pinned by topbar-overlays.test.js), so what stays
 // here is geometry the preset has no opinion about — a width cap, a truncation.
 import {
-  Badge, Button, CountBadge,
+  Badge, Button, ButtonDot, ButtonLabel, CountBadge,
   Menu, MenuCheckboxItem, MenuContent, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger,
   ToggleGroupExclusive, ToggleGroupItem,
   TopBar, TopBarActions, TopBarTitle,
 } from '@/components/primitives';
-import { useAuth } from '../../app/AuthContext.jsx';
 import { NotificationBell } from '../alerts/Notifications.jsx';
 
-// Three bands, local clock. See `greeting` below for why it stops at evening.
-function timeOfDay(now = new Date()) {
-  const h = now.getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
 
 // The phase as a short tag for the switcher's scope summary — the same vocabulary the
 // account wizard uses for a name suffix, for the same reason: "Phase 2" does not fit
 // three times in a top-bar pill.
 const PHASE_TAG = { p1: 'P1', p2: 'P2', p3: 'P3', funded: 'Funded' };
+// Lifecycle order, so a scope summary reads "P1 · P2 · Funded" however the accounts
+// happen to be sorted. A summary whose order follows the account list is a summary that
+// changes when an account is added.
+const PHASE_ORDER = ['P1', 'P2', 'P3', 'Funded'];
 
 const GOD = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
@@ -77,7 +73,7 @@ const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 // than being told "checkbox" and then finding the other boxes clear themselves.
 // "All accounts" stays: god view is still a legitimate scope, and it is what the
 // page shows before an account has been picked.
-function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect = false }) {
+function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect = false, notifications = [] }) {
   // Bound + active only; archived accounts stay out of the switcher (still in the modal).
   const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
   const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
@@ -94,23 +90,35 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
   // by re-clicking the current account — "All accounts" is the row for that.
   const pick = (login) => setAccountId(String(login));
 
+  /* THE LABEL CARRIES ITS COUNT (Rhea: "All accounts · 5"). God view used to read just
+   * "All accounts", which says the scope is everything without saying how much
+   * everything is — and "everything" is 2 accounts for one trader and 11 for another. */
   let current;
-  if (accountId === GOD) current = 'All accounts';
+  if (accountId === GOD) current = bound.length ? `All accounts · ${bound.length}` : 'All accounts';
   else if (selected.length === 1) current = acctLabel(bound.find((a) => String(a.mt5_login) === selected[0]) || {});
   else current = `${selected.length} Accounts`;
 
-  /* WHICH accounts, not just how many. Only worth showing when the count alone is
-   * ambiguous — with one account selected its name is already the label, and in god view
-   * "All accounts" is the whole answer. Phases rather than logins because that is what a
+  /* WHICH accounts, not just how many. Phases rather than logins, because that is what a
    * trader is actually scoping by, and three of them fit where three five-digit numbers
-   * do not. */
-  const scopeSummary = accountId !== GOD && selected.length > 1
-    ? bound
-      .filter((a) => isSel(a.mt5_login))
-      .map((a) => PHASE_TAG[a.phase] || a.phase)
-      .filter(Boolean)
-      .join(' · ')
-    : null;
+   * do not. Shown in GOD VIEW TOO as of Rhea — "All accounts · 5" still does not say
+   * whether those five are evaluations or funded, and that changes what every figure on
+   * the page means. Deduped and in lifecycle order, so it reads "P1 · P2 · Funded"
+   * rather than repeating a phase once per account. */
+  const summaryOf = (list) => {
+    const tags = new Set(list.map((a) => PHASE_TAG[a.phase] || a.phase).filter(Boolean));
+    return PHASE_ORDER.filter((t) => tags.has(t)).join(' · ') || null;
+  };
+  /* THE DOT'S TONE COMES FROM THE ALERT STREAM, which the bar already receives — no new
+   * plumbing, and no invented health. An unread critical notification means an account
+   * in this scope is in trouble; that is the same signal the Alerts page and the bell
+   * are reading, so the three cannot disagree. */
+  const worst = notifications.find((n) => !n.read_at && n.severity === 'critical') ? 'bad'
+    : notifications.find((n) => !n.read_at && n.severity === 'warning') ? 'warn' : 'ok';
+  const scopeTone = bound.length ? worst : 'none';
+
+  const scopeSummary = accountId === GOD
+    ? summaryOf(bound)
+    : (selected.length > 1 ? summaryOf(bound.filter((a) => isSel(a.mt5_login))) : null);
 
   return (
     <div className="tb-acct">
@@ -141,7 +149,10 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
               login list), a single-select mode on two routes, and a pending-accounts
               footer — all tested. Swapping it would trade working behaviour for a
               different-looking trigger, which is the half we can just draw. */}
-          <Layers aria-hidden="true" />
+          {/* A DOT, NOT A GLYPH (Rhea). The layers icon said "this is a scope control",
+              which the label already says; the dot says whether the accounts IN that
+              scope are healthy, which nothing else in the bar does. */}
+          <ButtonDot tone={scopeTone} />
           <span className="acct-switch-cur">{current || 'Select account'}</span>
           {scopeSummary && <span className="acct-switch-sub">{scopeSummary}</span>}
           <ChevronDown aria-hidden="true" data-icon="inline-end" />
@@ -249,10 +260,17 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
             universal mark for this and the count badge already says whether anything is
             on; the accessible name moves to aria-label, which is what an icon-only
             control owes a reader. */}
+        {/* LABELLED AGAIN (Rhea, and the design is explicit). It was icon-only on the
+            argument that the bar read as one text button among glyphs — true of the
+            intermediate pass, where the switcher was a bare pill. Rhea's bar has TWO
+            labelled controls (this and the scope) against two glyphs, so the funnel
+            alone now reads as the odd one out instead. The label drops below 1200,
+            where the bar genuinely runs out of room, and the aria-label carries the
+            name in both cases. */}
         <PopoverTrigger render={(
           <Button
             variant="chrome"
-            size="icon-sm"
+            size="sm"
             active={active > 0}
             pill
             aria-label={active > 0 ? `Filters — ${active} active` : 'Filters'}
@@ -260,6 +278,7 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
           />
         )}>
           <Filter aria-hidden="true" />
+          <ButtonLabel>Filters</ButtonLabel>
           {active > 0 && <CountBadge>{active}</CountBadge>}
         </PopoverTrigger>
         {/* `surface="none"` because this popover's CONTENT is already made of panels:
@@ -328,23 +347,12 @@ export default function FilterBar({
   // nav.js is where the app's route facts live — so the bar asks the IA rather than
   // a page reaching up to reconfigure the bar it does not own.
   const singleAccount = isSingleAccountRoute(pathname);
-  const { user } = useAuth();
 
-  /* THE FRAME'S GREETING, and only where it belongs. "Good morning, Alex — here's where
-   * you stand today." is the dashboard's line: it is the screen a trader opens first,
-   * and the same sentence over the Trade Log would be noise. `/` is the only route that
-   * gets it.
-   *
-   * JUST THE GREETING (owner, 2026-08-28). It ended "— here's where you stand today.",
-   * the frame's copy, which is a sentence explaining what a dashboard is to someone who
-   * opens it every morning. The half worth keeping is the half about THEM.
-   *
-   * Time of day comes from the local clock and is deliberately coarse — three bands, no
-   * "good night". A greeting that remarks on the hour is a judgement, and this app has
-   * enough opinions about when someone should stop trading. */
-  const greeting = pathname === '/' && user?.name
-    ? `${timeOfDay()}, ${user.name.trim().split(/\s+/)[0]}`
-    : null;
+  /* NO GREETING (Rhea, 2026-08-29). The dashboard's title used to carry a second line —
+   * "Good afternoon, Anish" — and Rhea's bar is 64px of ONE line. Two things went with
+   * it: the bar's extra height, and a title block that was a different shape on the
+   * dashboard than on every other route. The greeting was a nice touch that cost the
+   * chrome its consistency, and the design settles it. */
 
   return (
     <TopBar ref={barRef}>
@@ -366,7 +374,7 @@ export default function FilterBar({
         </Button>
       )}
       {title && (
-        <TopBarTitle module={title.module} sub={greeting}>{title.page}</TopBarTitle>
+        <TopBarTitle module={title.module}>{title.page}</TopBarTitle>
       )}
 
       {/* Per-page actions portal here (PageHeader → this node). */}
@@ -384,22 +392,26 @@ export default function FilterBar({
         {/* The frame wraps the two segments in a bordered capsule rather than letting
             them float; `pill` on the group is what makes the container read as one
             control with two states instead of two adjacent buttons. */}
-        {/* THE SCOPE LEADS THE CLUSTER (2026-08-28, owner call). It is the only control
-            here that changes what every figure on the page MEANS: the unit toggle changes
-            how they are written, Filters narrows which rows feed them, but the account
-            scope decides whose numbers these are. Reading order is left to right, so
-            "whose account am I looking at" should not be the fourth thing found. */}
-        <AccountSwitcher
-          accounts={accounts}
-          accountId={accountId}
-          setAccountId={setAccountId}
-          singleSelect={singleAccount}
-        />
+        {/* ORDER: unit -> filters -> scope -> bell, which is Rhea's and reverses the
+            2026-08-28 arrangement that put the scope first.
+            The old argument was that the scope changes what every figure MEANS, so it
+            should be read first. Rhea's answer is that the cluster reads RIGHT to left
+            in importance — the controls nearest the page's own content are the ones you
+            reach for most — and the scope is the widest, most-labelled control in the
+            row, so it anchors the right-hand end rather than competing with the title
+            at the left. The bell is chrome and sits outside the group entirely. */}
         <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit" pill>
           <ToggleGroupItem value="R" size="sm">R</ToggleGroupItem>
           <ToggleGroupItem value="USD" size="sm">$</ToggleGroupItem>
         </ToggleGroupExclusive>
         <FiltersButton options={options} filters={filters} patchFilters={patchFilters} clearFilters={clearFilters} active={active} />
+        <AccountSwitcher
+          accounts={accounts}
+          accountId={accountId}
+          setAccountId={setAccountId}
+          singleSelect={singleAccount}
+          notifications={notifications}
+        />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
         {/* NO AVATAR MENU HERE (2026-08-28, owner call). The rail's footer already
             carries the identity row — name, plan and a link to the profile — so a second

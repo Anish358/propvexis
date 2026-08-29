@@ -29,9 +29,19 @@ import { cn } from '@/lib/utils';
  * sessions — a different and much worse story.
  */
 
+/* The FIGURE's colour. --profit-bright / --loss-bright, not the structural pair: these
+ * are drawn ON a tint of their own hue, where the structural colours do not carry. */
 const TONE = {
-  win: 'var(--profit)',
-  loss: 'var(--loss)',
+  win: 'var(--profit-bright)',
+  loss: 'var(--loss-bright)',
+};
+
+/* The CELL's own wash and edge. 22% is Rhea's, and it is low enough that forty-two of
+ * them read as a texture rather than as forty-two warnings. */
+const CELL = {
+  win: ['color-mix(in srgb, var(--profit-deep) 34%, transparent)', 'color-mix(in srgb, var(--profit) 22%, transparent)'],
+  loss: ['color-mix(in srgb, var(--loss-deep) 30%, transparent)', 'color-mix(in srgb, var(--loss) 22%, transparent)'],
+  flat: ['var(--surface-sunken)', 'var(--line)'],
 };
 
 /* The calendar's own column. It exists because the spacing between the head and the
@@ -54,14 +64,34 @@ export function CalRoot({ className, children, ...rest }) {
   );
 }
 
-export function CalGrid({ columns = 8, className, children, ...rest }) {
+/* THE WEEKDAY ROW IS ITS OWN GRID (2026-08-29), and it has to be.
+ *
+ * Both rows lived in ONE grid so the week-summary column lined up with the days under
+ * it. That is still true — they share `columns` and the same template — but the day grid
+ * now STRETCHES to fill a 2-unit card, and a `1fr` auto-row applies to every implicit
+ * row including the header, which would give "SUN MON TUE" an equal share of the card's
+ * height. Two grids, one template, declared here once.
+ *
+ * `grow` is the stretching half. */
+export function CalGrid({ columns = 8, grow = false, className, children, ...rest }) {
   return (
     <div
       data-slot="cal-grid"
-      className={cn('grid gap-1', className)}
-      // 7 days plus the week-summary column. A CSS variable rather than a Tailwind
-      // class because the caller owns whether the week column exists.
-      style={{ gridTemplateColumns: `repeat(${columns - 1}, minmax(0, 1fr)) minmax(0, 1.1fr)` }}
+      className={cn('grid gap-[7px]', grow && 'min-h-0 flex-1', className)}
+      style={{
+        /* 7 equal day columns, plus a slightly wider week column when the caller asks
+           for one. Inline rather than a Tailwind class because the CALLER owns whether
+           that eighth column exists — see MonthCalendar's `weeks`. */
+        gridTemplateColumns: columns > 7
+          ? `repeat(${columns - 1}, minmax(0, 1fr)) minmax(0, 1.1fr)`
+          : `repeat(${columns}, minmax(0, 1fr))`,
+        /* `minmax(<floor>, 1fr)` ON THE ROW, not a min-height on the cell. A cell's own
+           min-height cannot make a row GROW — it only stops it shrinking — so a
+           five-week month left ~250px of dead card under the last row of a 2-unit
+           calendar. The floor is a token because the cell reads it too, and the two
+           must agree. */
+        ...(grow ? { gridAutoRows: 'minmax(var(--cal-cell-h, 82px), 1fr)' } : null),
+      }}
       {...rest}
     >
       {children}
@@ -73,7 +103,10 @@ export function CalDow({ className, children, ...rest }) {
   return (
     <div
       data-slot="cal-dow"
-      className={cn('pb-1 text-center text-[11px] leading-4 font-medium text-[var(--muted)]', className)}
+      className={cn(
+        'pb-1 text-center text-[11px] leading-4 font-semibold tracking-[0.07em] text-[var(--text-5)] uppercase',
+        className,
+      )}
       {...rest}
     >
       {children}
@@ -87,8 +120,11 @@ export function CalDow({ className, children, ...rest }) {
  * @param {string}  tone      win | loss | flat | idle
  * @param {boolean} clickable whether the day opens its trades
  */
-export function CalCell({ tone = 'idle', clickable = false, className, children, ...rest }) {
+export function CalCell({
+  tone = 'idle', clickable = false, today = false, weekend = false, className, children, ...rest
+}) {
   const idle = tone === 'idle';
+  const [background, borderColor] = CELL[tone] || CELL.flat;
   const Tag = clickable ? 'button' : 'div';
   return (
     <Tag
@@ -96,17 +132,21 @@ export function CalCell({ tone = 'idle', clickable = false, className, children,
       data-slot="cal-cell"
       data-tone={tone}
       className={cn(
-        'flex min-h-[3.25rem] flex-col items-stretch gap-0.5 rounded-[8px] border p-1.5 text-left',
-        clickable && 'cursor-pointer transition-colors hover:border-[var(--line-strong)]',
+        // The floor is the same token the grid's `minmax()` reads — see CalGrid. Two
+        // places, one value, or a row and its cell disagree about how short is too short.
+        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-[10px] border px-2.5 py-[9px] text-left',
+        clickable && 'cursor-pointer transition-colors hover:border-[var(--line-hover)]',
         clickable && 'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
+        // A quiet weekday is dim; a quiet WEEKEND is dimmer, because a Saturday with no
+        // trades is not the same absence as a Tuesday with none.
+        idle && (weekend ? 'opacity-55' : 'opacity-80'),
         className,
       )}
       style={{
-        /* THE FRAME'S BLOCK, for every day. An idle cell is the same shape at half
-           strength rather than a different shape — the grid has to read as a month,
-           and a month with holes in it reads as a rendering fault. */
-        background: idle ? 'color-mix(in srgb, var(--surface-2) 20%, transparent)' : 'var(--brief-row-bg)',
-        borderColor: idle ? 'transparent' : 'var(--line)',
+        background: idle && weekend ? 'var(--rail-bg)' : background,
+        // TODAY IS AN EDGE, NEVER A FILL. A filled "today" competes with the outcome
+        // tints for the same channel, and on a losing day it would argue with them.
+        borderColor: today ? 'var(--text-dim)' : borderColor,
       }}
       {...rest}
     >
@@ -122,8 +162,8 @@ export function CalDayNum({ idle = false, className, children, ...rest }) {
     <div
       data-slot="cal-daynum"
       className={cn(
-        'flex items-center justify-between text-[11px] leading-4 font-medium tabular-nums',
-        idle ? 'text-[var(--text-3)]' : 'text-[var(--muted)]',
+        'flex items-center justify-between font-mono text-[12.5px] leading-4 font-semibold tabular-nums',
+        idle ? 'text-[var(--text-dim)]' : 'text-[var(--muted)]',
         className,
       )}
       {...rest}
@@ -141,12 +181,12 @@ export function CalCellBody({ tone, value, sub, className, ...rest }) {
   return (
     <div data-slot="cal-cell-body" className={cn('mt-auto flex flex-col', className)} {...rest}>
       <span
-        className="truncate text-[13px] leading-5 font-semibold tabular-nums"
+        className="truncate font-mono text-[15px] leading-5 font-semibold tracking-[-0.4px] tabular-nums"
         style={{ color: hue || 'var(--text)' }}
       >
         {value}
       </span>
-      {sub && <span className="truncate text-[10px] leading-4 text-[var(--muted)]">{sub}</span>}
+      {sub && <span className="truncate text-[12px] leading-4 text-[var(--text-3)]">{sub}</span>}
     </div>
   );
 }
@@ -159,17 +199,17 @@ export function CalWeek({ tone, label, value, sub, className, ...rest }) {
   return (
     <div
       data-slot="cal-week"
-      className={cn('flex min-h-[3.25rem] flex-col justify-center gap-0.5 rounded-[8px] bg-[var(--bg)] p-1.5', className)}
+      className={cn('flex min-h-[var(--cal-cell-h,82px)] flex-col justify-center gap-0.5 rounded-[10px] bg-[var(--bg)] px-2.5 py-[9px]', className)}
       {...rest}
     >
-      <span className="text-[10px] leading-4 font-medium text-[var(--muted)]">{label}</span>
+      <span className="text-[10px] leading-4 font-semibold tracking-[0.07em] text-[var(--text-5)] uppercase">{label}</span>
       <span
-        className="truncate text-[13px] leading-5 font-semibold tabular-nums"
+        className="truncate font-mono text-[15px] leading-5 font-semibold tracking-[-0.4px] tabular-nums"
         style={{ color: hue || 'var(--text)' }}
       >
         {value}
       </span>
-      {sub && <span className="text-[10px] leading-4 text-[var(--text-3)]">{sub}</span>}
+      {sub && <span className="text-[11px] leading-4 text-[var(--text-4)]">{sub}</span>}
     </div>
   );
 }
@@ -182,8 +222,9 @@ export function CalNavButton({ className, children, ...rest }) {
       type="button"
       data-slot="cal-nav"
       className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-[6px] text-[var(--muted)]',
-        'transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)]',
+        'flex size-7 shrink-0 items-center justify-center rounded-full',
+        'border border-[var(--line-control)] bg-[var(--control-bg)] text-[var(--muted)]',
+        'transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-4',
         className,

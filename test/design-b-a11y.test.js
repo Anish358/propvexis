@@ -174,9 +174,17 @@ test('touch targets on the drawer meet the 44px floor', () => {
    * at every width, which is the same guarantee made unconditionally. Asserted at the
    * primitive because that is where the height now lives — and because legacy CSS sits
    * in the lowest cascade layer, so a rule there could no longer enforce it anyway. */
-  // WAS /'group flex h-11 w-full items-center/ — the hand-composed row's class string.
-  // Same 44px guarantee, now expressed on the generated menu button we skin.
-  assert.match(rail, /'h-11 gap-3 rounded-\[10px\]/, 'rail rows must stay 44px tall');
+  /* 44px WHERE TOUCH HAPPENS, 40px WHERE IT DOES NOT (2026-08-29). The floor used to be
+   * unconditional, on the reasoning that one height is simpler than two. It is — but the
+   * reason for 44 is a FINGER, and below 900px is the only place this rail is touched:
+   * above it the rail is a pointer-driven desktop column, and Rhea's 40px row is what
+   * puts the nav items 45px apart instead of 50.
+   *
+   * So the guarantee is unchanged where it means something, and the test says which
+   * width it applies at rather than asserting a number that had stopped having a
+   * reason. */
+  assert.match(rail, /'h-10 max-\[900px\]:h-11 gap-3 rounded-\[10px\]/,
+    'rail rows must be 44px tall wherever they are touched');
   assert.match(block, /\.sb-collapse \{ min-width: 44px; min-height: 44px; \}/);
   // dvh, not vh: vh ignores mobile browser chrome, so the drawer's last item
   // sits under the address bar.

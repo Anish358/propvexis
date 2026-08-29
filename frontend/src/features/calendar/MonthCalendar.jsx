@@ -32,7 +32,19 @@ const MARKER_GLYPH = { payout: '$', milestone: '✓', breach: '✕' };
 // grid. It is additive on purpose — the Overview reuses this component verbatim
 // rather than forking a second calendar, and the Dashboard passes no markers and
 // renders exactly as before.
-export default function MonthCalendar({ year, month, dayMap, markers, onPrev, onNext, onToday, onSelectDay, unit = 'R' }) {
+/* `weeks` — whether the 8th, week-summary column is drawn.
+ *
+ * THE DASHBOARD TURNS IT OFF, EVERY OTHER SURFACE KEEPS IT, and that is a deliberate
+ * split rather than a deletion. Rhea's calendar is a bare 7-column month: it sits in a
+ * two-column content grid beside a trade list and a chart, where an eighth column costs
+ * ~12% of the widest card on the page to answer a question the month total in the head
+ * already half-answers.
+ *
+ * On Prop OS › Overview and Accounts › Details the calendar is the WHOLE surface and
+ * there is room, so it keeps the column — "how did week three go" is a real question and
+ * deleting the answer app-wide to match one page's frame is exactly what §2 forbids.
+ * A prop, not a fork. */
+export default function MonthCalendar({ year, month, dayMap, markers, onPrev, onNext, onToday, onSelectDay, unit = 'R', weeks = true }) {
   const { rows, monthTotal, tradingDays } = useMemo(() => {
     const first = new Date(year, month, 1);
     const startPad = first.getDay(); // leading blanks (Sun-start grid)
@@ -101,20 +113,24 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
         )}
       </PanelHead>
 
-      <CalGrid>
+      {/* `grow`: the day grid takes whatever height the card's 2-row span gives it, so
+          a five-week month fills the same box as a six-week one instead of leaving the
+          right-hand column hanging below it. */}
+      <CalGrid columns={weeks ? 8 : 7}>
         {WD.map((d) => <CalDow key={d}>{d}</CalDow>)}
-        <CalDow />
+        {weeks && <CalDow />}
+      </CalGrid>
 
+      <CalGrid grow columns={weeks ? 8 : 7}>
         {rows.map((r, ri) => (
           <React.Fragment key={ri}>
             {r.blank ? (
-              Array.from({ length: 8 }, (_, i) => <div key={`blank-${ri}-${i}`} />)
+              Array.from({ length: weeks ? 8 : 7 }, (_, i) => <div key={`blank-${ri}-${i}`} />)
             ) : (
               <>
                 {r.week.map((c, i) => {
                   if (!c) return <div key={`pad-${ri}-${i}`} />;
                   const t = cellTone(c.data);
-                  const winPct = c.data && (c.data.wins + c.data.losses) > 0 ? Math.round((100 * c.data.wins) / (c.data.wins + c.data.losses)) : null;
                   const marks = markers?.get(c.key);
                   const clickable = !!(onSelectDay && c.data);
                   /* TODAY AND WEEKEND ARE PASSED DOWN, NOT DERIVED IN THE PRIMITIVE.
@@ -151,18 +167,25 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
                         <CalCellBody
                           tone={t}
                           value={fmtValShort(c.data.pnl, unit)}
-                          sub={`${c.data.trades} trade${c.data.trades === 1 ? '' : 's'}${winPct != null ? ` · ${winPct}%` : ''}`}
+                          /* THE TRADE COUNT ALONE. The win% was ours and it made a
+                             three-line cell out of an 82px box — "4 trades · 75%" wraps
+                             at the calendar's narrow end and reads as two facts where
+                             the tint already carries the second one. The full breakdown
+                             is one click away in the day modal. */
+                          sub={`${c.data.trades} trade${c.data.trades === 1 ? '' : 's'}`}
                         />
                       )}
                     </CalCell>
                   );
                 })}
-                <CalWeek
-                  label={`Week ${ri + 1}`}
-                  tone={tone(r.pnl)}
-                  value={fmtValShort(r.pnl, unit)}
-                  sub={`${r.days} day${r.days === 1 ? '' : 's'}`}
-                />
+                {weeks && (
+                  <CalWeek
+                    label={`Week ${ri + 1}`}
+                    tone={tone(r.pnl)}
+                    value={fmtValShort(r.pnl, unit)}
+                    sub={`${r.days} day${r.days === 1 ? '' : 's'}`}
+                  />
+                )}
               </>
             )}
           </React.Fragment>

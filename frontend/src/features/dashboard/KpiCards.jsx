@@ -4,7 +4,7 @@ import {
   KpiRing, KpiSpacer, KpiValue,
 } from '@/components/primitives';
 import Explain from '../../components/Explain.jsx';
-import { dayKey, fmtVal, fmtValShort } from '../../lib/metrics.js';
+import { fmtVal, fmtValShort } from '../../lib/metrics.js';
 
 /* The headline KPI cards, shared by the Dashboard, the Trade Log and the prop Account
  * workspace. Rebuilt on Base Rhea (2026-08-29); every caller picks up the new look
@@ -38,8 +38,6 @@ const signTone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : 'flat');
 const gaugeTone = (value, breakEven) => (value >= breakEven ? 'pos' : 'flat');
 
 export function NetPnlCard({ m, unit }) {
-  const today = m.days.find((d) => d.key === dayKey(new Date()));
-  const todayPnl = today ? today.pnl : 0;
   const tone = signTone(m.net);
   return (
     <KpiCard hero>
@@ -56,7 +54,6 @@ export function NetPnlCard({ m, unit }) {
           encodings of one fact (wash, arrow, colour) crowded out the four cards beside
           it. `today` stays because it is a SECOND fact, not the same one again. */}
       <KpiValue tone={tone}>{fmtVal(m.net, unit)}</KpiValue>
-      <KpiPill>Today {fmtVal(todayPnl, unit)}</KpiPill>
     </KpiCard>
   );
 }

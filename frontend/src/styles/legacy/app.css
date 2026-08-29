@@ -790,6 +790,52 @@ label.full { margin-bottom: 16px; }
   gap: var(--dash-card-gap);
   align-items: start;
 }
+/* THE UNIT IS ON THE WIDGET, NOT ON THE ROW (2026-08-29), and the distinction is the
+   whole reason this works.
+
+   `grid-auto-rows: <unit>` is the obvious version and it is wrong: Account Health is a
+   3x1 widget with no height of its own, so a fixed row would stretch it to 355px and
+   leave ~75px of dead card under its footer. dash-layout.test.js has warned about
+   exactly that since the row heights were first removed.
+
+   Sizing the WIDGETS instead keeps `align-items: start` — Account Health still sizes to
+   its content — while the calendar's 2-row span comes out at exactly two 1-row cards
+   plus the gap between them, which is the alignment the design draws and the reason
+   --dash-card-h-lg is defined as (2 x md + gap) rather than as a number.
+
+   Set inline by Dashboard.jsx from the widget's own span, so the catalogue stays the
+   single source of a widget's footprint. */
+.dash-grid-cell > * { height: 100%; }
+/* The meter footer's optional "Edit payout target" control. It is a THIRD item in a row
+   built for two (a percentage on the left, a note on the right), so it wraps onto its
+   own line rather than colliding with the note — which is what it did at every width
+   narrower than a 1920 monitor. */
+.dash-usage-settarget {
+  display: block; width: 100%; margin-top: 2px; padding: 0;
+  background: none; border: 0; text-align: left; cursor: pointer;
+  font: inherit; font-size: 11.5px; color: var(--text-link);
+}
+.dash-usage-settarget:hover { color: var(--text); }
+/* The chart's own box inside a unit-height card. `min-height: 0` is what lets a flex
+   child shrink below its content — without it recharts' container refuses to give
+   ground and the card grows past the row it was given. */
+.dash-equity-fill { flex: 1; min-height: 0; }
+
+/* THE RESPONSIVE RANGE, applied to the dashboard's own sizes (DESIGN-LANGUAGE §22).
+   The card unit and the calendar cell are the two numbers that decide whether this page
+   fits, and both are single tokens — so the whole page narrows by re-declaring two
+   values rather than by a media query per component. */
+@media (max-width: 1400px) {
+  :root { --dash-card-h-md: 320px; --cal-cell-h: 72px; }
+}
+@media (max-width: 1200px) {
+  /* One column: a widget's span no longer means anything, so its height must not
+     either — a 2-unit calendar stacked above a 1-unit list would be 726px of a laptop
+     viewport spent on one month. Cards size to their content again here. */
+  :root { --dash-card-h-md: auto; --cal-cell-h: 64px; }
+  .dash-grid-cell { height: auto !important; }
+  .dash-grid-cell > * { height: auto; }
+}
 .dash-grid-cell { min-width: 0; }
 
 /* Card-size system (see --dash-card-h-md/-lg above): a flex column so each card's
@@ -1265,7 +1311,14 @@ label.full { margin-bottom: 16px; }
    and a step down, so the trigger reads "3 Accounts" first and the detail second. A
    legacy rule rather than a utility because it is written in a page, where Tailwind
    compiles nothing at all (tailwind.css @source). */
-.acct-switch-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
+/* A RULE, NOT A SPACE (2026-08-29, Rhea). The phase summary sat flush against the
+   scope label — "All accounts · 5 P1 · P2 · Funded" — where the design divides them,
+   because they are two different facts: how much scope, and which phases are in it.
+   Without the rule the two sets of `·` separators merge into one list. */
+.acct-switch-sub {
+  color: var(--text-3); font-size: 11.5px; white-space: nowrap;
+  border-left: 1px solid var(--line-strong); padding-left: 9px; margin-left: 1px;
+}
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 /* PRESET SKIN (2026-08-05). Surface, border, radius, padding and shadow are the
    generated dropdown-menu's now — DESIGN-LANGUAGE "the preset outranks legacy CSS".

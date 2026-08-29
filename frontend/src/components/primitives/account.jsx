@@ -180,7 +180,7 @@ export function AccountTabMore({ className, children, ...rest }) {
  * The Rhea prototype puts a "Lock account" button here. It is NOT built (owner): there
  * is no lock-account action in this app, and a button that does nothing on the one
  * banner a trader most needs to trust is worse than no button. */
-export function AccountBanner({ icon, label, className, children, ...rest }) {
+export function AccountBanner({ icon, label, action, className, children, ...rest }) {
   return (
     <div
       data-slot="account-banner"
@@ -200,7 +200,32 @@ export function AccountBanner({ icon, label, className, children, ...rest }) {
         {label}
       </span>
       <span className="text-[12.5px] leading-4 text-[var(--loss-fg-2)]">{children}</span>
+      <div className="flex-1" />
+      {action}
     </div>
+  );
+}
+
+/* The banner's one action. Edged and filled in the banner's own family — §14 read
+ * literally: this sits ON a red wash, so a neutral button would read as an escape hatch
+ * from the warning rather than a response to it. */
+export function AccountBannerAction({ className, children, ...rest }) {
+  return (
+    <button
+      type="button"
+      data-slot="account-banner-action"
+      className={cn(
+        'flex h-7 shrink-0 items-center rounded-full px-[11px] whitespace-nowrap',
+        'border border-[var(--loss-deep)] bg-[color-mix(in_srgb,var(--loss-deep)_45%,transparent)]',
+        'text-[12px] leading-4 font-semibold text-[var(--loss-fg)] transition-colors',
+        'hover:bg-[color-mix(in_srgb,var(--loss-deep)_70%,transparent)]',
+        'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -242,7 +267,19 @@ export function Meter({
   const hue = toneColor(tone);
   const inverted = INVERTED.has(tone);
   const fill = Math.max(0, Math.min(100, (pct || 0) * 100));
-  const critical = tone === 'bad';
+  /* THE WASH FOLLOWS THIS METER'S OWN FILL, NOT THE ACCOUNT'S STATE.
+   *
+   * It used to key off `tone === 'bad'`, which comes from the account-level health
+   * signal — so a BREACHED account washed EVERY risk meter red, including a daily
+   * drawdown sitting at 0% used because the day had just rolled over. A red cell over
+   * "$0 / $1,250 · 0.0% used" is the card contradicting itself, and the contradiction
+   * lands on the one number a trader checks before deciding whether they can trade.
+   *
+   * 90% is the meter's own line — the same one the wall is drawn at — so the wash, the
+   * wall and the figure now all change at one threshold. The ACCOUNT's state is still
+   * said, loudly, by the card's red edge and the stop-trading banner: that is where a
+   * breach belongs, because it is a fact about the account and not about this rule. */
+  const critical = !inverted && fill >= 90;
 
   /* STRETCHING THE RAMP is the whole trick, and it is one line. `background-size` set to
    * (100 / fill) × 100% makes the gradient that many times wider than the bar, so the

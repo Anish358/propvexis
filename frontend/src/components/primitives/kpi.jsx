@@ -78,10 +78,15 @@ export function KpiCard({ hero = false, className, children, ...rest }) {
       data-slot="kpi-card"
       data-kpi={hero ? 'hero' : undefined}
       className={cn(
-        'flex min-h-32 min-w-0 items-start justify-between gap-3 rounded-[14px] border px-[17px] pb-6',
+        /* ONE BOX, TWO ARRANGEMENTS. Both are min-h-[118px] with the same inset; the
+           hero stacks (label row over figure, spaced apart) and the rest run label+figure
+           against a gauge. The card was min-h-32 with a 28px top inset when the hero
+           carried a third line; without it that was 14px of nothing under every figure,
+           which is what made the row look taller than the design. */
+        'flex min-h-[118px] min-w-0 gap-3 rounded-[14px] border px-[17px] py-[18px]',
         hero
-          ? 'flex-col border-[var(--line-control)] bg-[var(--surface-raised)] pt-7'
-          : 'border-[var(--line)] bg-[var(--surface)] pt-[22px]',
+          ? 'flex-col border-[var(--line-control)] bg-[var(--surface-raised)]'
+          : 'items-center justify-between border-[var(--line)] bg-[var(--surface)]',
         className,
       )}
       {...rest}
@@ -98,7 +103,9 @@ export function KpiMain({ className, children, ...rest }) {
   return (
     <div
       data-slot="kpi-main"
-      className={cn('flex min-w-0 flex-col gap-[13px] pt-1.5', className)}
+      // `justify-center`, not a top pad: the gauge beside it is centred, and a label
+      // stack pinned to the top left the two visibly off-axis at the card's floor.
+      className={cn('flex min-w-0 flex-col justify-center gap-2.5', className)}
       {...rest}
     >
       {children}
@@ -171,7 +178,7 @@ export function KpiAside({ className, children, ...rest }) {
   return (
     <div
       data-slot="kpi-aside"
-      className={cn('flex shrink-0 flex-col items-center justify-center gap-1.5 self-stretch', className)}
+      className={cn('flex shrink-0 flex-col items-center justify-center gap-2', className)}
       {...rest}
     >
       {children}

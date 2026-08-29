@@ -52,7 +52,7 @@
 export { Alert, AlertAction, AlertDescription, AlertTitle } from './alert.jsx';
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
 export { Badge } from './badge.jsx';
-export { Button, buttonVariants } from './button.jsx';
+export { Button, ButtonDot, ButtonLabel, buttonVariants } from './button.jsx';
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.jsx';
 // A count, not a status — see count-badge.jsx for why this is separate from Badge.
 export { CountBadge } from './count-badge.jsx';
@@ -126,7 +126,7 @@ export {
 
 // Account Health — the full-width rule-meter card. Same reasoning as the rail.
 export {
-  AccountBanner, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
+  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, Meter, MeterRow,
 } from './account.jsx';
 

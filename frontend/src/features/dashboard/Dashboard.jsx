@@ -28,12 +28,12 @@ import Explain from '../../components/Explain.jsx';
 // counted as eleven because it is declared inline in a page rather than in its own
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
-  AccountBanner, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
+  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionLink, ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain, KpiSpacer,
   LoadingNote, MeterRow,
-  PanelBody, PanelCard, PanelChip, PanelHead, PanelLink, PanelMeta, PanelRow, PanelTab,
+  PanelBody, PanelCard, PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelTab,
   PanelTabs, SkeletonBlock, SkeletonLine,
   SkeletonRegion, Tabs, EmptyState, Modal,
 } from '@/components/primitives';
@@ -54,7 +54,7 @@ import { healthStatus } from '../prop/PropOS.jsx';
 import AccountDetails from '../prop/AccountDetails.jsx';
 import RecentTrades from '../trades/RecentTrades.jsx';
 import { fetchProp, updateAccount, fetchCalendar } from '../../lib/api.js';
-import { chartPalette } from '../../lib/theme.js';
+import { chartPalette, token } from '../../lib/theme.js';
 import {
   computeMetrics, fmtVal, fmtValShort,
 } from '../../lib/metrics.js';
@@ -301,11 +301,12 @@ export function DailyBanner({
                   /* CLEAR MARKS IT READ — the same act the notification panel performs,
                      against the same route. The prototype clears into local component
                      state, which would give a dismissal that returns on reload and an
-                     unread count disagreeing with the list beside it. Only offered for
-                     an alert that is actually unread; a read one has nothing to clear. */
-                  onClear={markNotificationRead && !n.read_at
-                    ? () => markNotificationRead(n.id)
-                    : undefined}
+                     unread count disagreeing with the list beside it.
+                     OFFERED ON EVERY ROW, not only unread ones: the brief shows read
+                     alerts too (a read `warning` still means an account is near its
+                     limit), and gating Clear on `read_at` meant the rows most likely to
+                     be lingering were the ones with no way to dismiss them. */
+                  onClear={markNotificationRead ? () => markNotificationRead(n.id) : undefined}
                 >
                   {n.body || n.message || ''}
                 </BriefAlert>
@@ -323,22 +324,32 @@ export function DailyBanner({
 // it reads as two controls floating in whitespace rather than a third section.
 // Sync Trades is still a placeholder (the timestamp is static copy); Customize
 // opens the layout panel.
-function DashActions({ onCustomize }) {
+function DashActions({ onCustomize, lastSynced }) {
   return (
     <ActionStrip
       action={(
-        <Button variant="primary" size="sm" type="button">
+        /* SECONDARY, NOT PRIMARY (Rhea). It was a LIGHT fill — the page's one primary
+           action — and Rhea draws it as a quiet bordered pill. Right, on reflection:
+           the primary act on this page is READING it, and a white button at the top of
+           a dashboard pulls the eye to a control most traders touch once a session, if
+           the sync is not already automatic. */
+        <Button variant="secondary" size="sm" pill type="button">
           <RefreshCw aria-hidden="true" />
           Sync Trades
         </Button>
       )}
-      /* STILL A PLACEHOLDER, and it says so rather than inventing a timestamp. The
-         frame draws a green tick beside the button; the app has no sync-status feed on
-         this page yet, so printing "Last synced: 2 min ago" (which is what stood here)
-         is a number with nothing behind it. An honest label costs nothing and does not
-         have to be un-lied about when the feed arrives. */
-      status={<ActionStatus>Manual sync — not yet wired</ActionStatus>}
+      /* THE DESIGN'S SHAPE, WITH A TRUE VALUE IN IT. Rhea writes "Last synced: 2 min
+         ago"; the app has no sync-status feed on this page, and printing an elapsed
+         time with nothing behind it is a number a trader will act on ("it synced two
+         minutes ago, so this P&L is current") when nothing has run.
+         So the LABEL is the design's and the VALUE is whatever is true — "never" until
+         a sync happens. That reads correctly the day the feed lands and never has to be
+         un-lied about. */
+      status={<ActionStatus>Last synced: {lastSynced || 'never'}</ActionStatus>}
     >
+      {/* A BORDERED PILL, not bare text (Rhea). It sat as a label the same weight as
+          the status text across from it, which made the strip read as two sentences
+          rather than a control at each end. */}
       <ActionLink
         type="button"
         title="Customize layout"
@@ -413,6 +424,10 @@ function CumulativePnlCard({ days, unit }) {
   }, [days]);
 
   const last = data.length ? data[data.length - 1].cum : 0;
+  // Structural hue for the area (it sits under nothing), bright for the line (it is
+  // drawn ON that area) — the §4 split, applied.
+  const curveHue = last < 0 ? token('--loss-deep') : token('--profit-deep');
+  const curveLine = last < 0 ? token('--loss-bright') : token('--profit-bright');
   return (
     /* Same as the activity card: the chart already declares its own height on the
        ResponsiveContainer, so `card-md` only added empty space beneath it. */
@@ -436,21 +451,42 @@ function CumulativePnlCard({ days, unit }) {
       {data.length === 0 ? (
         <EmptyState title="No closed trades yet" description="Your cumulative P&L will chart here once you have closed trades." />
       ) : (
-        <ResponsiveContainer width="100%" height={190}>
-          <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-            <defs>
-              <linearGradient id="dashEquityFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={chartPalette().profit} stopOpacity={0.45} />
-                <stop offset="100%" stopColor={chartPalette().profit} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke={chartPalette().grid} strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="label" stroke={chartPalette().axis} fontSize={11} minTickGap={40} />
-            <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtValShort(v, unit)} width={52} />
-            <Tooltip contentStyle={chartPalette().tip} formatter={(v) => fmtVal(v, unit)} labelStyle={{ color: chartPalette().label }} />
-            <Area type="monotone" dataKey="cum" stroke={chartPalette().accent} strokeWidth={2} fill="url(#dashEquityFill)" />
-          </AreaChart>
-        </ResponsiveContainer>
+        /* THE CURVE IS SIGNED, AND THAT IS THE ONE REAL CHANGE HERE. It drew --profit
+           whatever the account was doing, so a month that gave everything back plotted a
+           green line falling off a cliff. The line and its fill take the sign of where
+           the curve ENDS, which is the number printed in the head beside it — one fact,
+           two encodings, never disagreeing.
+           A single-series line is otherwise neutral (§4); this one is not a lone line,
+           it is a P&L, and P&L has an outcome. */
+        <div className="dash-equity-fill">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
+              <defs>
+                <linearGradient id="dashEquityFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={curveHue} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={curveHue} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={chartPalette().grid} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="label" stroke={chartPalette().axis} fontSize={11} minTickGap={48} tickLine={false} axisLine={false} />
+              <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtValShort(v, unit)} width={52} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={chartPalette().tip} formatter={(v) => fmtVal(v, unit)} labelStyle={{ color: chartPalette().label }} />
+              {/* NO ENTER ANIMATION. recharts wipes the series in from zero width on
+                  every mount, which means the equity curve is briefly absent every time
+                  the unit toggle, a filter or the account scope changes — motion that
+                  says nothing, on the one chart a trader checks to see whether they are
+                  up. §10: animation settles, and this one had nothing to settle to. */}
+              <Area
+                type="monotone"
+                dataKey="cum"
+                stroke={curveLine}
+                strokeWidth={2}
+                fill="url(#dashEquityFill)"
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </PanelCard>
   );
@@ -640,10 +676,34 @@ function SetTargetModal({
 // account header (tab row) so switching which account you're looking at
 // doesn't require leaving the page.
 function AccountCard({
-  data, candidates, selectedId, onSelect, onOpen, accounts, onChanged,
+  data, candidates, selectedId, onSelect, onOpen, accounts, onChanged, onLocked,
 }) {
   const [targetOpen, setTargetOpen] = useState(false);
+  const [locking, setLocking] = useState(false);
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
+
+  async function lockAccount() {
+    if (!acctRecord) return;
+    // eslint-disable-next-line no-alert
+    if (!confirm(
+      `Lock ${acctRecord.label || `account ${data.account_id}`}?\n\n`
+      + 'PropVexis cannot disable the account at your prop firm — only your firm can do '
+      + 'that. Locking here stops PropVexis tracking it: it leaves the account switcher '
+      + 'and every total, so you are not reading figures from an account you should not '
+      + 'be trading.\n\nYou can unlock it from Settings › Accounts.',
+    )) return;
+    setLocking(true);
+    try {
+      await updateAccount(acctRecord.id, { is_active: false });
+      // BOTH reloads: the prop engine's view of the account AND the account list the
+      // scope switcher reads. Reloading one leaves the locked account still selectable
+      // in the top bar, which is the half of "stops tracking it" that matters most.
+      onChanged();
+      onLocked();
+    } finally {
+      setLocking(false);
+    }
+  }
 
   /* THE STOP-TRADING BANNER FIRES ON THE SAME SIGNAL THE METERS DO, so it can never
    * disagree with them: `breached` is the account already gone, and `bad` is
@@ -665,6 +725,22 @@ function AccountCard({
         <AccountBanner
           icon={<AlertTriangle aria-hidden="true" />}
           label="Stop trading zone"
+          /* LOCK ACCOUNT IS REAL, AND IT DOES THE ONE REAL THING AVAILABLE.
+           *
+           * PropVexis cannot reach into a prop firm and disable a login — no connector
+           * does that, and a button that pretends to would be the worst possible lie on
+           * the worst possible banner. What it CAN do is stop tracking the account here:
+           * `is_active = false`, the same soft archive Settings › Accounts has always
+           * offered, which removes it from the scope switcher and every aggregate so a
+           * trader is not staring at a dead account's figures.
+           *
+           * The confirm says exactly that, in those words, so nobody clicks it believing
+           * their broker just got a message. It is reversible from Settings. */
+          action={acctRecord && (
+            <AccountBannerAction onClick={lockAccount} disabled={locking}>
+              {locking ? 'Locking…' : 'Lock account'}
+            </AccountBannerAction>
+          )}
         >
           {data.breach.breached
             ? `${data.label || `Account ${data.account_id}`} has breached its rules.`
@@ -819,6 +895,7 @@ export function DashSkeleton() {
 export default function Dashboard() {
   const {
     trades = [], tradesLoading = false, accounts = [], accountId = 'all', setAccountId,
+    reloadAccounts = () => {},
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
     dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
     briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, markNotificationRead,
@@ -828,6 +905,26 @@ export default function Dashboard() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
   const beRounding = !!tradeSettings.beRounding;
+
+  /* "LAST SYNCED" FROM THE DATA, NOT FROM A FEED WE DO NOT HAVE. There is no sync-status
+   * endpoint, but the newest ingested trade IS evidence that a sync happened and when —
+   * so this reports the freshest thing the app actually knows. It says "never" with no
+   * trades, which is exactly right for a new account, and it stops being a guess the day
+   * a real sync feed lands: the label does not change, only its source. */
+  const lastSynced = useMemo(() => {
+    let newest = 0;
+    for (const t of trades) {
+      const at = new Date(t.close_time || 0).getTime();
+      if (at > newest) newest = at;
+    }
+    if (!newest) return null;
+    const mins = Math.max(0, Math.round((Date.now() - newest) / 60_000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return new Date(newest).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }, [trades]);
   const m = useMemo(() => computeMetrics(trades, unit, beRounding), [trades, unit, beRounding]);
 
   const now = new Date();
@@ -903,6 +1000,7 @@ export default function Dashboard() {
         onOpen={() => setAccountId(String(selectedAccount.account_id))}
         accounts={accounts}
         onChanged={loadProp}
+        onLocked={reloadAccounts}
       />
     )),
     /* NO `card-lg`. Its fixed height existed for the old calendar, whose six week rows
@@ -922,7 +1020,11 @@ export default function Dashboard() {
           onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
           onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
           onSelectDay={(c) => setSelectedDay(c.key)}
+          // See MonthCalendar's `weeks`: this calendar shares a row with two other
+          // cards, so the eighth column costs width the days need. Prop OS keeps it.
+          weeks={false}
         />
+        <PanelHint>Click a day to open that session&rsquo;s trades.</PanelHint>
       </PanelCard>
     ),
     activity: () => <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />,
@@ -961,11 +1063,17 @@ export default function Dashboard() {
       <div className="dash-grid" style={{ '--dash-grid-cols': GRID_COLUMNS }}>
         {visibleWidgets.map((id) => {
           const { cols, rows } = widgetSpan(id);
+          /* HEIGHT FROM THE SPAN, so a 2-row widget is exactly two 1-row widgets plus
+             the gap. A FULL-WIDTH widget (Account Health) is exempt: it has no
+             neighbour to line up with, and pinning it to a unit would leave dead card
+             under its footer — see the note in app.css. */
+          const height = cols === GRID_COLUMNS ? undefined
+            : `var(--dash-card-h-${rows > 1 ? 'lg' : 'md'})`;
           return (
             <div
               key={id}
               className="dash-grid-cell"
-              style={{ gridColumn: `span ${cols}`, gridRow: `span ${rows}` }}
+              style={{ gridColumn: `span ${cols}`, gridRow: `span ${rows}`, height }}
             >
               {gridWidget[id]()}
             </div>
@@ -1010,11 +1118,11 @@ export default function Dashboard() {
       />
 
       <div className="page-body dash-page-body">
-        {stripAfter === null && <DashActions onCustomize={() => setCustomizeOpen(true)} />}
+        {stripAfter === null && <DashActions onCustomize={() => setCustomizeOpen(true)} lastSynced={lastSynced} />}
         {sections.map((id) => (
           <React.Fragment key={id}>
             {sectionNode[id]()}
-            {stripAfter === id && <DashActions onCustomize={() => setCustomizeOpen(true)} />}
+            {stripAfter === id && <DashActions onCustomize={() => setCustomizeOpen(true)} lastSynced={lastSynced} />}
           </React.Fragment>
         ))}
       </div>
