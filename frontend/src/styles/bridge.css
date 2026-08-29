@@ -569,3 +569,26 @@
 @theme {
   --breakpoint-md: 900px;
 }
+
+/* ---------------------------------------------------------------------------
+   KEYFRAMES the component library owns.
+
+   `@keyframes` are global and layer-free, so declaring them here rather than in
+   legacy/app.css means they survive that file's deletion. Utilities reference them by
+   name (`animate-[pv-breathe_2.4s_ease-in-out_infinite]`).
+
+   pv-breathe — THE ONE LOOPING ANIMATION IN THIS APP, and it is on the stop-trading
+   banner. Everything else animates on a state change and settles; this does not settle
+   because the CONDITION does not. An account 88% through its daily loss limit is still
+   88% through it a minute later, and a static red bar is something the eye stops
+   seeing within a minute of it appearing.
+
+   It pulses a RING rather than the fill, so nothing under it moves and no text
+   reflows — a banner whose words shift is harder to read, not more urgent. Every
+   caller gates it behind `motion-safe:`, which is §10's rule: a reduced-motion user
+   gets the banner, just not the pulse. The state change still happens.
+--------------------------------------------------------------------------- */
+@keyframes pv-breathe {
+  0%, 100% { box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--loss) 28%, transparent); }
+  50% { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--loss) 0%, transparent); }
+}

@@ -61,12 +61,32 @@ test('the bar fills UP as risk grows, and the track is a real surface', () => {
    * backwards for the number that ends accounts. Inherited from the pre-redesign meter
    * and not a visual choice to revisit.
    *
-   * The track is --surface-2 rather than a tint of the fill: a track washed in the
-   * fill's own hue makes an 8%-used meter look half full from across a desk. */
+   * The track is a real surface rather than a tint of the fill: a track washed in the
+   * fill's own hue makes an 8%-used meter look half full from across a desk. (The token
+   * moved --surface-2 -> --surface-hover with Rhea; the requirement did not.) */
   assert.match(details, /used=\{data\.dailyDd\?\.usedToday\}/);
   assert.match(details, /limit=\{data\.dailyDd\?\.limit\}/);
-  assert.match(account, /bg-\[var\(--surface-2\)\]/, 'the meter track must be a surface, not a tint');
+  assert.match(account, /bg-\[var\(--surface-hover\)\]/, 'the meter track must be a surface, not a tint');
   assert.match(account, /width: `\$\{fill\}%`/);
+});
+
+test('the risk bar is one stretched ramp, and it never turns green', () => {
+  /* THE BAR USED TO BE A FLAT FILL in the tone's single colour — amber at 70%, red at
+   * 90%. That teaches the trader the THRESHOLDS rather than the trajectory: a meter at
+   * 69% and one at 71% look like two different states rather than one continuum.
+   *
+   * Rhea fills it with ONE gradient stretched by `background-size` so the visible slice
+   * is exactly the first `fill`% of the ramp. Without the stretch the FULL ramp is
+   * compressed into the bar's width and every meter ends in red however much room is
+   * left — which is worse than a flat fill, not better. That line is the whole
+   * mechanism, so it is what gets pinned. */
+  assert.match(account, /10000 \/ fill/, 'the ramp must be stretched, not compressed into the bar');
+  assert.match(account, /var\(--risk-ramp\)/);
+  // And the inverted case opts out of both the ramp and the 90% wall: on a profit
+  // target, filling up is progress and 90% is nearly there rather than nearly dead.
+  assert.match(account, /INVERTED = new Set\(\['target', 'payout'\]\)/);
+  assert.match(account, /inverted \? 'var\(--profit-fill\)' : 'var\(--risk-ramp\)'/);
+  assert.match(account, /\{!inverted && \(/, 'the 90% wall is risk-only');
 });
 
 test('the day count is printed once', () => {
@@ -74,19 +94,29 @@ test('the day count is printed once', () => {
   // one card teaches the reader that neither is worth reading, so it lives in the
   // footer, beside the link it relates to.
   const card = dash.slice(dash.indexOf('function AccountCard('), dash.indexOf('// ---- page ---'));
-  const hits = (card.match(/minimum trading days completed/g) || []).length;
+  // The COUNT, wherever the words around it land. Rhea splits the sentence so the
+  // figure is mono and the qualifier sits after a hairline, so matching the old
+  // seven-word string would have pinned the copy rather than the rule.
+  const hits = (card.match(/data\.tradingDays\.completed/g) || []).length;
   assert.equal(hits, 1, `the trading-day count appears ${hits} times — it must appear once`);
 });
 
 test('the card and its meters reflow inside the 1080-1920 range', () => {
   // Three meters become one column at 1200: a meter holds a 22px figure, its limit, a
   // bar and a footer line, and under ~300px the figure and the limit collide.
-  assert.match(account, /grid grid-cols-3 gap-2.5 max-\[1200px\]:grid-cols-1/);
-  // Tabs wrap rather than scroll. A horizontally scrolling strip of accounts hides the
-  // account the trader is looking for, which is the one thing this row exists to find.
-  assert.match(account, /flex flex-wrap items-center gap-2/);
-  // The footer wraps too, so "View account" never overlaps the day count.
-  assert.match(account, /flex flex-wrap items-center justify-between gap-3 border-t/);
+  assert.match(account, /grid grid-cols-3 gap-4 px-\[18px\] pt-3 pb-5 max-\[1200px\]:grid-cols-1/);
+  /* TABS SCROLL RATHER THAN WRAP, WHICH REVERSES THIS TEST (2026-08-29, Rhea).
+   *
+   * It used to assert wrapping, on the argument that a horizontally scrolling strip
+   * hides the very account a trader is looking for. That argument held for a 36px-tall
+   * text tab. Rhea's chip is 60 tall and carries a health ring, a name and a phase —
+   * wrapping four of those puts a SECOND 60px row above the meters and pushes the
+   * numbers that end accounts below the fold, on the one card where that matters most.
+   * A scrolled strip keeps the card one height whatever the account count, and the
+   * overflow control is still there for finding a specific account. */
+  assert.match(account, /flex items-stretch gap-2\.5 overflow-x-auto/);
+  // The footer wraps, so "View account" never overlaps the day count.
+  assert.match(account, /flex flex-wrap items-center gap-4 border-t/);
 });
 
 test('the meters stay one component across both surfaces', () => {

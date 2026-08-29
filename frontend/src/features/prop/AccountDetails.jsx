@@ -30,7 +30,6 @@ import { roomStatus } from './PropOS.jsx';
 // ---------------------------------------------------------------------------
 
 const money = (n) => (n == null ? '—' : fmtMoney(n));
-const pct1 = (f) => `${((f || 0) * 100).toFixed(1)}%`;
 
 /* A single "$used / $limit" row with a fill bar.
  *
@@ -56,7 +55,7 @@ const TONE_ICON = {
 };
 
 export function UsageMeter({
-  label, used, limit, pct, tone, sub,
+  label, used, limit, pct, tone, sub, meta,
 }) {
   const Icon = TONE_ICON[tone] || null;
   return (
@@ -68,6 +67,7 @@ export function UsageMeter({
       pct={pct}
       tone={tone}
       sub={sub}
+      meta={meta}
     />
   );
 }
@@ -91,7 +91,13 @@ export default function AccountDetails({ data, onSetTarget = null }) {
         limit={data.dailyDd?.limit}
         pct={dayPct}
         tone={daySt}
-        sub={`${pct1(dayPct)} used · ${money(data.dailyDd?.roomLeft)} remaining`}
+        /* `sub` NO LONGER LEADS WITH THE PERCENTAGE (2026-08-29, Rhea). The meter
+           renders its own fill percentage in the footer's left slot, so "49.6% used ·
+           $1,260 remaining" printed it twice, four pixels apart, in two type styles.
+           The word is the unit for the figure the meter already shows; the room left
+           moves to `meta`, on the right, where the eye goes for "so what". */
+        sub="used"
+        meta={`${money(data.dailyDd?.roomLeft)} left`}
       />
       <UsageMeter
         label="Max drawdown"
@@ -99,7 +105,8 @@ export default function AccountDetails({ data, onSetTarget = null }) {
         limit={data.maxDd?.limit}
         pct={maxPct}
         tone={maxSt}
-        sub={`${pct1(maxPct)} used · ${money(data.maxDd?.roomLeft)} remaining`}
+        sub="used"
+        meta={`${money(data.maxDd?.roomLeft)} left`}
       />
       {data.profitTarget ? (
         <UsageMeter
@@ -108,13 +115,11 @@ export default function AccountDetails({ data, onSetTarget = null }) {
           limit={data.profitTarget.target}
           pct={data.profitTarget.pctToTarget}
           tone={data.phase === 'funded' ? 'payout' : 'target'}
-          sub={(
+          sub={data.profitTarget.reached ? 'target reached' : 'of target'}
+          meta={(
             <>
-              <span>
-                {data.profitTarget.reached
-                  ? 'Target reached'
-                  : `${pct1(data.profitTarget.pctToTarget)} of target · ${money(data.profitTarget.target - data.profitTarget.current)} to go`}
-              </span>
+              {!data.profitTarget.reached
+                && `${money(data.profitTarget.target - data.profitTarget.current)} to go`}
               {data.phase === 'funded' && onSetTarget && (
                 <button
                   type="button"

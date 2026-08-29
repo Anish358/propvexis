@@ -28,8 +28,8 @@ import Explain from '../../components/Explain.jsx';
 // counted as eleven because it is declared inline in a page rather than in its own
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
-  AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell, AccountTab,
-  AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
+  AccountBanner, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
+  AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionLink, ActionStatus, ActionStrip, KpiCard, KpiSpacer, LoadingNote, MeterRow,
   PanelBody, PanelCard, PanelHead, PanelMeta, PanelRow, SkeletonBlock, SkeletonLine,
@@ -498,12 +498,16 @@ function AccountHeader({ candidates, selectedId, onSelect }) {
             tone={st}
             selected={active}
             alert={<AccountAlertIcon status={st} />}
+            phase={PHASE_LABEL[a.phase] || a.phase}
             onClick={() => onSelect(a.account_id)}
           >
-            {/* ONE LINE, not the old stacked name-over-phase. The frame writes it as
-                "#5521 · Phase 2", and a two-line tab is 48 tall against the meters'
-                own rhythm — the phase is a qualifier on the name, not a second fact. */}
-            {`${a.label || `Account ${a.account_id}`} · ${PHASE_LABEL[a.phase] || a.phase}`}
+            {/* STACKED AGAIN (Rhea, 2026-08-29). The intermediate pass put these on one
+                line as "#5521 · Phase 2" because a two-line tab was 48 tall against a
+                36px rhythm. Rhea's chip is 60 tall and the row is the card's own header
+                rather than a strip of tabs, so the phase gets its own line — which is
+                what it wanted: it is the answer to "which stage of this challenge am I
+                in", not a disambiguator on the name. */}
+            {a.label || `Account ${a.account_id}`}
           </AccountTab>
         );
       })}
@@ -626,11 +630,32 @@ function AccountCard({
   const [targetOpen, setTargetOpen] = useState(false);
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
 
+  /* THE STOP-TRADING BANNER FIRES ON THE SAME SIGNAL THE METERS DO, so it can never
+   * disagree with them: `breached` is the account already gone, and `bad` is
+   * roomStatus() saying under 25% of the daily limit is left. There is no second
+   * threshold here for the banner to drift away from.
+   *
+   * The message names the account and the number, because "stop trading" without a
+   * reason is an instruction a trader will override. */
+  const dayTone = healthStatus(data.health.score, data.breach.breached);
+  const critical = data.breach.breached || dayTone === 'bad';
+
   return (
-    <AccountCardShell>
+    <AccountCardShell critical={critical}>
       <AccountCardHead icon={<ShieldCheck aria-hidden="true" />}>Account Health</AccountCardHead>
 
       <AccountHeader candidates={candidates} selectedId={selectedId} onSelect={onSelect} />
+
+      {critical && (
+        <AccountBanner
+          icon={<AlertTriangle aria-hidden="true" />}
+          label="Stop trading zone"
+        >
+          {data.breach.breached
+            ? `${data.label || `Account ${data.account_id}`} has breached its rules.`
+            : `${data.label || `Account ${data.account_id}`} is close to today's loss limit.`}
+        </AccountBanner>
+      )}
 
       {/* The three rule meters live in AccountDetails.jsx — Accounts › Details renders
           the same section, and one component is what keeps the two from drifting. This
@@ -653,7 +678,12 @@ function AccountCard({
         )}
       >
         <CalendarDays aria-hidden="true" />
-        {data.tradingDays.completed}/{data.tradingDays.required} minimum trading days completed
+        {/* The count is mono because it is a figure; the words are not. Rhea splits
+            them so a glance lands on "7/10" rather than on the sentence around it. */}
+        <AccountFootFigure>{data.tradingDays.completed}/{data.tradingDays.required}</AccountFootFigure>
+        days completed
+        <AccountFootRule />
+        <span>Minimum trading days requirement</span>
       </AccountCardFoot>
 
       {targetOpen && acctRecord && (

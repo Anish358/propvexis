@@ -41,6 +41,15 @@ const UPPERCASE_EXCEPTIONS = [
    * that way, and at title case ("Soon") it competed with the label it is subordinate
    * to. Anything larger, darker, or in a sentence is still shouting. */
   { file: 'components/primitives/rail.jsx', what: "the rail's Soon state badge" },
+  /* THE ACCOUNT CARD'S TWO (added 2026-08-29, Rhea): a meter's rule name ("DAILY
+   * DRAWDOWN") and the stop-trading banner's label. Both are 11-12.5px, letterspaced,
+   * and name a thing rather than say one — the same eyebrow register §3 exempts.
+   *
+   * The banner is the one caps run in this app that is NOT muted, and it argues for
+   * itself: it is the single most urgent string the product can show, it appears only
+   * when an account is inside its stop-trading zone, and it is the redundant encoding
+   * that keeps severity legible without colour. Caps as structure, and once. */
+  { file: 'components/primitives/account.jsx', what: "meter eyebrows and the stop-trading label" },
 ];
 
 test('no uppercase text-transform outside the brand wordmark', () => {
