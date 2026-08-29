@@ -280,10 +280,16 @@
   --text-lg: var(--fs-section-title);
   --text-2xl: var(--fs-page-title);
 
-  /* Weights — 400 default, 600 ceiling (DESIGN-LANGUAGE N2) */
+  /* Weights — 400 default, CEILING 650, half-steps legal (DESIGN-LANGUAGE §3,
+     amended 2026-08-29). Geist is a variable face, so the ladder gained the
+     in-between steps the whole-step scale could not express. Tailwind's `font-bold`
+     is repointed at 650 rather than its own 700: 700 is brand-lockup only, and a
+     generated component asking for `font-bold` must not be the thing that reaches
+     for it. */
   --font-weight-normal: var(--fw-regular);
   --font-weight-medium: var(--fw-medium);
   --font-weight-semibold: var(--fw-semibold);
+  --font-weight-bold: var(--fw-bold);
 
   /* Spacing. Our --s-* scale is 4px-based (s-1:4 s-2:8 s-3:12 s-4:16 s-6:24
      s-8:32 s-10:40 s-12:48), so pointing Tailwind's base unit at --s-1 makes

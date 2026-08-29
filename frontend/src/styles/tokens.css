@@ -1,112 +1,175 @@
 /* ---------------------------------------------------------------------------
-   Design tokens — THE rebrand surface. Swap these values (accent trio + surfaces)
-   to reskin the whole app; components must reference tokens, never raw hex.
-   (Brand *name* lives in theme.js BRAND; nav structure in nav.js.)
+   Design tokens — THE rebrand surface. Swap these values to reskin the whole app;
+   components reference tokens, never raw hex. (Brand *name* lives in theme.js
+   BRAND; nav structure in nav.js.)
+
+   BASE RHEA, 2026-08-29. This file was re-valued against the Rhea dashboard
+   prototype (docs/design/dashboard/) and its role derivation is written up in
+   docs/design/dashboard/COLOUR-INVENTORY.md — 87 literals in the prototype, 34
+   roles here. Read that before adding a value; most "new" colours are already a
+   role under a different name.
+
+   THE PALETTE IS ZINC, NOT NEUTRAL. Ten of the prototype's greys are byte-exact
+   Tailwind zinc steps and the rest are interpolations between them. That is why
+   components.json still says `baseColor: neutral` while this file does not: the
+   preset generates from neutral and the token layer overrides it, which is the
+   override mechanism DESIGN-LANGUAGE exists to record.
 --------------------------------------------------------------------------- */
 :root {
   color-scheme: dark;
 
-  /* ===== PRIMITIVES (raw scales — never used directly in components) ===== */
+  /* ===== PRIMITIVES (raw scales — never used directly in components) =====
+     The zinc steps the Rhea design actually lands on, at Tailwind's own values, so
+     a role below can say WHICH grey it is rather than restating a hex. The
+     half-steps between them are declared with the roles that need them, because
+     unlike these they carry no independent meaning. */
+  --zinc-950:#09090b; --zinc-900:#18181b; --zinc-800:#26262b; /* 800 is Rhea's, not zinc's #27272a */
+  --zinc-700:#3f3f46; --zinc-600:#52525b; --zinc-500:#71717a; --zinc-400:#a1a1aa;
+  --zinc-300:#d4d4d8; --zinc-200:#e4e4e7; --zinc-50:#fafafa;
+
   --blue-400:#51a2ff; --blue-500:#2b7fff; --blue-600:#155dfc; --blue-700:#1447e6;
   --blue-800:#193cb8;   /* preset b2qKmlY80 uses this as the dark-theme brand fill */
-  --slate-400:#a1a1a1; --slate-500:#737373;   /* secondary/tertiary text */
-  --green-400:#5cf0bb; --green-500:#00d492; --green-600:#00b07a;   /* figma: profit */
-  --red-400:#ff8a8a;  --red-500:#ff6467;  --red-600:#e04f52;  --red-muted:#d95a5a;   /* figma: loss */
-  --amber-400:#ffc933; --amber-500:#ffb900;   /* figma: warning / nudge */
   --purple-400:#a78bfa; --purple-500:#8b5cf6;
   --cyan-400:#38bdf8;
 
-  /* ===== SURFACES — the PropVexis brand palette (Background/Surface), flat and
-     solid. No gradients — the brand's design language calls for flat surfaces,
-     lots of whitespace, subtle shadows over gradient chrome. ===== */
-  --bg: #0a0a0a;                 /* brand "Background" */
-  --panel: #171717; --surface: #171717;   /* brand "Surface" — cards, modals, panels */
-  --surface-2: #262626;          /* elevated: popovers, menus, cards-on-cards */
-  --sidebar-bg: #171717;         /* preset: a raised surface, one step above the page.
-                                    Replaced our flat-sidebar rule by owner decision. */
-  --surface-hover: #262626;
-  --line: rgba(255,255,255,0.10);
-  --line-strong: rgba(255,255,255,0.15);
+  /* ===== SURFACES — the depth ramp, #09090b -> #26262b.
+     Each step is a DEPTH and the design is consistent about which depth means
+     what. See COLOUR-INVENTORY §1. No gradients: flat surfaces, generous
+     whitespace, subtle shadows. ===== */
+  --bg: var(--zinc-950);         /* the page */
+  --rail-bg: #0b0b0d;            /* the rail; also a weekend / no-trade calendar cell */
+  --sidebar-bg: var(--rail-bg);  /* legacy alias — same surface, older name */
+  --surface-sunken: #0d0d10;     /* a card's footer strip, a meter cell, an empty weekday */
+  --surface: #101013;            /* EVERY CARD. The most load-bearing value here. */
+  --panel: var(--surface);       /* legacy alias */
+  --surface-raised: #111115;     /* the ONE card that sits above the others (Net P&L) */
+  --row-bg: #121215;             /* an event or alert row inside a card */
+  --control-bg: #131316;         /* a pill control at rest — unit toggle, Filters, icon buttons */
+  --control-bg-strong: #16161a;  /* a FILLED quiet button — Sync Trades, This month, Import */
+  --surface-2: var(--control-bg);/* legacy alias: "one step above the card" */
 
-  /* Neutral selection — active/selected CHROME is grayscale, never tinted. Blue is
-     reserved for primary actions + data, not chrome. Preset values are OPAQUE
-     greys, not white-alpha: they no longer adapt to the surface underneath, which
-     was the point of the alpha version. Owner-approved. */
-  --sel-bg: #27272a;
-  --sel-bg-strong: #404040;
+  /* Hover and selection. --sel-bg and --sel-well point in OPPOSITE directions and
+     both are right: #1c1c21 on the #0b0b0d rail is lighter than its ground, #17171c
+     on a #101013 card is darker. Selected reads as raised on the rail and recessed
+     on a card. Two roles, not one token used twice. */
+  --surface-hover: #1a1a1e;      /* any control's hover; also a row's, an icon button's */
+  --sel-bg: #1c1c21;             /* a quiet active fill: active rail item, count chips */
+  --sel-well: #17171c;           /* a selected account chip — a well, not a raise */
+  --sel-bg-strong: var(--zinc-800);
 
-  /* ===== TEXT (brand "Text" / "Secondary Text", 3rd tier derived) ===== */
-  --text: #fafafa;
-  --text-2: var(--slate-400); --muted: var(--slate-400);
-  --text-3: var(--slate-500);
+  /* ===== LINES — seven roles, and the ramp is deliberate: a divider inside a card
+     must not read as loud as the card's own edge. See COLOUR-INVENTORY §3. ===== */
+  --line-inset: #17171a;         /* a divider INSIDE a card (tab strip, footer rule) */
+  --line: #1a1a1d;               /* a card's edge; also the rail's and the top bar's */
+  --line-control: #232327;       /* a pill control's edge; the Net P&L card's edge */
+  --line-strong: var(--zinc-800);/* THE standard visible border — dashed empties, separators */
+  --line-chip: #2a2a30;          /* a chip's edge on a filled ground */
+  --line-selected: #3a3a42;      /* the selected account chip's edge */
+  --line-hover: var(--zinc-700); /* a hover edge; also the `·` glyph between header items */
+
+  /* ===== TEXT — nine tiers. That is not excess: this app draws a lot of quiet
+     metadata, and the prototype separates "muted" from "faint" from "barely there"
+     because a calendar cell's day number and its P&L must not compete. ===== */
+  --text: var(--zinc-50);        /* primary */
+  --text-body: #e8e8ec;          /* the page's base colour — what <body> sets */
+  --text-link: var(--zinc-300);  /* links, the clock, avatar ink */
+  --text-2: #c9c9d1;             /* table heads, a normal event name, a Clear label */
+  --muted: var(--zinc-400);      /* SECONDARY TEXT — the most-used non-white value */
+  --text-3: #8a8a93;             /* tertiary — descriptions, phase labels */
+  --text-4: var(--zinc-500);     /* eyebrows and quiet metadata */
+  --text-5: #5b5b63;             /* faintest readable — info glyphs, axis ticks, weekday heads */
+  --text-dim: var(--zinc-600);   /* not-really-text — an empty day's number, a no-account dot */
+
+  /* ===== ACTION — primary actions are LIGHT, not brand (§4). On a near-black page
+     a light fill outranks any hue, which leaves blue free to mean "brand / link /
+     data" instead of competing for "the button you press". ===== */
+  --action: var(--zinc-50);
+  --action-2: var(--zinc-200);   /* the brand tile, an active tab underline, --action's hover */
+  --on-action: var(--bg);
+  --brand-mark-bg: var(--zinc-200);
+  --brand-mark-ink: var(--bg);
+  --chart-line: var(--zinc-200); /* a single-series line is the figures drawn as a shape (§4) */
 
   /* ===== BRAND (blue = the product; NOT profit) ===== */
-  --accent: var(--blue-800);            /* primary buttons, links, data lines. NOT focus
-                                           any more — the ring is neutral, see --accent-ring. */
-  --accent-strong: var(--blue-700);     /* filled-button bg — pair with --on-accent */
+  --accent: var(--blue-800);
+  --accent-strong: var(--blue-700);
   --accent-bg: rgba(43,127,255,0.14);
   --accent-hover-bg: rgba(43,127,255,0.22);
   --accent-border: rgba(43,127,255,0.32);
   --accent-border-strong: rgba(43,127,255,0.5);
   --on-accent: #eff6ff;
-  /* Brand blue ON a surface — links, focus edges, chart data lines. The preset's
-     --primary is a FILL value, always paired with a light foreground on top of it
-     (8.11:1). Used as a foreground itself it measures 2.24:1 on --bg, which fails
-     WCAG AA. So the brand splits in two: --accent fills, this one is read. */
-  --accent-on-surface: var(--blue-500);   /* 5.26:1 on --bg */
+  /* Brand blue ON a surface. --accent is a FILL, always under a light foreground
+     (8.11:1). Read as a foreground itself it measures 2.24:1 on --bg and fails WCAG
+     AA — so the brand splits in two and text/links use this one (5.26:1). An
+     accessibility override, not a preference. */
+  --accent-on-surface: var(--blue-500);
   --brand: var(--accent); --brand-bg: var(--accent-bg);
 
-  /* ===== OUTCOMES (green/red reserved for trade P&L only) ===== */
-  --profit: var(--green-500);
-  --profit-bg: rgba(0,212,146,0.13);
-  --profit-border: rgba(0,212,146,0.30);
-  --profit-strong: rgba(0,212,146,0.45);
-  --loss: var(--red-500);
-  --loss-strong: var(--red-600);
-  --loss-bg: rgba(239,68,68,0.13);
-  /* Desaturated red for large negative KPI figures — reads as performance
-     data, not an error/alert state. --loss stays as-is for chips/badges/bars. */
-  --loss-quiet: var(--red-muted);
-  /* Breakeven is the THIRD outcome, so it gets its own hue rather than grey: grey
-     reads as "no data" sitting between green and red rows, when a flat close is a
-     result like any other. Blue is otherwise the brand colour, and this is the one
-     place it carries data meaning — there is no fourth outcome to confuse it with,
-     and a breakeven cell is never a brand affordance. */
+  /* ===== OUTCOMES — green/red are TRADE RESULTS ONLY. Never status, never chrome.
+     TWO GREENS AND TWO REDS, and the split is load-bearing: the structural hue is
+     drawn on the page, the bright one is drawn ON A TINT, where the structural one
+     would not carry. Reverted 2026-08-29 from the #00d492/#ff6467 Figma pass. ===== */
+  --profit: #22c55e;             /* structural — gauge arcs, the ring, the net figure */
+  --profit-bright: #4ade80;      /* on a tint — day cells, trade rows, the chart line, chips */
+  --profit-fill: #16a34a;        /* a bar UNDER text, so darker than either */
+  --profit-deep: #166534;        /* the chart's area-gradient stop */
+  --profit-bg: color-mix(in srgb, var(--profit) 13%, transparent);
+  --profit-border: color-mix(in srgb, var(--profit) 30%, transparent);
+  --profit-strong: color-mix(in srgb, var(--profit) 45%, transparent);
+
+  --loss: #ef4444;               /* structural — the ring's track, the breach pulse */
+  --loss-bright: #f87171;        /* on a tint — day cells, trade rows, the chart line, glyphs */
+  --loss-deep: #7f1d1d;          /* the chart's negative stop, the breach banner's edge */
+  --loss-fg: #fecaca;            /* text ON a red wash — a banner heading, a critical figure */
+  --loss-fg-2: #fca5a5;          /* the second tier of that text */
+  --loss-strong: var(--loss-deep);
+  --loss-quiet: var(--loss-bright);
+  --loss-bg: color-mix(in srgb, var(--loss) 13%, transparent);
+
+  /* Breakeven is the THIRD outcome and gets its own hue rather than grey: grey reads
+     as "no data" sitting between green and red rows, when a flat close is a result
+     like any other. This is the one place brand blue carries data meaning — there is
+     no fourth outcome to confuse it with. */
   --be: var(--blue-400); --be-bg: var(--accent-bg);
-  /* legacy P&L aliases still referenced across the sheet-mirrored pills */
-  --green: var(--green-600);
-  --red: var(--red-500);
-  --win-bg: var(--profit-bg);
+  --green: var(--profit); --red: var(--loss); --win-bg: var(--profit-bg);
+
+  /* ===== THE RISK RAMP — the drawdown meter's bar is ONE gradient stretched by how
+     far up it this account has climbed, not three colours. There is NO GREEN on it
+     at any fill: used drawdown is never good news, only less bad, and a green
+     drawdown meter would be the app congratulating a trader for surviving. ===== */
+  --risk-1:#facc15; --risk-2:#f97316; --risk-3:var(--loss);
+  --risk-ramp: linear-gradient(90deg, var(--risk-1), var(--risk-2) 55%, var(--risk-3));
 
   /* ===== ACCENT / STATUS ===== */
-  --ai: var(--purple-500); --ai-bg: rgba(139,92,246,0.15);   /* AI / insight highlights only */
-  --warning: var(--amber-500);
-  --payout: var(--cyan-400);
-  --status-good: var(--green-500);
-  --status-warn: var(--amber-500);
-  --status-bad: var(--red-500);
+  --warning:#f59e0b;             /* a gauge under 50% */
+  --warning-bright:#fbbf24;      /* a medium-impact event, a warning alert */
+  --warning-border:#3f2d0f;
+  --ai: var(--purple-500); --ai-bg: rgba(139,92,246,0.15);   /* AI / insight only */
+  --payout: var(--cyan-400);                                  /* funded payouts only */
+  --status-good: var(--profit); --status-warn: var(--warning); --status-bad: var(--loss);
   --status-info: #7aa2f7;
+  /* The only blue-tinted SURFACES in the design, and they are a cool grey rather
+     than brand blue. Named so nobody later "corrects" them to --accent. */
+  --info-bg:#0f1319; --info-border:#1e2532;
+  --ok-bg:#0d1410;   --ok-border:#16301f;
 
-  /* ===== RADIUS ===== */
-  /* Radius audit: a handful of fixed steps, not arbitrary values per component.
-     Cards -> --r-2xl. Buttons -> --r-lg. Inputs -> --r-input. Badges/pills/chips
-     -> --r-full. --r-sm/--r-md remain for smaller chrome (icon buttons, menu rows)
-     that isn't one of those four. Values are the preset's (base 0.45rem, steps
-     derived from it) and are ~40% tighter than the px scale they replaced. */
-  --r-sm:0.27rem; --r-md:0.36rem; --r-input:0.63rem; --r-lg:0.45rem; --r-xl:0.63rem; --r-2xl:0.81rem; --r-full:999px;
+  /* ===== RADIUS — the Rhea px scale (§6, amended 2026-08-29).
+     5 / 6 / 10 / 12 / 14 / 99, with 10 carrying half of everything drawn. Rounder at
+     small sizes and flatter at large ones than the rem scale it replaces, which is
+     why a card and a nav row can share 10 and nothing looks mismatched.
+     ASSIGNMENT BY SURFACE is unchanged; only the values moved. ===== */
+  --r-sm:5px;      /* smallest chrome */
+  --r-md:6px;      /* icon buttons, menu rows, small badges */
+  --r-lg:10px;     /* BUTTONS — and nav rows, event rows, meter cells, day cells */
+  --r-input:10px;  /* inputs share the button step in Rhea */
+  --r-xl:12px;     /* account chips, tiles, a chart well */
+  --r-2xl:14px;    /* CARDS and floating overlays — an overlay is a card that floats */
+  --r-full:99px;   /* every pill: badges, chips, toggles, icon buttons, bars */
 
-  /* ===== SPACING — 8px grid; allowed steps are 4/8/12/16/24/32/40/48 only
-     (4 is the sole sub-8 exception, for hairline gaps). ===== */
+  /* ===== SPACING — 8px grid; 4px is the sole sub-8 exception, for hairline gaps. */
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-6:24px; --s-8:32px; --s-10:40px; --s-12:48px;
 
-  /* ===== DASHBOARD CARD SIZE SYSTEM — Medium Card is the base unit: width is
-     always 1/3 of the dashboard content row (see .dash-main's 2fr/1fr grid,
-     itself 2 units : 1 unit), height is this fixed constant, taken from the
-     Recent Trades card's size. Large Card (the Calendar) is exactly 2 Mediums
-     — same width (2 units) and same total height as two Mediums stacked with
-     the gap between them, so it lines up with the right column exactly.
-     --dash-card-h-md is the one number to tune if a live measurement (Inspect
-     → the Recent Trades card's box) turns out to differ from this estimate. */
+  /* ===== DASHBOARD CARD SIZE SYSTEM ===== */
   --dash-card-gap:16px;
   --dash-card-h-md:355px;
   --dash-card-h-lg:calc(var(--dash-card-h-md) * 2 + var(--dash-card-gap));
@@ -116,62 +179,52 @@
   --sh-2:0 8px 24px rgba(0,0,0,.4);
   --sh-3:0 20px 56px rgba(0,0,0,.55);
 
-  /* ===== TYPOGRAPHY ===== */
-  /* INTER, AND ONLY INTER (2026-08-28). The Figma redesign sets every string in the
-     product in Inter — 400/500/600 at 10/12/14/18/24/30px — so Geist is gone as the
-     sans and the app ships one family instead of four.
+  /* ===== TYPOGRAPHY =====
+     GEIST + GEIST MONO, self-hosted via @fontsource-variable (main.jsx), never the
+     Google CDN the prototype links. Two families and the second one is DATA: every
+     figure is mono, because tabular figures align digits but do not give a number
+     the distinct texture that separates data from prose. Inter was the sole family
+     for one day (2026-08-28) and is now only a fallback. */
+  --font-sans:'Geist Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-     --font-mono SURVIVES AS A NAME, pointing at the same stack. 28 legacy rules ask
-     for it, and the design has no monospace at all: numerics are Inter with
-     `font-variant-numeric: tabular-nums`, which is what `.num` already does and what
-     actually buys column alignment. Deleting the token would have meant editing 28
-     rules in a file being deleted anyway; repointing it drops the JetBrains Mono and
-     Geist Mono webfonts (four woff2 subsets each) with one line and no visual debt.
-     When the last legacy rule goes, so does this alias. */
-  --font-sans:'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono:var(--font-sans);
+  /* Weight scale — CEILING 650, AND HALF-STEPS ARE LEGAL (§3, amended 2026-08-29).
+     Geist is a variable face, so 550-against-500 is a real hierarchy step the old
+     whole-step scale could not express: a nav label at 550 against a resting one at
+     500 is the distinction. 700 is BRAND LOCKUP ONLY and has its own name so it
+     cannot be reached for by accident. */
+  --fw-regular:400; --fw-book:450; --fw-medium:500; --fw-mid:550;
+  --fw-semibold:600; --fw-bold:650; --fw-lockup:700;
 
-  /* Weight scale — 600 is the hard ceiling everywhere (no 700/800 in the UI
-     layer; brand wordmark lockups are the one deliberate exception). */
-  --fw-regular:400; --fw-medium:500; --fw-semibold:600;
-
-  /* Type scale — the hierarchy's shape (not its literal marketing-page sizes)
-     calibrated to this app's density. Applied to the canonical instance of
-     each role; per-page one-offs adopt these opportunistically as touched,
-     same as the u-* component layer. */
-  --fs-page-title:24px; --fs-section-title:16px; --fs-card-title:15px;
-  --fs-primary-metric:28px;
-  /* Body and label roles. These are NOT new sizes — they name the two the app has
-     always used and had no token for: 13px is the workhorse (`.u-btn`, `.u-empty-desc`,
-     table cells, form controls) and 11px is the label/pill step (`.u-badge`,
-     `.jo-kpi-label`). Naming them is what lets the bridge point Tailwind's
-     `text-sm` / `text-xs` at our scale instead of at its own 14/12px defaults —
-     see DESIGN-LANGUAGE §3, "Type scale roles". */
+  /* Type scale — the hierarchy's shape calibrated to this app's density, not the
+     preset's marketing-page sizes. bridge.css points Tailwind's text-sm/text-xs at
+     these rather than at its own 14/12px defaults. */
+  --fs-page-title:20px; --fs-section-title:18.5px; --fs-card-title:15px;
+  --fs-primary-metric:25px;
   --fs-body:13px; --fs-label:11px;
 
   /* ===== MOTION ===== */
   --ease:cubic-bezier(.16,1,.3,1); --dur-fast:120ms; --dur:200ms;
 
-  /* ===== Z-INDEX =====
-     --z-dropdown was 40 and is 50 as of 2026-08-05. The generated dropdown-menu
-     hardcodes `z-50` on its Positioner and offers no way to pass a className into it,
-     so leaving the token at 40 would mean two disagreeing values for one concept —
-     the failure mode the bridge exists to prevent. Reconciled toward the preset per
-     "the preset outranks legacy CSS", not toward our old number. The ladder's ORDER is
-     unchanged and that is what actually matters: nav < dropdown < toast < modal. */
+  /* ===== Z-INDEX — the ORDER is the rule: nav < dropdown < toast < modal.
+     --z-dropdown is 50 to match the generated dropdown's hardcoded z-50, which
+     accepts no className; reconciled toward the preset, not toward our old 40. */
   --z-nav:30; --z-dropdown:50; --z-modal:2147483000; --z-toast:70;
 
-  /* ===== THEMED COLOUR SCALES =====
-     Every colour the components use now lives here — which is what would make a
-     light theme one re-declaring block rather than a sweep through component CSS.
-     There is no such block today; see "NO LIGHT THEME" below.
-     Each scale is ordered by luminance (1 = darkest). Values are the exact
-     literals these replaced — tokenizing was appearance-neutral by design.
-     The one exception is the data-category palette (the .pair- .session- .setup-
-     .prob- and .mtf- rules), a per-category hue set that a light theme overrides
-     as a block rather than through tokens. NOTE: no glob stars in this comment —
-     a `*` immediately before a `/` closes the comment early and silently turns
-     the rest of the block into invalid CSS. */
+
+  /* ========================================================================
+     LEGACY-ONLY SCALES — NOT part of the Rhea role set.
+
+     These 60-odd tokens exist to hold styles/legacy/app.css's exact literals so
+     that tokenising it changed nothing visually. NONE of them appear in the Rhea
+     design. They stay until legacy CSS goes (800 of its 1,025 classes are still
+     live — mostly Prop OS, the Trade Log and the Calendar page) and they are
+     fenced off here rather than intermixed above, so an agent building a new page
+     reads ONE list: everything before this comment.
+
+     Do not reach for a --neutral-* or --tint-* in new work. If a role you need is
+     missing from the block above, that is a design question, not a lookup.
+     ======================================================================== */
   /* Legacy pure-grey ramp. Predates the slate tokens above; kept at exact
      values so tokenizing changed nothing. Ordered darkest to lightest. */
   --neutral-1:#000; --neutral-2:#0b0b0d; --neutral-3:#18181d; --neutral-4:#1b1b20; --neutral-5:#1e1e23;
@@ -198,74 +251,71 @@
   --tint-accent:#cdd9ff;
   /* Purple tints: AI / insight accents. */
   --tint-ai-1:#1c1c33; --tint-ai-2:#3a2f66;
+  /* The last two survivors of the old raw-colour primitive block, kept ONLY because
+     four legacy rules still name them (`.modal button.danger`, `.tp-delete-confirm`).
+     Re-pointed at the Rhea outcome roles rather than left at their old literals, so
+     the destructive button follows the palette instead of drifting off it. They go
+     with those rules. */
+  --red-500:var(--loss-bright); --red-600:var(--loss);
+  /* Today's Brief's amber tile. Rhea's brief has no icon tile at all — the card opens
+     on a plain title — so this dies with brief.jsx's rebuild, two commits from now. */
+  --brief-tile-bg:rgba(255,185,0,0.10);
+
   /* ===== SCRIMS, SHADOW COLOURS AND RINGS =====
-     The rgba() half of the colour layer. Split by ROLE because they theme
-     differently: a scrim still needs to darken a light page, whereas a drop
-     shadow on white needs far less alpha or the card looks dirty. Named by
-     opacity so the intent survives the next edit. */
-  --topbar-bg:rgba(10,10,10,0.97);
+     The rgba() half of the colour layer. Split by ROLE because they would theme
+     differently: a scrim darkens the page behind an overlay, whereas a drop shadow
+     is the shadow itself. Named by opacity so the intent survives the next edit. */
+  --topbar-bg:rgba(9,9,11,0.92);   /* the bar is translucent over --bg + a blur */
+  --overlay-bg:rgba(16,16,19,0.94);/* a floating panel over content, same treatment */
   --scrim-1:rgba(0,0,0,0.35); --scrim-2:rgba(0,0,0,0.45);
   --scrim-3:rgba(0,0,0,0.6); --scrim-4:rgba(0,0,0,0.78);
   --shadow-40:rgba(0,0,0,.4); --shadow-45:rgba(0,0,0,.45); --shadow-50:rgba(0,0,0,.5);
   --shadow-60:rgba(0,0,0,0.6); --shadow-70:rgba(0,0,0,0.7);
-  --accent-ring:#737373;
-  /* ===== NAVIGATION RAIL (2026-08-28 Figma) =====
-     Four values the rail and the brand mark need that no existing token named. Here rather than in the
-     component because components reference tokens and never hex — and because the
-     nudge wash in particular is a colour DECISION (amber at 5% reads as encouragement;
-     the same hue at any real opacity reads as the warning state it must not be
-     confused with), which belongs where the palette is, not in a class string. */
-  --brand-mark-bg:#e5e5e5;                /* the brand tile (Logo.jsx) + initials avatar ink */
-  /* PRIMARY ACTIONS ARE LIGHT, NOT BLUE (2026-08-28 Figma). The frame fills its one
-     primary button — Sync Trades — with #e5e5e5 and sets the label in the surface
-     colour. That is a foundation change and it is deliberate: on a near-black page a
-     light fill is the strongest thing that can be drawn, and it leaves blue free to
-     mean "brand / link / data line" instead of competing with it for "the button you
-     press". --accent is untouched and still does that job. */
-  /* THE DATA LINE IS NEUTRAL, NOT BRAND (2026-08-28). The equity curve used
-     --accent-on-surface, a blue, which was the last blue left on the dashboard and read
-     as an accent rather than as data. The redesign has no blue on this page at all: a
-     single-series line should be the colour of TEXT, because that is what it is — the
-     figures drawn as a shape. Colour on a chart is reserved for series that MEAN
-     something (profit, loss, payout), and a lone cumulative-P&L line means nothing by
-     being blue. */
-  --chart-line:#e5e5e5;
-  --action:#e5e5e5;
-  --on-action:var(--surface);
-  --brand-mark-ink:var(--surface);        /* the chevron, stroked in the surface it sits on */
-  --rail-avatar-bg:rgba(229,229,229,0.20);
-  --nudge-bg:rgba(255,185,0,0.05);
-  /* Today's Brief. The tile wash is amber because the brief is the morning read, not
-     because anything is wrong — deliberately lighter than the 10% an actual alert row
-     uses. The row and chip values are neutral scaffolding, alpha rather than a flat
-     grey so a row still reads as raised on either surface it lands on. */
-  --brief-tile-bg:rgba(255,185,0,0.10);
-  --brief-row-bg:rgba(38,38,38,0.60);
-  --brief-chip-border:rgba(255,255,255,0.10);
+  /* The focus ring is NEUTRAL, not brand (§9), and it is `0 0 0 Npx` — no offset, no
+     blur — which is what keeps it out of the elevation ladder's business. */
+  --accent-ring:var(--zinc-500);
+
+  /* ===== RAIL, BRIEF AND SKELETON =====
+     Values the shell needs that no role above names. Here rather than in a component
+     because components reference tokens and never hex. */
+  --rail-avatar-bg:#26262a;              /* the initials avatar's disc */
+  --rail-avatar-ink:var(--zinc-300);
+  --nudge-bg:rgba(255,185,0,0.05);       /* encouragement, NOT warning: amber at any
+                                            real opacity reads as the state it must
+                                            not be confused with */
+  --brief-row-bg:var(--row-bg);
+  --brief-chip-border:var(--line-strong);
+
+  /* The skeleton ramp. Four tiers, because a skeleton that is one flat grey reads as
+     a component that failed to style rather than as content on its way. Brightest
+     stands in for a heading, faintest for a large block. */
+  --skeleton-1:#232329;   /* a heading line */
+  --skeleton-2:#1e1e24;   /* a value line */
+  --skeleton-3:#191920;   /* a control */
+  --skeleton-4:#141419;   /* a block — a chart, a calendar cell */
   --skeleton-sheen:rgba(255,255,255,.05);
 
-  /* ===== CHART CATEGORICAL PALETTE =====
-     From preset b2qKmlY80 (chartColor: green). ADOPTED PROVISIONALLY —
-     green is this product's profit colour, so a categorical chart in these
-     hues can read as profit. Revisit per DESIGN-LANGUAGE §12; --profit and
-     --loss are untouched and remain the outcome colours. ===== */
+  /* ===== CHART =====
+     --chart-grid is the gridline behind a series; the categorical palette comes from
+     preset b2qKmlY80 (chartColor: green) and is ADOPTED PROVISIONALLY — green is this
+     product's profit colour, so a categorical chart in these hues can read as profit.
+     Revisit per DESIGN-LANGUAGE §12; --profit and --loss are untouched. */
+  --chart-grid:#1e1e23;
   --chart-1:#7bf1a8; --chart-2:#00c950; --chart-3:#00a63e; --chart-4:#008236; --chart-5:#016630;
 }
 
-
-
-
 /* ===== NO LIGHT THEME =====
-   REMOVED 2026-08-28, by owner decision, with the Figma redesign.
+   REMOVED 2026-08-28, by owner decision, and re-affirmed with the Rhea redesign.
 
    What stood here was a `:root[data-theme="light"]` block that re-declared the whole
    token layer and nothing else — the arrangement that kept every component
    theme-agnostic. It is gone rather than disabled: a light palette that no screen is
-   designed against and no test renders drifts out of true silently, and the redesign
-   is dark-only by construction (every Figma frame is one dark surface set).
+   designed against and no test renders drifts out of true silently, and Rhea is
+   dark-only by construction.
 
    THE ARCHITECTURE THAT MADE IT CHEAP IS UNTOUCHED. Components still reference tokens
    and never raw hex, so light returns as a block here plus a toggle — not as a sweep
    through component CSS. `color-scheme: dark` above is now the whole story, and
-   `data-theme` is no longer read anywhere in the app.
+   `data-theme` is not read anywhere in the app. This is also why the Rhea prototype's
+   Appearance (sun) button is NOT built: a control with nothing behind it.
    ===== */

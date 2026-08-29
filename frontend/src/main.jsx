@@ -4,15 +4,19 @@ import { BrowserRouter } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import App from './App.jsx';
 import { AuthProvider } from './app/AuthContext.jsx';
-// Self-hosted fonts (bundled by Vite — no third-party request, no FOUT).
-// Geist = UI/body & headings; Geist Mono = prices / R / P&L (tabular) — Geist
-// used throughout, per the brand's "one typeface" rule. Inter/JetBrains Mono
-// are fallbacks only (kept loaded so the stack degrades gracefully).
-/* ONE FAMILY. The Figma redesign sets the entire product in Inter; Geist (the old
-   sans), Geist Mono and JetBrains Mono are gone, and with them ~8 woff2 subsets that
-   every visitor was downloading for text nobody renders in them. Numerics align via
-   `font-variant-numeric: tabular-nums`, not via a monospace face — see tokens.css. */
-import '@fontsource-variable/inter';
+/* SELF-HOSTED, NEVER THE CDN. The Rhea prototype links Geist from
+   fonts.googleapis.com; we bundle it through Vite instead — offline-safe, no
+   third-party request, no CSP exception. DESIGN-LANGUAGE §3 makes that explicit
+   because the prototype is the thing people will copy from.
+
+   TWO FAMILIES, AND THE SECOND ONE IS DATA. Geist is the UI face; Geist Mono is
+   every figure — P&L, R multiples, drawdown, times, the clock. Inter was the sole
+   family for one day (2026-08-28, on an intermediate Figma pass) and the mono
+   token was aliased to it; §22 reverts both. Tabular figures align digits but do
+   not give a number the distinct texture that separates data from prose, and this
+   app is mostly numbers. */
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 // Single CSS entry. Import order and the four-layer architecture live in
 // styles/index.css - see that file.
 import './styles/index.css';

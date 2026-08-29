@@ -21,7 +21,13 @@ const bridgeCode = strip(bridge);
 test('tokens.css is the only file that declares values', () => {
   const literals = bridgeCode.match(/:\s*(#[0-9a-fA-F]{3,8}|rgba?\(|oklch\(|hsla?\()/g) || [];
   assert.deepEqual(literals, [], 'bridge.css must not contain literal colour values');
-  assert.match(tokensCss, /--bg:\s*#/, 'tokens.css holds the actual values');
+  /* WAS /--bg:\s*#/. --bg now resolves THROUGH a primitive (var(--zinc-950)) because
+   * Rhea's palette is zinc and the ramp is named once — so the literal moved one hop
+   * without leaving the file. What this test protects is the SPLIT (bridge maps,
+   * tokens hold), so it asserts tokens.css still carries literals somewhere and that
+   * --bg is one of the things it defines. */
+  assert.match(tokensCss, /--zinc-950:\s*#/, 'tokens.css holds the actual values');
+  assert.match(tokensCss, /--bg:\s*(#|var\(--zinc-)/, 'tokens.css defines the page colour');
 });
 
 test('tailwind.css stays a wiring file — no tokens, no values', () => {
@@ -84,7 +90,9 @@ test('the --muted collision stays resolved in our favour', () => {
   // Theirs is a surface, ours is a text colour.
   assert.match(bridgeCode, /--color-muted:\s*var\(--sel-bg\)/);
   assert.match(bridgeCode, /--color-muted-foreground:\s*var\(--text-2\)/);
-  assert.match(tokensCss, /--muted:\s*var\(--slate-400\)/);
+  // WAS var(--slate-400). The slate primitives went with the Rhea foundation; --muted
+  // is zinc-400 now. The COLLISION is what this test is about and it is unchanged.
+  assert.match(tokensCss, /--muted:\s*var\(--zinc-400\)/);
 });
 
 test('there is one theme, it is dark, and no .dark class exists', () => {
@@ -115,11 +123,19 @@ test('our domain ring survives and is first-class in Tailwind', () => {
 });
 
 test('typography stays ours', () => {
-  // Inter, and only Inter, since the 2026-08-28 Figma redesign — Geist, Geist Mono
-  // and JetBrains Mono are gone from the bundle. --font-mono is an alias of the sans
-  // stack while legacy rules still name it; see tokens.css.
-  assert.match(tokensCss, /--font-sans:\s*'Inter Variable'/);
-  assert.match(tokensCss, /--font-mono:\s*var\(--font-sans\)/);
+  /* WHAT THIS USED TO PIN: Inter as the sole family, with --font-mono aliased to the
+   * sans stack, on the 2026-08-28 Figma pass. §22 reverts both (2026-08-29): Geist is
+   * the preset's own typography and MONO IS BACK AS A REAL FACE, because tabular
+   * figures align digits but do not give a number the distinct texture that separates
+   * data from prose — and this app is mostly numbers.
+   *
+   * The alias is the half worth asserting hardest: while --font-mono pointed at the
+   * sans stack, every `font-mono` in the app silently rendered as body text and
+   * nothing failed. */
+  assert.match(tokensCss, /--font-sans:\s*'Geist Variable'/);
+  assert.match(tokensCss, /--font-mono:\s*'Geist Mono Variable'/);
+  assert.doesNotMatch(tokensCss, /--font-mono:\s*var\(--font-sans\)/,
+    'mono must be a real face, not an alias of the sans stack');
   // Mapping --font-sans in @theme would be circular; the cascade already makes
   // ours win. Guard that nobody "fixes" it by duplicating the stack.
   assert.ok(!/--font-sans\s*:/.test(bridgeCode), 'bridge must not redeclare --font-sans');

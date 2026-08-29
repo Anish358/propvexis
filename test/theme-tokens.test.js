@@ -149,8 +149,17 @@ test('the JS-side chart colours carry no literals of their own', () => {
   assert.ok(!/'#[0-9a-fA-F]{3,6}'/.test(widgets), 'no colour literals in DashWidgets');
   // theme.js's fallbacks are the one place JS may hold literals: they cover
   // non-DOM contexts (tests) where getComputedStyle isn't available.
+  //
+  // WAS /'--neutral-7': '#23232a'/. The gauge/ring track was reading a LEGACY-ONLY
+  // grey — one of the ~60 --neutral-*/--tint-* tokens that exist purely to hold
+  // legacy/app.css's literals and are fenced off from the Rhea role set. It is
+  // --chart-grid now, which is a role the chart owns rather than a ramp step it
+  // borrowed. design-tokens.test.js checks these fallbacks AGREE with tokens.css;
+  // this one only checks the fallback table is not empty.
   const theme = read('../frontend/src/lib/theme.js');
-  assert.match(theme, /'--neutral-7': '#23232a'/);
+  assert.match(theme, /'--chart-grid': '#[0-9a-f]{6}'/i);
+  assert.doesNotMatch(theme, /'--neutral-\d+'/,
+    'the Rhea layer must not reach into the legacy-only grey ramp');
 });
 
 // ---- light theme ------------------------------------------------------------

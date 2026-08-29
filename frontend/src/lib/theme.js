@@ -10,16 +10,21 @@ const FALLBACKS = {
   // Outcome hues are the 2026-08-28 Figma values; the blues predate it and are unchanged.
   '--accent': '#193cb8',              // brand FILL
   '--accent-on-surface': '#2b7fff',   // brand as a stroke/link (5.26:1 on --bg)
-  '--chart-line': '#e5e5e5',          // a neutral single-series line — see chartPalette
+  '--chart-line': '#e4e4e7',          // a neutral single-series line — see chartPalette
   '--accent-bg': 'rgba(43,127,255,0.14)',
-  '--profit': '#00d492',   // trade profit (green) — figma
-  '--loss': '#ff6467',     // trade loss (red) — figma
+  // Rhea outcome hues (2026-08-29), reverted from the #00d492/#ff6467 Figma pass.
+  // TWO GREENS AND TWO REDS: the structural hue is drawn on the page, the bright one
+  // ON A TINT — a chart line over its own tinted area needs the bright one to carry.
+  '--profit': '#22c55e',        // trade profit — structural
+  '--profit-bright': '#4ade80', // trade profit — on a tint
+  '--loss': '#ef4444',          // trade loss — structural
+  '--loss-bright': '#f87171',   // trade loss — on a tint
   '--ai': '#8b5cf6',       // AI / insight accent (purple)
   '--payout': '#38bdf8',   // funded-account payout highlight (cyan)
-  '--status-bad': '#ff6467',
-  '--red': '#ff6467',
-  '--muted': '#a1a1a1',
-  '--neutral-7': '#23232a',  // gauge/ring track (DashWidgets)
+  '--status-bad': '#ef4444',
+  '--red': '#ef4444',
+  '--muted': '#a1a1aa',
+  '--chart-grid': '#1e1e23',  // gauge/ring track and chart gridlines
 };
 
 export function token(name) {
@@ -73,7 +78,7 @@ export function chartPalette() {
     gridStrong: token('--line-strong'),
     axis: token('--text-3'),
     label: token('--text-2'),
-    track: token('--neutral-7'),
+    track: token('--chart-grid'),
     tip: {
       background: token('--surface-2'),
       border: `1px solid ${token('--line')}`,
