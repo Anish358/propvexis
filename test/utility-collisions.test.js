@@ -223,9 +223,19 @@ test('every generated primitive is reachable — no dead generated code', () => 
   // Walk out from the primitives layer: anything a reachable file imports is reachable.
   const reachable = new Set();
   const queue = [];
+  /* THE SEED IS `@/components/ui/<name>`, AND ONLY THAT (tightened 2026-08-29).
+   *
+   * It used to also count a bare `from './<name>.jsx'` in the barrel as reachability,
+   * which was meant to catch a primitive re-exporting a generated file directly. It
+   * cannot tell that apart from the barrel exporting a PRIMITIVE that happens to share
+   * the generated file's name — and most of them do. `ui/tabs.jsx` was installed,
+   * imported by nothing, and reported as reachable because `primitives/tabs.jsx` (a
+   * hand-written component on legacy CSS) is exported as `from './tabs.jsx'`.
+   *
+   * Every primitive reaches a generated file by its `@/components/ui/...` alias, so the
+   * alias is the only honest signal. */
   for (const [name] of uiSources) {
-    const direct = new RegExp(`from './${name}(\\.jsx|\\.js)?'`).test(barrel);
-    if (direct || sources.some((s) => s.includes(`@/components/ui/${name}`))) queue.push(name);
+    if (sources.some((s) => s.includes(`@/components/ui/${name}`))) queue.push(name);
   }
   while (queue.length) {
     const name = queue.pop();
