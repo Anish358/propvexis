@@ -46,13 +46,25 @@ const FOCUS =
  * The padding is what actually draws the capsule — the segments inset from the border
  * by 3px, exactly as the frame does — and `overflow-hidden` keeps a pressed segment's
  * own corners inside the round. */
-const PILL = 'h-9 rounded-full border border-[var(--line)] bg-[var(--surface)] p-[3px] overflow-hidden';
+/* WAS --surface behind --line, i.e. a CARD's colours. Rhea gives the bar's controls
+   their own pair — --control-bg behind --line-control — and the distinction is the
+   point: a card is a thing you read, a control is a thing you press, and at 92%
+   opacity over a blurred page the card surface read as a hole in the bar. */
+const PILL = 'h-9 rounded-full border border-[var(--line-control)] bg-[var(--control-bg)] p-[3px] overflow-hidden';
 
 /* THE SEGMENTS ROUND TOO. A pressed segment inherits the generated item's `rounded-md`,
  * which inside a fully-round container reads as a square chip floating in a capsule —
  * two radii arguing in a 92px control. `[&>*]` rather than a prop on the item, because
  * it is a property of being INSIDE a pill: an item does not know what it is in. */
-const PILL_ITEMS = '[&>*]:h-full [&>*]:rounded-full';
+/* AND THE PRESSED SEGMENT IS A LIGHT FILL (§4: primary actions are light, not brand).
+   Rhea fills the active unit with --action and sets its label in --on-action, which on
+   a near-black bar is the strongest thing that can be drawn — so "which unit am I
+   reading" is answerable from across a desk. */
+const PILL_ITEMS = [
+  '[&>*]:h-full [&>*]:rounded-full [&>*]:px-3 [&>*]:text-[13px] [&>*]:font-semibold',
+  '[&>*[data-pressed]]:bg-[var(--action)] [&>*[data-pressed]]:text-[var(--on-action)]',
+  '[&>*:not([data-pressed])]:text-[var(--text-3)]',
+].join(' ');
 
 function ToggleGroup({ pill = false, className, ...rest }) {
   return <UIToggleGroup className={[pill && PILL, pill && PILL_ITEMS, className].filter(Boolean).join(' ')} {...rest} />;

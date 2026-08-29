@@ -52,8 +52,9 @@ export function NotificationBell({
       <Popover defaultOpen={defaultOpen}>
         {/* `variant="chrome"` at `size="icon-sm"` is the whole of what `.notif-bell`
             and its `.notif-inline` override used to draw between them. `tone="alert"`
-            is why the pill is red: an unread count reports a condition rather than a
-            selection, so §4's neutral-selection lock does not reach it.
+            is a LIGHT pill as of 2026-08-29, not a red one — see count-badge.jsx: red
+            in the chrome of a trading app competes with the one place red already
+            means something.
             The containing block the corner count positions against comes from
             `.notif-inline` in legacy CSS — a utility here would not be compiled, since
             `@source` covers `components/` only. */}

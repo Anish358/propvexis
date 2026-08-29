@@ -35,8 +35,21 @@ export const TopBar = React.forwardRef(function TopBar({ className, children, ..
       ref={ref}
       data-slot="topbar"
       className={cn(
-        'flex min-h-[4.5rem] flex-wrap items-center gap-4 border-b border-[var(--line)] px-6 py-3',
-        'bg-[var(--topbar-bg)]',
+        /* 64px, NOT 72. Rhea's bar is one line of chrome above the page, and the
+           previous height came from a two-line title block (a name over a greeting)
+           that no longer needs the room — the greeting wraps beside the name now.
+           `min-h` rather than `h`, because per-page actions portal into the middle of
+           this bar and a long set of them must be allowed to wrap rather than
+           overflow. */
+        'flex min-h-16 flex-wrap items-center gap-3.5 border-b border-[var(--line)] px-6 py-2',
+        /* STICKY, AND TRANSLUCENT OVER A BLUR. Rhea scrolls the page UNDER the bar:
+           the account scope, the unit and the filters decide what every figure below
+           means, so they must not scroll away from the figures they govern. The bar
+           was sticky in legacy CSS and silently stopped being so when the primitive
+           replaced `.topbar` with a class the stylesheet does not select — restored
+           here, where utilities can actually win. --topbar-bg is 92% opaque rather
+           than solid so the page reads as passing beneath it. */
+        'sticky top-0 z-[var(--z-nav)] bg-[var(--topbar-bg)] backdrop-blur-[8px]',
         className,
       )}
       {...rest}
@@ -61,7 +74,7 @@ export const TopBar = React.forwardRef(function TopBar({ className, children, ..
 export function TopBarTitle({ module, sub, className, children, ...rest }) {
   return (
     <div data-slot="topbar-title" className={cn('flex min-w-0 flex-col gap-0.5', className)} {...rest}>
-      <h1 className="flex min-w-0 items-baseline gap-2 text-[20px] leading-7 font-semibold text-[var(--text)]">
+      <h1 className="flex min-w-0 items-baseline gap-2 text-[20px] leading-7 font-[650] tracking-[-0.4px] text-[var(--text)]">
         {module && (
           <span className="shrink-0 text-[13px] leading-5 font-normal text-[var(--muted)]">
             {module}

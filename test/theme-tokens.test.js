@@ -133,11 +133,18 @@ test('white-on-fill uses --on-accent, not a literal or --text', () => {
   // the rule, so it is asserted where the colour actually lives: `text-destructive-foreground`,
   // which the bridge maps to `--on-accent`. Getting this wrong is invisible in dark and
   // wrong in light, which is why it keeps its own assertion rather than being dropped.
+  /* THE UNREAD COUNT IS NO LONGER WHITE-ON-RED (2026-08-29, Rhea). It pinned
+   * `text-destructive-foreground` so the count stayed white on a red pill. §4's other
+   * clause — green and red are TRADE OUTCOMES only, never status, never chrome — wins:
+   * a red dot in a trading app's top bar spends the one colour a trader reads as money
+   * lost on "you have mail". Rhea draws a light pill instead.
+   *
+   * The REQUIREMENT is unchanged and is what is still asserted: the ink on a filled
+   * chip is a token that does not invert, never --text and never a literal. */
   const count = read('../frontend/src/components/primitives/count-badge.jsx');
-  assert.match(count, /text-destructive-foreground/,
-    'the unread count must resolve to --on-accent, not --text and not a literal');
-  assert.match(bridgeCss, /--color-destructive-foreground:\s*var\(--on-accent\)/,
-    'the bridge is what makes that true — if it changes, white-on-red flips under light');
+  assert.match(count, /text-\[var\(--on-action\)\]/,
+    'the unread count must resolve to --on-action, not --text and not a literal');
+  assert.ok(!/text-\[var\(--text\)\]/.test(count), '--text would invert; --on-action does not');
 });
 
 test('the JS-side chart colours carry no literals of their own', () => {

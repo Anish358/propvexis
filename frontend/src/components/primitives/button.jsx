@@ -121,7 +121,20 @@ const RADIUS = 'rounded-lg';
  * capsule IS the bar: nothing else uses it, and a shape that only appears in one place
  * may as well bring that place's metrics. `w-9` only for the icon sizes, so a labelled
  * pill still sizes to its text. */
-const PILL = 'h-9 rounded-full';
+/* AND THE BAR'S SURFACE WITH IT (2026-08-29, Rhea). Every control in Rhea's bar rests
+ * on --control-bg behind --line-control and hovers to --surface-hover — the Filters
+ * button, the two icon buttons and the toggle's track are one family, drawn once.
+ * Carried by `pill` for the same reason the height is: nothing outside the bar uses
+ * this shape, so the shape may as well bring the place's colours.
+ *
+ * `tinted` opts out below. The account switcher is deliberately a step brighter than
+ * its neighbours, because it is the one control that changes what every figure on the
+ * page MEANS rather than how it is written or which rows feed it. */
+const PILL = [
+  'h-9 rounded-full border border-[var(--line-control)] bg-[var(--control-bg)]',
+  'text-[13.5px] font-medium text-[var(--text-2)]',
+  'hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
+].join(' ');
 const PILL_ICON = 'w-9';
 
 const Button = React.forwardRef(function Button({
@@ -155,7 +168,8 @@ const Button = React.forwardRef(function Button({
         // An engaged control keeps the hover but not the muted rest, so the two states
         // stay distinguishable — hence only the resting half is conditional.
         isChrome && (active ? 'text-foreground' : CHROME_REST),
-        pill && PILL,
+        // `tinted` keeps the pill's SHAPE and its own surface — see PILL above.
+        pill && (variant === 'tinted' ? 'h-9 rounded-full' : PILL),
         pill && String(size).startsWith('icon') && PILL_ICON,
         block && 'w-full',
         className,
