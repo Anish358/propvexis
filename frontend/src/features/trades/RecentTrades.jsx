@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  EmptyState, PanelCell, PanelRow, PanelRowHead, PanelValue,
+  EmptyState, PanelTableCell, PanelTableHead, PanelTableRow,
 } from '@/components/primitives';
 import { fmtVal, valueField, tradeOutcome } from '../../lib/metrics.js';
 
@@ -24,6 +24,10 @@ import { fmtVal, valueField, tradeOutcome } from '../../lib/metrics.js';
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 
+// Rhea's own tracks: the date takes a little more than the other two, the symbol
+// centres, the value sits right. Declared once — see the note in the render.
+const COLS = 'minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr)';
+
 export default function RecentTrades({ trades = [], unit, beRounding, limit = 6 }) {
   const field = valueField(unit);
   const recent = useMemo(
@@ -36,30 +40,38 @@ export default function RecentTrades({ trades = [], unit, beRounding, limit = 6 
   if (!recent.length) {
     return <EmptyState title="No trades yet" description="Recent trades show up here once you have closed trades." />;
   }
-  /* DIVS, NOT A <table>, SINCE THE 2026-08-28 REBUILD. Three columns of one value each
-   * is a list, not tabular data — there is nothing to compare across rows that a
-   * <table> would help a screen reader with, and the semantics cost real layout
-   * control: a table cannot flex, so the symbol column could not both truncate and let
-   * the P&L stay right-aligned at the card's narrowest width. The visible structure is
-   * unchanged; each row still reads date, symbol, value. */
+  /* DIVS, NOT A <table>. Three columns of one value each is a list, not tabular data —
+   * there is nothing to compare across rows that a <table> would help a screen reader
+   * with, and the semantics cost real layout control: a table cannot flex, so the
+   * symbol column could not both truncate and let the P&L stay right-aligned at the
+   * card's narrowest width.
+   *
+   * THE COLUMN TEMPLATE IS DECLARED ONCE and handed to both the header and every row.
+   * A header and its rows that compute their tracks separately are a header that drifts
+   * one pixel off its own data the first time either is touched — which is exactly what
+   * happened to the version this replaces, where the header used PanelRowHead's fixed
+   * widths and the rows used PanelRow's. */
   return (
     <div>
-      <PanelRowHead>
-        <PanelCell width="fixed">Date</PanelCell>
-        <PanelCell width="grow">Symbol</PanelCell>
-        <PanelCell>Net P&amp;L</PanelCell>
-      </PanelRowHead>
+      <PanelTableHead cols={COLS}>
+        {/* `head` + `align` as PROPS, never classes: a Tailwind utility written in this
+            file compiles to nothing, so `className="text-right"` here would leave the
+            Net P&L header left-aligned above a right-aligned column, silently. */}
+        <PanelTableCell head>Close date</PanelTableCell>
+        <PanelTableCell head align="center">Symbol</PanelTableCell>
+        <PanelTableCell head align="right">Net P&amp;L</PanelTableCell>
+      </PanelTableHead>
       {recent.map((t) => {
         const out = tradeOutcome(t, unit, beRounding);
         const val = Number(t[field]);
         return (
-          <PanelRow key={t.id}>
-            <PanelCell width="fixed" muted>{fmtDate(t.close_time)}</PanelCell>
-            <PanelCell width="grow">{t.symbol_base || t.symbol}</PanelCell>
-            <PanelValue tone={out === 'win' ? 'pos' : out === 'loss' ? 'neg' : undefined}>
+          <PanelTableRow key={t.id} cols={COLS}>
+            <PanelTableCell>{fmtDate(t.close_time)}</PanelTableCell>
+            <PanelTableCell align="center" strong>{t.symbol_base || t.symbol}</PanelTableCell>
+            <PanelTableCell align="right" strong tone={out === 'win' ? 'pos' : out === 'loss' ? 'neg' : undefined}>
               {fmtVal(val, unit)}
-            </PanelValue>
-          </PanelRow>
+            </PanelTableCell>
+          </PanelTableRow>
         );
       })}
     </div>

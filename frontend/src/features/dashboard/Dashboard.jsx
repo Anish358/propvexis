@@ -1,7 +1,7 @@
 import React, {
   useEffect, useMemo, useRef, useState,
 } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
   Loader2, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles,
@@ -32,7 +32,8 @@ import {
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionLink, ActionStatus, ActionStrip, KpiCard, KpiSpacer, LoadingNote, MeterRow,
-  PanelBody, PanelCard, PanelHead, PanelMeta, PanelRow, SkeletonBlock, SkeletonLine,
+  PanelBody, PanelCard, PanelChip, PanelHead, PanelLink, PanelMeta, PanelRow, PanelTab,
+  PanelTabs, SkeletonBlock, SkeletonLine,
   SkeletonRegion, Tabs, EmptyState, Modal,
 } from '@/components/primitives';
 import DashLayoutEditor from './DashLayoutEditor.jsx';
@@ -369,24 +370,31 @@ function OpenPositions() {
 function ActivityCard({ trades, unit, beRounding }) {
   const [tab, setTab] = useState('recent');
   return (
-    /* NO FIXED HEIGHT. `card-md` pinned this to 355px so it lined up with the old
-       calendar's two-row span; the calendar sizes to content now, so all the pin bought
-       was 150px of nothing under five trades. The list is capped at six rows by
-       RecentTrades' own `limit`, so the card has a natural ceiling already. */
-    <PanelCard>
-      <PanelHead>Recent Activity</PanelHead>
-      {/* The tab strip stays the shared Tabs primitive — it is a control, not a card,
-          and the frame draws no tabs at all here (its activity list is placeholder
-          rows). Replacing a working, keyboard-accessible control because a static
-          mockup omitted it would be reading the frame as a spec rather than a design. */}
-      <Tabs
-        tabs={[{ value: 'recent', label: 'Recent Trades' }, { value: 'open', label: 'Open Positions' }]}
-        value={tab}
-        onChange={setTab}
-      />
-      <PanelBody>
-        {tab === 'recent' ? <RecentTrades trades={trades} unit={unit} beRounding={beRounding} /> : <OpenPositions />}
-      </PanelBody>
+    /* `flush`, AND THE TAB STRIP REPLACES THE HEADING. Rhea has no "Recent Activity"
+       title above these tabs: the tabs ARE the title, and a heading over two tabs that
+       each name themselves is the same word three times.
+       The panel is flush because all three of its bands — the tab strip, the table
+       header and the rows — reach the card's own edges. Padding them from the card
+       would leave a gutter of --surface beside a header band that is supposed to span
+       it, which is the one thing a table header must not do.
+       NO FIXED HEIGHT: the list is capped at six rows by RecentTrades' own `limit`, so
+       the card has a natural ceiling already. */
+    <PanelCard flush>
+      <PanelTabs>
+        <PanelTab selected={tab === 'recent'} onClick={() => setTab('recent')}>Recent trades</PanelTab>
+        <PanelTab selected={tab === 'open'} onClick={() => setTab('open')}>Open positions</PanelTab>
+      </PanelTabs>
+      {tab === 'recent' ? (
+        <>
+          <RecentTrades trades={trades} unit={unit} beRounding={beRounding} />
+          {trades.length > 0 && (
+            <PanelLink render={<Link to="/journal/trades" />}>
+              View all trades
+              <ArrowRight aria-hidden="true" />
+            </PanelLink>
+          )}
+        </>
+      ) : <OpenPositions />}
     </PanelCard>
   );
 }
@@ -415,7 +423,13 @@ function CumulativePnlCard({ days, unit }) {
           </PanelMeta>
         )}
       >
-        Daily net cumulative {unit === 'USD' ? 'P&L' : 'R'}
+        Cumulative P&amp;L
+        {/* THE UNIT IS A CHIP, NOT PART OF THE TITLE. It used to read "Daily net
+            cumulative P&L" or "...R", so the heading itself changed when the top bar's
+            toggle moved — a title that rewrites itself is a title a reader re-reads.
+            Rhea puts the unit in a neutral badge beside it: the heading is stable, and
+            the thing that actually changed is the thing that visibly changes. */}
+        <PanelChip>{unit === 'USD' ? 'USD' : 'R multiple'}</PanelChip>
         <Explain>Running total of each day's closed P&amp;L, in order, across all trades.</Explain>
       </PanelHead>
       {data.length === 0 ? (

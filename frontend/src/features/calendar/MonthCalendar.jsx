@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   CalCell, CalCellBody, CalDayNum, CalDow, CalGrid, CalNavButton, CalRoot, CalWeek,
+  PanelChip,
   PanelHead, PanelMeta,
 } from '@/components/primitives';
 import { dayKey, fmtValShort } from '../../lib/metrics.js';
@@ -70,30 +71,31 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
 
   const now = new Date();
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+  const todayKey = dayKey(now);
 
   return (
     <CalRoot>
+      {/* NO SUBTITLE. It read "Daily performance", which is what a grid of daily P&L
+          figures already says. Rhea's head is the stepper, the month and the month's
+          own totals — every element of which is a fact rather than a label. */}
       <PanelHead
-        sub="Daily performance"
         meta={(
           <>
             <PanelMeta label="Month total" tone={monthTotal > 0 ? 'pos' : monthTotal < 0 ? 'neg' : undefined}>
               {fmtValShort(monthTotal, unit)}
             </PanelMeta>
-            <PanelMeta label="Traded">{tradingDays} day{tradingDays === 1 ? '' : 's'}</PanelMeta>
+            <PanelChip>{tradingDays} day{tradingDays === 1 ? '' : 's'}</PanelChip>
           </>
         )}
-        action={(
-          /* The month stepper sits with the title rather than off to one side: it
-             CHANGES the title, and a control that rewrites a heading belongs next to
-             the heading it rewrites. "This month" only appears when you have left it. */
-          <span className="cal-nav">
-            <CalNavButton onClick={onPrev} aria-label="Previous month"><ChevronLeft aria-hidden="true" /></CalNavButton>
-            <CalNavButton onClick={onNext} aria-label="Next month"><ChevronRight aria-hidden="true" /></CalNavButton>
-          </span>
-        )}
       >
-        {MONTHS[month]} {year}
+        {/* THE STEPPER LEADS THE TITLE (Rhea, 2026-08-29; it used to trail it on the
+            right, in the head's `action` slot). It CHANGES the title, and reading order
+            is left to right — so the control that rewrites a heading is reached before
+            the heading rather than after it. "This month" only appears once you have
+            left this month, which is the only time it can do anything. */}
+        <CalNavButton onClick={onPrev} aria-label="Previous month"><ChevronLeft aria-hidden="true" /></CalNavButton>
+        <CalNavButton onClick={onNext} aria-label="Next month"><ChevronRight aria-hidden="true" /></CalNavButton>
+        <span>{MONTHS[month]} {year}</span>
         {onToday && !isCurrentMonth && (
           <button type="button" className="cal-today-btn" onClick={onToday}>This month</button>
         )}
@@ -115,10 +117,19 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
                   const winPct = c.data && (c.data.wins + c.data.losses) > 0 ? Math.round((100 * c.data.wins) / (c.data.wins + c.data.losses)) : null;
                   const marks = markers?.get(c.key);
                   const clickable = !!(onSelectDay && c.data);
+                  /* TODAY AND WEEKEND ARE PASSED DOWN, NOT DERIVED IN THE PRIMITIVE.
+                     The cell has no idea what month it is in or which column it sits
+                     in; this component already knows both, and a primitive that
+                     recomputes a date is a primitive that can disagree with the grid
+                     it was handed. */
+                  const isToday = c.key === todayKey;
+                  const isWeekend = i === 0 || i === 6;
                   return (
                     <CalCell
                       key={c.key}
                       tone={t}
+                      today={isToday}
+                      weekend={isWeekend}
                       clickable={clickable}
                       onClick={clickable ? () => onSelectDay(c) : undefined}
                     >

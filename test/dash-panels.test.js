@@ -20,7 +20,11 @@ test('the three cards are one shell, not three', () => {
    * are built as one — three hand-written shells is three places for the radius to
    * drift, which is exactly what happened to `.dash-cal-panel`, `.dash-activity` and
    * `.dash-equity` in the CSS this replaces. */
-  assert.match(panel, /rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\] p-3.5/);
+  // The padding moved onto a `flush` branch with Rhea (a table header band has to span
+  // the card, so the panel that holds one cannot pad its children); the SHELL — one
+  // radius, one border, one surface, declared once — is what this test is about.
+  assert.match(panel, /rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/);
+  assert.match(panel, /flush \? 'overflow-hidden' : 'gap-\[18px\] px-6 pt-\[22px\] pb-6'/);
   const uses = (dash.match(/<PanelCard/g) || []).length;
   assert.ok(uses >= 3, `expected all three cards on PanelCard, found ${uses}`);
   // And none of them kept a bespoke box.
@@ -73,14 +77,27 @@ test('the calendar owns the gap the old header used to supply', () => {
   assert.ok(!month.includes('className="cal"'), 'the legacy .cal wrapper is gone');
 });
 
-test('a page never writes a column width', () => {
+test('a page never writes a column width or an alignment', () => {
   /* Utilities compile only under components/{ui,primitives}. RecentTrades needs three
-   * column widths, and writing `w-16` there would have emitted nothing at all —
+   * column tracks and three alignments, and writing either there emits nothing at all —
    * silently, with the row collapsing to whatever the content measured. That is the one
-   * failure mode in this repo with no error message. */
-  assert.match(panel, /export function PanelCell/);
-  assert.match(recent, /<PanelCell width="fixed"/);
-  assert.ok(!/className="[^"]*\b(w-\d|flex-1|min-w-0|shrink-0|tabular-nums)/.test(recent),
+   * failure mode in this repo with no error message.
+   *
+   * WIDENED TO ALIGNMENT (2026-08-29). The first draft of the Rhea table wrote
+   * `className="text-right"` on the Net P&L header, which would have left it
+   * left-aligned above a right-aligned column. Caught by this test, which is what it is
+   * for; `align` and `head` are props on PanelTableCell now.
+   *
+   * The COLUMN TEMPLATE is a prop too, and declared ONCE for the header and the rows
+   * together — a header that computes its tracks separately from its data is a header
+   * that drifts a pixel off it the first time either is touched. */
+  assert.match(panel, /export function PanelTableCell/);
+  assert.match(recent, /const COLS = /, 'one template, shared by the head and the rows');
+  assert.match(recent, /<PanelTableHead cols=\{COLS\}>/);
+  assert.match(recent, /<PanelTableRow key=\{t\.id\} cols=\{COLS\}>/);
+  // Comment-stripped: the note in RecentTrades explaining the trap necessarily quotes
+  // the class it warns about. The seventh scanner in this repo to need this.
+  assert.ok(!/className="[^"]*\b(w-\d|flex-1|min-w-0|shrink-0|tabular-nums|text-(left|right|center))/.test(stripComments(recent)),
     'RecentTrades writes layout utilities, which do not compile outside the library');
 });
 

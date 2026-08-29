@@ -19,12 +19,17 @@ import { cn } from '@/lib/utils';
  * one onto the other would mean re-tuning the preset every time the frame moved.
  */
 
-export function PanelCard({ className, children, ...rest }) {
+/* `flush` is for a panel whose content reaches its own edges — the activity list's tab
+ * strip, its table header band and its rows all bleed to the border. Padding those from
+ * the card would leave a 22px gutter of --surface beside a header band that is supposed
+ * to span the card, which is the one thing a table header must not do. */
+export function PanelCard({ flush = false, className, children, ...rest }) {
   return (
     <section
       data-slot="panel"
       className={cn(
-        'flex min-w-0 flex-col gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3.5',
+        'flex min-w-0 flex-col rounded-[14px] border border-[var(--line)] bg-[var(--surface)]',
+        flush ? 'overflow-hidden' : 'gap-[18px] px-6 pt-[22px] pb-6',
         className,
       )}
       {...rest}
@@ -49,7 +54,7 @@ export function PanelHead({ sub, meta, action, className, children, ...rest }) {
       {...rest}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <h3 className="flex items-center gap-2 text-[15px] leading-6 font-semibold text-[var(--text)]">
+        <h3 className="flex flex-wrap items-center gap-2.5 text-[16px] leading-6 font-[650] tracking-[-0.15px] text-[var(--text)]">
           {children}
         </h3>
         {sub && <p className="m-0 text-[13px] leading-5 text-[var(--muted)]">{sub}</p>}
@@ -73,14 +78,189 @@ export function PanelMeta({ label, tone, className, children, ...rest }) {
   return (
     <span
       data-slot="panel-meta"
-      className={cn('flex items-baseline gap-1.5 text-[13px] leading-5', className)}
+      className={cn('flex items-baseline gap-2.5 text-[12px] leading-5', className)}
       {...rest}
     >
-      {label && <span className="text-[var(--muted)]">{label}</span>}
-      <span className="font-medium tabular-nums" style={{ color: TONE[tone] || 'var(--text)' }}>
+      {label && <span className="text-[var(--text-4)]">{label}</span>}
+      <span
+        className="font-mono text-[14px] font-semibold tabular-nums"
+        style={{ color: TONE[tone] || 'var(--text)' }}
+      >
         {children}
       </span>
     </span>
+  );
+}
+
+/* A quiet chip in a panel head — the calendar's "18 days", the chart's unit badge. It
+ * is a COUNT or a UNIT, never a verdict, so it is always neutral: the figure beside it
+ * carries the sign and a tinted chip would be a second, weaker copy of that. */
+export function PanelChip({ className, children, ...rest }) {
+  return (
+    <span
+      data-slot="panel-chip"
+      className={cn(
+        'shrink-0 rounded-[6px] border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
+        'text-[11.5px] leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* A hint under a panel's content — "Click a day to open that session's trades." Small,
+ * faint, and outside the scroller, so it is available without competing with the grid. */
+export function PanelHint({ className, children, ...rest }) {
+  return (
+    <p data-slot="panel-hint" className={cn('m-0 text-[11.5px] leading-4 text-[var(--text-5)]', className)} {...rest}>
+      {children}
+    </p>
+  );
+}
+
+/* THE TABLE BAND — a header row that spans the card, on --control-bg.
+ *
+ * `cols` is a grid template the caller supplies, and PanelTableRow takes the same one,
+ * because a header and its rows that compute their columns separately are a header that
+ * drifts one pixel off its own data the first time either is touched. */
+export function PanelTableHead({ cols, className, children, ...rest }) {
+  return (
+    <div
+      data-slot="panel-table-head"
+      className={cn(
+        'grid items-center bg-[var(--control-bg)] px-[18px] py-[11px]',
+        'text-[12px] leading-4 font-semibold text-[var(--text-2)]',
+        className,
+      )}
+      style={{ gridTemplateColumns: cols }}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* A row in that table. NO HAIRLINE BETWEEN ROWS — Rhea separates them by the hover
+ * surface alone. Six rows with five rules between them reads as a spreadsheet; the
+ * point of "recent trades" is the three or four at the top. */
+export function PanelTableRow({ cols, render, className, children, ...rest }) {
+  const classes = cn(
+    'grid w-full items-center px-[18px] py-[13px] text-left',
+    'transition-colors hover:bg-[var(--surface-hover)]',
+    'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none focus-visible:ring-inset',
+    className,
+  );
+  if (render) {
+    return React.cloneElement(render, {
+      className: cn(classes, render.props.className),
+      style: { gridTemplateColumns: cols, ...(render.props.style || {}) },
+      'data-slot': 'panel-table-row',
+      ...rest,
+    }, children);
+  }
+  return (
+    <div data-slot="panel-table-row" className={classes} style={{ gridTemplateColumns: cols }} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+/* A cell in that table. `align` rather than a class, because a page cannot write
+ * `text-right` — utilities compile only under components/{ui,primitives}, so the class
+ * would emit nothing and the column would silently left-align. */
+const ALIGN = { left: 'text-left', center: 'text-center', right: 'text-right' };
+
+/* `head` is the column-title variant, and it exists so a PAGE never has to write
+ * `text-right`. Utilities compile only under components/{ui,primitives}, so an
+ * alignment class written in RecentTrades.jsx would emit nothing and the Net P&L
+ * column would silently left-align under a right-aligned header. Alignment is a prop
+ * here for exactly the reason SkeletonBlock's width is. */
+export function PanelTableCell({
+  align = 'left', mono = true, strong = false, head = false, tone, className, children, ...rest
+}) {
+  return (
+    <span
+      data-slot="panel-table-cell"
+      className={cn(
+        'truncate',
+        head ? 'text-[12px] leading-4 font-semibold' : 'text-[12.5px] leading-5',
+        ALIGN[align] || ALIGN.left,
+        !head && mono && 'font-mono tabular-nums',
+        !head && (strong ? 'font-semibold' : 'font-normal'),
+        className,
+      )}
+      style={{ color: head ? 'var(--text-2)' : (TONE[tone] || (strong ? 'var(--text)' : 'var(--text-2)')) }}
+      {...rest}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* The panel's footer link — "View all trades →". Inside the flush card's own inset, so
+ * it lines up with the rows above it rather than with the card's edge. */
+export function PanelLink({ render, className, children, ...rest }) {
+  const classes = cn(
+    'flex items-center gap-1.5 px-4 pt-3 pb-3.5 text-[12.5px] leading-4 font-[550] no-underline',
+    'text-[var(--text-link)] transition-colors hover:text-[var(--text)]',
+    'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
+    className,
+  );
+  if (render) {
+    return React.cloneElement(render, {
+      className: cn(classes, render.props.className),
+      'data-slot': 'panel-link',
+      ...rest,
+    }, children);
+  }
+  return (
+    <button type="button" data-slot="panel-link" className={classes} {...rest}>{children}</button>
+  );
+}
+
+/* THE TAB STRIP that opens a flush panel — Recent trades / Open positions.
+ *
+ * UNDERLINED, NOT PILLED, and that is DESIGN-LANGUAGE's own documented tab rule rather
+ * than something Rhea introduced: a thin light line under the active label, muted and
+ * unlined when inactive. It is drawn here rather than reusing the shared `Tabs`
+ * primitive because this strip is the panel's own top EDGE — it carries the card's
+ * hairline and its 15px title weight — where `Tabs` is a control that sits inside
+ * content. Same interaction rule, different member of the layout. */
+export function PanelTabs({ className, children, ...rest }) {
+  return (
+    <div
+      data-slot="panel-tabs"
+      role="tablist"
+      className={cn('flex gap-0.5 border-b border-[var(--line-inset)] px-2.5', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function PanelTab({ selected = false, className, children, ...rest }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      data-slot="panel-tab"
+      className={cn(
+        'border-b-2 px-3.5 pt-[15px] pb-[13px] text-[15px] leading-5 font-semibold tracking-[-0.1px]',
+        'transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
+        selected
+          ? 'border-[var(--action-2)] text-[var(--text)]'
+          : 'border-transparent text-[var(--text-3)] hover:text-[var(--text-body)]',
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </button>
   );
 }
 

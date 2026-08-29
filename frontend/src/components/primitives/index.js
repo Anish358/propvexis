@@ -130,12 +130,16 @@ export {
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, Meter, MeterRow,
 } from './account.jsx';
 
-// The dashboard's generic content card, and the P&L calendar's cells.
+// The dashboard's generic content card, its table vocabulary, the action strip and the
+// skeleton parts — see panel.jsx.
 export {
   ActionLink, ActionStatus, ActionStrip, LoadingNote, PanelBody, PanelCard, PanelCell,
-  PanelHead, PanelMeta, PanelRow, PanelRowHead, PanelValue, SkeletonBlock, SkeletonLine,
-  SkeletonRegion,
+  PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelRowHead,
+  PanelTab, PanelTableCell, PanelTableHead, PanelTableRow, PanelTabs, PanelValue,
+  SkeletonBlock, SkeletonLine, SkeletonRegion,
 } from './panel.jsx';
+
+// The P&L calendar's cells.
 export {
   CalCell, CalCellBody, CalDayNum, CalDow, CalGrid, CalNavButton, CalRoot, CalWeek,
 } from './calendar.jsx';

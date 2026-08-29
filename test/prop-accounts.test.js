@@ -181,7 +181,9 @@ test('Recent Trades is the Dashboard\'s table, moved rather than copied', () => 
    * BOTH surfaces render the same component, not which class it wears. Pinned on the
    * shared row primitive instead, which is the thing that would actually have to be
    * duplicated for the two to drift. */
-  assert.match(recent, /<PanelRow key=\{t\.id\}>/, 'one list component, two surfaces');
+  // PanelTableRow since the Rhea rebuild (was PanelRow) — same point: the shared row
+  // primitive is the thing that would have to be duplicated for the two to drift.
+  assert.match(recent, /<PanelTableRow key=\{t\.id\} cols=\{COLS\}>/, 'one list component, two surfaces');
   // The only difference between the two call sites is a row count, not a design.
   assert.match(recent, /limit = 6/);
   assert.match(workspace, /limit=\{14\}/);
