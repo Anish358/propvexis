@@ -77,11 +77,14 @@ export function TradeWinCard({ m }) {
         <KpiValue>{m.winRate.toFixed(2)}%</KpiValue>
       </KpiMain>
       <KpiAside>
-        <KpiGauge pct={m.winRate} tone={gaugeTone(m.winRate, 50)} />
+        <KpiGauge pct={m.winRate} tone={gaugeTone(m.winRate, 50)} empty={!m.tradeCount} />
+        {/* THE CHIPS GO NEUTRAL WITH NO TRADES. A green 0 beside a red 0 spends two
+            outcome colours on the absence of any outcome, on the one screen where a new
+            user is deciding whether this app knows anything about them. */}
         <KpiChips>
-          <KpiChip tone="pos">{m.wins}</KpiChip>
+          <KpiChip tone={m.tradeCount ? 'pos' : 'flat'}>{m.wins}</KpiChip>
           {be > 0 && <KpiChip>{be}</KpiChip>}
-          <KpiChip tone="neg">{m.losses}</KpiChip>
+          <KpiChip tone={m.tradeCount ? 'neg' : 'flat'}>{m.losses}</KpiChip>
         </KpiChips>
       </KpiAside>
     </KpiCard>
@@ -104,6 +107,9 @@ export function ProfitFactorCard({ m }) {
    * factor (no losing trades) is a full green ring, which is exactly right. */
   const gross = m.grossProfit + m.grossLoss;
   const share = infinite ? 1 : (gross > 0 ? m.grossProfit / gross : 0);
+  // NO DATA IS NOT A ZERO SHARE — see KpiRing. `infinite` (winners, no losers) is real
+  // data and earns a full green ring; `gross === 0` is a brand-new account.
+  const noData = !infinite && gross === 0;
   return (
     <KpiCard>
       <KpiMain>
@@ -113,7 +119,7 @@ export function ProfitFactorCard({ m }) {
         <KpiValue tone={tone}>{infinite ? '∞' : pf.toFixed(2)}</KpiValue>
       </KpiMain>
       <KpiAside>
-        <KpiRing share={share} />
+        <KpiRing share={share} empty={noData} />
       </KpiAside>
     </KpiCard>
   );
@@ -129,10 +135,10 @@ export function DayWinCard({ days }) {
         <KpiValue>{days.rate.toFixed(2)}%</KpiValue>
       </KpiMain>
       <KpiAside>
-        <KpiGauge pct={days.rate} tone={gaugeTone(days.rate, 50)} />
+        <KpiGauge pct={days.rate} tone={gaugeTone(days.rate, 50)} empty={!days.total} />
         <KpiChips>
-          <KpiChip tone="pos">{days.winDays}</KpiChip>
-          <KpiChip tone="neg">{days.lossDays}</KpiChip>
+          <KpiChip tone={days.total ? 'pos' : 'flat'}>{days.winDays}</KpiChip>
+          <KpiChip tone={days.total ? 'neg' : 'flat'}>{days.lossDays}</KpiChip>
         </KpiChips>
       </KpiAside>
     </KpiCard>
@@ -156,13 +162,13 @@ export function AvgWinLossCard({ m, unit }) {
         <KpiValue>{infinite ? '∞' : r.toFixed(2)}</KpiValue>
       </KpiMain>
       <KpiAside>
-        <KpiGauge pct={infinite ? 100 : (r / 2) * 100} tone={gaugeTone(r, 1)} />
+        <KpiGauge pct={infinite ? 100 : (r / 2) * 100} tone={gaugeTone(r, 1)} empty={!m.tradeCount} />
         <KpiChips>
           {/* fmtValShort, not fmtVal: a chip is 5px of padding around ten pixels of
               type, and "$1,240.50" in it wraps the card. The exact figure is one hover
               away in the Trade Log; what belongs here is the comparison. */}
-          <KpiChip tone="pos">{fmtValShort(m.avgWin, unit)}</KpiChip>
-          <KpiChip tone="neg">{fmtValShort(-Math.abs(m.avgLoss), unit)}</KpiChip>
+          <KpiChip tone={m.tradeCount ? 'pos' : 'flat'}>{fmtValShort(m.avgWin, unit)}</KpiChip>
+          <KpiChip tone={m.tradeCount ? 'neg' : 'flat'}>{fmtValShort(-Math.abs(m.avgLoss), unit)}</KpiChip>
         </KpiChips>
       </KpiAside>
     </KpiCard>

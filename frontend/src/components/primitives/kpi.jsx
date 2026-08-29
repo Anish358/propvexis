@@ -194,8 +194,8 @@ export function KpiAside({ className, children, ...rest }) {
  * `aria-hidden`, because the figure beside it says the same thing in digits. */
 const ARC_LENGTH = 131.9;
 
-export function KpiGauge({ pct = 0, tone = 'flat', className, ...rest }) {
-  const v = Math.max(0, Math.min(100, pct));
+export function KpiGauge({ pct = 0, tone = 'flat', empty = false, className, ...rest }) {
+  const v = empty ? 0 : Math.max(0, Math.min(100, pct));
   const hue = toneColor(tone) || 'var(--warning)';
   return (
     <svg
@@ -208,14 +208,20 @@ export function KpiGauge({ pct = 0, tone = 'flat', className, ...rest }) {
       {...rest}
     >
       <path d="M8 50 A42 42 0 0 1 92 50" fill="none" stroke="var(--chart-grid)" strokeWidth="8" strokeLinecap="round" />
-      <path
-        d="M8 50 A42 42 0 0 1 92 50"
-        fill="none"
-        stroke={hue}
-        strokeWidth="8"
-        strokeLinecap="round"
-        strokeDasharray={`${((v / 100) * ARC_LENGTH).toFixed(1)} ${ARC_LENGTH}`}
-      />
+      {/* A ZERO-LENGTH DASH WITH A ROUND CAP DRAWS A DOT, not nothing — so a brand-new
+          account showed a stray amber pip floating at the left end of every empty
+          gauge, which reads as a value rather than as the absence of one. Caught by
+          rendering the zero state; the fix is to draw no value path at all. */}
+      {v > 0 && (
+        <path
+          d="M8 50 A42 42 0 0 1 92 50"
+          fill="none"
+          stroke={hue}
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={`${((v / 100) * ARC_LENGTH).toFixed(1)} ${ARC_LENGTH}`}
+        />
+      )}
     </svg>
   );
 }
@@ -232,7 +238,7 @@ export function KpiGauge({ pct = 0, tone = 'flat', className, ...rest }) {
  * and full red at "no winners". 251.3 is the circumference at r=40. */
 const RING_LENGTH = 251.3;
 
-export function KpiRing({ share = 0, className, ...rest }) {
+export function KpiRing({ share = 0, empty = false, className, ...rest }) {
   const v = Math.max(0, Math.min(1, share));
   return (
     <svg
@@ -244,17 +250,34 @@ export function KpiRing({ share = 0, className, ...rest }) {
       className={cn('block', className)}
       {...rest}
     >
-      <circle cx="50" cy="50" r="40" fill="none" stroke="var(--loss)" strokeWidth="10" />
+      {/* `empty` IS NOT `share = 0`, AND CONFLATING THEM SHIPPED A LIE. The base ring is
+          --loss, so a zero share paints it entirely red — correct for "every trade lost"
+          and catastrophically wrong for "no trades yet". A brand-new account's dashboard
+          drew a full red ring on its profit-factor card. Caught by rendering the zero
+          state, which is exactly what that state is for.
+
+          With no data the ring is the neutral track: clearly a ring, clearly saying
+          nothing. */}
       <circle
         cx="50"
         cy="50"
         r="40"
         fill="none"
-        stroke="var(--profit)"
+        stroke={empty ? 'var(--chart-grid)' : 'var(--loss)'}
         strokeWidth="10"
-        strokeDasharray={`${(v * RING_LENGTH).toFixed(1)} ${RING_LENGTH}`}
-        transform="rotate(-90 50 50)"
       />
+      {!empty && (
+        <circle
+          cx="50"
+          cy="50"
+          r="40"
+          fill="none"
+          stroke="var(--profit)"
+          strokeWidth="10"
+          strokeDasharray={`${(v * RING_LENGTH).toFixed(1)} ${RING_LENGTH}`}
+          transform="rotate(-90 50 50)"
+        />
+      )}
     </svg>
   );
 }

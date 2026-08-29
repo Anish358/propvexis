@@ -31,7 +31,8 @@ import {
   AccountBanner, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  ActionLink, ActionStatus, ActionStrip, KpiCard, KpiSpacer, LoadingNote, MeterRow,
+  ActionLink, ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain, KpiSpacer,
+  LoadingNote, MeterRow,
   PanelBody, PanelCard, PanelChip, PanelHead, PanelLink, PanelMeta, PanelRow, PanelTab,
   PanelTabs, SkeletonBlock, SkeletonLine,
   SkeletonRegion, Tabs, EmptyState, Modal,
@@ -755,12 +756,26 @@ export function DashSkeleton() {
       </BriefCard>
 
       <KpiRow>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <KpiCard key={i} hero={i === 0}>
-            <SkeletonLine w="5rem" />
-            <KpiSpacer />
-            <SkeletonLine w="8rem" h="1.75rem" />
-            <SkeletonLine w="6rem" />
+        {/* THE NON-HERO CARDS ARE A FLEX ROW NOW (label+value on the left, a gauge on
+            the right), so their skeletons have to stack inside KpiMain or the three
+            placeholder lines lay themselves out horizontally — which is exactly how
+            this first rendered. A skeleton that reserves a different SHAPE from its
+            content is the layout jump it exists to prevent. */}
+        <KpiCard hero>
+          <SkeletonLine w="5rem" />
+          <KpiSpacer />
+          <SkeletonLine w="9rem" h="1.75rem" />
+          <SkeletonLine w="5rem" />
+        </KpiCard>
+        {[1, 2, 3, 4].map((i) => (
+          <KpiCard key={i}>
+            <KpiMain>
+              <SkeletonLine w="6rem" />
+              <SkeletonLine w="7rem" h="1.75rem" />
+            </KpiMain>
+            <KpiAside>
+              <SkeletonBlock h="2.6rem" w="4.6rem" radius={8} />
+            </KpiAside>
           </KpiCard>
         ))}
       </KpiRow>

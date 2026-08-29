@@ -467,3 +467,36 @@ test('a widget with a fixed height still matches its declared row span', () => {
    * redesign has not reached. */
   assert.ok(!/className="card-(md|lg)"/.test(dashSrc), 'dashboard cards size to their content');
 });
+
+test('no data is not a zero value — the empty KPI shapes say nothing, not "all losses"', () => {
+  /* CAUGHT BY RENDERING THE ZERO STATE, which is the whole reason that state exists.
+   *
+   * The profit-factor RING draws gross loss all the way round and gross profit over it,
+   * so a share of 0 paints it entirely red. That is correct for "every trade lost" and
+   * catastrophically wrong for "no trades yet" — a brand-new account's dashboard drew a
+   * full red ring on the one screen where a new user decides whether this app knows
+   * anything about them.
+   *
+   * The GAUGE had the same class of bug for a different reason: a zero-length dash with
+   * a round linecap draws a DOT rather than nothing, so every empty gauge carried a
+   * stray amber pip that reads as a value.
+   *
+   * Both are pinned as RULES rather than as pixels, because the number drifting is
+   * cosmetic and the rule drifting is a new user being told they are losing. */
+  const kpi = readSrc('components/primitives/kpi.jsx');
+  const cards = readSrc('features/dashboard/KpiCards.jsx');
+
+  // The ring's base stroke is conditional, and `empty` is a separate input from `share`.
+  assert.match(kpi, /stroke=\{empty \? 'var\(--chart-grid\)' : 'var\(--loss\)'\}/);
+  assert.match(kpi, /\{!empty && \(/, 'the value arc is not drawn at all with no data');
+  // The gauge draws no value path at zero, rather than a zero-length one.
+  assert.match(kpi, /\{v > 0 && \(/);
+  assert.match(kpi, /const v = empty \? 0 :/);
+
+  // And the caller distinguishes "no losers" (real, full green) from "no trades".
+  assert.match(cards, /const noData = !infinite && gross === 0;/);
+  assert.match(cards, /<KpiRing share=\{share\} empty=\{noData\} \/>/);
+  // Every gauge is told, and the outcome chips go neutral with nothing to colour.
+  assert.equal((cards.match(/empty=\{!/g) || []).length, 3, 'all three gauges take an empty state');
+  assert.match(cards, /tone=\{m\.tradeCount \? 'pos' : 'flat'\}/);
+});
