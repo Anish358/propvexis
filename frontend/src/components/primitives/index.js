@@ -115,7 +115,7 @@ export {
 // Today's Brief — the dashboard's top card. Here for the same reason as the rail.
 export {
   BriefAction, BriefAlert, BriefCard, BriefClock, BriefColumns, BriefEvent, BriefHeader,
-  BriefNote, BriefSection,
+  BriefNote, BriefRange, BriefSection,
 } from './brief.jsx';
 
 // The KPI row. Here for the same reason as the rail and the brief.

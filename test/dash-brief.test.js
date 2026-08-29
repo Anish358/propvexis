@@ -17,21 +17,82 @@ const dash = readSrc('features/dashboard/Dashboard.jsx');
 
 test('the card carries the frame\'s geometry', () => {
   const geometry = [
-    // One step down the frame's own scale (owner call, 2026-08-28): 28->20, 24->16,
-    // 18->16, 14->13. Proportions are the frame's; the card is one size smaller.
-    ['card radius + padding', /rounded-\[14px\] bg-\[var\(--surface\)\] p-3.5/],
-    ['blocks 12 apart', /flex flex-col gap-3 rounded-\[14px\]/],
-    ['header tile', /size-8 shrink-0 items-center justify-center rounded-\[10px\]/],
-    ['title', /text-\[15px\] leading-6 font-semibold/],
-    ['date', /text-\[13px\] leading-5 font-normal text-\[var\(--muted\)\]/],
-    ['two columns, 20 apart', /grid grid-cols-2 gap-4/],
-    ['event row', /rounded-\[10px\] bg-\[var\(--brief-row-bg\)\] px-2.5 py-1.5/],
-    ['alert row', /rounded-\[10px\] border px-2.5 py-2/],
-    ['pill chips', /rounded-full border border-\[var\(--brief-chip-border\)\] px-1\.5 py-0\.5/],
+    /* RHEA'S NUMBERS (2026-08-29). The card is edge-to-edge now — the header and the
+     * columns carry their own 26px inset rather than the card padding everything — so
+     * the row of scrolling events can bleed to the card's own border instead of stopping
+     * 14px short of it. */
+    ['card', /overflow-hidden rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
+    ['header inset', /px-\[26px\] pt-\[22px\] pb-3.5/],
+    ['title', /text-\[18\.5px\] leading-7 font-\[650\] tracking-\[-0\.25px\]/],
+    ['date', /text-\[13px\] leading-5 font-\[450\] text-\[var\(--muted\)\]/],
+    ['two columns, wider left', /grid-cols-\[minmax\(0,1\.25fr\)_minmax\(0,1fr\)\] gap-11/],
+    ['event row', /grid h-\[33px\] shrink-0 grid-cols-\[64px_max-content_auto_66px\]/],
+    ['alert row', /min-h-\[73px\] shrink-0 items-center gap-2\.5 rounded-\[10px\] bg-\[var\(--row-bg\)\]/],
+    ['column scroller', /max-h-\[153px\] overflow-x-hidden overflow-y-auto/],
   ];
   for (const [what, re] of geometry) {
-    assert.match(brief, re, `${what} has drifted from the Figma frame`);
+    assert.match(brief, re, `${what} has drifted from the Rhea design`);
   }
+});
+
+test('the clock is mono, 24-hour, and ticks without re-filtering the feed', () => {
+  /* TWO RESOLUTIONS, AND THE SECOND ONE IS THE POINT. Rhea's clock shows seconds, so it
+   * re-renders every second. `filterBriefEvents` walks the whole feed and re-slices it
+   * by importance, currency and window — running that sixty times a minute to redraw two
+   * digits is work nobody asked for, and the window it computes only moves by the
+   * minute. So the hook returns `now` for display and `minute` as the memo key.
+   *
+   * MONO IS NOT COSMETIC HERE: a proportional face makes the whole header jitter
+   * sideways as the digits change width, once a second, forever. */
+  assert.match(brief, /font-mono text-\[13px\] leading-5 tabular-nums/);
+  assert.match(dash, /function useBriefClock\(\)/);
+  assert.match(dash, /setInterval\(\(\) => setNow\(new Date\(\)\), 1000\)/);
+  assert.match(dash, /minute: Math\.floor\(now\.getTime\(\) \/ 60_000\)/);
+  const banner = dash.slice(dash.indexOf('export function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
+  assert.ok(!/\[events, prefs, now\]/.test(banner),
+    'the filter memo must key on `minute`, not on a clock that ticks every second');
+});
+
+test('the range switcher writes the real pref, not local state', () => {
+  /* Rhea puts a Today / Week toggle on the events column, and the app already had a
+   * four-value time window in Brief settings persisted per user through view-state. Two
+   * controls for one concept that disagree after a reload is the bug view-state sync was
+   * built to kill — so the toggle IS that setting seen a second time. Owner decision.
+   *
+   * The other two windows (4h, 24h) stay reachable in the popover: Rhea offers two
+   * because two is what fits in 88px, not because the other two stopped being useful. */
+  const banner = dash.slice(dash.indexOf('export function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
+  assert.match(banner, /patchBriefPrefs\(\{ window: id \}\)/,
+    'the toggle must write prefs.window, not component state');
+  assert.match(banner, /value=\{prefs\.window\}/, 'and read back from the same place');
+  assert.ok(!/useState\(['"](today|week)['"]\)/.test(banner), 'no second source of truth for the range');
+});
+
+test('an alert can be dismissed, and dismissing means marking it read', () => {
+  /* The prototype clears an alert into local component state. That gives a dismissal
+   * which returns on the next reload and an unread count that disagrees with the list
+   * beside it — so Clear marks the notification read against the same route the
+   * notification panel already uses. */
+  const banner = dash.slice(dash.indexOf('export function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
+  assert.match(banner, /markNotificationRead\(n\.id\)/);
+  // Only for an alert that IS unread — a read one has nothing left to clear.
+  assert.match(banner, /markNotificationRead && !n\.read_at/);
+  const app = readSrc('App.jsx');
+  assert.match(app, /markNotificationsRead\(\{ ids: \[id\] \}\)/, 'it must hit the real route');
+});
+
+test('the Clear affordance has a keyboard twin', () => {
+  /* §14: every hover treatment has a keyboard twin. The prototype tracks a hovered
+   * index and shows Clear for that row only, which is pointer-only — a keyboard user
+   * tabbing through the brief would reach a control that is not rendered at all and
+   * would have no way to dismiss anything.
+   *
+   * Also why it FADES rather than unmounting: a column of alerts that reflows under the
+   * pointer is harder to click than one that does not. */
+  assert.match(brief, /group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100/);
+  // Comment-stripped — the paragraph above necessarily names the thing it forbids.
+  assert.ok(!/hoverAlert|onMouseEnter/.test(briefCode),
+    'hover state belongs in CSS, not in a re-render per mouseover');
 });
 
 test('impact and severity are two scales, not one', () => {
@@ -66,18 +127,48 @@ test('impact is never colour-only', () => {
   assert.match(dash, /impactLabel=\{IMPACT_LABEL\[e\.impact\]\}/);
 });
 
-test('the washes are mixed from the token, not hand-picked', () => {
-  /* color-mix from the SAME custom property the text uses, so a severity has exactly
-   * one hue and the 10%-fill / 20%-border relationship survives a palette change. Three
-   * hand-written rgba() triples would drift the first time --loss moved — which it just
-   * did, in the same redesign that produced this card. */
-  assert.match(brief, /color-mix\(in srgb, \$\{hue\} 10%, transparent\)/);
-  assert.match(brief, /color-mix\(in srgb, \$\{hue\} 20%, transparent\)/);
-  assert.match(brief, /color-mix\(in srgb, \$\{hue\} 15%, transparent\)/);
-  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(brief), 'a colour literal appeared in the brief');
-  for (const t of ['--brief-tile-bg', '--brief-row-bg', '--brief-chip-border']) {
+test('rows are neutral; severity is the glyph and the word', () => {
+  /* WHAT THIS USED TO PIN: that each severity's 10% wash and 20% border were
+   * color-mixed from the SAME token its text used, so a hue could not drift between the
+   * three. Correct then, and the mechanism is still right — it is just not what Rhea
+   * draws.
+   *
+   * RHEA PUTS EVERY ROW ON --row-bg and carries severity in a coloured icon plus an
+   * UPPERCASE WORD. Two reasons, and the second is the one that matters: three washed
+   * rows in a 153px column read as one striped block and the eye stops separating them;
+   * and a WORD is not a colour, so escalation survives a greyscale screen and a reader
+   * who cannot separate amber from red. That is §14's rule satisfied the strong way
+   * rather than the decorative way. */
+  assert.match(brief, /bg-\[var\(--row-bg\)\]/, 'rows share one neutral surface');
+  assert.ok(!/color-mix\(in srgb, \$\{hue\}/.test(brief), 'a severity no longer washes its row');
+  // The glyph AND the label both take the hue, and the label is the redundant encoding.
+  assert.match(brief, /style=\{\{ color: hue \}\}/);
+  assert.match(brief, /uppercase[\s\S]{0,80}style=\{\{ color: hue \}\}[\s\S]{0,60}\{severity\}/,
+    'the severity WORD must be rendered, not just its colour');
+
+  /* THE FLAGS ARE THE ONE EXEMPTION, and it is narrow. National flag colours are
+   * specified by law rather than by us; tokenising them would invite a rebrand to
+   * recolour the United States. Everything OUTSIDE the Flag component still goes
+   * through tokens. */
+  const outsideFlags = briefCode.replace(/function Flag\(\{ code \}\) \{[\s\S]*?\n\}/, '');
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(outsideFlags), 'a colour literal appeared outside the flags');
+  for (const t of ['--row-bg', '--line-chip', '--sel-bg']) {
     assert.match(tokensCss, new RegExp(`${t}\\s*:`), `${t} must be declared in the token layer`);
   }
+});
+
+test('only the three specified flags are drawn, and the code is always shown', () => {
+  /* The feed publishes JPY, AUD, CAD, CHF, NZD and CNY too. Inventing six more flags
+   * from memory is how a product ships a wrong flag to someone's country, so anything
+   * unrecognised gets a neutral disc — and the CURRENCY CODE renders beside the flag in
+   * every case, so the flag is a scanning aid and never the only thing saying which
+   * market this is. */
+  for (const c of ['USD', 'EUR', 'GBP']) {
+    assert.ok(briefCode.includes(`code === '${c}'`), `${c} must have a flag`);
+  }
+  const row = brief.slice(brief.indexOf('export function BriefEvent'));
+  assert.match(row, /<Flag code=\{currency\} \/>[\s\S]{0,240}\{currency\}/,
+    'the code renders beside the flag, always');
 });
 
 test('the columns stack at 1200, not at the rail\'s 900', () => {
@@ -111,8 +202,14 @@ test('the frame\'s unlabelled second button is deliberately not built', () => {
    * `aside` exists as a slot so it can be filled the day someone decides what it does;
    * shipping a button that does nothing is worse than shipping no button. This asserts
    * the slot survives — if it is deleted, the decision is lost with it. */
-  assert.match(brief, /aside/, 'the header must keep a slot for the frame\'s second control');
-  assert.ok(!/aside=\{/.test(dash), 'nothing should fill `aside` until it has a purpose');
+  /* AND RHEA SETTLED IT BY DELETING IT (2026-08-29). The intermediate Figma pass drew a
+   * second 36px control top-right with no icon resolved and no behaviour implied; the
+   * `aside` slot existed so it could be filled the day someone decided what it did.
+   * Rhea's header has one control, the settings gear, and it is labelled. So the slot is
+   * gone rather than kept empty forever — an unused prop is a question nobody will
+   * answer, and this comment is the answer. */
+  assert.ok(!/aside/.test(briefCode), 'the unresolved second control is settled, not pending');
+  assert.match(brief, /aria-label/, 'the one control it does have carries a name');
 });
 
 test('the settings control is an icon button in the title row, and still has a name', () => {
@@ -121,8 +218,10 @@ test('the settings control is an icon button in the title row, and still has a n
    * rather than stacked under the title, and — because the visible word "Brief
    * settings" is gone — the accessible name is now carried by an attribute. A bare
    * glyph with no label is the standard way this exact refactor breaks a control. */
-  assert.match(brief, /flex size-8 shrink-0 items-center justify-center rounded-\[6px\]/,
-    'the trigger must be a square icon button');
+  // ROUND, NOT SQUARE, AND 28px NOT 32 (Rhea): it belongs to this card rather than to
+  // the app, so it is one step quieter than the top bar's 36px chrome.
+  assert.match(brief, /flex size-7 shrink-0 items-center justify-center rounded-full/,
+    'the trigger must be a round icon button');
   assert.doesNotMatch(brief, /flex min-w-0 flex-col gap-2/,
     'the header must be one row — no stacked second line under the title');
   const banner = dash.slice(dash.indexOf('export function DailyBanner'), dash.indexOf('// Dashboard-level actions'));

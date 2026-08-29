@@ -76,9 +76,11 @@ test('Today\'s Brief banner has a titled head with a settings control', () => {
   assert.match(block, /aria-expanded=\{settingsOpen\}/);
   // Head must precede the events/alerts content it titles.
   assert.ok(block.indexOf('<BriefHeader') < block.indexOf('<BriefColumns'));
-  // The title is the frame's 18/28 semibold, declared once in the primitive.
+  // The title is Rhea's 18.5/650/-0.25, declared once in the primitive. WAS 15/600 on
+  // the intermediate Figma pass, where the card opened with an amber icon tile that
+  // carried some of the weight; Rhea drops the tile and lets the words be the heading.
   const brief = readSrc('components/primitives/brief.jsx');
-  assert.match(brief, /text-\[15px\] leading-6 font-semibold/);
+  assert.match(brief, /text-\[18\.5px\] leading-7 font-\[650\] tracking-\[-0\.25px\]/);
 });
 
 test('action strip carries no container chrome', () => {

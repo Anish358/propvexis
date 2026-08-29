@@ -32,7 +32,7 @@ import Announcer, { connectionAnnouncement, tradeFeedAnnouncement } from '../com
 export default function Layout({
   trades, tradesLoading = false, account, accounts, payouts, reloadPayouts, fees, reloadFees, accountId, setAccountId, reloadAccounts,
   strategies, reloadStrategies, reloadTrades,
-  notifications, unread, markAllNotificationsRead, toasts, dismissToast,
+  notifications, unread, markAllNotificationsRead, markNotificationRead, toasts, dismissToast,
   connected, flashId, saveTrade, removeTrade, addManualTrade,
   unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
   pinnedAccounts, setPinnedAccounts,
@@ -97,7 +97,8 @@ export default function Layout({
         outletContext={{
           trades, tradesLoading, account, accountId, setAccountId, accounts, reloadAccounts,
           payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades,
-          notifications, unread, markAllNotificationsRead, unit, filters, clearFilters,
+          notifications, unread, markAllNotificationsRead, markNotificationRead,
+          unit, filters, clearFilters,
           connected, flashId, saveTrade, removeTrade, addManualTrade, actionsSlot,
           pinnedAccounts, setPinnedAccounts, dashLayout, setDashVisible, moveDashWidget,
           resetDashLayout, propLayout, setPropVisible, resetPropLayout, briefPrefs,

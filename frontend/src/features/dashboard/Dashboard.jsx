@@ -4,7 +4,7 @@ import React, {
 import { useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
-  Loader2, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Sun,
+  Loader2, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
@@ -29,7 +29,7 @@ import Explain from '../../components/Explain.jsx';
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
   AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell, AccountTab,
-  AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock,
+  AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionLink, ActionStatus, ActionStrip, KpiCard, KpiSpacer, LoadingNote, MeterRow,
   PanelBody, PanelCard, PanelHead, PanelMeta, PanelRow, SkeletonBlock, SkeletonLine,
@@ -40,7 +40,7 @@ import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
   filterBriefEvents, fallbackBriefEvents, sampleBriefEvents, briefEmptyReason,
   briefSectionOn, formatBriefTime,
-  briefEventsLabel, defaultBriefPrefs, formatBriefDate, formatBriefClock,
+  briefEventsLabel, defaultBriefPrefs, formatBriefDate, formatBriefClock, BRIEF_WINDOWS,
 } from './briefPrefs.js';
 import {
   defaultDashLayout, visibleDashIds, isDashVisible, visibleSections,
@@ -69,23 +69,31 @@ const PHASE_ORDER = { funded: 0, p2: 1, p1: 2 };
 // ---- Section 1: daily banner --------------------------------------------
 
 
-// Wall clock that re-renders on the minute. Two jobs: the time in the Brief's
-// heading stays honest (a `new Date()` computed once at mount would freeze at the
-// page-load time), and the time-window filter re-evaluates as events age out of
-// range — so a "Next 4 Hours" list empties on its own instead of needing a reload.
-function useMinuteClock() {
+/* THE BRIEF'S CLOCK, at two resolutions on purpose.
+ *
+ * Rhea's clock shows seconds, so it has to tick every second. The EVENT FILTER must not:
+ * `filterBriefEvents` walks the whole feed and re-slices it by importance, currency and
+ * time window, and running that 60 times a minute to redraw two digits is work nobody
+ * asked for. The window it computes only changes by the minute anyway.
+ *
+ * So the hook returns both — `now` for display, and `minute` as a memo key that only
+ * changes when the minute does. That is what lets the filter age events out of range on
+ * its own (a "Next 4 Hours" list empties without a reload) at the cost of one filter
+ * pass per minute rather than sixty.
+ *
+ * The first tick is aligned to the next second boundary so the displayed second flips
+ * when the wall clock does, not up to 999ms afterwards. */
+function useBriefClock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     let interval;
-    // Align the first tick to the next minute boundary so the displayed minute
-    // flips when the wall clock does, not up to 59s afterwards.
     const timeout = setTimeout(() => {
       setNow(new Date());
-      interval = setInterval(() => setNow(new Date()), 60_000);
-    }, 60_000 - (Date.now() % 60_000));
+      interval = setInterval(() => setNow(new Date()), 1000);
+    }, 1000 - (Date.now() % 1000));
     return () => { clearTimeout(timeout); clearInterval(interval); };
   }, []);
-  return now;
+  return { now, minute: Math.floor(now.getTime() / 60_000) };
 }
 
 // Copy for each reason the event list came back empty, so the banner explains
@@ -128,14 +136,17 @@ function AlertGlyph({ severity }) {
 
 // Exported for the gitignored visual harness (frontend/.preview.jsx), which is the
 // only way to SEE this card — there is no jsdom here, so nothing else renders it.
-export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBriefSection, resetBriefPrefs }) {
+export function DailyBanner({
+  notifications = [], prefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
+  markNotificationRead,
+}) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const alerts = notifications.filter((n) => !n.read_at || n.severity !== 'info').slice(0, 3);
+  const alerts = notifications.filter((n) => !n.read_at || n.severity !== 'info').slice(0, 4);
 
   // The full upcoming feed (global, via /api/calendar) — importance, currency and
-  // time-window narrowing all happen here from the user's Brief prefs, so
-  // changing a setting re-filters instantly with no refetch. null while loading;
-  // [] when the feed is empty or errored — the banner never blocks.
+  // time-window narrowing all happen here from the user's Brief prefs, so changing a
+  // setting re-filters instantly with no refetch. null while loading; [] when the feed
+  // is empty or errored — the brief never blocks.
   const [events, setEvents] = useState(null);
   useEffect(() => {
     let live = true;
@@ -145,12 +156,15 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
     return () => { live = false; };
   }, []);
 
-  // Stable between ticks, so it's safe as a memo dep — and including it is what
-  // lets the window filter age events out on its own.
-  const now = useMinuteClock();
+  const { now, minute } = useBriefClock();
+  /* `minute`, NOT `now`, IS THE MEMO KEY. See useBriefClock: the clock ticks every
+     second and re-filtering the whole feed at that rate is pure waste, because the time
+     window it computes only moves by the minute. `now` is still what gets filtered
+     against — it is just not what decides whether to filter again.
+     eslint-disable-next-line react-hooks/exhaustive-deps */
   const shown = useMemo(
-    () => filterBriefEvents(events || [], prefs, now).slice(0, 4),
-    [events, prefs, now],
+    () => filterBriefEvents(events || [], prefs, now).slice(0, 8),
+    [events, prefs, minute],
   );
   /* WHAT TO SHOW WHEN THE WINDOW IS QUIET. The user's window is usually a few hours, so
      on a slow afternoon the list is legitimately empty — and "nothing in the next four
@@ -160,7 +174,7 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
      like the real one teaches the trader their window setting does nothing. */
   const fallback = useMemo(
     () => (shown.length ? [] : fallbackBriefEvents(events || [], prefs, now)),
-    [shown, events, prefs, now],
+    [shown, events, prefs, minute],
   );
   /* SAMPLES, IN DEV BUILDS ONLY, and only when both real lists are empty.
    *
@@ -171,7 +185,7 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
    * would reasonably plan a session around them. */
   const samples = useMemo(
     () => (import.meta.env.DEV && !shown.length && !fallback.length ? sampleBriefEvents(now) : []),
-    [shown, fallback, now],
+    [shown, fallback, minute],
   );
   const eventRows = shown.length ? shown : (fallback.length ? fallback : samples);
   const emptyReason = events == null ? null : briefEmptyReason(events, prefs, now);
@@ -181,24 +195,37 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
   const showEvents = briefSectionOn(prefs, 'events')
     && (!prefs.hideEmpty || eventRows.length > 0 || (events != null && !USER_EMPTIED.has(emptyReason)));
   const showAlerts = briefSectionOn(prefs, 'alerts') && (!prefs.hideEmpty || alerts.length > 0);
-  // With everything hidden the banner would collapse to a bare title bar, which
-  // reads as broken — say so instead.
+  // With everything hidden the brief would collapse to a bare title bar, which reads as
+  // broken — say so instead.
   const allQuiet = !showEvents && !showAlerts;
+
+  /* THE RANGE SWITCHER WRITES THE REAL PREF (owner decision, 2026-08-29).
+   *
+   * Rhea puts a Today / Week toggle on the events column. The app already had a
+   * four-value time window in Brief settings, persisted per user through view-state, and
+   * the two overlap exactly on two of those values. So the toggle IS that setting seen a
+   * second time rather than a second setting: flipping it here moves the popover's
+   * radio, survives a reload, and cannot end up disagreeing with it.
+   *
+   * The other two windows (4h, 24h) stay reachable in the popover. Rhea offers two
+   * because two is what fits in 88px, not because the other two stopped being useful. */
+  const RANGE = BRIEF_WINDOWS.filter((w) => w.id === 'today' || w.id === 'week')
+    .map((w) => ({ id: w.id, label: w.id === 'week' ? 'Week' : 'Today' }));
+  const rangeNote = BRIEF_WINDOWS.find((w) => w.id === prefs.window)?.label;
 
   return (
     <BriefCard>
       <BriefHeader
-        icon={<Sun aria-hidden="true" />}
         title="Today's Brief"
         date={formatBriefDate(now, prefs.timezone)}
-        clock={<BriefClock icon={<Clock aria-hidden="true" />}>{formatBriefClock(now, prefs.timezone)}</BriefClock>}
+        clock={<BriefClock>{formatBriefClock(now, prefs.timezone)}</BriefClock>}
         action={(
           <div className="bs-anchor">
             <BriefAction
-              // Icon-only now, so the name lives here — there is no visible text left
-              // to carry it.
+              // Icon-only, so the name lives here — there is no visible text left to
+              // carry it.
               aria-label="Brief settings"
-              title="Brief settings"
+              title="Brief settings — currencies, impact, time window"
               aria-expanded={settingsOpen}
               onClick={() => setSettingsOpen((o) => !o)}
             >
@@ -214,21 +241,28 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
             />
           </div>
         )}
-        /* THE FRAME'S SECOND, UNLABELLED 36px BUTTON IS NOT BUILT. It sits top-right of
-           the header with no icon resolved and no behaviour implied, and the settings
-           control it might duplicate is already there and labelled. A button that does
-           nothing is worse than an absent one, so `aside` is left empty until someone
-           says what it is for. */
       />
 
       {allQuiet ? (
-        <BriefNote>
-          Every Brief section is hidden or empty — turn one back on in Brief settings.
-        </BriefNote>
+        <BriefColumns>
+          <BriefNote>
+            Every Brief section is hidden or empty — turn one back on in Brief settings.
+          </BriefNote>
+        </BriefColumns>
       ) : (
         <BriefColumns>
           {showEvents && (
-            <BriefSection label={shown.length ? briefEventsLabel(prefs) : (samples.length ? 'Sample events' : 'Next high-impact events')}>
+            <BriefSection
+              label={shown.length ? briefEventsLabel(prefs) : (samples.length ? 'Sample events' : 'Next high-impact events')}
+              note={rangeNote}
+              action={(
+                <BriefRange
+                  value={prefs.window}
+                  options={RANGE}
+                  onChange={(id) => patchBriefPrefs({ window: id })}
+                />
+              )}
+            >
               {events == null ? (
                 <BriefNote>Loading economic calendar…</BriefNote>
               ) : eventRows.length === 0 ? (
@@ -253,16 +287,25 @@ export function DailyBanner({ notifications = [], prefs, patchBriefPrefs, setBri
           )}
 
           {showAlerts && (
-            <BriefSection label="Account alerts" gap="alerts">
+            <BriefSection label="Account alerts">
               {alerts.length === 0 ? (
-                <BriefNote>No account alerts right now.</BriefNote>
+                <BriefNote>All clear — no active account alerts.</BriefNote>
               ) : alerts.map((n) => (
                 <BriefAlert
                   key={n.id}
                   severity={n.severity}
                   icon={<AlertGlyph severity={n.severity} />}
+                  title={n.title}
+                  /* CLEAR MARKS IT READ — the same act the notification panel performs,
+                     against the same route. The prototype clears into local component
+                     state, which would give a dismissal that returns on reload and an
+                     unread count disagreeing with the list beside it. Only offered for
+                     an alert that is actually unread; a read one has nothing to clear. */
+                  onClear={markNotificationRead && !n.read_at
+                    ? () => markNotificationRead(n.id)
+                    : undefined}
                 >
-                  {n.title}
+                  {n.body || n.message || ''}
                 </BriefAlert>
               ))}
             </BriefSection>
@@ -649,17 +692,21 @@ export function DashSkeleton() {
     <SkeletonRegion label="Loading dashboard" className="dash-skeleton">
       <BriefCard>
         <BriefHeader
-          icon={<Sun aria-hidden="true" />}
           title="Today's Brief"
           date={<SkeletonLine w="7rem" />}
           action={<LoadingNote><Loader2 aria-hidden="true" className="animate-spin" />Loading brief…</LoadingNote>}
         />
         <BriefColumns>
-          {['events', 'alerts'].map((col) => (
-            <BriefSection key={col} label={<SkeletonLine w="8rem" />} gap={col === 'alerts' ? 'alerts' : 'events'}>
-              {[0, 1, 2].map((i) => <SkeletonBlock key={i} h="2.75rem" radius={12} />)}
-            </BriefSection>
-          ))}
+          {/* `scroll={false}`: a skeleton must not put a scrollbar on placeholder rows.
+              The heights are the real ones — 33px events, 73px alerts — so the card
+              reserves the box its content will occupy and nothing jumps when data
+              lands, which is the whole point of drawing skeletons in the real shell. */}
+          <BriefSection label={<SkeletonLine w="8rem" />} scroll={false}>
+            {[0, 1, 2, 3].map((i) => <SkeletonBlock key={i} h="33px" radius={10} />)}
+          </BriefSection>
+          <BriefSection label={<SkeletonLine w="8rem" />} scroll={false}>
+            {[0, 1].map((i) => <SkeletonBlock key={i} h="73px" radius={10} />)}
+          </BriefSection>
         </BriefColumns>
       </BriefCard>
 
@@ -715,7 +762,7 @@ export default function Dashboard() {
     trades = [], tradesLoading = false, accounts = [], accountId = 'all', setAccountId,
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
     dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
-    briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
+    briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, markNotificationRead,
   } = useOutletContext();
   const layout = dashLayout || defaultDashLayout();
   const brief = briefPrefs || defaultBriefPrefs();
@@ -834,6 +881,7 @@ export default function Dashboard() {
         patchBriefPrefs={patchBriefPrefs}
         setBriefSection={setBriefSection}
         resetBriefPrefs={resetBriefPrefs}
+        markNotificationRead={markNotificationRead}
       />
     ),
 
