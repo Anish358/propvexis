@@ -27,8 +27,10 @@ https://journal.anishdevlops.xyz still served during migration).
 - Frontend build: `cd frontend && npm run build`
 
 ## Visual design system (governs ALL UI work)
-- **Source of truth:** `docs/design-system/DESIGN-LANGUAGE.md` (tracked as of
-  2026-08-23). Every UI decision — human or AI — must trace to a rule in it.
+- **Source of truth:** `docs/design/DESIGN-LANGUAGE.md` (moved there 2026-08-29 from
+  `docs/design-system/`). Every UI decision — human or AI — must trace to a rule in
+  it. **Read §22 first** — it logs the 2026-08-29 Rhea amendment, which changed four
+  locked rules.
   *"It looks better"* is not a justification. It holds RULES only; values live in
   `frontend/src/styles/tokens.css`.
 - **Visual foundation:** the shadcn **Build Your Own** preset **`b2qKmlY80`** —
@@ -55,6 +57,14 @@ https://journal.anishdevlops.xyz still served during migration).
   (4) hand-written, last. Writing a component from scratch when a registry ships
   one is off-foundation by construction, because the preset's styling arrives
   THROUGH those components.
+- **The dashboard is redesigned but not yet implemented.** The source of truth for
+  it is `docs/design/dashboard/` — a working HTML prototype (four states, real
+  interactions), not a static frame. Everything else in the app still runs on the
+  pre-Rhea look.
+- **Legacy CSS is now the LOWEST cascade layer** (`layer(legacy)`), so it outranks
+  nothing. `tokens.css` stays unlayered and still wins. It cannot be deleted yet:
+  800 of its 1,025 classes are still referenced, mostly by Prop OS, the Trade Log
+  and the Calendar page.
 - Generated components land in `components/ui/` and are **not edited in place** —
   differences go in a thin wrapper under `components/primitives/`, which is what
   application code imports.

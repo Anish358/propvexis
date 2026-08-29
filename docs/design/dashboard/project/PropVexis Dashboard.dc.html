@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&amp;family=Geist+Mono:wght@400..600&amp;display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #09090b; }
+  * { box-sizing: border-box; }
+  a { color: #d4d4d8; text-decoration: none; }
+  a:hover { color: #fafafa; }
+  @keyframes pv-pulse { 0%,100% { opacity: .45 } 50% { opacity: .9 } }
+  @keyframes pv-breathe { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.28) } 50% { box-shadow: 0 0 0 4px rgba(239,68,68,0) } }
+  * { scrollbar-width: thin; scrollbar-color: #2a2a30 transparent }
+  ::-webkit-scrollbar { width: 8px; height: 8px }
+  ::-webkit-scrollbar-track { background: transparent }
+  ::-webkit-scrollbar-thumb { background: transparent; border-radius: 99px; border: 2.5px solid transparent; background-clip: padding-box }
+  :hover::-webkit-scrollbar-thumb { background: #26262b; background-clip: padding-box }
+</style>
+</helmet>
+
+<div style="display:flex;min-height:100vh;background:#09090b;color:#e8e8ec;font-family:Geist,ui-sans-serif,system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased">
+
+  <aside style="width:{{ sbWidth }};flex:none;border-right:1px solid #1c1c20;background:#0b0b0d;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding:18px 14px;gap:6px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 4px 20px 4px">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <div style="width:33px;height:33px;flex:none;border-radius:10px;background:#e4e4e7;display:grid;place-items:center;font-weight:700;font-size:14px;color:#09090b;letter-spacing:-.5px">V</div>
+        <span style="font-weight:650;font-size:16.5px;letter-spacing:-.25px;color:#fafafa;display:{{ labelDisplay }};white-space:nowrap">PropVexis</span>
+      </div>
+      <button onClick="{{ toggleSidebar }}" title="Collapse sidebar" style="flex:none;width:32px;height:32px;border:0;border-radius:99px;background:transparent;color:#71717a;display:grid;place-items:center;cursor:pointer" style-hover="background:#18181b;color:#e8e8ec">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+    </div>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:#1c1c21;color:#fafafa;font-weight:550;font-size:14.5px;white-space:nowrap;overflow:hidden">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+      <span style="display:{{ labelDisplay }}">Dashboard</span>
+    </a>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#a1a1aa;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden" style-hover="background:#141417;color:#ededf0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+      <span style="display:{{ labelDisplay }};flex:1">Trade Journal</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;opacity:.6;display:{{ labelDisplay }}"><path d="m6 9 6 6 6-6"></path></svg>
+    </a>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#a1a1aa;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden" style-hover="background:#141417;color:#ededf0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
+      <span style="display:{{ labelDisplay }};flex:1">Prop OS</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;opacity:.6;display:{{ labelDisplay }}"><path d="m6 9 6 6 6-6"></path></svg>
+    </a>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#a1a1aa;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden" style-hover="background:#141417;color:#ededf0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><path d="M4 22v-7"></path></svg>
+      <span style="display:{{ labelDisplay }}">Strategies</span>
+    </a>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#8a8a93;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden" style-hover="background:#141417;color:#ededf0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-7 3.3"></path><path d="M3 4v4h4"></path><path d="M12 8v4l2.5 1.5"></path></svg>
+      <span style="display:{{ labelDisplay }};flex:1">Backtesting</span>
+      <span style="display:{{ labelDisplay }};flex:none;font-size:10px;font-weight:550;letter-spacing:.04em;text-transform:uppercase;color:#8a8a93;background:#18181b;border:1px solid #26262b;border-radius:6px;padding:2px 6px">Soon</span>
+    </a>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#a1a1aa;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden" style-hover="background:#141417;color:#ededf0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a2 2 0 0 0 3.4 0"></path></svg>
+      <span style="display:{{ labelDisplay }};flex:1">Alerts</span>
+      <span style="display:{{ alertDotDisplay }};flex:none;width:6px;height:6px;border-radius:99px;background:#a1a1aa"></span>
+    </a>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#a1a1aa;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden" style-hover="background:#141417;color:#ededf0">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8M8 17h5"></path></svg>
+      <span style="display:{{ labelDisplay }}">Reports</span>
+    </a>
+
+    <a href="#" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#a1a1aa;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden" style-hover="background:#141417;color:#ededf0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M10 5H3M21 5h-7M14 12H3M21 12h-3M8 19H3M21 19h-9"></path><circle cx="12" cy="5" r="2"></circle><circle cx="16" cy="12" r="2"></circle><circle cx="6" cy="19" r="2"></circle></svg>
+      <span style="display:{{ labelDisplay }};flex:1">Tools</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;opacity:.6;display:{{ labelDisplay }}"><path d="m6 9 6 6 6-6"></path></svg>
+    </a>
+
+    <div style="flex:1"></div>
+
+    <div style="height:1px;background:#1c1c20;margin:8px 4px"></div>
+
+    <button style="display:flex;align-items:center;gap:12px;margin-top:0;padding:8px 12px;border:0;border-radius:10px;background:transparent;font-family:inherit;text-align:left;cursor:pointer;overflow:hidden" style-hover="background:#141417">
+      <span style="flex:none;width:28px;height:28px;border-radius:99px;background:#26262a;color:#d4d4d8;display:grid;place-items:center;font-size:11.5px;font-weight:600;letter-spacing:.02em">AM</span>
+      <span style="display:{{ labelDisplay }};flex:1;min-width:0;flex-direction:column;gap:1px;align-items:flex-start">
+        <span style="display:block;font-size:14.5px;font-weight:550;color:#ededf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Alex Morgan</span>
+        <span style="display:block;font-size:12px;color:#71717a;white-space:nowrap">Pro plan</span>
+      </span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" style="flex:none;display:{{ labelDisplay }}"><path d="m6 15 6-6 6 6"></path></svg>
+    </button>
+  </aside>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+    <header style="position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;height:64px;padding:0 24px;border-bottom:1px solid #1c1c20;background:rgba(9,9,11,.92);backdrop-filter:blur(8px)">
+      <h1 style="margin:0;font-size:20px;font-weight:650;letter-spacing:-.4px;color:#fafafa;flex:1;min-width:0;white-space:nowrap">Dashboard</h1>
+
+      <div style="display:flex;flex:none;align-items:center;padding:3px;gap:3px;background:#131316;border:1px solid #232327;border-radius:99px">
+        <button onClick="{{ setUnitR }}" style="border:0;border-radius:99px;padding:6px 13px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:{{ unitRBg }};color:{{ unitRColor }}">R</button>
+        <button onClick="{{ setUnitD }}" style="border:0;border-radius:99px;padding:6px 13px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:{{ unitDBg }};color:{{ unitDColor }}">$</button>
+      </div>
+
+      <button style="display:flex;align-items:center;flex:none;gap:8px;height:36px;padding:0 {{ filtersPad }};border:1px solid #232327;border-radius:99px;background:#131316;color:#c4c4cc;font-family:inherit;font-size:13.5px;font-weight:500;cursor:pointer" style-hover="background:#1a1a1e;color:#fafafa">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"></path></svg>
+        <span style="display:{{ filtersLabelDisplay }}">Filters</span>
+      </button>
+
+      <button style="display:flex;align-items:center;flex:none;gap:10px;height:36px;padding:0 13px 0 14px;border:1px solid #26262b;border-radius:99px;background:#141418;color:#fafafa;font-family:inherit;font-size:13.5px;font-weight:550;cursor:pointer;max-width:{{ switcherMax }};min-width:0" style-hover="background:#1b1b20">
+        <span style="width:6px;height:6px;border-radius:99px;flex:none;background:{{ acctDot }}"></span>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ switcherLabel }}</span>
+        <span style="font-size:11.5px;font-weight:500;color:#8a8a93;border-left:1px solid #26262b;padding-left:9px;white-space:nowrap;display:{{ switcherPhaseDisplay }}">{{ switcherPhase }}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="opacity:.6;flex:none"><path d="m6 9 6 6 6-6"></path></svg>
+      </button>
+
+      <button title="Appearance" style="flex:none;width:36px;height:36px;border:1px solid #232327;border-radius:99px;background:#131316;color:#a1a1aa;display:grid;place-items:center;cursor:pointer" style-hover="background:#1a1a1e;color:#fafafa">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+      </button>
+
+      <button title="Notifications" style="position:relative;flex:none;width:36px;height:36px;border:1px solid #232327;border-radius:99px;background:#131316;color:#a1a1aa;display:grid;place-items:center;cursor:pointer" style-hover="background:#1a1a1e;color:#fafafa">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a2 2 0 0 0 3.4 0"></path></svg>
+        <span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:99px;background:#d4d4d8;border:2px solid #09090b;display:{{ alertDotDisplay }}"></span>
+      </button>
+
+    </header>
+
+    <main style="padding:20px 24px 68px 24px;display:flex;flex-direction:column;gap:20px;max-width:1560px;width:100%">
+
+      <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:18px 20px;display:flex;flex-direction:column;gap:18px">
+            <div style="width:190px;height:16px;border-radius:6px;background:#232329;animation:pv-pulse 1.6s ease-in-out infinite"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="height:34px;border-radius:10px;background:#191920;animation:pv-pulse 1.6s ease-in-out infinite"></div>
+              <div style="height:34px;border-radius:10px;background:#191920;animation:pv-pulse 1.6s ease-in-out .15s infinite"></div>
+              <div style="height:34px;border-radius:10px;background:#191920;animation:pv-pulse 1.6s ease-in-out .3s infinite"></div>
+              <div style="height:34px;border-radius:10px;background:#191920;animation:pv-pulse 1.6s ease-in-out .45s infinite"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:132px;height:32px;border-radius:10px;background:#1a1a20;animation:pv-pulse 1.6s ease-in-out infinite"></div>
+            <div style="width:120px;height:12px;border-radius:6px;background:#17171c;animation:pv-pulse 1.6s ease-in-out infinite"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:{{ kpiGrid }};gap:16px">
+            <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px 18px;height:120px;display:flex;flex-direction:column;gap:12px"><div style="width:70px;height:11px;border-radius:6px;background:#232329;animation:pv-pulse 1.6s ease-in-out infinite"></div><div style="width:150px;height:30px;border-radius:5px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out infinite"></div><div style="width:90px;height:10px;border-radius:6px;background:#191920"></div></div>
+            <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px 18px;height:120px;display:flex;flex-direction:column;gap:12px"><div style="width:70px;height:11px;border-radius:6px;background:#232329;animation:pv-pulse 1.6s ease-in-out .1s infinite"></div><div style="width:110px;height:26px;border-radius:5px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out .1s infinite"></div></div>
+            <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px 18px;height:120px;display:flex;flex-direction:column;gap:12px"><div style="width:70px;height:11px;border-radius:6px;background:#232329;animation:pv-pulse 1.6s ease-in-out .2s infinite"></div><div style="width:110px;height:26px;border-radius:5px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out .2s infinite"></div></div>
+            <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px 18px;height:120px;display:flex;flex-direction:column;gap:12px"><div style="width:70px;height:11px;border-radius:6px;background:#232329;animation:pv-pulse 1.6s ease-in-out .3s infinite"></div><div style="width:110px;height:26px;border-radius:5px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out .3s infinite"></div></div>
+            <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px 18px;height:120px;display:flex;flex-direction:column;gap:12px"><div style="width:70px;height:11px;border-radius:6px;background:#232329;animation:pv-pulse 1.6s ease-in-out .4s infinite"></div><div style="width:110px;height:26px;border-radius:5px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out .4s infinite"></div></div>
+          </div>
+          <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px 20px 18px 20px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;gap:10px"><div style="width:200px;height:38px;border-radius:10px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out infinite"></div><div style="width:160px;height:38px;border-radius:10px;background:#17171c"></div><div style="width:160px;height:38px;border-radius:10px;background:#17171c"></div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px">
+              <div style="display:flex;flex-direction:column;gap:10px"><div style="height:11px;width:60%;border-radius:6px;background:#232329"></div><div style="height:5px;border-radius:99px;background:#1b1b20;animation:pv-pulse 1.6s ease-in-out infinite"></div><div style="height:10px;width:70%;border-radius:6px;background:#191920"></div></div>
+              <div style="display:flex;flex-direction:column;gap:10px"><div style="height:11px;width:60%;border-radius:6px;background:#232329"></div><div style="height:5px;border-radius:99px;background:#1b1b20;animation:pv-pulse 1.6s ease-in-out .15s infinite"></div><div style="height:10px;width:70%;border-radius:6px;background:#191920"></div></div>
+              <div style="display:flex;flex-direction:column;gap:10px"><div style="height:11px;width:60%;border-radius:6px;background:#232329"></div><div style="height:5px;border-radius:99px;background:#1b1b20;animation:pv-pulse 1.6s ease-in-out .3s infinite"></div><div style="height:10px;width:70%;border-radius:6px;background:#191920"></div></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:{{ mainGrid }};gap:16px">
+            <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between"><div style="width:180px;height:28px;border-radius:10px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out infinite"></div><div style="width:120px;height:28px;border-radius:10px;background:#17171c"></div></div>
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
+                <div style="height:74px;border-radius:10px;background:#141419;animation:pv-pulse 1.8s ease-in-out infinite"></div><div style="height:74px;border-radius:10px;background:#141419;animation:pv-pulse 1.8s ease-in-out .05s infinite"></div><div style="height:74px;border-radius:10px;background:#141419;animation:pv-pulse 1.8s ease-in-out .1s infinite"></div><div style="height:74px;border-radius:10px;background:#141419;animation:pv-pulse 1.8s ease-in-out .15s infinite"></div><div style="height:74px;border-radius:10px;background:#141419;animation:pv-pulse 1.8s ease-in-out .2s infinite"></div><div style="height:74px;border-radius:10px;background:#141419;animation:pv-pulse 1.8s ease-in-out .25s infinite"></div><div style="height:74px;border-radius:10px;background:#141419;animation:pv-pulse 1.8s ease-in-out .3s infinite"></div>
+                <div style="height:74px;border-radius:10px;background:#141419"></div><div style="height:74px;border-radius:10px;background:#141419"></div><div style="height:74px;border-radius:10px;background:#141419"></div><div style="height:74px;border-radius:10px;background:#141419"></div><div style="height:74px;border-radius:10px;background:#141419"></div><div style="height:74px;border-radius:10px;background:#141419"></div><div style="height:74px;border-radius:10px;background:#141419"></div>
+                <div style="height:74px;border-radius:10px;background:#111116"></div><div style="height:74px;border-radius:10px;background:#111116"></div><div style="height:74px;border-radius:10px;background:#111116"></div><div style="height:74px;border-radius:10px;background:#111116"></div><div style="height:74px;border-radius:10px;background:#111116"></div><div style="height:74px;border-radius:10px;background:#111116"></div><div style="height:74px;border-radius:10px;background:#111116"></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:20px">
+              <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="width:220px;height:30px;border-radius:10px;background:#1e1e24;animation:pv-pulse 1.6s ease-in-out infinite"></div>
+                <div style="height:34px;border-radius:10px;background:#16161b"></div><div style="height:34px;border-radius:10px;background:#16161b"></div><div style="height:34px;border-radius:10px;background:#16161b"></div><div style="height:34px;border-radius:10px;background:#16161b"></div>
+              </div>
+              <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="width:150px;height:14px;border-radius:6px;background:#232329;animation:pv-pulse 1.6s ease-in-out infinite"></div>
+                <div style="height:150px;border-radius:12px;background:#141419;animation:pv-pulse 1.8s ease-in-out infinite"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isReady }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:20px">
+
+          <section style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:22px 26px 14px 26px">
+              <h2 style="margin:0;font-size:18.5px;font-weight:650;letter-spacing:-.25px;color:#fafafa">Today's Brief</h2>
+              <span style="color:#3f3f46">·</span>
+              <span style="font-size:13px;color:#a1a1aa;font-weight:450">{{ dateLabel }}</span>
+              <span style="color:#3f3f46">·</span>
+              <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;color:#d4d4d8;font-variant-numeric:tabular-nums">{{ clock }}</span>
+              <div style="flex:1"></div>
+              <button title="Brief settings — currencies, impact, time window" style="width:28px;height:28px;border:1px solid #232327;border-radius:99px;background:#131316;color:#8a8a93;display:grid;place-items:center;cursor:pointer" style-hover="background:#1a1a1e;color:#fafafa">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.2a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.2a2 2 0 0 1 1 1.7V20a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.2a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.2a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+            <div style="display:grid;grid-template-columns:{{ briefGrid }};gap:44px;padding:6px 26px 26px 26px">
+              <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px;height:30px;flex:none">
+                  <span style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#71717a">Economic calendar</span>
+                  <span style="font-size:11px;color:#4f4f57">{{ rangeCopy }}</span>
+                  <div style="flex:1"></div>
+                  <div style="display:flex;flex:none;align-items:center;padding:2px;gap:2px;background:#141417;border:1px solid #232327;border-radius:99px">
+                    <button onClick="{{ pickToday }}" style="border:0;border-radius:99px;padding:3px 10px;font-family:inherit;font-size:11.5px;font-weight:600;letter-spacing:0;cursor:pointer;white-space:nowrap;background:{{ todayBg }};color:{{ todayColorBtn }}">Today</button>
+                    <button onClick="{{ pickWeek }}" style="border:0;border-radius:99px;padding:3px 10px;font-family:inherit;font-size:11.5px;font-weight:600;letter-spacing:0;cursor:pointer;white-space:nowrap;background:{{ weekBg }};color:{{ weekColorBtn }}">Week</button>
+                  </div>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:7px;justify-content:flex-start;align-content:flex-start;max-height:{{ eventsMax }};overflow-y:auto;overflow-x:hidden">
+                <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                  <div style="display:grid;grid-template-columns:64px max-content auto 66px minmax(0,1fr);align-items:center;gap:16px;flex:none;height:{{ eventRowHeight }};padding:0 10px;margin:0;border-radius:10px;cursor:default;background:#121215" style-hover="background:#191920">
+                    <span style="display:flex;align-items:center;gap:8px">
+                      <sc-if value="{{ e.isUSD }}" hint-placeholder-val="{{ true }}">
+                        <svg width="18" height="18" viewBox="0 0 20 20" style="flex:none;display:block">
+                          <defs><clipPath id="pvFlagUS"><circle cx="10" cy="10" r="9"></circle></clipPath></defs>
+                          <g clip-path="url(#pvFlagUS)">
+                            <rect width="20" height="20" fill="#f5f5f5"></rect>
+                            <rect y="0" width="20" height="1.54" fill="#c8102e"></rect>
+                            <rect y="3.08" width="20" height="1.54" fill="#c8102e"></rect>
+                            <rect y="6.15" width="20" height="1.54" fill="#c8102e"></rect>
+                            <rect y="9.23" width="20" height="1.54" fill="#c8102e"></rect>
+                            <rect y="12.31" width="20" height="1.54" fill="#c8102e"></rect>
+                            <rect y="15.38" width="20" height="1.54" fill="#c8102e"></rect>
+                            <rect y="18.46" width="20" height="1.54" fill="#c8102e"></rect>
+                            <rect width="9" height="10.77" fill="#0a3161"></rect>
+                            <g fill="#f5f5f5"><circle cx="2" cy="2" r=".7"></circle><circle cx="4.6" cy="2" r=".7"></circle><circle cx="7.2" cy="2" r=".7"></circle><circle cx="3.3" cy="4.2" r=".7"></circle><circle cx="5.9" cy="4.2" r=".7"></circle><circle cx="2" cy="6.4" r=".7"></circle><circle cx="4.6" cy="6.4" r=".7"></circle><circle cx="7.2" cy="6.4" r=".7"></circle><circle cx="3.3" cy="8.6" r=".7"></circle><circle cx="5.9" cy="8.6" r=".7"></circle></g>
+                          </g>
+                          <circle cx="10" cy="10" r="9" fill="none" stroke="#f5f5f5" stroke-width="1.2"></circle>
+                        </svg>
+                      </sc-if>
+                      <sc-if value="{{ e.isEUR }}" hint-placeholder-val="{{ false }}">
+                        <svg width="18" height="18" viewBox="0 0 20 20" style="flex:none;display:block">
+                          <circle cx="10" cy="10" r="9" fill="#003399"></circle>
+                          <g fill="#ffcc00"><circle cx="10" cy="4.2" r=".85"></circle><circle cx="13.9" cy="5.4" r=".85"></circle><circle cx="15.8" cy="10" r=".85"></circle><circle cx="13.9" cy="14.6" r=".85"></circle><circle cx="10" cy="15.8" r=".85"></circle><circle cx="6.1" cy="14.6" r=".85"></circle><circle cx="4.2" cy="10" r=".85"></circle><circle cx="6.1" cy="5.4" r=".85"></circle></g>
+                          <circle cx="10" cy="10" r="9" fill="none" stroke="#f5f5f5" stroke-width="1.2"></circle>
+                        </svg>
+                      </sc-if>
+                      <sc-if value="{{ e.isGBP }}" hint-placeholder-val="{{ false }}">
+                        <svg width="18" height="18" viewBox="0 0 20 20" style="flex:none;display:block">
+                          <defs><clipPath id="pvFlagGB"><circle cx="10" cy="10" r="9"></circle></clipPath></defs>
+                          <g clip-path="url(#pvFlagGB)">
+                            <rect width="20" height="20" fill="#012169"></rect>
+                            <path d="M0 0 20 20M20 0 0 20" stroke="#f5f5f5" stroke-width="4"></path>
+                            <path d="M0 0 20 20M20 0 0 20" stroke="#c8102e" stroke-width="2"></path>
+                            <path d="M10 0v20M0 10h20" stroke="#f5f5f5" stroke-width="6"></path>
+                            <path d="M10 0v20M0 10h20" stroke="#c8102e" stroke-width="3.4"></path>
+                          </g>
+                          <circle cx="10" cy="10" r="9" fill="none" stroke="#f5f5f5" stroke-width="1.2"></circle>
+                        </svg>
+                      </sc-if>
+                      <span style="font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.05em;color:#7b7b84">{{ e.ccy }}</span>
+                    </span>
+                    <span style="font-size:13.5px;font-weight:{{ e.nameWeight }};color:{{ e.nameColor }};white-space:nowrap">{{ e.name }}</span>
+                    <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#8a8a93;font-variant-numeric:tabular-nums">{{ e.time }}</span>
+                    <span style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:550;color:{{ e.impactColor }}">
+                      <span style="width:5px;height:5px;border-radius:99px;background:{{ e.impactColor }};flex:none"></span>{{ e.impact }}
+                    </span>
+                    <span></span>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ noEvents }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:14px;border:1px dashed #26262b;border-radius:10px;font-size:12.5px;color:#71717a">No high or medium impact events in your filters for the next 24 hours.</div>
+                </sc-if>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+                <div style="display:flex;align-items:center;height:30px;flex:none">
+                  <span style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#71717a">Account alerts</span>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:7px;justify-content:flex-start;align-content:flex-start;max-height:{{ alertsMax }};overflow-y:auto;overflow-x:hidden">
+                <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="3">
+                  <div onMouseEnter="{{ a.enter }}" onMouseLeave="{{ a.leave }}" style="display:flex;align-items:center;gap:11px;flex:none;height:{{ alertRowHeight }};padding:8px 10px;margin:0;border-radius:10px;background:{{ a.rowBg }}">
+                    <span style="flex:none;color:{{ a.color }};margin-top:1px" data-om-raster="false">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="{{ a.icon }}"></path></svg>
+                    </span>
+                    <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span style="font-size:13px;font-weight:600;color:#fafafa">{{ a.title }}</span>
+                        <span style="font-size:10.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:{{ a.color }}">{{ a.severity }}</span>
+                      </div>
+                      <span style="font-size:12.5px;color:#a1a1aa;line-height:1.45;text-wrap:pretty">{{ a.body }}</span>
+                    </div>
+                    <div style="flex:1"></div>
+                    <button onClick="{{ a.clear }}" style="display:{{ a.clearDisplay }};align-items:center;gap:6px;flex:none;height:27px;padding:0 11px;border:1px solid #2c2c33;border-radius:99px;background:#1c1c21;color:#c9c9d1;font-family:inherit;font-size:12px;font-weight:550;white-space:nowrap;cursor:pointer" style-hover="background:#26262c;color:#fafafa">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+                      Clear
+                    </button>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ noAlerts }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:14px;border:1px dashed #26262b;border-radius:10px;font-size:12.5px;color:#71717a">{{ noAlertsCopy }}</div>
+                </sc-if>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:0 2px">
+            <button style="display:flex;align-items:center;gap:8px;white-space:nowrap;height:35px;padding:0 14px;border:1px solid #26262b;border-radius:99px;background:#16161a;color:#fafafa;font-family:inherit;font-size:13px;font-weight:550;cursor:pointer" style-hover="background:#1f1f25">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-7.5-4"></path><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 7.5 4"></path><path d="M21 3v5h-5M3 21v-5h5"></path></svg>
+              Sync Trades
+            </button>
+            <span style="font-size:13px;color:#71717a">Last synced: {{ lastSynced }}</span>
+            <div style="flex:1"></div>
+            <button title="Customize layout" style="display:flex;align-items:center;gap:7px;white-space:nowrap;height:35px;padding:0 13px;border:1px solid #232327;border-radius:99px;background:#131316;color:#a1a1aa;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:#1a1a1e;color:#fafafa">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg>
+              Customize layout
+            </button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:{{ kpiGrid }};gap:16px">
+            <div style="border:1px solid #24242a;border-radius:14px;background:#111115;padding:28px 17px 24px 17px;display:flex;flex-direction:column;gap:13px;min-width:0;min-height:128px">
+              <div style="display:flex;align-items:center;gap:7px">
+                <span style="font-size:13.5px;font-weight:550;color:#a1a1aa;white-space:nowrap">Net P&amp;L</span>
+                <span title="Sum of realized profit and loss across selected accounts for the current filter range." style="color:#5b5b63;display:flex;cursor:help">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-5M12 8h.01"></path></svg>
+                </span>
+                <div style="flex:1"></div>
+                <span style="font-size:11px;font-weight:550;color:#a1a1aa;background:#1c1c21;border:1px solid #2a2a30;border-radius:6px;padding:2px 7px;white-space:nowrap">{{ tradeCount }} trades</span>
+              </div>
+              <div style="font-family:'Geist Mono',monospace;font-size:25px;font-weight:600;letter-spacing:-.6px;line-height:1.1;font-variant-numeric:tabular-nums;color:{{ netColor }}">{{ netPnl }}</div>
+            </div>
+
+            <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+              <div style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:22px 17px 24px 17px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0;min-height:128px">
+                <div style="display:flex;flex-direction:column;gap:13px;min-width:0;padding-top:6px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span style="font-size:13.5px;font-weight:550;color:#a1a1aa;white-space:nowrap">{{ k.label }}</span>
+                    <span title="{{ k.tip }}" style="color:#5b5b63;display:flex;cursor:help;flex:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-5M12 8h.01"></path></svg></span>
+                  </div>
+                  <div style="font-family:'Geist Mono',monospace;font-size:25px;font-weight:600;letter-spacing:-.6px;line-height:1.1;font-variant-numeric:tabular-nums;color:{{ k.valueColor }}">{{ k.value }}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:none;align-self:stretch">
+                  <sc-if value="{{ k.isArc }}" hint-placeholder-val="{{ true }}">
+                    <svg width="74" height="42" viewBox="0 0 100 56" style="display:block">
+                      <path d="M8 50 A42 42 0 0 1 92 50" fill="none" stroke="#1e1e23" stroke-width="8" stroke-linecap="round"></path>
+                      <path d="M8 50 A42 42 0 0 1 92 50" fill="none" stroke="{{ k.gaugeColor }}" stroke-width="8" stroke-linecap="round" stroke-dasharray="{{ k.dash }}"></path>
+                    </svg>
+                  </sc-if>
+                  <sc-if value="{{ k.isRing }}" hint-placeholder-val="{{ false }}">
+                    <svg width="66" height="66" viewBox="0 0 100 100" style="display:block">
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="#ef4444" stroke-width="10"></circle>
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="#22c55e" stroke-width="10" stroke-dasharray="{{ k.ringDash }}" transform="rotate(-90 50 50)"></circle>
+                    </svg>
+                  </sc-if>
+                  <div style="display:flex;gap:4px;display:{{ k.chipsDisplay }}">
+                    <sc-for list="{{ k.chips }}" as="c" hint-placeholder-count="2">
+                      <span style="font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;letter-spacing:-.2px;color:{{ c.color }};background:{{ c.bg }};border-radius:6px;padding:1px 5px;white-space:nowrap">{{ c.v }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <section style="border:1px solid {{ healthBorder }};border-radius:14px;background:#101013;overflow:hidden">
+            <div style="display:flex;align-items:stretch;gap:10px;padding:16px 18px 4px 18px;overflow-x:auto">
+              <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="3">
+                <button onClick="{{ a.select }}" style="display:flex;align-items:center;gap:13px;padding:12px 26px 12px 18px;border:1px solid {{ a.chipBorder }};border-radius:12px;background:{{ a.chipBg }};color:inherit;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap" style-hover="background:#17171c">
+                  <span style="width:15px;height:15px;border-radius:99px;flex:none;border:2px solid {{ a.ringColor }};display:grid;place-items:center">
+                    <span style="width:6px;height:6px;border-radius:99px;background:{{ a.dot }}"></span>
+                  </span>
+                  <span style="display:flex;flex-direction:column;gap:3px">
+                    <span style="display:flex;align-items:center;gap:11px;font-size:14.5px;font-weight:600;letter-spacing:-.1px;color:{{ a.nameColor }}">
+                      {{ a.name }}
+                      <span style="display:{{ a.iconDisplay }};color:{{ a.dot }}">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9.5v4M12 17h.01"></path></svg>
+                      </span>
+                    </span>
+                    <span style="font-size:12px;color:{{ a.subColor }};font-weight:450">{{ a.phase }}</span>
+                  </span>
+                </button>
+              </sc-for>
+              <button style="padding:12px 16px;border:1px dashed #26262b;border-radius:12px;background:transparent;color:#8a8a93;font-family:inherit;font-size:12.5px;font-weight:550;cursor:pointer;white-space:nowrap;display:{{ moreAcctsDisplay }}" style-hover="border-color:#3f3f46;color:#fafafa">+2 Accounts</button>
+            </div>
+
+            <sc-if value="{{ hasAccounts }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column">
+                <div style="display:{{ criticalBannerDisplay }};align-items:center;gap:10px;padding:13px 24px;background:rgba(127,29,29,.3);border-bottom:1px solid #401818;animation:pv-breathe 2.4s ease-in-out infinite">
+                  <span style="color:#f87171;display:flex;flex:none">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9.5v4M12 17h.01"></path></svg>
+                  </span>
+                  <span style="font-size:12.5px;font-weight:650;color:#fecaca;letter-spacing:.02em;text-transform:uppercase">Stop trading zone</span>
+                  <span style="font-size:12.5px;color:#fca5a5">{{ criticalMessage }}</span>
+                  <div style="flex:1"></div>
+                  <button style="height:28px;padding:0 11px;border:1px solid #7f1d1d;border-radius:99px;background:#450d0d;color:#fecaca;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer" style-hover="background:#5c1111">Lock account</button>
+                </div>
+
+                <div style="display:grid;grid-template-columns:{{ meterGrid }};gap:16px;padding:12px 18px 20px 18px">
+                  <sc-for list="{{ meters }}" as="m" hint-placeholder-count="3">
+                    <div style="padding:20px 22px 21px 22px;border-radius:12px;display:flex;flex-direction:column;gap:14px;min-width:0;background:{{ m.cellBg }}">
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:{{ m.labelColor }}">{{ m.label }}</span>
+                        <span style="display:{{ m.iconDisplay }};color:{{ m.color }};align-items:center">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9.5v4M12 17h.01"></path></svg>
+                        </span>
+                      </div>
+                      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:7px;font-family:'Geist Mono',monospace;font-variant-numeric:tabular-nums;min-width:0">
+                        <span style="font-size:24px;font-weight:600;letter-spacing:-.8px;color:{{ m.valueColor }}">{{ m.used }}</span>
+                        <span style="font-size:13.5px;color:#5b5b63">/ {{ m.limit }}</span>
+                      </div>
+                      <div style="height:5px;border-radius:99px;background:#1b1b20;overflow:hidden;position:relative">
+                        <span style="position:absolute;inset:0 0 0 0;width:{{ m.pct }}%;background:{{ m.barColor }};background-size:{{ m.barSize }};border-radius:99px"></span>
+                        <span style="position:absolute;top:0;bottom:0;left:90%;width:1px;background:{{ m.markColor }}"></span>
+                      </div>
+                      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;font-size:12px;min-width:0">
+                        <span style="font-family:'Geist Mono',monospace;font-weight:600;color:{{ m.color }}">{{ m.pctLabel }}</span>
+                        <span style="color:#6b6b73">{{ m.sub }}</span>
+                        <div style="flex:1"></div>
+                        <span style="color:#57575f">{{ m.meta }}</span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:16px;padding:17px 24px;border-top:1px solid #17171a;background:#0d0d10">
+                  <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:#a1a1aa">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:#71717a"><rect x="3" y="4" width="18" height="17" rx="3"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+                    <span style="font-family:'Geist Mono',monospace;font-weight:600;color:#e8e8ec">{{ daysDone }}</span> days completed
+                  </span>
+                  <span style="height:14px;width:1px;background:#26262b"></span>
+                  <span style="font-size:13px;color:#71717a">{{ payoutNote }}</span>
+                  <div style="flex:1"></div>
+                  <a href="#" style="font-size:13px;font-weight:550">View account →</a>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ noAccounts }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:40px 24px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+                <span style="width:40px;height:40px;border-radius:12px;border:1px solid #26262b;background:#141418;display:grid;place-items:center;color:#71717a">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </span>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <span style="font-size:14px;font-weight:600;color:#fafafa">No prop accounts added yet.</span>
+                  <span style="font-size:12.5px;color:#8a8a93;max-width:420px;text-wrap:pretty">Add your evaluation or funded account and PropVexis will track drawdown, targets and payout eligibility for you.</span>
+                </div>
+                <button style="height:32px;padding:0 14px;border:0;border-radius:99px;background:#fafafa;color:#09090b;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:#e4e4e7">Add prop account</button>
+              </div>
+            </sc-if>
+          </section>
+
+          <div style="display:grid;grid-template-columns:{{ mainGrid }};gap:16px;align-items:stretch">
+
+            <section style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:22px 24px 24px 24px;display:flex;flex-direction:column;gap:18px;min-width:0;min-height:{{ calMinHeight }}">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:4px">
+                  <button title="Previous month" style="width:28px;height:28px;border:1px solid #232327;border-radius:99px;background:#131316;color:#a1a1aa;display:grid;place-items:center;cursor:pointer" style-hover="background:#1a1a1e;color:#fafafa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m14 6-6 6 6 6"></path></svg></button>
+                  <button title="Next month" style="width:28px;height:28px;border:1px solid #232327;border-radius:99px;background:#131316;color:#a1a1aa;display:grid;place-items:center;cursor:pointer" style-hover="background:#1a1a1e;color:#fafafa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m10 6 6 6-6 6"></path></svg></button>
+                </div>
+                <h2 style="margin:0;font-size:16px;font-weight:650;letter-spacing:-.15px;color:#fafafa">{{ monthLabel }}</h2>
+                <button style="height:28px;padding:0 11px;white-space:nowrap;border:1px solid #2a2a30;border-radius:99px;background:#16161a;color:#e8e8ec;font-family:inherit;font-size:12px;font-weight:550;cursor:pointer" style-hover="background:#1f1f25">This month</button>
+                <div style="flex:1"></div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:12px;color:#71717a">Month total</span>
+                  <span style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:{{ monthColor }}">{{ monthTotal }}</span>
+                  <span style="font-size:11.5px;font-weight:550;white-space:nowrap;color:#a1a1aa;background:#1c1c21;border:1px solid #2a2a30;border-radius:6px;padding:2px 7px">{{ monthDays }}</span>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;flex:none">
+                <span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#5b5b63;text-align:center">Sun</span>
+                <span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#5b5b63;text-align:center">Mon</span>
+                <span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#5b5b63;text-align:center">Tue</span>
+                <span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#5b5b63;text-align:center">Wed</span>
+                <span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#5b5b63;text-align:center">Thu</span>
+                <span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#5b5b63;text-align:center">Fri</span>
+                <span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#5b5b63;text-align:center">Sat</span>
+              </div>
+              <div style="flex:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax({{ cellHeight }},1fr);gap:7px;align-content:stretch">
+                <sc-for list="{{ days }}" as="d" hint-placeholder-count="35">
+                  <div title="{{ d.tip }}" style="min-height:{{ cellHeight }};border:1px solid {{ d.border }};border-radius:10px;background:{{ d.bg }};padding:9px 10px;display:flex;flex-direction:column;gap:4px;cursor:{{ d.cursor }};opacity:{{ d.opacity }}" style-hover="border-color:#3f3f46">
+                    <span style="font-family:'Geist Mono',monospace;font-size:12.5px;font-weight:600;color:{{ d.numColor }};font-variant-numeric:tabular-nums">{{ d.label }}</span>
+                    <span style="font-family:'Geist Mono',monospace;font-size:15px;font-weight:600;letter-spacing:-.4px;font-variant-numeric:tabular-nums;color:{{ d.pnlColor }};display:{{ d.dataDisplay }}">{{ d.pnl }}</span>
+                    <span style="font-size:12px;color:#8a8a93;display:{{ d.dataDisplay }}">{{ d.meta }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <span style="font-size:11.5px;color:#57575f">Click a day to open that session’s trades.</span>
+            </section>
+
+            <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+
+              <section style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;overflow:hidden">
+                <div style="display:flex;gap:2px;border-bottom:1px solid #17171a;padding:0 10px">
+                  <button onClick="{{ tabTrades }}" style="padding:15px 14px 13px 14px;border:0;border-bottom:2px solid {{ tradesUnderline }};background:transparent;color:{{ tradesColor }};font-family:inherit;font-size:15px;font-weight:600;letter-spacing:-.1px;cursor:pointer">Recent trades</button>
+                  <button onClick="{{ tabPositions }}" style="padding:15px 14px 13px 14px;border:0;border-bottom:2px solid {{ posUnderline }};background:transparent;color:{{ posColor }};font-family:inherit;font-size:15px;font-weight:600;letter-spacing:-.1px;cursor:pointer">Open positions</button>
+                </div>
+
+                <sc-if value="{{ showTrades }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column">
+                    <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);align-items:center;padding:11px 18px;background:#141417;display:{{ tableHeadDisplay }}">
+                      <span style="font-size:12px;font-weight:600;color:#c9c9d1">Close date</span>
+                      <span style="font-size:12px;font-weight:600;color:#c9c9d1;text-align:center">Symbol</span>
+                      <span style="font-size:12px;font-weight:600;color:#c9c9d1;text-align:right">Net P&amp;L</span>
+                    </div>
+                    <sc-for list="{{ trades }}" as="t" hint-placeholder-count="6">
+                      <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);align-items:center;padding:13px 18px;cursor:pointer" style-hover="background:#141418">
+                        <span style="font-family:'Geist Mono',monospace;font-size:12.5px;color:#c4c4cc;font-variant-numeric:tabular-nums">{{ t.when }}</span>
+                        <span style="font-family:'Geist Mono',monospace;font-size:12.5px;font-weight:600;color:#fafafa;text-align:center">{{ t.symbol }}</span>
+                        <span style="font-family:'Geist Mono',monospace;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;color:{{ t.color }};text-align:right">{{ t.result }}</span>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ noTrades }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:32px 18px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+                        <span style="font-size:13.5px;font-weight:600;color:#fafafa">No trades yet</span>
+                        <span style="font-size:12.5px;color:#8a8a93;max-width:300px;text-wrap:pretty">Sync your broker or import a statement — your journal fills in automatically.</span>
+                        <button style="margin-top:4px;height:30px;padding:0 12px;border:1px solid #2a2a30;border-radius:99px;background:#16161a;color:#e8e8ec;font-family:inherit;font-size:12.5px;font-weight:550;cursor:pointer" style-hover="background:#1f1f25">Import trades</button>
+                      </div>
+                    </sc-if>
+                    <a href="#" style="padding:12px 16px 14px 16px;font-size:12.5px;font-weight:550;display:{{ viewAllDisplay }}">View all trades →</a>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ showPositions }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:26px 18px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
+                    <span style="width:34px;height:34px;border-radius:12px;border:1px solid #26262b;background:#141418;display:grid;place-items:center;color:#71717a">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 7-7"></path><path d="M14 8h6v6"></path></svg>
+                    </span>
+                    <span style="font-size:13.5px;font-weight:600;color:#fafafa">Live positions not connected</span>
+                    <span style="font-size:12.5px;color:#8a8a93;max-width:330px;line-height:1.5;text-wrap:pretty">The journal syncs closed trades only — live position tracking arrives when that's connected.</span>
+                    <button style="margin-top:2px;height:30px;padding:0 12px;border:1px solid #2a2a30;border-radius:99px;background:#16161a;color:#e8e8ec;font-family:inherit;font-size:12.5px;font-weight:550;cursor:pointer" style-hover="background:#1f1f25">Connect broker</button>
+                  </div>
+                </sc-if>
+              </section>
+
+              <section style="border:1px solid #1a1a1d;border-radius:14px;background:#101013;padding:20px 22px 18px 22px;display:flex;flex-direction:column;gap:16px;min-height:{{ chartMinHeight }}">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <h2 style="margin:0;font-size:15px;font-weight:650;letter-spacing:-.1px;color:#fafafa">Cumulative P&amp;L</h2>
+                  <span style="font-size:11px;font-weight:550;color:#a1a1aa;background:#1c1c21;border:1px solid #2a2a30;border-radius:6px;padding:2px 7px">{{ unitBadge }}</span>
+                  <div style="flex:1"></div>
+                  <span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;color:{{ netColor }}">{{ netPnl }}</span>
+                </div>
+
+                <sc-if value="{{ hasChart }}" hint-placeholder-val="{{ true }}">
+                  <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:8px">
+                    <div style="flex:1;min-height:150px;display:flex;gap:10px">
+                    <div style="display:flex;flex:none;flex-direction:column;justify-content:space-between;align-items:flex-end;font-family:'Geist Mono',monospace;font-size:10.5px;color:#5b5b63;font-variant-numeric:tabular-nums;padding:1px 0 3px 0">
+                      <span>{{ axisY1 }}</span>
+                      <span>{{ axisY2 }}</span>
+                      <span>{{ axisY3 }}</span>
+                      <span>{{ axisY4 }}</span>
+                    </div>
+                    <div style="position:relative;flex:1;min-width:0">
+                      <svg viewBox="0 0 640 200" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible">
+                        <defs>
+                          <linearGradient id="pvArea" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stop-color="{{ chartStroke }}" stop-opacity="0.82"></stop>
+                            <stop offset="95%" stop-color="{{ chartStroke }}" stop-opacity="0.12"></stop>
+                          </linearGradient>
+                        </defs>
+                        <line x1="0" y1="8" x2="640" y2="8" stroke="#1e1e23" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                        <line x1="0" y1="72" x2="640" y2="72" stroke="#1e1e23" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                        <line x1="0" y1="136" x2="640" y2="136" stroke="#1e1e23" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                        <line x1="0" y1="196" x2="640" y2="196" stroke="#1e1e23" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                        <path d="{{ chartArea }}" fill="url(#pvArea)"></path>
+                        <path d="{{ chartLine }}" fill="none" stroke="{{ chartStrokeLine }}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                      </svg>
+                      <sc-for list="{{ chartPoints }}" as="p" hint-placeholder-count="18">
+                        <div title="{{ p.tip }}" style="position:absolute;top:0;bottom:0;left:{{ p.left }}%;width:{{ p.width }}%;cursor:crosshair" style-hover="background:rgba(255,255,255,.045)"></div>
+                      </sc-for>
+                    </div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:#71717a;padding:0 2px 0 46px">
+                      <span>{{ axisStart }}</span>
+                      <span>{{ axisQ }}</span>
+                      <span>{{ axisEnd }}</span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ noChart }}" hint-placeholder-val="{{ false }}">
+                  <div style="height:168px;border:1px dashed #26262b;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;padding:16px">
+                    <svg width="120" height="34" viewBox="0 0 120 34" fill="none" stroke="#2a2a30" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 5"><path d="M2 30h116"></path><path d="M2 24C24 24 34 12 56 12s26 6 62 6"></path></svg>
+                    <span style="font-size:13px;font-weight:600;color:#e8e8ec">Your equity curve starts here</span>
+                    <span style="font-size:12px;color:#71717a;max-width:280px;text-wrap:pretty">Once your first trades sync, cumulative P&amp;L plots day by day.</span>
+                  </div>
+                </sc-if>
+              </section>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+
+  <div style="position:fixed;right:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #26262b;border-radius:12px;background:rgba(16,16,19,.94);backdrop-filter:blur(8px)">
+    <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5b5b63;padding-left:2px">State</span>
+    <sc-for list="{{ scenarios }}" as="s" hint-placeholder-count="4">
+      <button onClick="{{ s.pick }}" style="height:26px;padding:0 10px;border:1px solid {{ s.border }};border-radius:99px;background:{{ s.bg }};color:{{ s.color }};font-family:inherit;font-size:12px;font-weight:550;cursor:pointer">{{ s.label }}</button>
+    </sc-for>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1180},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;populated&quot;,&quot;bad&quot;,&quot;loading&quot;,&quot;zero&quot;],&quot;default&quot;:&quot;populated&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo state&quot;},&quot;unit&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;$&quot;,&quot;R&quot;],&quot;default&quot;:&quot;$&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo state&quot;}}">
+const CAL = {
+  3:[420.5,4,3,1], 4:[-180,3,1,2], 5:[265.75,5,3,2], 7:[610.25,6,4,2],
+  10:[-320.4,4,1,3], 11:[-145.6,2,0,2], 12:[95,3,2,1], 13:[480.9,5,4,1], 14:[-210,4,1,3],
+  17:[735.3,7,5,2], 18:[120.45,3,2,1], 19:[-410.15,5,1,4], 21:[890.6,8,6,2],
+  24:[310.2,4,3,1], 25:[-240.75,3,1,2], 26:[418,5,3,2], 27:[645.85,6,4,2], 28:[240,2,1,1]
+};
+const CAL_BAD = Object.assign({}, CAL, {
+  17:[-215.4,6,2,4], 18:[-98.2,3,1,2], 19:[-410.15,5,1,4], 21:[180.6,4,2,2],
+  24:[-455,5,1,4], 25:[-620.3,6,2,4], 26:[-380.5,4,1,3], 27:[-510.9,5,1,4], 28:[-980,4,1,3]
+});
+
+const TRADES = [
+  ['EURUSD','Long',310.5,0.94,'08/29/2026'],
+  ['XAUUSD','Short',-185,-0.56,'08/29/2026'],
+  ['NAS100','Long',742.25,2.21,'08/28/2026'],
+  ['GBPJPY','Short',-96.4,-0.29,'08/28/2026'],
+  ['US30','Long',418,1.24,'08/26/2026'],
+  ['BTCUSD','Short',-240.75,-0.72,'08/25/2026']
+];
+const TRADES_BAD = [
+  ['NAS100','Long',-412.5,-1.24,'08/29/2026'],
+  ['XAUUSD','Long',-268,-0.8,'08/29/2026'],
+  ['EURUSD','Short',-119.4,-0.36,'08/29/2026'],
+  ['US30','Short',-180,-0.54,'08/29/2026'],
+  ['GBPJPY','Long',96.2,0.29,'08/28/2026'],
+  ['BTCUSD','Short',-510.9,-1.53,'08/28/2026']
+];
+
+const TRI = 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z';
+const INFO = 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 16v-5M12 8h.01';
+const CHECK = 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20m-4-10 2.5 2.5L16 9.5';
+
+class Component extends DCLogic {
+  state = { scen: null, unit: null, collapsed: false, tab: 'trades', acct: 0, now: new Date(), w: 1440, evRange: 'today', hoverAlert: -1, clearedAlerts: [] };
+
+  componentDidMount() {
+    this._t = setInterval(() => this.setState({ now: new Date() }), 1000);
+    this._r = () => this.setState({ w: window.innerWidth });
+    window.addEventListener('resize', this._r);
+    this._r();
+  }
+  componentWillUnmount() { clearInterval(this._t); window.removeEventListener('resize', this._r); }
+
+  get scen() { return this.state.scen || this.props.state || 'populated'; }
+  get unit() { return this.state.unit || this.props.unit || '$'; }
+
+  money(v, digits) {
+    const d = digits === undefined ? 2 : digits;
+    const s = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    return (v < 0 ? '-$' : '$') + s;
+  }
+  signed(v, digits) { return (v > 0 ? '+' : '') + this.money(v, digits); }
+  r(v) { return (v > 0 ? '+' : '') + v.toFixed(1) + 'R'; }
+
+  renderVals() {
+    const scen = this.scen, unit = this.unit;
+    const isLoading = scen === 'loading', isZero = scen === 'zero', isBad = scen === 'bad';
+    const w = this.state.w;
+    const mobile = w < 760, tablet = w >= 760 && w < 1180;
+    const collapsed = this.state.collapsed || mobile;
+
+    const cal = isZero ? {} : (isBad ? CAL_BAD : CAL);
+    const rawTrades = isZero ? [] : (isBad ? TRADES_BAD : TRADES);
+
+    // ---- KPI figures
+    let net = 4182.5, today = 240, count = 128, win = 58.33, pf = 1.84, dayWin = 61.9, awl = 1.42;
+    let wins = 75, losses = 53, gp = 9130, gl = 4947.5, dayW = 13, dayT = 21;
+    if (isBad) { net = -1860.25; today = -980; count = 96; win = 44.12; pf = 0.78; dayWin = 38.1; awl = 0.86; wins = 42; losses = 54; gp = 6120; gl = 7980.25; dayW = 8; dayT = 21; }
+    if (isZero) { net = 0; today = 0; count = 0; win = 0; pf = 0; dayWin = 0; awl = 0; wins = 0; losses = 0; gp = 0; gl = 0; dayW = 0; dayT = 0; }
+
+    const netR = isBad ? -5.6 : (isZero ? 0 : 12.4);
+    const todayR = isBad ? -2.9 : (isZero ? 0 : 0.7);
+    const netStr = isZero ? (unit === '$' ? '$0' : '0.0R') : (unit === '$' ? this.signed(net) : this.r(netR));
+    const todayStr = isZero ? (unit === '$' ? '$0' : '0.0R') : (unit === '$' ? this.signed(today) : this.r(todayR));
+    const pos = net > 0, GREEN = '#22c55e', RED = '#ef4444', AMBER = '#f59e0b';
+
+    // ---- accounts
+    let accountsData;
+    if (isZero) accountsData = [];
+    else if (isBad) accountsData = [
+      { name: 'FTMO 100K · 5521', phase: 'Phase 2', health: 'Critical', tone: 'crit' },
+      { name: 'GoatFunded 2-Step 25K', phase: 'Phase 1', health: 'Healthy', tone: 'ok' },
+      { name: 'Alpha Capital 50K', phase: 'Funded', health: 'Warning', tone: 'warn' }
+    ];
+    else accountsData = [
+      { name: 'GoatFunded 2-Step 25K', phase: 'Phase 2', health: 'Healthy', tone: 'ok' },
+      { name: 'FTMO 100K · 5521', phase: 'Phase 2', health: 'Warning', tone: 'warn' },
+      { name: 'Alpha Capital 50K', phase: 'Funded', health: 'Healthy', tone: 'ok' }
+    ];
+    const toneColor = { ok: GREEN, warn: AMBER, crit: RED };
+    const sel = Math.min(this.state.acct, Math.max(0, accountsData.length - 1));
+    const accounts = accountsData.map((a, i) => ({
+      name: a.name, phase: a.phase, health: a.health,
+      dot: toneColor[a.tone],
+      iconDisplay: a.tone === 'ok' ? 'none' : 'inline-flex',
+      chipBg: i === sel ? '#17171c' : '#101013',
+      chipBorder: i === sel ? '#3a3a42' : '#1c1c20',
+      ringColor: i === sel ? '#e4e4e7' : '#2c2c32',
+      nameColor: i === sel ? '#fafafa' : '#b4b4bc',
+      subColor: i === sel ? '#a1a1aa' : '#71717a',
+      select: () => this.setState({ acct: i })
+    }));
+
+    // ---- meters for selected account
+    let meters = [];
+    if (accountsData.length) {
+      const A = accountsData[sel];
+      let dd, ddL, md, mdL, pt, ptL, resets, days, funded = A.phase === 'Funded';
+      if (isBad && sel === 0) { dd = 2200; ddL = 2500; md = 4050; mdL = 5000; pt = 1120; ptL = 8000; resets = 'Resets in 3h 47m'; days = '9/10'; }
+      else if (sel === 0) { dd = 1240; ddL = 2500; md = 3100; mdL = 5000; pt = 3940; ptL = 8000; resets = 'Resets in 6h 12m'; days = '7/10'; }
+      else if (sel === 1) { dd = 640; ddL = 1250; md = 1980; mdL = 2500; pt = 1460; ptL = 2000; resets = 'Resets in 6h 12m'; days = '4/10'; }
+      else { dd = 310; ddL = 5000; md = 2240; mdL = 10000; pt = 5120; ptL = 12000; resets = 'Resets in 6h 12m'; days = '18/30'; }
+      const mk = (label, used, limit, sub, meta, invert) => {
+        const pct = Math.min(100, (used / limit) * 100);
+        const risk = invert ? 0 : pct;
+        const tone = risk >= 90 ? 'crit' : risk >= 70 ? 'warn' : 'ok';
+        const color = invert ? GREEN : (tone === 'crit' ? RED : tone === 'warn' ? AMBER : '#f97316');
+        return {
+          label, used: this.money(used, 0), limit: this.money(limit, 0),
+          pct: pct.toFixed(1), pctLabel: pct.toFixed(1) + '%',
+          sub, meta,
+          color,
+          barColor: invert ? '#16a34a' : 'linear-gradient(90deg,#facc15,#f97316 55%,#ef4444)',
+          barSize: invert ? 'auto' : (pct > 0 ? (10000 / pct).toFixed(0) + '% 100%' : '100% 100%'),
+          markColor: invert ? 'transparent' : (tone === 'crit' ? '#fca5a5' : '#3f3f46'),
+          labelColor: tone === 'crit' && !invert ? '#fca5a5' : '#6b6b73',
+          valueColor: tone === 'crit' && !invert ? '#fecaca' : '#fafafa',
+          iconDisplay: (!invert && tone !== 'ok') ? 'inline-flex' : 'none',
+          cellBg: (!invert && tone === 'crit') ? 'rgba(69,10,10,.3)' : '#0e0e11',
+          sep: 'transparent'
+        };
+      };
+      meters = [
+        mk('Daily drawdown', dd, ddL, 'used', resets, false),
+        mk('Max drawdown', md, mdL, 'used', 'Trailing from peak', false),
+        mk(funded ? 'Payout target' : 'Profit target', pt, ptL, 'of target', funded ? 'Payout eligible in 3 trading days' : this.money(ptL - pt, 0) + ' to go', true)
+      ];
+      meters[1].sep = '#1a1a1e'; meters[2].sep = '#1a1a1e';
+      this._days = days;
+      this._funded = funded;
+    }
+    const critical = isBad && sel === 0;
+
+    // ---- events
+    let events = [];
+    if (!isZero) {
+      const E = this.state.evRange === 'week' ? [
+        ['USD', 'Core CPI m/m', 'Mon 13:30', 'High'],
+        ['GBP', 'BoE Rate Decision', 'Tue 12:00', 'Medium'],
+        ['EUR', 'ECB Rate Decision', 'Tue 12:45', 'Medium'],
+        ['USD', 'FOMC Statement', 'Wed 19:00', 'High'],
+        ['USD', 'Unemployment Claims', 'Thu 13:30', 'Low'],
+        ['USD', 'Non-Farm Payrolls', 'Fri 13:30', 'High']
+      ] : [
+        ['USD', 'Core CPI m/m', '13:30', 'High'],
+        ['USD', 'FOMC Statement', '19:00', 'High'],
+        ['EUR', 'ECB Rate Decision', '12:45', 'Medium']
+      ];
+      const tone = { High: ['#f87171', 'rgba(127,29,29,.22)', '#4c1d1d'], Medium: ['#fbbf24', 'rgba(120,53,15,.2)', '#3f2d0f'], Low: ['#a1a1aa', '#1a1a1e', '#26262b'] };
+      events = E.map(([ccy, name, time, impact]) => ({
+        ccy, name, time, impact,
+        isUSD: ccy === 'USD', isEUR: ccy === 'EUR', isGBP: ccy === 'GBP',
+        impactColor: tone[impact][0],
+        nameWeight: impact === 'High' ? '600' : '450',
+        nameColor: impact === 'High' ? '#fafafa' : '#c9c9d1'
+      }));
+    }
+
+    // ---- alerts
+    let alerts = [];
+    if (isBad) alerts = [
+      { severity: 'Critical', title: 'Account 5521', body: '88% of daily drawdown used — $300 of headroom left before breach.', color: '#f87171', bg: 'rgba(69,10,10,.34)', border: '#4c1d1d', icon: TRI },
+      { severity: 'Warning', title: 'Max drawdown', body: 'Trailing max drawdown at 81%. Cut size or stand down for the session.', color: '#fbbf24', bg: 'rgba(69,39,7,.28)', border: '#3f2d0f', icon: TRI },
+      { severity: 'Info', title: 'Alpha Capital 50K', body: 'Payout eligible in 3 trading days.', color: '#a1a1aa', bg: '#0f1319', border: '#1e2532', icon: INFO }
+    ];
+    else if (!isZero) alerts = [
+      { severity: 'Warning', title: 'Account 5521', body: 'Within 1.2% of daily drawdown limit.', color: '#fbbf24', bg: 'rgba(69,39,7,.24)', border: '#3f2d0f', icon: TRI },
+      { severity: 'Info', title: 'Phase 1 target', body: '82% complete on GoatFunded 2-Step 25K.', color: '#a1a1aa', bg: '#0f1319', border: '#1e2532', icon: INFO },
+      { severity: 'Info', title: 'Payout window', body: 'Payout eligible in 3 trading days on Alpha Capital 50K.', color: '#4ade80', bg: '#0d1410', border: '#16301f', icon: CHECK }
+    ];
+
+    alerts = alerts
+      .filter(a => this.state.clearedAlerts.indexOf(a.title) === -1)
+      .map((a, i) => Object.assign({}, a, {
+        rowBg: this.state.hoverAlert === i ? '#191920' : '#121215',
+        clearDisplay: this.state.hoverAlert === i ? 'flex' : 'none',
+        enter: () => this.setState({ hoverAlert: i }),
+        leave: () => this.setState({ hoverAlert: -1 }),
+        clear: () => this.setState({ clearedAlerts: this.state.clearedAlerts.concat(a.title), hoverAlert: -1 })
+      }));
+
+    // ---- calendar grid (August 2026, Aug 1 = Saturday)
+    const days = [];
+    for (let i = 0; i < 6; i++) days.push(null);
+    for (let d = 1; d <= 31; d++) {
+      const rec = cal[d];
+      const dow = (d + 5) % 7; // 1 Aug -> 6 (Sat)
+      const weekend = dow === 0 || dow === 6;
+      const isToday = d === 28;
+      if (!rec) {
+        days.push({
+          label: String(d), pnl: '', meta: '', dataDisplay: 'none',
+          bg: weekend ? '#0b0b0d' : '#0d0d10', border: isToday ? '#52525b' : '#141417',
+          numColor: weekend ? '#3f3f46' : '#52525b', pnlColor: '#52525b', opacity: weekend ? '.55' : '.8',
+          cursor: 'default', tip: 'No trades'
+        });
+      } else {
+        const [pnl, tr, wn, ls] = rec;
+        const up = pnl > 0;
+        days.push({
+          label: String(d),
+          pnl: unit === '$' ? this.signed(pnl, 0) : this.r(pnl / 332),
+          meta: tr + (tr === 1 ? ' trade' : ' trades'),
+          dataDisplay: 'flex',
+          bg: up ? 'rgba(20,83,45,.22)' : 'rgba(76,17,17,.22)',
+          border: isToday ? '#52525b' : (up ? '#183a26' : '#3a1b1b'),
+          numColor: '#a1a1aa',
+          pnlColor: up ? '#4ade80' : '#f87171',
+          opacity: '1', cursor: 'pointer',
+          tip: 'Aug ' + d + ' · ' + this.signed(pnl, 2) + ' · ' + tr + ' trades'
+        });
+      }
+    }
+    while (days.length % 7) days.push(null);
+    const filled = days.map(d => d || { label: '', pnl: '', meta: '', dataDisplay: 'none', bg: 'transparent', border: 'transparent', numColor: 'transparent', pnlColor: 'transparent', opacity: '1', cursor: 'default', tip: '' });
+
+    const monthVals = Object.values(cal);
+    const monthSum = monthVals.reduce((s, v) => s + v[0], 0);
+
+    // ---- chart
+    const keys = Object.keys(cal).map(Number).sort((a, b) => a - b);
+    let cum = 0; const pts = [];
+    keys.forEach(k => { cum += cal[k][0]; pts.push([k, cum]); });
+    let chartLine = '', chartArea = '', chartPoints = [], chartTicks = ['', '', '', ''];
+    if (pts.length > 1) {
+      const maxV = Math.max(0, ...pts.map(p => p[1])), minV = Math.min(0, ...pts.map(p => p[1]));
+      const span = (maxV - minV) || 1;
+      const X = i => (i / (pts.length - 1)) * 640;
+      const Y = v => 194 - ((v - minV) / span) * 186;
+      const P = pts.map((p, i) => [X(i), Y(p[1])]);
+      let d = 'M' + P[0][0].toFixed(1) + ' ' + P[0][1].toFixed(1);
+      for (let i = 0; i < P.length - 1; i++) {
+        const p0 = P[i === 0 ? 0 : i - 1], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2;
+        const t = 0.32;
+        const c1x = p1[0] + (p2[0] - p0[0]) * t / 2, c1y = p1[1] + (p2[1] - p0[1]) * t / 2;
+        const c2x = p2[0] - (p3[0] - p1[0]) * t / 2, c2y = p2[1] - (p3[1] - p1[1]) * t / 2;
+        d += ' C' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ',' + c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ',' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+      }
+      chartLine = d;
+      chartArea = d + ' L640 196 L0 196 Z';
+      const step = 100 / pts.length;
+      const fmtY = v => {
+        const a = Math.abs(v);
+        if (unit !== '$') return (v / 332).toFixed(1) + 'R';
+        const s = a >= 1000 ? (a / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(Math.round(a));
+        return (v < 0 ? '-$' : '$') + s;
+      };
+      chartTicks = [0, 1, 2, 3].map(i => fmtY(maxV - (span * (8 + i * 62.67) / 186) * 0 - (maxV - minV) * i / 3));
+      chartPoints = pts.map((p, i) => ({
+        left: (i * step).toFixed(2), width: step.toFixed(2),
+        tip: 'Aug ' + p[0] + ' · cumulative ' + (unit === '$' ? this.signed(p[1], 2) : this.r(p[1] / 332))
+      }));
+    }
+    const now = this.state.now;
+    const dateLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const clock = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+    const scenarios = [
+      ['populated', 'Populated'], ['bad', 'Bad day'], ['loading', 'Loading'], ['zero', 'First run']
+    ].map(([k, label]) => ({
+      label, pick: () => this.setState({ scen: k, acct: 0, clearedAlerts: [], hoverAlert: -1 }),
+      bg: scen === k ? '#e4e4e7' : '#16161a',
+      color: scen === k ? '#09090b' : '#a1a1aa',
+      border: scen === k ? '#e4e4e7' : '#26262b'
+    }));
+
+    const trades = rawTrades.map(([symbol, side, v, rv, when]) => ({
+      symbol, side, when,
+      result: unit === '$' ? this.signed(v) : this.r(rv),
+      color: v > 0 ? '#4ade80' : '#f87171',
+      sideColor: side === 'Long' ? '#d4d4d8' : '#a1a1aa',
+      sideBg: side === 'Long' ? '#1f1f23' : '#17171a',
+      sideBorder: side === 'Long' ? '#2c2c32' : '#26262b'
+    }));
+
+    return {
+      isLoading, isReady: !isLoading, scenarios,
+      sbWidth: collapsed ? '70px' : '248px',
+      labelDisplay: collapsed ? 'none' : 'inline',
+      alertDotDisplay: isZero ? 'none' : 'inline-block',
+      toggleSidebar: () => this.setState({ collapsed: !this.state.collapsed }),
+
+      kpiGrid: mobile ? '1fr' : tablet ? 'repeat(2,minmax(0,1fr))' : 'repeat(5,minmax(0,1fr))',
+      mainGrid: w < 1180 ? '1fr' : 'minmax(0,67fr) minmax(0,33fr)',
+      meterGrid: w < 820 ? '1fr' : w < 1180 ? 'repeat(2,minmax(0,1fr))' : 'repeat(3,minmax(0,1fr))',
+      briefGrid: w < 1024 ? '1fr' : 'minmax(0,1.25fr) minmax(0,1fr)',
+      cellHeight: mobile ? '58px' : tablet ? '68px' : '82px',
+      calMinHeight: w < 1180 ? 'auto' : '780px',
+      chartMinHeight: w < 1180 ? 'auto' : '390px',
+
+      setUnitD: () => this.setState({ unit: '$' }),
+      setUnitR: () => this.setState({ unit: 'R' }),
+      unitDBg: unit === '$' ? '#fafafa' : 'transparent',
+      unitDColor: unit === '$' ? '#09090b' : '#8a8a93',
+      unitRBg: unit === 'R' ? '#fafafa' : 'transparent',
+      unitRColor: unit === 'R' ? '#09090b' : '#8a8a93',
+      unitBadge: unit === '$' ? 'USD' : 'R multiple',
+
+      switcherLabel: isZero ? 'No accounts' : (accountsData.length > 1 ? 'All accounts · ' + (accountsData.length + 2) : accountsData[0].name),
+      switcherPhase: isZero ? 'Add one' : 'P1 · P2 · Funded',
+      acctDot: isZero ? '#52525b' : (isBad ? RED : GREEN),
+
+      filtersPad: w < 1180 ? '11px' : '14px',
+      filtersLabelDisplay: w < 1180 ? 'none' : 'inline',
+      switcherMax: w < 1180 ? '190px' : '320px',
+      switcherPhaseDisplay: w < 1180 ? 'none' : 'inline',
+      eventsMax: mobile ? 'none' : '153px',
+      alertsMax: mobile ? 'none' : '153px',
+      eventRowHeight: mobile ? 'auto' : '33px',
+      alertRowHeight: mobile ? 'auto' : '73px',
+      rangeCopy: this.state.evRange === 'week' ? 'This week' : 'Next 24h',
+      pickToday: () => this.setState({ evRange: 'today' }),
+      pickWeek: () => this.setState({ evRange: 'week' }),
+      todayBg: this.state.evRange === 'today' ? '#26262b' : 'transparent',
+      todayColorBtn: this.state.evRange === 'today' ? '#fafafa' : '#71717a',
+      weekBg: this.state.evRange === 'week' ? '#26262b' : 'transparent',
+      weekColorBtn: this.state.evRange === 'week' ? '#fafafa' : '#71717a',
+      dateLabel, clock,
+      events, alerts,
+      noEvents: isZero, noAlerts: alerts.length === 0,
+      noAlertsCopy: isZero ? 'Alerts appear here once you add a prop account.' : 'All clear — no active account alerts.',
+
+      lastSynced: isZero ? 'never' : '2 min ago',
+
+      tradeCount: count, netPnl: netStr, todayPnl: todayStr,
+      netColor: isZero ? '#fafafa' : (pos ? GREEN : RED),
+      todayColor: isZero ? '#8a8a93' : (today > 0 ? '#4ade80' : '#f87171'),
+      rangeLabel: isZero ? 'no range' : 'Aug 1 – 28',
+      winRate: win.toFixed(2) + '%', winRatePct: win.toFixed(1),
+      winLossSplit: wins + 'W / ' + losses + 'L',
+      profitFactor: pf.toFixed(2),
+      pfColor: isZero ? '#fafafa' : (pf >= 1 ? '#fafafa' : RED),
+      grossSplit: isZero ? '—' : this.money(gp, 0) + ' / ' + this.money(gl, 0),
+      dayWin: dayWin.toFixed(2) + '%',
+      dayWinSplit: isZero ? '—' : dayW + ' of ' + dayT + ' days green',
+      avgWinLoss: awl.toFixed(2),
+      avgSplit: isZero ? '—' : (isBad ? '$118 avg win / $137 avg loss' : '$122 avg win / $86 avg loss'),
+
+      kpis: (() => {
+        const L = 131.9;
+        const dash = p => (Math.max(0, Math.min(100, p)) / 100 * L).toFixed(1) + ' ' + L;
+        const short = v => v >= 1000 ? '$' + (v / 1000).toFixed(1) + 'k' : '$' + Math.round(v);
+        const g = v => ({ v, color: '#4ade80', bg: 'rgba(22,101,52,.35)' });
+        const n = v => ({ v, color: '#a1a1aa', bg: '#1c1c21' });
+        const r = v => ({ v, color: '#f87171', bg: 'rgba(127,29,29,.35)' });
+        const avgW = isZero ? 0 : (isBad ? 118 : 122), avgL = isZero ? 0 : (isBad ? 137 : 86);
+        return [
+          { label: 'Trade win %', tip: 'Winning trades divided by total closed trades.',
+            value: win.toFixed(2) + '%', valueColor: '#fafafa',
+            gaugeColor: win >= 50 ? '#22c55e' : '#f59e0b', dash: dash(win), isArc: true, isRing: false, ringDash: '',
+            chips: [g(wins), n(0), r(losses)], chipsDisplay: 'flex' },
+          { label: 'Profit factor', tip: 'Gross profit divided by gross loss. Above 1.0 is profitable.',
+            value: pf.toFixed(2), valueColor: isZero || pf >= 1 ? '#fafafa' : RED,
+            gaugeColor: '#22c55e', dash: '', isArc: false, isRing: true,
+            ringDash: (() => { const C = 251.3, share = (gp + gl) ? gp / (gp + gl) : 0; return (share * C).toFixed(1) + ' ' + C; })(),
+            chips: [], chipsDisplay: 'none' },
+          { label: 'Day win %', tip: 'Profitable trading days divided by total trading days.',
+            value: dayWin.toFixed(2) + '%', valueColor: '#fafafa',
+            gaugeColor: dayWin >= 50 ? '#22c55e' : '#f59e0b', dash: dash(dayWin), isArc: true, isRing: false, ringDash: '',
+            chips: [g(dayW), r(dayT - dayW)], chipsDisplay: 'flex' },
+          { label: 'Avg win/loss', tip: 'Average winning trade divided by average losing trade.',
+            value: awl.toFixed(2), valueColor: '#fafafa',
+            gaugeColor: awl >= 1 ? '#22c55e' : '#f59e0b', dash: dash(awl / 2 * 100), isArc: true, isRing: false, ringDash: '',
+            chips: [g(short(avgW)), r(short(avgL))], chipsDisplay: 'flex' }
+        ];
+      })(),
+
+      accounts, hasAccounts: accountsData.length > 0, noAccounts: accountsData.length === 0,
+      moreAcctsDisplay: accountsData.length ? 'block' : 'none',
+      meters,
+      healthBorder: critical ? '#5c1a1a' : '#1a1a1d',
+      criticalBannerDisplay: critical ? 'flex' : 'none',
+      criticalMessage: 'FTMO 100K · 5521 is at 88% of today\u2019s $2,500 loss limit — $300 left.',
+      daysDone: accountsData.length ? this._days : '0/10',
+      payoutNote: accountsData.length ? (this._funded ? 'Payout request opens in 3 trading days' : 'Minimum trading days requirement') : '',
+
+      monthLabel: 'August 2026',
+      monthTotal: unit === '$' ? this.signed(monthSum, 2) : this.r(monthSum / 332),
+      monthColor: monthSum > 0 ? GREEN : monthSum < 0 ? RED : '#a1a1aa',
+      monthDays: monthVals.length + ' days',
+      days: filled,
+
+      tabTrades: () => this.setState({ tab: 'trades' }),
+      tabPositions: () => this.setState({ tab: 'positions' }),
+      showTrades: this.state.tab === 'trades', showPositions: this.state.tab === 'positions',
+      tradesUnderline: this.state.tab === 'trades' ? '#e4e4e7' : 'transparent',
+      posUnderline: this.state.tab === 'positions' ? '#e4e4e7' : 'transparent',
+      tradesColor: this.state.tab === 'trades' ? '#fafafa' : '#8a8a93',
+      posColor: this.state.tab === 'positions' ? '#fafafa' : '#8a8a93',
+      trades, noTrades: trades.length === 0, tableHeadDisplay: trades.length ? 'grid' : 'none',
+      viewAllDisplay: trades.length ? 'block' : 'none',
+
+      hasChart: pts.length > 1, noChart: pts.length < 2,
+      chartLine, chartArea, chartPoints,
+      axisY1: chartTicks[0], axisY2: chartTicks[1], axisY3: chartTicks[2], axisY4: chartTicks[3],
+      chartStroke: monthSum >= 0 ? '#166534' : '#7f1d1d',
+      chartStrokeLine: monthSum >= 0 ? '#4ade80' : '#f87171',
+      axisStart: 'Aug 3', axisQ: 'Aug 14', axisEnd: 'Aug 28'
+    };
+  }
+}
+
+</script>
+</body>
+</html>
