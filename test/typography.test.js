@@ -34,6 +34,13 @@ const CAPS_EXCEPTIONS = ['.auth-mark'];
  * a sentence is shouting and belongs in title case. */
 const UPPERCASE_EXCEPTIONS = [
   { file: 'components/primitives/brief.jsx', what: "the brief's column eyebrows" },
+  /* THE RAIL'S "SOON" BADGE (added 2026-08-29, Rhea). 10px, letterspaced, muted, on a
+   * quiet fill beside a nav item it qualifies. That is the same register the brief's
+   * eyebrows occupy and the one §3 exempts: a small muted caps run naming a STATE
+   * rather than saying anything reads as structure, not emphasis. The design draws it
+   * that way, and at title case ("Soon") it competed with the label it is subordinate
+   * to. Anything larger, darker, or in a sentence is still shouting. */
+  { file: 'components/primitives/rail.jsx', what: "the rail's Soon state badge" },
 ];
 
 test('no uppercase text-transform outside the brand wordmark', () => {

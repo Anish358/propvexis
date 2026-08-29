@@ -1,121 +1,150 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+  useSidebar,
+} from '@/components/ui/sidebar';
 
-/* THE NAVIGATION RAIL — the first surface built on the 2026-08-28 Figma redesign.
+/* THE NAVIGATION RAIL — Base Rhea, on @shadcn/sidebar.
  *
- * WHY THIS IS HAND-COMPOSED AND NOT `@coss/sidebar`. The build order (CLAUDE.md:
- * primitives -> registry -> composition -> hand-written) says reach for the registry
- * before writing a component, so the registry item was fetched and read first. It is a
- * 22 KB, 25-export system: SidebarProvider + context, cookie-persisted open state, a
- * keyboard shortcut, its own Sheet-based mobile drawer, and nine further registry
- * dependencies (sheet, tooltip, scroll-area, use-media-query...).
+ * THIS FILE USED TO ARGUE THE OPPOSITE, at length, and the argument is worth keeping
+ * because it was not wrong — it was answering a different question. It said: the
+ * registry sidebar is a 25-export system with its own provider, cookie persistence, a
+ * keyboard shortcut and a Sheet-based drawer, all of which Layout.jsx already did and
+ * design-b-a11y.test.js already pinned, so adopting it meant rewriting Layout around
+ * someone else's state machine for a skin we were writing ourselves anyway.
  *
- * Every one of those behaviours already exists here and is TESTED. Layout owns the
- * collapse state and the under-900px drawer; Sidebar focuses the close control when the
- * drawer opens and marks itself role="dialog" only then; design-b-a11y.test.js pins that
- * arrangement. Adopting the provider would mean rewriting Layout around someone else's
- * state machine — and DESIGN-LANGUAGE is explicit that layout, interaction and
- * responsive behaviour are locked invariants for visual work. The registry's value here
- * is a skin, and a skin is the one thing it cannot give us: the design is ours.
+ * WHAT CHANGED (owner, 2026-08-29): shadcn is the default component system for this
+ * codebase, and Rhea wants a collapse mode the old rail did not have. Our `collapsed`
+ * meant "rail unmounted entirely"; Rhea's means a 70px ICON RAIL. Building that by
+ * hand is a width transition, an icon-only mode, a tooltip per item and a drawer — the
+ * four things `collapsible="icon"` already is. So the registry now wins on its own
+ * merits rather than on policy, and everything below is SKIN over its behaviour.
  *
- * So this file is what the rule's fourth step is for, and it stays honest by holding
- * ONLY presentation. Not one of these components knows about routes, the nav config, or
- * which item is current — Sidebar.jsx passes that in. What lives here is the Figma:
+ * WHAT WE OVERRIDE, AND ONLY THIS:
  *
- *   rail        248 wide, --sidebar-bg, 24 padding
- *   brand row   64 tall; a 32 mark, 8 gap, the wordmark at 18/28 -0.45
- *   item        44 tall, 12 radius, 12 inset, a 16 icon, 12 gap, label at 14/20 500
- *   active      --surface-2 behind it and --text on it; inactive is --muted
- *   nudge       16 radius on a 5% wash of --warning
- *   user        52 tall, a 36 round avatar, name at 14/20 over plan at 12/16
+ *   width       16rem / 3rem  ->  248px / 70px, via --sidebar-width* on the provider
+ *   breakpoint  md = 768      ->  900 (bridge.css + use-mobile.js), our rail number
+ *   row         h-8 rounded-md -> h-11 rounded-[10px], Rhea's 44px nav row
+ *   colours     already correct — bridge.css maps every sidebar-* slot at tokens
  *
- * ARBITRARY VALUES ON PURPOSE. `text-[14px]` rather than `text-sm`, `rounded-[12px]`
- * rather than `rounded-xl`. The bridge repoints Tailwind's ladder at OUR older scale
- * (text-sm is 13px here, not 14px), and the radius steps are the preset's rem values,
- * so the named classes would each land a pixel or two off the frame and the drift would
- * be invisible in review. The Figma numbers are written as the Figma numbers. Colour is
- * the exception and goes through tokens, always: hex in a component is what the token
- * layer exists to prevent.
+ * NOTHING ABOUT THE INFORMATION ARCHITECTURE MOVES. Same NAV config, same accordion,
+ * same `subnavInPage` exception, same drawer semantics. Sidebar.jsx still owns all of
+ * it; this file holds presentation and re-exports the provider so app code has one
+ * import path (DESIGN-LANGUAGE §1: primitives are the entry point).
+ *
+ * ARBITRARY VALUES ON PURPOSE. `text-[14.5px]` rather than `text-sm`: the bridge
+ * repoints Tailwind's ladder at our older scale, so named steps land a pixel or two
+ * off Rhea and the drift would be invisible in review. Colour always goes through
+ * tokens — a hex in a component is what the token layer exists to prevent.
  */
 
-/* The rail itself — including the off-canvas drawer it becomes under 900px. */
+/* THE LIST RESET, AND WHY IT IS NOT OPTIONAL HERE.
+ *
+ * SidebarMenu and SidebarMenuSub render real <ul>/<li>, which is correct semantics and
+ * is exactly what shadcn intends — it just assumes Tailwind's PREFLIGHT is loaded, and
+ * ours deliberately is not (tailwind.css: preflight would restyle every legacy page).
+ * So the UA's own `ul { list-style: disc; padding-inline-start: 40px }` applies and the
+ * rail renders bulleted, indented 40px, with every label truncated by the width the
+ * markers stole. It looks like a spacing bug and is a missing reset.
+ *
+ * Fixed here rather than by importing preflight (which would restyle the 800 live
+ * legacy classes) or by editing the generated file (which the build order forbids). */
+const LIST_RESET = 'm-0 list-none p-0';
+
+/* Rhea's two widths. The provider takes them as inline custom properties, which is the
+ * seam the generated component offers for exactly this — no fork required. */
+const RAIL_STYLE = {
+  '--sidebar-width': '248px',
+  '--sidebar-width-icon': '70px',
+};
+
+export function RailProvider({ style, children, ...rest }) {
+  return (
+    <SidebarProvider style={{ ...RAIL_STYLE, ...style }} {...rest}>
+      {children}
+    </SidebarProvider>
+  );
+}
+
+export { useSidebar as useRail };
+
+/* The rail itself. `collapsible="icon"` is the whole Rhea interaction: 248 -> 70 on
+ * desktop, and a Sheet drawer under 900 where a 248px rail would leave a phone 140px
+ * for a data table.
+ *
+ * `p-0` and our own padding, because the generated inner div pads nothing and Rhea's
+ * rail is 18px top/bottom against 14px left/right — a taller-than-wide inset that
+ * keeps a 44px row from touching the edge while the icons still centre at 70px. */
 export function Rail({ className, children, ...rest }) {
   return (
-    <aside
+    <Sidebar
+      collapsible="icon"
       data-slot="rail"
       className={cn(
-        'flex w-[248px] shrink-0 flex-col gap-6 bg-[var(--sidebar-bg)] p-6',
-        /* THE RAIL DOES NOT SCROLL — THE NAV INSIDE IT DOES. A fixed-height sticky
-         * column with `overflow-hidden`, so the brand stays at the top and the footer
-         * stays at the bottom however long the nav gets. Letting the whole aside scroll
-         * instead is the obvious-looking version and it is wrong twice: the identity
-         * row and the nudge scroll out of reach on a short viewport, and the overflow
-         * becomes page height, which leaves a sticky element no room to travel — so the
-         * rail scrolls off the top with the page. nav.test.js pins both halves. */
-        'sticky top-0 h-dvh overflow-hidden',
-        /* THE OFF-CANVAS DRAWER, MOVED HERE FROM legacy/app.css (2026-08-28).
-         *
-         * Below 900px the rail leaves the flow entirely rather than shrinking — a
-         * 248px rail on a 390px phone leaves 140px for a data table, which is not a
-         * layout you can fix by narrowing it. That behaviour is unchanged; what
-         * changed is WHERE it can be expressed. The rules used to live in a
-         * `@media (max-width: 900px) .sidebar` block, and legacy CSS now sits in the
-         * lowest cascade layer, so `position: fixed` there would lose to `sticky`
-         * here and the drawer would silently stop leaving the flow. Utilities can
-         * only be beaten by utilities.
-         *
-         * overscroll-contain so momentum scrolling inside the drawer does not move
-         * the page behind it; Layout also locks body scroll while it is open. */
-        'max-[900px]:fixed max-[900px]:inset-y-0 max-[900px]:left-0 max-[900px]:z-[60]',
-        'max-[900px]:w-[min(280px,84vw)] max-[900px]:shadow-[var(--sh-3)] max-[900px]:overscroll-contain',
-        // The drawer slides in; users who ask for less motion just get it. The
-        // keyframes are the existing `drawer-in` — @keyframes are global and layer-free,
-        // so they survived the legacy block being retired.
-        'motion-safe:max-[900px]:data-[drawer]:animate-[drawer-in_var(--dur)_var(--ease)_both]',
+        'border-r border-[var(--line)]',
+        '[&_[data-slot=sidebar-inner]]:gap-1.5 [&_[data-slot=sidebar-inner]]:px-3.5 [&_[data-slot=sidebar-inner]]:py-4',
         className,
       )}
       {...rest}
     >
       {children}
-    </aside>
+    </Sidebar>
   );
 }
 
 /* Brand row: the mark and wordmark on the left, the collapse control on the right.
- * `mark` and `action` are slots rather than fixed children so Sidebar keeps owning what
- * the mark links to and what the button does. */
+ * 20px of air beneath it, which is Rhea's — the brand is a header, not a nav item, and
+ * the gap is what says so once the rows below are only 6 apart. */
 export function RailBrand({ mark, action, children, className, ...rest }) {
+  const { state, isMobile } = useSidebar();
+  const collapsed = state === 'collapsed' && !isMobile;
   return (
-    <div
+    <SidebarHeader
       data-slot="rail-brand"
-      className={cn('flex h-8 shrink-0 items-center justify-between', className)}
+      className={cn(
+        'gap-2.5 p-0 pb-5',
+        /* THE TOGGLE STACKS UNDER THE MARK AT 70px, AND IT IS NOT OPTIONAL THAT IT
+         * SURVIVES. The prototype draws the brand row only in the expanded rail, where
+         * the 33px mark and the 32px control sit side by side. At 70px, minus 14px of
+         * padding a side, there are 42px of content width — the two cannot share a
+         * line, and the obvious fix (hide the control, like the wordmark) is a trap:
+         * the control is the ONLY way back to 248px, so hiding it strands the user in
+         * an icon rail permanently. Stacking keeps both, centred, inside 42px. */
+        collapsed ? 'flex-col items-center' : 'flex-row items-center justify-between',
+        className,
+      )}
       {...rest}
     >
-      <span className="flex min-w-0 items-center gap-2">
+      <span className={cn('flex min-w-0 items-center gap-2.5', collapsed && 'justify-center')}>
         {mark}
-        <span className="truncate text-[18px] leading-7 font-semibold tracking-[-0.45px] text-[var(--text)]">
-          {children}
-        </span>
+        {/* CONDITIONALLY RENDERED, NOT `hidden`. The UA's [hidden] rule loses to any
+            author `display`, and this span's parent sets one — so `hidden` would do
+            nothing at all and the wordmark would still be there, clipped, at 70px.
+            That is a real bug this repo has already paid for once. */}
+        {!collapsed && (
+          <span className="truncate text-[16.5px] leading-6 font-[650] tracking-[-0.25px] text-[var(--text)]">
+            {children}
+          </span>
+        )}
       </span>
       {action}
-    </div>
+    </SidebarHeader>
   );
 }
 
-/* NO `RailMark`. An earlier draft of this file had one — a 32px rounded tile for the
- * wordmark to sit beside — and it was deleted the moment it turned out to be a second
- * drawing of the brand. Logo.jsx already renders exactly that tile, is what the wizard
- * header and the auth screen render, and is shared by geometry with the marketing
- * site's own mark. A tile here would have been the same square maintained twice, and
- * the two would have disagreed the first time either was touched. Sidebar passes
- * <Logo size={32} /> into RailBrand's `mark` slot instead.
- */
-
-/* The collapse / close control. 32 square, 6 radius — a smaller radius than the nav
- * items on purpose (it is chrome, not a destination). */
-/* forwardRef rather than ref-as-prop: React 19 passes `ref` as an ordinary prop, but
- * this project is React 18.3 (primitives/index.js says so) where it does not, and a ref
- * silently dropped here would break drawer focus with no error and nothing to see. */
+/* The collapse / close control. Round, 32px, muted until hovered — chrome, not a
+ * destination, which is why it is a circle where the nav rows are 10px rectangles. */
 export const RailAction = React.forwardRef(function RailAction({ className, ...rest }, ref) {
   return (
     <button
@@ -123,8 +152,8 @@ export const RailAction = React.forwardRef(function RailAction({ className, ...r
       type="button"
       data-slot="rail-action"
       className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-[6px] text-[var(--muted)]',
-        'transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)]',
+        'flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-4)]',
+        'transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-4',
         className,
@@ -134,167 +163,170 @@ export const RailAction = React.forwardRef(function RailAction({ className, ...r
   );
 });
 
-/* `flex-1` is what pins the footer to the bottom of a short rail without the footer
- * having to know it is last. */
 export function RailNav({ className, children, ...rest }) {
   return (
-    <nav
+    <SidebarContent
       data-slot="rail-nav"
-      className={cn(
-        // min-h-0 is what actually lets it shrink: a flex item's default min-height:auto
-        // refuses to go below its content, which keeps the overflow instead of scrolling it.
-        'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain',
-        className,
-      )}
+      // overflow-x-hidden: at 70px a label mid-transition would otherwise scroll the
+      // rail sideways for the duration of the animation.
+      className={cn('gap-0 overflow-x-hidden', className)}
       {...rest}
     >
-      {children}
-    </nav>
+      <SidebarMenu className={cn(LIST_RESET, 'gap-1.5')}>{children}</SidebarMenu>
+    </SidebarContent>
   );
 }
 
-/* ONE ROW, THREE CALLERS. A link, an accordion header and a sub-item all share this
- * geometry, and `render` is how they stay one component: the caller hands in the
- * element to become (a <NavLink>, a <button>) and this supplies the skin. The
- * alternative — three near-identical class strings — is how the accordion header
- * drifted a pixel off its own links last time.
+/* ONE ROW, THREE CALLERS — a link, an accordion header and a sub-item all share this
+ * geometry. `render` is how they stay one component: the caller hands in the element
+ * to become (a <Link>, a <button>) and this supplies the skin. Three near-identical
+ * class strings is how the accordion header drifted a pixel off its own links before.
+ *
+ * The generated SidebarMenuButton already does `render` (Base UI's useRender), the
+ * icon-mode collapse, and the tooltip that replaces the label at 70px. What we change
+ * is the box: 44 tall at 10 radius against its 32 at 6.
  */
-/* `trailing` is wrapped rather than rendered bare, so the accordion chevron gets its
- * size and its dimming HERE. The caller used to pass
- * `className="size-4 shrink-0 opacity-60"` on the icon, which compiled to nothing at
- * all — Sidebar.jsx is not a scanned path — leaving a full-size, full-strength chevron
- * that happened to look close enough to be missed. Caught by
- * utility-collisions.test.js, which now watches for exactly this. */
 export function RailItem({
   render, active = false, icon, badge, trailing, className, children, ...rest
 }) {
-  const classes = cn(
-    'group flex h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left',
-    'text-[14px] leading-5 font-medium no-underline transition-colors',
-    'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-    active
-      ? 'bg-[var(--surface-2)] text-[var(--text)]'
-      : 'text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--text)]',
-    // The icon is 16 in the frame; the generated components size their own svg
-    // children, so the rail does the same rather than every icon carrying width/height.
-    '[&>svg]:size-4 [&>svg]:shrink-0',
-    className,
-  );
-
-  const content = (
-    <>
-      {icon}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-      {badge}
-      {trailing && <span className="shrink-0 opacity-60 [&>svg]:size-4">{trailing}</span>}
-    </>
-  );
-
-  // React.cloneElement rather than a `as` prop: NavLink computes its own className from
-  // a render-prop, and cloning lets the caller keep that while we append ours.
-  if (render) {
-    return React.cloneElement(render, {
-      className: cn(classes, render.props.className),
-      'data-slot': 'rail-item',
-      ...rest,
-    }, content);
-  }
+  const { state } = useSidebar();
+  const collapsed = state === 'collapsed';
   return (
-    <button type="button" data-slot="rail-item" className={classes} {...rest}>
-      {content}
-    </button>
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        render={render}
+        isActive={active}
+        // The tooltip IS the label once the label is gone. Passing the string rather
+        // than a node so the generated component can skip it while expanded.
+        tooltip={collapsed && typeof children === 'string' ? children : undefined}
+        data-slot="rail-item"
+        className={cn(
+          'h-11 gap-3 rounded-[10px] px-3 text-[14.5px] leading-5 font-medium',
+          'transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0',
+          active
+            ? 'bg-[var(--sel-bg)] font-[550] text-[var(--text)]'
+            : 'text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)]',
+          // At 70px the row is a centred glyph: kill the horizontal padding rather
+          // than letting a 12px inset push an 18px icon off centre.
+          collapsed && 'justify-center px-0',
+          className,
+        )}
+        {...rest}
+      >
+        {icon}
+        {!collapsed && <span className="min-w-0 flex-1 truncate">{children}</span>}
+        {!collapsed && badge}
+        {!collapsed && trailing && (
+          <span className="shrink-0 opacity-60 [&>svg]:size-3.5">{trailing}</span>
+        )}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
-/* "soon" — 10px, and the only place in the rail that goes under 12. It is a state, not
+/* "Soon" — 10px, and the only place in the rail that goes under 12. It is a state, not
  * a label, and at 12 it competed with the nav item it qualifies. */
 export function RailSoon({ className, ...rest }) {
   return (
     <span
       data-slot="rail-soon"
       className={cn(
-        'shrink-0 rounded-[6px] bg-[var(--surface-2)] px-1.5 py-0.5',
-        'text-[10px] leading-[14px] font-medium text-[var(--text)]',
+        'shrink-0 rounded-[6px] border border-[var(--line-strong)] bg-[var(--zinc-900)] px-1.5 py-0.5',
+        'text-[10px] leading-[14px] font-[550] tracking-[0.04em] text-[var(--text-3)] uppercase',
         className,
       )}
       {...rest}
     >
-      soon
+      Soon
     </span>
   );
 }
 
-/* The expanded module's children. Indented under a hairline that shows what they
- * belong to — the frame has no expanded module, so this is the design's own vocabulary
- * (the rail's inset, its hairline, its muted label) applied to the case it omits. */
-export function RailSub({ className, children, ...rest }) {
+/* An unread dot on a nav row. Rhea replaces the old count badge with a 6px dot: the
+ * exact number of unread alerts is not a navigation decision, and a two-digit badge at
+ * 70px has nowhere to go. */
+export function RailDot({ className, ...rest }) {
   return (
-    <div
+    <span
+      data-slot="rail-dot"
+      aria-hidden="true"
+      className={cn('size-1.5 shrink-0 rounded-full bg-[var(--muted)]', className)}
+      {...rest}
+    />
+  );
+}
+
+/* The expanded module's children, indented under a hairline that shows what they
+ * belong to. Rhea draws no expanded module, so this applies the rail's own vocabulary
+ * — its inset, its hairline, its muted label — rather than inventing a treatment.
+ *
+ * NOTHING RENDERS AT 70px. An indented sub-list inside an icon rail is a column of
+ * unlabelled hairlines; the module header's own tooltip is the affordance there. */
+export function RailSub({ className, children, ...rest }) {
+  const { state } = useSidebar();
+  if (state === 'collapsed') return null;
+  return (
+    <SidebarMenuSub
       data-slot="rail-sub"
-      className={cn(
-        /* The indent is 12+12, not 20+12. At 20 the longest child label in the IA
-         * ("Progress Tracker", which also carries a soon badge) truncated to
-         * "Progress Trac…" inside a 248px rail — caught in a headless render, not by
-         * reading the numbers. The hairline still reads as an indent at 12. */
-        'mt-1 ml-3 flex flex-col gap-0.5 border-l border-[var(--line)] pl-3',
-        className,
-      )}
+      /* The indent is 12+12, not 20+12. At 20 the longest child label in the IA
+         ("Progress Tracker", which also carries a Soon badge) truncated to
+         "Progress Trac…" inside a 248px rail — caught in a headless render, not by
+         reading the numbers. The hairline still reads as an indent at 12. */
+      className={cn(LIST_RESET, 'mx-3 mt-1 gap-0.5 border-l border-[var(--line)] py-0.5 pl-3', className)}
       {...rest}
     >
       {children}
-    </div>
+    </SidebarMenuSub>
   );
 }
 
 export function RailSubItem({ render, active = false, badge, className, children, ...rest }) {
-  const classes = cn(
-    'flex h-9 items-center gap-2 rounded-[8px] px-2 text-[13px] leading-5 no-underline transition-colors',
-    'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-    active
-      ? 'bg-[var(--surface-2)] font-medium text-[var(--text)]'
-      : 'font-normal text-[var(--muted)] hover:text-[var(--text)]',
-    className,
+  return (
+    <SidebarMenuSubItem>
+      <SidebarMenuSubButton
+        render={render}
+        isActive={active}
+        data-slot="rail-sub-item"
+        className={cn(
+          'h-9 gap-2 rounded-[8px] px-2 text-[13px] leading-5 transition-colors',
+          active
+            ? 'bg-[var(--sel-bg)] font-medium text-[var(--text)]'
+            : 'font-normal text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)]',
+          className,
+        )}
+        {...rest}
+      >
+        <span className="min-w-0 flex-1 truncate">{children}</span>
+        {badge}
+      </SidebarMenuSubButton>
+    </SidebarMenuSubItem>
   );
-  const content = (
-    <>
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-      {badge}
-    </>
-  );
-  if (render) {
-    return React.cloneElement(render, {
-      className: cn(classes, render.props.className),
-      'data-slot': 'rail-sub-item',
-      ...rest,
-    }, content);
-  }
-  return <span className={classes} {...rest}>{content}</span>;
 }
 
 /* Footer — separated from the nav by a hairline rather than by distance, because the
  * nav above it scrolls and distance alone stops meaning anything once it does. */
 export function RailFooter({ className, children, ...rest }) {
   return (
-    <div
+    <SidebarFooter
       data-slot="rail-footer"
-      /* pt-3, not pt-6. The hairline is a separator, not a section break — six units
-         of air above a single identity row read as an unfinished third block rather
-         than as the rail's floor. */
-      className={cn('mt-auto flex shrink-0 flex-col gap-3 border-t border-[var(--line)] pt-3', className)}
+      className={cn('mt-auto gap-3 border-t border-[var(--line)] p-0 pt-2', className)}
       {...rest}
     >
       {children}
-    </div>
+    </SidebarFooter>
   );
 }
 
 /* The encouragement card. Amber at 5% — a wash, not a fill: at any real opacity it
- * would read as the warning state, and this is the opposite message. */
+ * would read as the warning state, and this is the opposite message. Hidden at 70px,
+ * where it would be an unreadable amber square. */
 export function RailNudge({ title, className, children, ...rest }) {
+  const { state } = useSidebar();
+  if (state === 'collapsed') return null;
   return (
     <div
       data-slot="rail-nudge"
-      className={cn('flex flex-col gap-2 rounded-[16px] bg-[var(--nudge-bg)] p-4', className)}
+      className={cn('flex flex-col gap-2 rounded-[12px] bg-[var(--nudge-bg)] p-4', className)}
       {...rest}
     >
       <span className="text-[14px] leading-5 font-medium text-[var(--warning)]">{title}</span>
@@ -304,35 +336,43 @@ export function RailNudge({ title, className, children, ...rest }) {
 }
 
 /* The identity row. A slot for the avatar so the caller decides between a photo and
- * initials, and `trailing` for the chevron that says it opens something. */
+ * initials, and `trailing` for the chevron that says it opens something. At 70px it
+ * keeps the avatar and drops everything else — an account is still worth showing when
+ * the rail is a strip of glyphs; its name is not. */
 export function RailUser({ render, avatar, name, meta, trailing, className, ...rest }) {
-  const classes = cn(
-    'flex h-12 w-full items-center gap-2.5 rounded-[10px] px-2 text-left transition-colors',
-    'hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-    className,
+  const { state } = useSidebar();
+  const collapsed = state === 'collapsed';
+  return (
+    <SidebarMenu className={LIST_RESET}>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          render={render}
+          data-slot="rail-user"
+          size="lg"
+          tooltip={collapsed && typeof name === 'string' ? name : undefined}
+          className={cn(
+            'h-12 gap-2.5 rounded-[10px] px-2 hover:bg-[var(--surface-hover)]',
+            collapsed && 'justify-center px-0',
+            className,
+          )}
+          {...rest}
+        >
+          {avatar}
+          {!collapsed && (
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[14.5px] leading-5 font-[550] text-[var(--text-body)]">{name}</span>
+              <span className="truncate text-[12px] leading-4 font-normal text-[var(--text-4)]">{meta}</span>
+            </span>
+          )}
+          {!collapsed && trailing}
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
-  const content = (
-    <>
-      {avatar}
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[14px] leading-5 font-medium text-[var(--text)]">{name}</span>
-        <span className="truncate text-[12px] leading-4 font-medium text-[var(--muted)]">{meta}</span>
-      </span>
-      {trailing}
-    </>
-  );
-  if (render) {
-    return React.cloneElement(render, {
-      className: cn(classes, render.props.className),
-      'data-slot': 'rail-user',
-      ...rest,
-    }, content);
-  }
-  return <button type="button" data-slot="rail-user" className={classes} {...rest}>{content}</button>;
 }
 
-/* 36px, circular, on a 20% wash of the mark colour — the frame's own treatment for an
- * initials avatar, which is what every account without a Google photo gets. */
+/* 28px, circular, on a flat disc — Rhea's own treatment for an initials avatar, which
+ * is what every account without a Google photo gets. */
 export function RailAvatar({ src, alt = '', className, children, ...rest }) {
   if (src) {
     return (
@@ -340,7 +380,7 @@ export function RailAvatar({ src, alt = '', className, children, ...rest }) {
         src={src}
         alt={alt}
         data-slot="rail-avatar"
-        className={cn('size-9 shrink-0 rounded-full object-cover', className)}
+        className={cn('size-7 shrink-0 rounded-full object-cover', className)}
         {...rest}
       />
     );
@@ -349,8 +389,8 @@ export function RailAvatar({ src, alt = '', className, children, ...rest }) {
     <span
       data-slot="rail-avatar"
       className={cn(
-        'flex size-9 shrink-0 items-center justify-center rounded-full',
-        'bg-[var(--rail-avatar-bg)] text-[14px] leading-5 font-semibold text-[var(--brand-mark-bg)]',
+        'flex size-7 shrink-0 items-center justify-center rounded-full',
+        'bg-[var(--rail-avatar-bg)] text-[11.5px] leading-4 font-semibold tracking-[0.02em] text-[var(--rail-avatar-ink)]',
         className,
       )}
       {...rest}

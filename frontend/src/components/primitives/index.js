@@ -104,9 +104,12 @@ export {
 // The navigation rail. App-specific like the wizard above, and here for the same two
 // reasons: application code imports from this directory, and this is one of only two
 // places a Tailwind utility compiles at all.
+// `RailProvider` and `useRail` are the generated SidebarProvider/useSidebar, re-exported
+// under our names so app code keeps ONE import path and never reaches into
+// components/ui directly (ui-primitives.test.js asserts that).
 export {
-  Rail, RailAction, RailAvatar, RailBrand, RailFooter, RailItem, RailNav,
-  RailNudge, RailSoon, RailSub, RailSubItem, RailUser,
+  Rail, RailAction, RailAvatar, RailBrand, RailDot, RailFooter, RailItem, RailNav,
+  RailNudge, RailProvider, RailSoon, RailSub, RailSubItem, RailUser, useRail,
 } from './rail.jsx';
 
 // Today's Brief — the dashboard's top card. Here for the same reason as the rail.

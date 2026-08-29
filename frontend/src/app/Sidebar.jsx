@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useMatch } from 'react-router-dom';
 import {
   Activity, Bell, BarChart3, ChevronDown, ChevronUp, FileText, LayoutGrid, Notebook,
-  PanelLeftClose, Settings as SettingsIcon, Shield, Target, Wrench,
+  Menu, Settings as SettingsIcon, Shield, Target, Wrench,
 } from 'lucide-react';
 import Logo from '../components/Logo.jsx';
 import { NAV } from './nav.js';
@@ -10,7 +10,7 @@ import { BRAND } from '../lib/theme.js';
 import { useAuth } from './AuthContext.jsx';
 import {
   Rail, RailAction, RailAvatar, RailBrand, RailFooter, RailItem, RailNav,
-  RailSoon, RailSub, RailSubItem, RailUser,
+  RailSoon, RailSub, RailSubItem, RailUser, useRail,
 } from '@/components/primitives';
 
 /* The navigation rail, rebuilt on the 2026-08-28 Figma redesign.
@@ -30,10 +30,16 @@ import {
  * ARE lucide. Twelve bespoke paths that have to be re-tuned every time the label size
  * changes is exactly the hand-written layer the build order puts last.
  *
- * ONE THING THE FRAME DOES NOT SHOW. It draws only the collapsed rail, so an expanded
+ * ONE THING THE DESIGN DOES NOT SHOW. It draws only the flat rail, so an expanded
  * module (Trade Journal's seven children) has no reference: `RailSub` applies the
  * rail's own vocabulary — its inset, its hairline, its muted label — rather than
  * inventing a treatment.
+ *
+ * NO `inDrawer` PROP ANY MORE (2026-08-29, Rhea). It existed so this file could set
+ * role="dialog"/aria-modal and focus its own close button when Layout rendered it as
+ * the mobile drawer. The generated Sidebar renders a real Sheet below 900px, so the
+ * dialog semantics, the focus trap and the focus return are Base UI's — and getting
+ * them from a tested library beats three lines here that only ever approximated them.
  */
 
 // nav.js references icons by string key so the IA config stays JSX-free and testable
@@ -109,9 +115,15 @@ function RailSubLink({ to, label, end, soon }) {
  * override outranks the route until they navigate away. */
 function RailGroup({ item }) {
   const { pathname } = useLocation();
+  const { state, isMobile } = useRail();
   const inModule = pathname === item.base || pathname.startsWith(`${item.base}/`);
   const [override, setOverride] = useState(null); // null = follow the route
-  const expanded = override ?? inModule;
+  /* AN ICON RAIL HAS NO EXPANDED MODULE. At 70px the children would be a column of
+     unlabelled hairlines, so the header collapses shut and its tooltip is the
+     affordance — which is also why `active` below must then include the in-module
+     case: with the children hidden, the header is the only thing left to say you are
+     inside it. */
+  const expanded = state === 'collapsed' && !isMobile ? false : (override ?? inModule);
   const Icon = iconFor(item.icon);
   const Chevron = expanded ? ChevronUp : ChevronDown;
 
@@ -154,50 +166,32 @@ function initials(name) {
 
 const titleCase = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
 
-/**
- * @param {object}   props
- * @param {Function} props.onToggle  hide the rail / close the drawer
- * @param {boolean}  props.inDrawer  true when rendered as the mobile off-canvas
- *   drawer. Only the semantics change — the nav itself is identical, because a
- *   second copy of the tree for mobile is how the two silently drift apart.
- */
-export default function Sidebar({ onToggle = () => {}, inDrawer = false }) {
-  const closeRef = useRef(null);
+export default function Sidebar() {
   const { user } = useAuth();
-
-  // Opening a drawer must move focus into it, or a keyboard user "opens" a menu
-  // and their next Tab continues from the button behind the scrim. Layout owns
-  // the return trip when it closes.
-  useEffect(() => {
-    if (inDrawer) closeRef.current?.focus();
-  }, [inDrawer]);
+  const { state, isMobile, toggleSidebar } = useRail();
+  const collapsed = state === 'collapsed' && !isMobile;
 
   return (
-    <Rail
-      data-drawer={inDrawer ? '' : undefined}
-      // As a drawer it is a modal surface over the page, so it says so; as a
-      // static rail it is just a landmark and must NOT claim to be a dialog.
-      {...(inDrawer ? { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Main navigation' } : {})}
-    >
+    <Rail>
       <RailBrand
         mark={(
           /* THE SHARED Logo, not a mark drawn here. It is the same component the wizard
-             header and the auth screen render, and it draws the frame's 32px tile
-             itself — a second one in this file would be the brand maintained twice.
-             Router Link, not an href, so the mark stays inside whichever origin the app
-             is served from (localhost in dev, the deployed host in prod). */
+             header and the auth screen render, and it draws the 32px tile itself — a
+             second one in this file would be the brand maintained twice. Router Link,
+             not an href, so the mark stays inside whichever origin the app is served
+             from (localhost in dev, the deployed host in prod). */
           <Link to="/" aria-label={`${BRAND} home`}>
-            <Logo size={32} />
+            <Logo size={collapsed ? 28 : 33} />
           </Link>
         )}
         action={(
           <RailAction
-            ref={closeRef}
-            onClick={onToggle}
-            title={inDrawer ? 'Close menu' : 'Hide sidebar'}
-            aria-label={inDrawer ? 'Close menu' : 'Hide sidebar'}
+            onClick={toggleSidebar}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
           >
-            <PanelLeftClose aria-hidden="true" />
+            <Menu aria-hidden="true" />
           </RailAction>
         )}
       >

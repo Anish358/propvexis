@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, ChevronDown, Filter, Layers, PanelLeftOpen, Settings, Star } from 'lucide-react';
+// `Menu as MenuIcon` — the primitives barrel below already exports a `Menu`
+// component, and the icon would silently shadow it.
+import { Bell, ChevronDown, Filter, Layers, Menu as MenuIcon, Settings, Star } from 'lucide-react';
 import { activeFilterCount } from './filters.js';
 import { navTitle, isSingleAccountRoute } from '../../app/nav.js';
 import FilterPanel from './FilterPanel.jsx';
@@ -299,7 +301,7 @@ export default function FilterBar({
   notifications = [], unread = 0, onMarkAllRead,
   accounts = [], accountId = 'all', setAccountId = () => {},
   tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
-  collapsed = false, onToggleSidebar = () => {}, slotRef,
+  showNavButton = false, navOpen = false, onToggleSidebar = () => {}, slotRef,
 }) {
   const active = activeFilterCount(filters);
   // Publish this bar's height as --topbar-h. Anything else that wants to sit
@@ -346,15 +348,21 @@ export default function FilterBar({
 
   return (
     <TopBar ref={barRef}>
-      {collapsed && (
+      {/* MOBILE ONLY (2026-08-29, Rhea). This used to appear whenever the rail was
+          `collapsed`, because collapsing REMOVED the rail and this button was the only
+          way back. Rhea collapses to a 70px icon rail that carries its own expand
+          control, so the only state with no rail on screen is the under-900 drawer —
+          and a drawer with no trigger is a menu nobody can open. */}
+      {showNavButton && (
         <Button
           variant="chrome"
           size="icon-sm"
           onClick={onToggleSidebar}
-          title="Show sidebar"
-          aria-label="Show sidebar"
+          title="Open menu"
+          aria-label="Open menu"
+          aria-expanded={navOpen}
         >
-          <PanelLeftOpen aria-hidden="true" />
+          <MenuIcon aria-hidden="true" />
         </Button>
       )}
       {title && (

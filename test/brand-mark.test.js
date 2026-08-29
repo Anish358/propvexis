@@ -53,9 +53,15 @@ test('the sidebar brand uses the shared Logo and routes in-app', () => {
    * pinned is gone. What it was actually protecting is unchanged and is what is pinned
    * now: the rail renders the SHARED Logo rather than drawing a mark of its own, and
    * the mark is an in-app Link rather than an href (an href would leave whichever
-   * origin the app is served from). The 32px size is the frame's tile. */
+   * origin the app is served from).
+   *
+   * THE SIZE IS NO LONGER A CONSTANT (2026-08-29, Rhea). It pinned `size={32}`; the
+   * rail now collapses to a 70px icon strip where, minus padding, 42px of content width
+   * has to hold the mark AND the control that expands the rail again — so the mark
+   * comes down to 28 there and sits at Rhea's 33 when expanded. What the test protects
+   * is unchanged: one shared Logo, reached by a Link. */
   assert.match(sidebar, /import Logo from '[^']*Logo\.jsx'/);
-  assert.match(sidebar, /<Link to="\/" aria-label=\{`\$\{BRAND\} home`\}>\s*\n\s*<Logo size=\{32\} \/>/);
+  assert.match(sidebar, /<Link to="\/" aria-label=\{`\$\{BRAND\} home`\}>\s*\n\s*<Logo size=\{collapsed \? 28 : 33\} \/>/);
   // The CSS-gradient square it replaced must not linger.
   assert.ok(!css.includes('.sb-brand::before'), 'the old gradient tile is removed');
 });

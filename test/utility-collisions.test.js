@@ -203,14 +203,41 @@ test('every generated primitive is reachable — no dead generated code', () => 
   // our primitive is `menu.jsx`, because the app calls it a Menu. It was reachable and
   // reported as dead. So reachability is now what it should always have been — does ANY
   // primitives module import it — which is the thing that actually keeps Tailwind honest.
+  /* THE MECHANISM WIDENED AGAIN ON 2026-08-29, for the same reason as last time: it
+   * had one more assumption in it than the invariant needs. It required every
+   * generated file to be reached by a PRIMITIVE, which assumed generated components
+   * never compose each other. `@shadcn/sidebar` does — it renders Sheet for its mobile
+   * drawer and Tooltip for its collapsed labels — so ui/sheet.jsx was reachable,
+   * rendered on every phone, and reported as dead.
+   *
+   * Reachability is now transitive through components/ui as well, which is what
+   * actually keeps Tailwind honest: a file nothing can reach at all still gets scanned
+   * and still emits its whole skin (3.9 kB of dead CSS, once). A file the sidebar
+   * imports does not. */
   const barrel = readFileSync(`${primDir}/index.js`, 'utf8');
   const prims = readdirSync(primDir).filter((f) => /\.jsx?$/.test(f) && f !== 'index.js');
   const sources = prims.map((f) => readFileSync(`${primDir}/${f}`, 'utf8'));
-  for (const f of readdirSync(uiDir)) {
-    const name = f.replace(/\.jsx$/, '');
+  const uiFiles = readdirSync(uiDir).filter((f) => /\.jsx?$/.test(f));
+  const uiSources = new Map(uiFiles.map((f) => [f.replace(/\.jsx$/, ''), readFileSync(`${uiDir}/${f}`, 'utf8')]));
+
+  // Walk out from the primitives layer: anything a reachable file imports is reachable.
+  const reachable = new Set();
+  const queue = [];
+  for (const [name] of uiSources) {
     const direct = new RegExp(`from './${name}(\\.jsx|\\.js)?'`).test(barrel);
-    const viaPrimitive = sources.some((s) => s.includes(`@/components/ui/${name}`));
-    assert.ok(direct || viaPrimitive,
+    if (direct || sources.some((s) => s.includes(`@/components/ui/${name}`))) queue.push(name);
+  }
+  while (queue.length) {
+    const name = queue.pop();
+    if (reachable.has(name)) continue;
+    reachable.add(name);
+    const body = uiSources.get(name) || '';
+    for (const [other] of uiSources) {
+      if (!reachable.has(other) && body.includes(`@/components/ui/${other}`)) queue.push(other);
+    }
+  }
+  for (const [name] of uiSources) {
+    assert.ok(reachable.has(name),
       `ui/${name}.jsx is imported by nothing — Tailwind still emits its skin. Wire it or delete it.`);
   }
   // And the barrel must still be the only door out: every primitive module is exported,

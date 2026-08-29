@@ -540,3 +540,32 @@
    · Layout tokens (--dash-card-*, --dur-fast) — consumed by the CSS layer
      directly; no utility needs them yet.
 --------------------------------------------------------------------------- */
+
+
+/* ---------------------------------------------------------------------------
+   BREAKPOINTS — `md` is repointed at 900, the rail's own number (DESIGN-LANGUAGE §22).
+
+   The generated Sidebar gates its desktop rail on `md:block` / `md:flex` and its
+   drawer on useIsMobile(). Repointing the screen is what makes those land on OUR
+   breakpoint set instead of adding a fourth number at Tailwind's 768. The only other
+   `md:` in the library is the `md:text-sm` shadcn puts on form controls, which now
+   steps at 900 — harmless, and 900 is where the layout reorganises anyway. sm/lg/xl
+   keep Tailwind's defaults: nothing in the library uses them for layout, and inventing
+   values we have no design for is inventing design.
+
+   PLAIN `@theme`, NOT `@theme inline`, AND THAT IS THE WHOLE BUG THIS COMMENT EXISTS
+   FOR. Declared inside one of the `@theme inline` blocks above, `--breakpoint-md`
+   does not register as a screen — and the failure is silent and total: `md:block`
+   and `md:flex` are then emitted by NOTHING, so the rail keeps the `hidden` half of
+   `hidden md:block` at every width and the whole navigation disappears. The markup
+   is correct, the class is on the element, and there is no rule to apply. Found by
+   dumping the DOM and grepping the served CSS for `md\:block`, which was absent.
+
+   `inline` is right for the mappings above (they resolve a var at the use site so a
+   token change reaches a generated component without a rebuild) and wrong here: a
+   breakpoint is not a value a utility interpolates, it is a variant the compiler has
+   to know about while generating.
+--------------------------------------------------------------------------- */
+@theme {
+  --breakpoint-md: 900px;
+}
