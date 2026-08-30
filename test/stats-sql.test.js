@@ -15,7 +15,10 @@ import { buildTradeWhere, outcomeSql, valueSql, statsQuery, yearlyQuery, adheren
 // A SQL error therefore surfaces as a count mismatch, never as a quietly
 // different formula.
 
-const SCOPE = { god: true, userId: 7, logins: [100], filterCol: 'user_id' };
+// Every scope is a login list now (migration 0028 / god-view removal), so the
+// shared fixture is one too — there is no longer a user_id-filtered variant to
+// stand in for "all accounts".
+const SCOPE = { userId: 7, logins: [100], multi: false };
 
 // Emulate exactly what Postgres computes for a set of trades: the five
 // aggregates in PERF_AGG, using the JS twins of the SQL CASE expressions.
@@ -129,8 +132,14 @@ test('statsQuery: every user value parameterized, timestamps forced to UTC', () 
     { setups: ["'; DROP TABLE trades; --"], symbols: ['EURUSD'], from: '2026-01-01', outcome: ['win'] },
     true
   );
-  assert.deepEqual(params[0], 7);
-  assert.ok(params.some((p) => Array.isArray(p) && p[0].includes('DROP TABLE')), 'injection attempt is a bound param');
+  assert.deepEqual(params[0], [100], 'the scope rides as a bound login array');
+  // `typeof p[0] === 'string'` is load-bearing, not defensive: params[0] is now the
+  // scope's login array, and calling .includes on a number would throw before the
+  // assertion could fail meaningfully.
+  assert.ok(
+    params.some((p) => Array.isArray(p) && typeof p[0] === 'string' && p[0].includes('DROP TABLE')),
+    'injection attempt is a bound param',
+  );
   assert.ok(!sql.includes('DROP TABLE'), 'and never reaches the SQL text');
   // The JS original used getUTC* everywhere; without these the result would
   // depend on the DB session TimeZone.
@@ -172,11 +181,15 @@ test('adherenceQuery: narrow projection, restricted to rule-bearing setups', () 
   }
 });
 
-test('buildTradeWhere still parameterizes scope + filters (unchanged contract)', () => {
+test('buildTradeWhere parameterizes scope + filters, and scopes by account only', () => {
   const { where, params } = buildTradeWhere(SCOPE, 'R', { setups: ['SMC'] });
-  assert.match(where, /user_id = \$1/);
+  assert.match(where, /account_id = ANY\(\$1\)/);
   assert.match(where, /setup = ANY\(\$2\)/);
-  assert.deepEqual(params, [7, ['SMC']]);
+  assert.deepEqual(params, [[100], ['SMC']]);
+  // THE POINT OF THE CHANGE: no query may fall back to filtering by owner. A
+  // user_id predicate would ignore the archive filter ownedLogins() applies and
+  // put an archived account's trades back into the all-accounts view.
+  assert.ok(!/user_id/.test(where), 'scope must never filter by user_id');
 });
 
 test('buildTradeWhere: outcome filter reuses the one outcome definition', () => {

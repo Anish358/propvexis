@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
-import { query } from '../../platform/db.js';
+import { query, withTransaction } from '../../platform/db.js';
+import { cascadeDeleteStatements } from './cascade.js';
+import { reconcileGroup } from '../prop/challengeGroups.js';
 
 const genToken = () => crypto.randomBytes(24).toString('hex'); // 48 hex chars
 // mt5_login is BIGINT (pg returns string) and nullable until bound — keep null
@@ -11,23 +13,55 @@ const loginNum = (v) => (v == null ? null : Number(v));
 // MT5 logins and user ids are BIGINT — pg returns them as strings, so we
 // coerce to Number (both are well within Number.MAX_SAFE_INTEGER).
 
-// MT5 logins owned by a user.
+// MT5 logins owned by a user — ACTIVE ONES ONLY.
+//
+// `is_active = false` is the soft archive Settings › Accounts writes. It used to
+// remove the account from the switcher and nothing else, so an archived account's
+// trades, payouts and drawdown went on counting in every aggregate the trader
+// looked at — the account was hidden, its influence was not. Excluding it here is
+// the whole archive mechanism: one predicate, no rows written, and unarchiving
+// restores every figure exactly because nothing was destroyed to hide it.
+//
+// A pending account (mt5_login IS NULL — an EA account that has never bound) is
+// excluded too. It has no login to filter trades by, and Number(null) is 0, which
+// would put a literal `0` in the ANY() list and scope onto nothing.
 export async function ownedLogins(userId) {
-  const { rows } = await query('SELECT mt5_login FROM mt5_accounts WHERE user_id = $1', [userId]);
+  const { rows } = await query(
+    'SELECT mt5_login FROM mt5_accounts WHERE user_id = $1 AND is_active AND mt5_login IS NOT NULL',
+    [userId],
+  );
   return rows.map((r) => Number(r.mt5_login));
 }
 
-// Resolve a requested account selection to the concrete list of logins to
-// filter on. `requested` is null/''/'all' for the god view (every account the
-// user owns), a single login, or a comma-separated list of logins (multi-select).
-// Returns { god, userId, logins, filterCol } or null when NONE of the requested
-// logins are owned by this user (caller should 403/404).
+/**
+ * Resolve a requested account selection to the concrete list of logins to filter on.
+ *
+ * ONE MODE, NOT TWO. This used to answer 'all' with a user_id filter — the "god
+ * view" — which was the only scope that could see a trade belonging to no account,
+ * and therefore the only reason account-less trades could exist. Migration 0028
+ * removed them and made trades.account_id NOT NULL, so the two modes now select
+ * exactly the same rows and the second one is gone: every scope is a list of
+ * logins, filtered by account_id.
+ *
+ * `requested` is null/''/'all' for every ACTIVE account the user owns, a single
+ * login, or a comma-separated list of logins (multi-select). Returns
+ * `{ userId, logins, multi }`, or null when NONE of the requested logins are owned
+ * and active (caller should 403/404).
+ *
+ * `multi` replaces the old `god` flag and answers ONE question — aggregate shape or
+ * single-account shape? A single account reports its own currency and returns its
+ * snapshot directly; two or more aggregate. It is derived, never requested.
+ *
+ * AN 'all' THAT RESOLVES TO NOTHING IS NOT AN ERROR, and this is the one asymmetry
+ * worth knowing: a user with no accounts (or every account archived) asking for
+ * 'all' gets an empty login list rather than null, because "show me everything" is
+ * satisfiable by showing nothing and the empty states downstream are built for it.
+ * Naming specific logins that are not yours still gets null, which is a 403.
+ */
 export async function resolveScope(userId, requested) {
   const owned = await ownedLogins(userId);
   if (requested == null || requested === '' || requested === 'all') {
-    // God / strategy view = EVERY trade the user owns (account-linked OR not).
-    // Filter by user_id so account-less trades (imports + manual) are included.
-    return { god: true, userId, logins: owned, filterCol: 'user_id' };
+    return { userId, logins: owned, multi: owned.length > 1 };
   }
   // A single login or a comma-separated list; keep only the ones this user owns.
   const wanted = [...new Set(
@@ -35,20 +69,18 @@ export async function resolveScope(userId, requested) {
   )];
   const logins = wanted.filter((n) => owned.includes(n));
   if (!logins.length) return null;
-  // A single account keeps its $-based single view; selecting multiple accounts
-  // aggregates like the god view (R-based) but restricted to the chosen ones.
-  // Either way, account_id filtering excludes account-less (import/manual) trades.
-  return { god: logins.length > 1, userId, logins, filterCol: 'account_id' };
+  return { userId, logins, multi: logins.length > 1 };
 }
 
 // Build the SQL scope predicate, parameterizing values via `add(val) -> '$n'`.
-// God (all accounts) filters by user_id so account-less trades are included; an
-// explicit selection (one or many) filters by account_id = ANY(logins).
-// `filterCol` is code-controlled, never user input — safe to branch on.
+//
+// Always account_id = ANY(logins). There is no user_id branch any more: with every
+// trade linked to an account (migration 0028) the two predicates return identical
+// rows, and keeping the user_id one would mean a scope that ignores the archive
+// filter ownedLogins() applies — an archived account's trades would reappear in the
+// all-accounts view, which is the bug this change exists to fix.
 export function scopeCondition(scope, add) {
-  return scope.filterCol === 'user_id'
-    ? `user_id = ${add(scope.userId)}`
-    : `account_id = ANY(${add(scope.logins)})`;
+  return `account_id = ANY(${add(scope.logins)})`;
 }
 
 // The user's accounts with their latest live balance (LEFT JOIN so accounts
@@ -174,14 +206,62 @@ export async function updateAccount(userId, id, fields) {
   return rows.length ? shapeAcct(rows[0]) : null;
 }
 
-// Delete the user's own account (trades keep their account_id; just unowned).
-export async function deleteAccount(userId, id) {
-  const { rows } = await query(
-    'DELETE FROM mt5_accounts WHERE id = $1 AND user_id = $2 RETURNING id',
-    [id, userId]
+/**
+ * Delete the user's own account AND everything that was about it.
+ *
+ * WHAT THIS USED TO DO: one DELETE, one row. The trades, payouts, fees, equity
+ * snapshots, live balance, candle requests and alerts keyed on the account's MT5
+ * login all stayed — invisible, because nothing owned them any more, but still
+ * counted by anything that filtered on user_id rather than on the account. That is
+ * how the god view kept showing a deleted account's trades.
+ *
+ * ONE TRANSACTION. A half-deleted account is worse than either outcome: its trades
+ * gone but its payouts still in the finance ledger is a P&L the trader cannot
+ * reconcile against anything. Either all of it goes or none of it does.
+ *
+ * OWNERSHIP GATES THE WHOLE TRANSACTION even though the login-keyed deletes run
+ * first. They are scoped by mt5_login, which is globally unique but says nothing
+ * about who owns it — so the guard is the final statement's `user_id = $2`: zero
+ * rows there means this is not the caller's account, and the throw rolls back every
+ * delete that came before it. The order is deliberate and the rollback is the check.
+ *
+ * `connect` is injectable for the same reason withTransaction takes it: CI has no
+ * Postgres, and the exact statement list is worth pinning.
+ */
+export async function deleteAccount(userId, id, connect) {
+  const { rows: found } = await query(
+    'SELECT id, mt5_login, challenge_group_id FROM mt5_accounts WHERE id = $1 AND user_id = $2',
+    [id, userId],
   );
-  return rows.length > 0;
+  if (!found.length) return false;
+  const login = loginNum(found[0].mt5_login);
+  const groupId = found[0].challenge_group_id == null ? null : Number(found[0].challenge_group_id);
+
+  try {
+    await withTransaction(async (client) => {
+      for (const stmt of cascadeDeleteStatements({ id, login, userId })) {
+        const res = await client.query(stmt.text, stmt.values);
+        // The account row itself is the last statement and the only one whose row
+        // count means anything: it carries the ownership predicate.
+        if (stmt.text.includes('FROM mt5_accounts') && res.rows.length === 0) {
+          throw new NotOwned();
+        }
+      }
+      // The challenge this account was a phase of may now have no phases left, or
+      // only archived ones. Inside the transaction, so a challenge is never briefly
+      // left pointing at accounts that are already gone.
+      await reconcileGroup(groupId, userId, client);
+    }, connect ?? undefined);
+  } catch (err) {
+    if (err instanceof NotOwned) return false;
+    throw err;
+  }
+  return true;
 }
+
+// A private signal, not an error the caller sees: it exists to roll the transaction
+// back from inside, which is the only way to abort once statements have run.
+class NotOwned extends Error {}
 
 // Look up one of the user's own accounts by its MT5 login (== trades.account_id).
 // Used to validate/attach a payout to a real, owned account. Null if not owned.

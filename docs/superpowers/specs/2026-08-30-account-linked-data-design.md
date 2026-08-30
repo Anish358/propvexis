@@ -16,7 +16,7 @@ Four related defects in how the journal relates trades to accounts:
    view, and they are why god view has to exist.
 3. **Deleting an account leaves its data behind.** `deleteAccount` removes one
    `mt5_accounts` row; the trades, payouts, fees, equity snapshots, balance,
-   candles and notifications keyed on its MT5 login all survive, unowned.
+   candle requests and notifications keyed on its MT5 login all survive, unowned.
 4. **Archiving an account hides nothing.** `is_active = false` removes it from
    the switcher, but `ownedLogins` still returns it, so its trades keep counting
    in the all-accounts view. Challenge groups have no archive state at all.
@@ -84,8 +84,12 @@ unarchiving brings them back.
 `deleteAccount` runs in a transaction. The FK takes `trades`; `challenges`,
 `mt5_credentials` and `sync_jobs` already cascade off `mt5_accounts.id`. Tables
 keyed on the MT5 login are deleted explicitly in the same transaction:
-`payouts`, `account_fees`, `equity_snapshots`, `accounts`, `candles`,
-`candle_requests`, and account-scoped `notifications`.
+`payouts`, `account_fees`, `equity_snapshots`, `accounts`, `candle_requests`,
+and account-scoped `notifications`.
+
+`candles` is deliberately NOT in that list: it is keyed by instrument
+(`symbol_base`, `ts`), not by account — it is the shared price history every
+account's replay reads, and deleting it with one account would blind the others.
 
 ### Challenge groups follow their accounts
 
