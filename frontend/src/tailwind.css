@@ -102,3 +102,39 @@
 
 @source "./components/ui";
 @source "./components/primitives";
+
+/* ---------------------------------------------------------------------------
+   THE ONE BASE RULE, and it is here because Preflight is not.
+
+   Form controls do NOT inherit `font-family` — the UA stylesheet gives every
+   <button>, <input>, <select> and <textarea> its own `font: 400 13.333px Arial`.
+   Tailwind's Preflight normally repairs that with `button { font: inherit }`, and
+   this project deliberately does not import Preflight (see the top of this file:
+   it would restyle every legacy page).
+
+   THE CONSEQUENCE WAS THE WHOLE APP'S CHROME IN ARIAL. Every button in the top
+   bar, every filter pill, every unit toggle, every input in every modal — all of
+   it rendered in the UA default while the prose around it rendered in Geist.
+   Measured, not guessed: getComputedStyle on the top bar's controls returned
+   "Arial" for all of them and "Geist Variable" for the paragraph beside them.
+   The Rhea prototype writes `font-family:inherit` on every one of its buttons by
+   hand for exactly this reason — which is the tell we missed.
+
+   FAMILY ONLY, NOT THE `font` SHORTHAND. `font: inherit` would also reset size
+   and weight, and this rule sits in `base` — a layer ABOVE `legacy` — so it would
+   silently strip the font-size off every legacy button and input in the app. The
+   family is the broken property; nothing else here is.
+
+   Verified safe: the 29 legacy rules that set a non-inherit font-family all set
+   `var(--font-mono)` on data SPANS, never on a form control, so none of them is
+   in this selector's way.
+--------------------------------------------------------------------------- */
+@layer base {
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
+    font-family: inherit;
+  }
+}

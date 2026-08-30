@@ -164,3 +164,34 @@ test('each uppercase exception is still real', () => {
       `${file} no longer uppercases anything (${what}) — drop it from UPPERCASE_EXCEPTIONS`);
   }
 });
+
+test('form controls inherit the font family, because Preflight does not supply it', () => {
+  /* THE WHOLE APP'S CHROME RENDERED IN ARIAL, and nothing said so.
+   *
+   * The UA stylesheet gives every <button>, <input>, <select> and <textarea> its own
+   * `font: 400 13.333px Arial` — form controls do NOT inherit font-family. Tailwind's
+   * Preflight normally repairs that with `button { font: inherit }`, and this project
+   * deliberately does not import Preflight (it would restyle every legacy page).
+   *
+   * So every control in the top bar, every filter pill, every unit toggle and every
+   * modal input sat in the UA default while the prose beside it was Geist. Caught by
+   * measuring getComputedStyle in a headless render, after the owner noticed the top
+   * bar "looked like a different font" — which it was.
+   *
+   * TWO HALVES, AND THE SECOND IS THE ONE THAT WILL TEMPT SOMEONE:
+   *
+   *   1. the reset must exist and cover all four control types;
+   *   2. it must set font-family ALONE, never the `font` shorthand. This rule lives in
+   *      `base`, a layer ABOVE `legacy`, so `font: inherit` would silently strip the
+   *      font-size off every legacy button and input in the app. The family is the
+   *      broken property; nothing else here is. */
+  const tw = read('../frontend/src/tailwind.css');
+  const block = tw.slice(tw.indexOf('@layer base'));
+  assert.ok(tw.includes('@layer base {'), 'the base layer must carry the reset');
+  for (const el of ['button', 'input', 'select', 'textarea']) {
+    assert.match(block, new RegExp(`(^|[\\s,])${el}[\\s,]`, 'm'), `${el} must inherit its font family`);
+  }
+  assert.match(block, /font-family:\s*inherit/);
+  assert.doesNotMatch(block, /\bfont:\s*inherit/,
+    'the `font` shorthand would strip font-size off every legacy control — family only');
+});
