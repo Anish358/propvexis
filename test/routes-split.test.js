@@ -25,6 +25,11 @@ const ROUTES = [
   ['get', '/api/accounts/login-available'], ['post', '/api/accounts/provision'],
   ['post', '/api/sync/lease'], ['post', '/api/sync/jobs/:id/result'],
   ['post', '/api/sync/heartbeat'],
+  // cTrader Open API (platform 'ctrader'). The platform is still badged Soon in
+  // both catalogs, so these are reachable only by a client that knows the paths.
+  ['post', '/api/ctrader/authorize'], ['get', '/api/ctrader/callback'],
+  ['get', '/api/ctrader/identities'], ['get', '/api/ctrader/identities/:id/accounts'],
+  ['delete', '/api/ctrader/identities/:id'],
   ['get', '/api/accounts/:id/sync'], ['post', '/api/accounts/:id/sync'],
   ['put', '/api/accounts/:id/credentials'], ['delete', '/api/accounts/:id/credentials'],
   ['patch', '/api/accounts/:id'], ['delete', '/api/accounts/:id'], ['get', '/api/account'],
@@ -111,6 +116,11 @@ test('the guarded routes kept their guard', () => {
     'post /api/equity/ingest', 'post /api/candles/ingest',
     'get /api/candles/requests', 'post /api/payouts/ingest',
     'get /api/billing/config', 'post /api/billing/webhook',
+    // The cTrader consent redirect. It carries no session cookie by design — a
+    // cross-site redirect does not reliably send one — so its guard is the
+    // HMAC-signed, expiring, user-bound `state`, checked in the handler. Listed
+    // here because it has no preHandler, NOT because it is unauthenticated.
+    'get /api/ctrader/callback',
   ]);
   // The only routes the sync worker's token may open. Everything else is a session.
   const WORKER = new Set([

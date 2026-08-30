@@ -69,6 +69,19 @@ export const config = {
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
   razorpayPlanPro: process.env.RAZORPAY_PLAN_PRO ?? '',
 
+  // ---- cTrader Open API (Auto Sync, platform 'ctrader') ----
+  // Issued by Spotware after app review at openapi.ctrader.com. All optional, the
+  // same way the Razorpay keys are: unset means ctraderEnabled() is false and
+  // /api/ctrader/* returns 503, so an unconfigured box boots and behaves exactly
+  // as it does today. The redirect URI must match one registered with Spotware
+  // EXACTLY -- their default is playground-only and does not work in production.
+  //
+  // There is no scope setting. It is always 'accounts' (view only); see
+  // domain/sync/ctraderOauth.js.
+  ctraderClientId: process.env.CTRADER_CLIENT_ID ?? '',
+  ctraderClientSecret: process.env.CTRADER_CLIENT_SECRET ?? '',
+  ctraderRedirectUri: process.env.CTRADER_REDIRECT_URI ?? '',
+
   // ---- Economic calendar (dashboard high-impact events) ----
   // Free public ForexFactory weekly JSON feed (no API key) — same $0-cost ethos
   // as the EA-sourced candles. Override to point at a mirror; set to an empty
