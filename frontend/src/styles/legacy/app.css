@@ -979,7 +979,24 @@ label.full { margin-bottom: 16px; }
   color: var(--text-2); font-size: 13px; font-weight: var(--fw-medium); padding: 4px 0; cursor: pointer;
 }
 .dash-acct-more-btn:hover { color: var(--text); }
-.dash-acct-more-menu { top: calc(100% + 4px); left: 0; right: auto; min-width: 200px; }
+/* THE ACCOUNT OVERFLOW MENU. It used to carry `top`/`left`/`right` overrides on top of
+   `.wcz-menu`'s `position: absolute`; the panel is a portaled `Menu` now and Base UI
+   owns where it goes, so all that is left here is how WIDE it may be. A width, because
+   the primitive cancels its anchor width to size to content and an account label can be
+   long enough to wrap into three lines without a ceiling. */
+.dash-acct-more-menu { min-width: 240px; max-width: 320px; }
+/* One row: the account chip's three facts at menu size — health, name, phase. */
+.dash-acct-menu-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
+.dash-acct-menu-dot {
+  flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--status);
+}
+.dash-acct-menu-name {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The phase is the row's secondary fact and is pushed to the far edge, so a column of
+   them lines up and the eye can read the journey down the list rather than hunting for
+   it after each name. */
+.dash-acct-menu-phase { flex: none; font-size: var(--fs-label); color: var(--muted); }
 
 @media (max-width: 760px) {
   .dash-acct-tabs { overflow-x: auto; max-width: 100%; scrollbar-width: thin; }
@@ -4236,6 +4253,23 @@ label.full { margin-bottom: 16px; }
 }
 /* A phase this challenge never ran is not a phase it has yet to reach. */
 .pc-step--skipped .pc-step-node { border-style: dashed; }
+/* A phase cleared AT THE FIRM that this app never held the account for — the trader
+   joined mid-challenge. It keeps the tick, because it was passed and should read that
+   way at a glance, but the node stays OUTLINED and dashed where a tracked pass is
+   filled solid: a filled node is this app saying "we have the account and the row that
+   closed it", and an inference must not borrow that. */
+.pc-step--untracked .pc-step-node { border-style: dashed; border-color: var(--status); }
+.pc-step--untracked .pc-step-label { color: var(--text-2); }
+/* Its legs are travelled — the journey went that way — but dashed and dimmed for the
+   same reason the node is. Drawing them untravelled left the rail visibly broken in
+   front of a challenge that had plainly progressed past them. */
+.pc-step-line.is-travelled.is-untracked {
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--status-good) 55%, transparent) 0 5px,
+    transparent 5px 10px
+  );
+}
 .pc-step-text { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; text-align: center; }
 .pc-step-label { font-size: var(--fs-body); color: var(--text); }
 .pc-step--upcoming .pc-step-label, .pc-step--skipped .pc-step-label { color: var(--text-2); }
@@ -4353,6 +4387,14 @@ label.full { margin-bottom: 16px; }
   .pc-step { flex-direction: row; align-items: center; gap: 14px; min-height: 52px; }
   .pc-step-track { flex-direction: column; width: auto; align-self: stretch; }
   .pc-step-line { width: 2px; height: auto; min-height: 10px; }
+  /* The legs run top-to-bottom here, so the dashes have to as well. */
+  .pc-step-line.is-travelled.is-untracked {
+    background: repeating-linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--status-good) 55%, transparent) 0 5px,
+      transparent 5px 10px
+    );
+  }
   .pc-step-text { align-items: flex-start; text-align: left; }
   .pc-current-head { margin-bottom: 12px; }
 }

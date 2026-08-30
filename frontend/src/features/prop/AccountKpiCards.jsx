@@ -79,17 +79,26 @@ export function ProfitTargetCard({ data }) {
 
 export function TradingDaysCard({ data }) {
   const d = data.tradingDays;
-  const done = d ? d.completed >= d.required : false;
+  const required = d?.required ?? 0;
+  const done = d ? d.completed >= required : false;
+  /* NO REQUIREMENT MEANS NO FRACTION. A firm that asks for no minimum made this card
+     read "7/0" over "Requirement: None" — a denominator of zero presented as progress,
+     under a line saying there is nothing to progress against. The same defect the
+     dashboard's account-card footer had, one surface over. The card still earns its
+     place: how many days this account has traded is worth knowing whether or not a firm
+     is counting them, so that figure moves down into the context line. */
   return (
     <AcctKpi
       label="Minimum Trading Days"
       explain="Days on which this account traded, against the minimum its challenge requires. Evaluation phases will not pass until the requirement is met, however far ahead the profit target is."
-      value={d ? `${d.completed}/${d.required}` : '—'}
+      value={!d ? '—' : required === 0 ? 'None required' : `${d.completed}/${required}`}
       context={(
         <StatContext
-          label="Requirement"
-          value={!d || d.required === 0 ? 'None' : done ? 'Met' : `${d.required - d.completed} to go`}
-          tone={done ? 'pos' : ''}
+          label={!d || required === 0 ? 'Days traded' : 'Requirement'}
+          value={!d ? '—'
+            : required === 0 ? String(d.completed)
+              : done ? 'Met' : `${required - d.completed} to go`}
+          tone={done && required > 0 ? 'pos' : ''}
         />
       )}
     />
