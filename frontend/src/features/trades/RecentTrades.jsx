@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  EmptyState, PanelTableCell, PanelTableHead, PanelTableRow,
+  EmptyState, PanelFill, PanelTableCell, PanelTableHead, PanelTableRow,
 } from '@/components/primitives';
 import { fmtVal, valueField, tradeOutcome } from '../../lib/metrics.js';
 
@@ -18,9 +18,24 @@ import { fmtVal, valueField, tradeOutcome } from '../../lib/metrics.js';
 // in-memory view in the app. This component does not fetch and does not scope; it
 // sorts, caps and formats.
 //
-// `limit` exists only because the card this sits in is not always the same height:
-// the Dashboard's activity card is one grid row, Accounts › Details gives it two.
-// It is a row count, not a design difference.
+// `limit` IS A CEILING, NOT THE COUNT (2026-08-30). It used to be the count, fixed at
+// six — which was fine while the card had no height of its own and simply grew to hold
+// them. The card is 374px now (the design's number), and six rows plus a tab strip plus
+// a table header plus the footer link do not fit in it: the list pushed "View all
+// trades" out of the bottom of the card, where it was clipped and unreachable.
+//
+// So under `fit`, the count comes from the ROOM, measured. The rows region takes
+// whatever height the card has left over (PanelFill), a ResizeObserver reports it, and
+// this renders as many whole rows as fit — five in the dashboard's card, four at the
+// 1400px step where it shrinks to 340. The footer link is never what gives way, because
+// it is not inside the region that flexes.
+//
+// `fit` IS OPT-IN, and that is not timidity. Accounts › Details hands this a `limit` of
+// 14 inside a box that is deliberately `overflow-y: auto` — there, the extra rows are
+// meant to be reachable by scrolling, and fitting the list to the box would silently
+// drop nine trades off a page nobody asked to change. One card wants a list that ends
+// where the card does; the other wants a list you can scroll. That is a real difference
+// between two callers, so it is a prop.
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 
@@ -28,14 +43,47 @@ const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric',
 // centres, the value sits right. Declared once — see the note in the render.
 const COLS = 'minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr)';
 
-export default function RecentTrades({ trades = [], unit, beRounding, limit = 6 }) {
+/* One row's height, and it is derived rather than guessed: PanelTableRow is
+ * `py-[13px]` around a `leading-4` (16px) cell — 13 + 16 + 13. Declared here because
+ * the count has to be known BEFORE a row exists to measure, and pinned by
+ * recent-trades-fit.test.js so it cannot drift away from the primitive it describes. */
+const ROW_H = 42;
+
+export default function RecentTrades({ trades = [], unit, beRounding, limit = 6, fit = false }) {
   const field = valueField(unit);
+  const fillRef = useRef(null);
+  // Starts at `limit` so the first paint is the full list rather than one row that then
+  // jumps to five — the measurement lands in the same frame on every browser that has
+  // ResizeObserver, and this is what a browser without one keeps.
+  const [fits, setFits] = useState(limit);
+
+  useEffect(() => {
+    const el = fillRef.current;
+    if (!fit || !el || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      // The header sits inside the measured region, so subtract what it takes before
+      // dividing: `offsetHeight` of the first child, whatever the primitive's padding
+      // happens to be, rather than a second copy of that number here.
+      const head = el.firstElementChild;
+      const headH = head ? head.offsetHeight : 0;
+      const room = el.clientHeight - headH;
+      setFits(Math.max(1, Math.floor(room / ROW_H)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit]);
+
+  // Without `fit` this is exactly the old behaviour: `limit` rows, and the container
+  // scrolls if the caller's box is smaller.
+  const shown = fit ? Math.min(limit, fits) : limit;
   const recent = useMemo(
     () => trades
       .filter((t) => t[field] != null && t.close_time)
       .sort((a, b) => new Date(b.close_time) - new Date(a.close_time))
-      .slice(0, limit),
-    [trades, field, limit],
+      .slice(0, shown),
+    [trades, field, shown],
   );
   if (!recent.length) {
     return <EmptyState title="No trades yet" description="Recent trades show up here once you have closed trades." />;
@@ -51,8 +99,13 @@ export default function RecentTrades({ trades = [], unit, beRounding, limit = 6 
    * one pixel off its own data the first time either is touched — which is exactly what
    * happened to the version this replaces, where the header used PanelRowHead's fixed
    * widths and the rows used PanelRow's. */
+  /* PanelFill ONLY under `fit`. Its `flex-1 min-h-0 overflow-hidden` is what stops the
+     list pushing the footer link out of a fixed-height card — and it is also exactly
+     what would break a caller whose box is meant to scroll, by clipping the rows that
+     box exists to reveal. A plain wrapper otherwise. */
+  const Wrap = fit ? PanelFill : 'div';
   return (
-    <div>
+    <Wrap ref={fit ? fillRef : undefined}>
       <PanelTableHead cols={COLS}>
         {/* `head` + `align` as PROPS, never classes: a Tailwind utility written in this
             file compiles to nothing, so `className="text-right"` here would leave the
@@ -74,6 +127,6 @@ export default function RecentTrades({ trades = [], unit, beRounding, limit = 6 
           </PanelTableRow>
         );
       })}
-    </div>
+    </Wrap>
   );
 }

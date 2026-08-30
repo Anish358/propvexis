@@ -375,8 +375,11 @@ function ActivityCard({ trades, unit, beRounding }) {
        header and the rows — reach the card's own edges. Padding them from the card
        would leave a gutter of --surface beside a header band that is supposed to span
        it, which is the one thing a table header must not do.
-       NO FIXED HEIGHT: the list is capped at six rows by RecentTrades' own `limit`, so
-       the card has a natural ceiling already. */
+       THE CARD HAS A FIXED HEIGHT NOW (--dash-trades-h, the design's 374px), so the list
+       can no longer be whatever six rows happen to come to. RecentTrades measures the
+       room this card leaves it and renders as many whole rows as fit; the footer link
+       sits OUTSIDE that flexing region, which is why it can no longer be pushed out of
+       the bottom of the card the way it was. */
     <PanelCard flush>
       <PanelTabs>
         <PanelTab selected={tab === 'recent'} onClick={() => setTab('recent')}>Recent trades</PanelTab>
@@ -384,7 +387,7 @@ function ActivityCard({ trades, unit, beRounding }) {
       </PanelTabs>
       {tab === 'recent' ? (
         <>
-          <RecentTrades trades={trades} unit={unit} beRounding={beRounding} />
+          <RecentTrades trades={trades} unit={unit} beRounding={beRounding} fit />
           {trades.length > 0 && (
             <PanelLink render={<Link to="/journal/trades" />}>
               View all trades

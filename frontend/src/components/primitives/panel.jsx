@@ -200,6 +200,35 @@ export function PanelTableCell({
   );
 }
 
+/* THE REGION THAT TAKES WHATEVER HEIGHT IS LEFT, and hides what does not fit.
+ *
+ * A flush card is a fixed-height box holding three bands: a tab strip, a list, and a
+ * footer link. Only the middle one can give ground, and `flex-1 min-h-0` is what lets
+ * it — without `min-h-0` a flex child refuses to shrink below its content, so the list
+ * pushes the footer link out of the bottom of the card and it is simply not there. That
+ * is exactly what happened to "View all trades" when these cards gained fixed heights.
+ *
+ * `overflow-hidden` is the backstop, not the mechanism: the list is expected to render
+ * only as many rows as fit (see RecentTrades), and a clipped half-row means the count
+ * is wrong. It is here so the failure is a missing row rather than a lost footer.
+ *
+ * forwardRef, because the whole point is that a caller measures it. It lives in the
+ * library rather than in the page for the usual reason: a Tailwind utility written in
+ * `features/` compiles to nothing at all.
+ */
+export const PanelFill = React.forwardRef(function PanelFill({ className, children, ...rest }, ref) {
+  return (
+    <div
+      ref={ref}
+      data-slot="panel-fill"
+      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+});
+
 /* The panel's footer link — "View all trades →". Inside the flush card's own inset, so
  * it lines up with the rows above it rather than with the card's edge. */
 export function PanelLink({ render, className, children, ...rest }) {
