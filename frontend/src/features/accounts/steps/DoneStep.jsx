@@ -54,7 +54,7 @@ export default function DoneStep() {
       <WizardGroup>
         <WizardRow>
           {/* finish() selects the new account and then navigates, so the dashboard
-              lands already scoped to what was just created rather than on the god view
+              lands already scoped to what was just created rather than on all accounts
               across every account (spec §8.1). */}
           <Button variant="primary" onClick={finish}>Go to dashboard</Button>
           {method === 'ea' ? (

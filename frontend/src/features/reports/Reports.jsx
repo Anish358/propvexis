@@ -152,10 +152,10 @@ export default function Reports() {
 
   const h = report.stats.headline;
   const p = report.prop;
-  const propAccounts = p?.god ? p.accounts : (p && p.phase ? [p] : []);
+  const propAccounts = p?.multi ? p.accounts : (p && p.phase ? [p] : []);
   const withChallenge = propAccounts.filter((a) => a && a.phase);
   const pay = report.payouts;
-  const scopeLabel = report.meta.god ? 'All accounts (god view)' : `Account ${accountId}`;
+  const scopeLabel = report.meta.multi ? 'All selected accounts' : `Account ${accountId}`;
 
   return page(
     <div className="dashboard">

@@ -239,13 +239,14 @@ export async function deleteAccount(userId, id, connect) {
 
   try {
     await withTransaction(async (client) => {
-      for (const stmt of cascadeDeleteStatements({ id, login, userId })) {
+      const stmts = cascadeDeleteStatements({ id, login, userId });
+      for (const [i, stmt] of stmts.entries()) {
         const res = await client.query(stmt.text, stmt.values);
-        // The account row itself is the last statement and the only one whose row
-        // count means anything: it carries the ownership predicate.
-        if (stmt.text.includes('FROM mt5_accounts') && res.rows.length === 0) {
-          throw new NotOwned();
-        }
+        // The account row is the LAST statement, and the only one whose row count
+        // means anything: it is the one carrying the ownership predicate. Identified
+        // by position rather than by matching its text, because a builder that grew
+        // another mt5_accounts statement would quietly break a substring check.
+        if (i === stmts.length - 1 && res.rows.length === 0) throw new NotOwned();
       }
       // The challenge this account was a phase of may now have no phases left, or
       // only archived ones. Inside the transaction, so a challenge is never briefly
