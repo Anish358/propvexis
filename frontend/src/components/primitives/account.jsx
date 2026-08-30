@@ -180,50 +180,144 @@ export function AccountTabMore({ className, children, ...rest }) {
  * The Rhea prototype puts a "Lock account" button here. It is NOT built (owner): there
  * is no lock-account action in this app, and a button that does nothing on the one
  * banner a trader most needs to trust is worse than no button. */
-export function AccountBanner({ icon, label, action, className, children, ...rest }) {
+/* ONE STRIP, FIVE SEVERITIES, AND NOT ONE CLASS BUILT AT RUNTIME.
+ *
+ * Tailwind compiles what it can SEE in the source text of components/{ui,primitives}.
+ * A template literal — `border-[var(--${hue})]` — emits nothing at all, silently, and
+ * the strip renders unstyled. So every severity is a complete, literal class string,
+ * looked up by key. This has cost this repo real debugging time more than once; see
+ * DESIGN-LANGUAGE §1.
+ *
+ * THE FOREGROUNDS ARE MIXED TOWARD --text RATHER THAN HARD-CODED. Red already ships a
+ * pair of on-wash foregrounds (--loss-fg / --loss-fg-2, a pale pink and a slightly
+ * warmer one); amber, orange and green do not, and their nearest equivalents are the
+ * FENCED-OFF --tint-* legacy tokens that new work must not reach for. Mixing the hue
+ * toward --text reproduces exactly that relationship — label paler, sentence more
+ * saturated — from tokens Rhea owns, and it inverts correctly in light mode, where
+ * --text is near-black, without a second palette.
+ *
+ * ONLY THE BREACH STRIP BREATHES. The pulse belongs to the state that means "this
+ * account is gone"; an amber strip that pulses is the app shouting at a trader who has
+ * 25% of a limit left, and a green one that pulses is nonsense. */
+const BANNER_TONE = {
+  breach: {
+    wrap: 'border-[var(--loss-deep)] bg-[color-mix(in_srgb,var(--loss-deep)_30%,transparent)] motion-safe:animate-[pv-breathe_2.4s_ease-in-out_infinite]',
+    icon: 'text-[var(--loss-bright)]',
+    label: 'text-[var(--loss-fg)]',
+    body: 'text-[var(--loss-fg-2)]',
+    action: 'border-[var(--loss-deep)] bg-[color-mix(in_srgb,var(--loss-deep)_45%,transparent)] text-[var(--loss-fg)] hover:bg-[color-mix(in_srgb,var(--loss-deep)_70%,transparent)]',
+  },
+  // Max drawdown — the orange rung of the risk ramp, one step below the breach red.
+  severe: {
+    wrap: 'border-[color-mix(in_srgb,var(--risk-2)_42%,transparent)] bg-[color-mix(in_srgb,var(--risk-2)_15%,transparent)]',
+    icon: 'text-[var(--risk-2)]',
+    label: 'text-[color-mix(in_srgb,var(--risk-2)_32%,var(--text))]',
+    body: 'text-[color-mix(in_srgb,var(--risk-2)_48%,var(--text))]',
+    action: 'border-[color-mix(in_srgb,var(--risk-2)_45%,transparent)] bg-[color-mix(in_srgb,var(--risk-2)_18%,transparent)] text-[color-mix(in_srgb,var(--risk-2)_32%,var(--text))] hover:bg-[color-mix(in_srgb,var(--risk-2)_30%,transparent)]',
+  },
+  // Daily drawdown — amber. Noticeable, deliberately not alarming.
+  caution: {
+    wrap: 'border-[var(--warning-border)] bg-[color-mix(in_srgb,var(--warning)_14%,transparent)]',
+    icon: 'text-[var(--warning-bright)]',
+    label: 'text-[color-mix(in_srgb,var(--warning-bright)_32%,var(--text))]',
+    body: 'text-[color-mix(in_srgb,var(--warning-bright)_48%,var(--text))]',
+    action: 'border-[color-mix(in_srgb,var(--warning)_42%,transparent)] bg-[color-mix(in_srgb,var(--warning)_16%,transparent)] text-[color-mix(in_srgb,var(--warning-bright)_32%,var(--text))] hover:bg-[color-mix(in_srgb,var(--warning)_28%,transparent)]',
+  },
+  // A phase passed / a target met. The strongest of the two greens.
+  success: {
+    wrap: 'border-[color-mix(in_srgb,var(--profit)_38%,transparent)] bg-[color-mix(in_srgb,var(--profit)_16%,transparent)]',
+    icon: 'text-[var(--profit-bright)]',
+    label: 'text-[color-mix(in_srgb,var(--profit-bright)_32%,var(--text))]',
+    body: 'text-[color-mix(in_srgb,var(--profit-bright)_48%,var(--text))]',
+    action: 'border-[color-mix(in_srgb,var(--profit)_42%,transparent)] bg-[color-mix(in_srgb,var(--profit)_18%,transparent)] text-[color-mix(in_srgb,var(--profit-bright)_32%,var(--text))] hover:bg-[color-mix(in_srgb,var(--profit)_30%,transparent)]',
+  },
+  // Three-quarters of the way to a target. Progress, not an achievement — so the same
+  // green at a lower volume, which is the whole difference the reader needs.
+  progress: {
+    wrap: 'border-[color-mix(in_srgb,var(--profit)_24%,transparent)] bg-[color-mix(in_srgb,var(--profit)_9%,transparent)]',
+    icon: 'text-[var(--profit-bright)]',
+    label: 'text-[color-mix(in_srgb,var(--profit-bright)_32%,var(--text))]',
+    body: 'text-[color-mix(in_srgb,var(--profit-bright)_52%,var(--text))]',
+    action: 'border-[color-mix(in_srgb,var(--profit)_28%,transparent)] bg-[color-mix(in_srgb,var(--profit)_10%,transparent)] text-[color-mix(in_srgb,var(--profit-bright)_32%,var(--text))] hover:bg-[color-mix(in_srgb,var(--profit)_20%,transparent)]',
+  },
+};
+
+/* WHICH TONE IS AN EMERGENCY — for the card's red edge and for the live-region
+ * politeness below. Exported because the card reddens ITS OWN border from this answer:
+ * a green "phase passed" strip inside a red-edged card would be the card and its banner
+ * disagreeing in the same glance.
+ *
+ * BREACH ALONE, and the orange max-DD warning deliberately does NOT qualify. The card
+ * edge is the one container border in this app that carries meaning, so it has to carry
+ * exactly one: this account is gone. Reddening it for a warning that is explicitly not
+ * the breach state would put an orange strip inside a red card and make the edge mean
+ * "something is wrong", which every other surface already says louder. The warning
+ * states are loud enough on their own — they name the rule and quote its number. */
+export const BANNER_CRITICAL = new Set(['breach']);
+
+/* The strip.
+ *
+ * ROLE FOLLOWS SEVERITY (§a11y). `role="alert"` interrupts a screen-reader user
+ * mid-sentence, which is right for an account that has just breached and wrong for
+ * "you are 75% of the way to your target" — that one waits its turn as `role="status"`.
+ *
+ * THE STRUCTURE IS THE SCREENSHOT'S AND DOES NOT MOVE: icon, uppercase label, sentence,
+ * spacer, action. Only the hue, the glyph, the words and the button change between
+ * states, so the six read as one component changing state rather than six banners. */
+export function AccountBanner({ icon, label, action, tone = 'breach', className, children, ...rest }) {
+  const t = BANNER_TONE[tone] ?? BANNER_TONE.breach;
   return (
     <div
       data-slot="account-banner"
-      role="status"
-      className={cn(
-        'flex items-center gap-2.5 border-b border-[var(--loss-deep)] px-6 py-3.5',
-        'bg-[color-mix(in_srgb,var(--loss-deep)_30%,transparent)]',
-        'motion-safe:animate-[pv-breathe_2.4s_ease-in-out_infinite]',
-        className,
-      )}
+      data-tone={tone}
+      role={BANNER_CRITICAL.has(tone) ? 'alert' : 'status'}
+      className={cn('flex items-center gap-2.5 border-b px-6 py-3.5', t.wrap, className)}
       {...rest}
     >
-      <span className="flex shrink-0 text-[var(--loss-bright)] [&_svg]:size-4" aria-hidden="true">
+      <span className={cn('flex shrink-0 [&_svg]:size-4', t.icon)} aria-hidden="true">
         {icon}
       </span>
-      <span className="text-[12.5px] leading-4 font-[650] tracking-[0.02em] text-[var(--loss-fg)] uppercase">
+      <span className={cn('text-[12.5px] leading-4 font-[650] tracking-[0.02em] uppercase', t.label)}>
         {label}
       </span>
-      <span className="text-[12.5px] leading-4 text-[var(--loss-fg-2)]">{children}</span>
+      <span className={cn('text-[12.5px] leading-4', t.body)}>{children}</span>
       <div className="flex-1" />
       {action}
     </div>
   );
 }
 
-/* The banner's one action. Edged and filled in the banner's own family — §14 read
- * literally: this sits ON a red wash, so a neutral button would read as an escape hatch
- * from the warning rather than a response to it. */
-export function AccountBannerAction({ className, children, ...rest }) {
+/* The banner's one action. Edged and filled in the banner's OWN family — §14 read
+ * literally: this sits on a toned wash, so a neutral button would read as an escape
+ * hatch from the message rather than a response to it. It takes the same `tone` as the
+ * strip it sits in, and defaults to the same value, so the two cannot be set apart by
+ * accident. */
+export function AccountBannerAction({ tone = 'breach', render, className, children, ...rest }) {
+  const t = BANNER_TONE[tone] ?? BANNER_TONE.breach;
+  const classes = cn(
+    'flex h-7 shrink-0 items-center gap-1 rounded-full border px-[11px] whitespace-nowrap',
+    'text-[12px] leading-4 font-semibold no-underline transition-colors',
+    'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
+    'disabled:cursor-not-allowed disabled:opacity-60',
+    /* The arrow on "View challenge →" is sized to the type. Lucide defaults to 24px,
+       which beside 12px type turns a pill into a badge — the same trap PanelLink names. */
+    '[&_svg]:size-3.5',
+    t.action,
+    className,
+  );
+  /* `render` FOR THE SAME REASON PanelLink HAS IT: the good-news states navigate, and a
+   * <button> that calls navigate() is not a link — it cannot be middle-clicked, copied
+   * or opened in a new tab, and assistive tech announces it as the wrong control. The
+   * caller hands in a <Link>; the styling stays here. */
+  if (render) {
+    return React.cloneElement(render, {
+      className: cn(classes, render.props.className),
+      'data-slot': 'account-banner-action',
+      ...rest,
+    }, children);
+  }
   return (
-    <button
-      type="button"
-      data-slot="account-banner-action"
-      className={cn(
-        'flex h-7 shrink-0 items-center rounded-full px-[11px] whitespace-nowrap',
-        'border border-[var(--loss-deep)] bg-[color-mix(in_srgb,var(--loss-deep)_45%,transparent)]',
-        'text-[12px] leading-4 font-semibold text-[var(--loss-fg)] transition-colors',
-        'hover:bg-[color-mix(in_srgb,var(--loss-deep)_70%,transparent)]',
-        'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-        className,
-      )}
-      {...rest}
-    >
+    <button type="button" data-slot="account-banner-action" className={classes} {...rest}>
       {children}
     </button>
   );

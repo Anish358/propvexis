@@ -151,37 +151,71 @@ export function dailyDrawdown(challenge, series, asOf, offsetMin = 0) {
 // ---------------------------------------------------------------------------
 // Trading days. Distinct days that have ≥1 trade within the current CYCLE. For
 // funded accounts with min_days_reset_on_payout, the cycle restarts at the last
-// payout, so the counter resets after every withdrawal; otherwise it runs from the
-// challenge/phase start (eval phases naturally reset on phase advance = new row).
+// payout, so the counter resets after every withdrawal.
+//
+// THE CYCLE IS BOUNDED IN DAYS, AND ONLY BY A REAL BOUNDARY. Two bugs lived in the
+// instant-precise `start_date` bound this replaces, and both silently under-counted
+// the one figure a firm uses to decide whether a trader may be paid.
+//
+//   1. `challenges.start_date` DEFAULTS TO now() AT INSERT (migration 0016) and is
+//      never written explicitly — so it records when the account was ADDED TO
+//      PROPVEXIS, not when the phase began at the firm. A trader who has been
+//      trading for a week before signing up had that whole week dropped. Worse, a
+//      trade closed EARLIER ON THE SAME DAY the account was added was dropped too,
+//      so the count could read 0 on a day the trader had visibly traded.
+//
+//      So the recorded start bounds the cycle only when it is the account's SECOND
+//      or later challenge (`first_on_account === false`) — i.e. a genuine phase
+//      boundary written by /api/prop/advance. For the account's first challenge
+//      there is nothing before it to separate from, and the whole of that account's
+//      history is the cycle. That also puts this in step with the drawdown math,
+//      which has always counted EVERY trade on the account: a trade that can breach
+//      the account but cannot count as a trading day is the engine contradicting
+//      itself about which trades belong to this challenge.
+//
+//   2. A boundary is compared BY DAY, through the same dayKey() clock the count
+//      itself uses. A cycle measured in days cannot be opened halfway through one:
+//      the day a phase starts, or a payout lands, is a trading day if it was traded.
+//
+// `cycleStart` still reports the cycle's anchor for consumers that schedule from it
+// (upcomingPayouts anchors a funded payout cycle on it); `countFrom` is the bound
+// actually applied here, and is null when the whole history counts.
 // ---------------------------------------------------------------------------
 export function tradingDaysState(challenge, trades, payouts, asOf, offsetMin = 0) {
   const required = challenge.min_trading_days ?? 0;
-  const start = challenge.start_date ? new Date(challenge.start_date) : null;
+  const start = challenge.first_on_account === false && challenge.start_date
+    ? new Date(challenge.start_date)
+    : null;
 
-  let cycleStart = start;
+  let countFrom = start && !Number.isNaN(start.getTime()) ? start : null;
   if (challenge.min_days_reset_on_payout && payouts?.length) {
     const last = payouts
       .map((p) => new Date(p.payout_date))
       .filter((d) => !Number.isNaN(d.getTime()) && d <= new Date(asOf))
       .sort((a, b) => b - a)[0];
-    if (last && (!cycleStart || last > cycleStart)) cycleStart = last;
+    if (last && (!countFrom || last > countFrom)) countFrom = last;
   }
+  const fromDay = countFrom ? dayKey(countFrom, offsetMin) : null;
+  const asOfDay = dayKey(asOf, offsetMin);
 
   const seen = new Set();
   for (const t of trades) {
     if (t.close_time == null) continue;
-    const ct = new Date(t.close_time);
-    if (cycleStart && ct < cycleStart) continue;
-    if (ct > new Date(asOf)) continue;
-    seen.add(dayKey(ct, offsetMin));
+    const day = dayKey(t.close_time, offsetMin);
+    if (day == null) continue;
+    if (fromDay && day < fromDay) continue;
+    if (asOfDay && day > asOfDay) continue;
+    seen.add(day);
   }
   const completed = seen.size;
+  const anchor = countFrom ?? (challenge.start_date ? new Date(challenge.start_date) : null);
   return {
     required,
     completed,
     remaining: Math.max(0, required - completed),
     met: completed >= required,
-    cycleStart: cycleStart ? cycleStart.toISOString() : null,
+    countFrom: countFrom ? countFrom.toISOString() : null,
+    cycleStart: anchor && !Number.isNaN(anchor.getTime()) ? anchor.toISOString() : null,
   };
 }
 
