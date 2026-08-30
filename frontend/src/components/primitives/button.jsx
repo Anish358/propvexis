@@ -51,7 +51,9 @@ const VARIANTS = {
   ghost: 'ghost',
   danger: 'destructive',
   // `tinted` is one of two words this vocabulary gained rather than translated, added
-  // for the top bar's account switcher (Phase 4c). It is a FILLED neutral surface
+  // for the top bar's account switcher (Phase 4c) and now also worn by Sync Trades —
+  // it is the FILLED QUIET BUTTON the design uses for both, and tokens.css names them
+  // together on --control-bg-strong. It is a FILLED neutral surface
   // with no border — shadcn's own `secondary` — and none of the four above can be
   // it: `secondary` here means `outline`, whose dark-mode rule is
   // `dark:bg-transparent`, and this app is dark-first, so a control that must read

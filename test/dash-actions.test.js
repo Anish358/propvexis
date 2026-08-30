@@ -42,13 +42,21 @@ test('the action strip is the shared Button plus strip primitives, never a raw b
    * The strip's own quiet control is a primitive (ActionLink) so its focus ring, hover
    * and hit area match every other chrome control instead of being re-derived here. */
   const block = dash.slice(dash.indexOf('function DashActions'), dash.indexOf('// ---- Section 2'));
-  /* SECONDARY SINCE RHEA (was `primary`, a light fill). The primary act on this page is
-   * READING it: a white button at the top of a dashboard pulls the eye to a control most
-   * traders touch once a session, and the design draws it as a quiet bordered pill. The
-   * rule this test protects — no raw <button> in a page, the strip's controls are
+  /* NOT PRIMARY SINCE RHEA (it was `primary`, a light fill). The primary act on this
+   * page is READING it: a white button at the top of a dashboard pulls the eye to a
+   * control most traders touch once a session, and the design draws it as a quiet
+   * FILLED pill.
+   *
+   * `tinted` SINCE 2026-08-30, not `secondary`. The design draws this button on the
+   * same surface as the account switcher, and tokens.css names it explicitly on
+   * --control-bg-strong ("a FILLED quiet button — Sync Trades, This month, Import").
+   * `secondary` + `pill` resolved to --control-bg, the TOP BAR's resting surface, so it
+   * sat a step darker than the design and read as chrome rather than as an action.
+   *
+   * The rule this test protects — no raw <button> in a page, the strip's controls are
    * primitives so their focus ring and hit area match the rest of the chrome — is
    * unchanged. */
-  assert.match(block, /<Button\b[\s\S]*variant="secondary"/, 'Sync Trades is a quiet pill, not the page\'s primary action');
+  assert.match(block, /<Button\b[\s\S]*variant="tinted"/, 'Sync Trades is the filled quiet button, not a chrome pill');
   assert.doesNotMatch(block, /<button\b/, 'no raw <button> in the strip');
   assert.match(block, /<ActionStatus/, 'the strip still reports sync state');
   /* ONE CONTROL. "Customize layout" sat at the far end and opened the layout editor;
@@ -118,4 +126,25 @@ test('action strip carries no container chrome', () => {
   }
   // Status text is subtle-but-readable, not --muted (which reads as disabled).
   assert.match(css, /\.dash-actions-status \{[^}]*color: var\(--text-2\)/);
+});
+
+test('Clear on a brief alert actually removes the row', async () => {
+  /* IT DID NOT, AND NOTHING WAS BROKEN UNDERNEATH. The alert list read
+   * `!n.read_at || n.severity !== 'info'` — keep it if unread, OR if it is anything
+   * more serious than info. Clear marks the alert read, and for every warning and
+   * critical row (which is every row worth clearing) the second half of that predicate
+   * is still true afterwards, so the row stayed exactly where it was.
+   *
+   * The unread count dropped and the server really did mark it read. It simply did
+   * nothing a user could see, which is the same thing as being broken. A control named
+   * Clear has to clear. */
+  const { readSrc } = await import('./helpers/src-files.js');
+  const src = readSrc('features/dashboard/Dashboard.jsx');
+  const filter = /const alerts = notifications\.filter\(\(n\) => ([^)]*)\)/.exec(src);
+  assert.ok(filter, 'the brief no longer filters its alerts — Clear has nothing to act on');
+  assert.equal(filter[1].trim(), '!n.read_at',
+    'a read alert must leave the brief, or Clear does nothing visible');
+  // Clear is still the same act as the notification panel's, against the same route —
+  // not local component state, which would return on reload and disagree with the badge.
+  assert.match(src, /onClear=\{markNotificationRead \? \(\) => markNotificationRead\(n\.id\) : undefined\}/);
 });

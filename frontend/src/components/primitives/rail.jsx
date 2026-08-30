@@ -163,6 +163,71 @@ export const RailAction = React.forwardRef(function RailAction({ className, ...r
   );
 });
 
+/* THE RAIL'S ONE ACTION — "Add account", between the brand and the nav.
+ *
+ * A LIGHT FILL, WHICH IS §4's PRIMARY ACTION AND NOT A DECORATION. The design draws its
+ * own add-account CTA exactly this way — --action over --on-action, a full pill, 13px
+ * at 600 — and light is the one treatment reserved for "the button you press": it
+ * outranks any hue on a near-black page, which is why brand blue is free to mean brand.
+ * Adding an account is the thing a new trader must do before any other screen in this
+ * product has anything to say, so it earns the loudest control on the rail; nothing
+ * else there competes for it.
+ *
+ * NOT red, green or yellow, and not by luck: green and red are TRADE OUTCOMES only
+ * (§4) and amber belongs to the risk ramp. A creation action wearing an outcome colour
+ * would be the one thing this palette must never say.
+ *
+ * A PILL, not the rail rows' 10px radius. The rows below are navigation and this is a
+ * control — the shape is what separates them at a glance, and it is the shape Rhea
+ * gives every small button.
+ *
+ * AT 70px IT BECOMES ITS ICON. A full-width label cannot survive a 42px content column,
+ * and the collapsed rail is a strip of glyphs; the tooltip carries the name, exactly as
+ * RailItem does. */
+export function RailCta({ render, icon, className, children, ...rest }) {
+  const { state, isMobile } = useSidebar();
+  const collapsed = state === 'collapsed' && !isMobile;
+  const classes = cn(
+    'flex h-9 shrink-0 items-center justify-center gap-2 rounded-full',
+    'bg-[var(--action)] text-[var(--on-action)] no-underline',
+    'text-[13px] leading-[18px] font-semibold',
+    'transition-colors hover:bg-[var(--action-2)]',
+    'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2',
+    'focus-visible:ring-offset-[var(--rail-bg)] focus-visible:outline-none',
+    '[&_svg]:size-4 [&_svg]:shrink-0',
+    collapsed ? 'w-9 self-center px-0' : 'w-full px-3.5',
+    className,
+  );
+  const body = (
+    <>
+      {icon}
+      {/* CONDITIONALLY RENDERED, never `hidden`: the UA's [hidden] rule loses to an
+          author `display`, and this sits in a flex parent — so `hidden` would leave the
+          label in place at 70px. §1. */}
+      {!collapsed && <span className="truncate">{children}</span>}
+    </>
+  );
+  if (render) {
+    return React.cloneElement(render, {
+      className: cn(classes, render.props.className),
+      'data-slot': 'rail-cta',
+      title: collapsed ? String(children) : undefined,
+      ...rest,
+    }, body);
+  }
+  return (
+    <button
+      type="button"
+      data-slot="rail-cta"
+      className={classes}
+      title={collapsed ? String(children) : undefined}
+      {...rest}
+    >
+      {body}
+    </button>
+  );
+}
+
 export function RailNav({ className, children, ...rest }) {
   return (
     <SidebarContent

@@ -162,3 +162,18 @@ test('the View account arrow is sized to its type, not to a button', async () =>
   assert.ok(link, 'the link no longer sizes its icon — it will inherit a full-size glyph');
   assert.equal(link[1], '3.5', 'the arrow must be 14px against the link’s 13px type');
 });
+
+test('the meter prints ONE slash between a value and its limit', async () => {
+  /* It printed two — "$0 / / $2,500" — because UsageMeter passed a pre-formatted
+   * "/ $2,500" into a Meter that draws its own separator. The separator is presentation
+   * and belongs to the component that owns the baseline alignment between the two
+   * figures; the caller owns the figure. */
+  const { readSrc } = await import('./helpers/src-files.js');
+  const meter = readSrc('components/primitives/account.jsx');
+  const caller = readSrc('features/prop/AccountDetails.jsx');
+  // Exactly one place emits the glyph, and it is the primitive.
+  assert.match(meter, /\{limit && <span[^>]*>\/ \{limit\}<\/span>\}/);
+  assert.ok(!/limit=\{limit == null \? null : `\//.test(caller),
+    'the caller is formatting a separator the primitive already draws');
+  assert.match(caller, /limit=\{limit == null \? null : money\(limit\)\}/);
+});

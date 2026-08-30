@@ -10,12 +10,21 @@ import { readSrc } from './helpers/src-files.js';
  * the list pushed "View all trades" out of the bottom of the card, where it was clipped
  * and unreachable. That is what the screenshot showed.
  *
- * Measured in a browser against the built CSS: cell 374, tabs 51, head 38, row 42,
- * leaving 279px for the list region — so five whole rows fit, not six.
+ * THE CHROME WAS ALSO TOO TALL, and that is why six rows now fit where five did.
+ * Measured against the built CSS, we drew 51 (tabs) + 38 (header) + 6x46 + 50 (footer)
+ * = 415 in a 374px card. It now draws 49 + 36 + 6x41 + 41 = 372, inside a 372px content
+ * box — the card's own 1px border top and bottom, which the prototype's element
+ * measurements do not include, is where the last pixel came from.
  *
- * The count is therefore derived from the measured room rather than declared, and the
- * link sits OUTSIDE the region that flexes, which is the structural half of the fix: a
- * link that is not in the shrinking box cannot be pushed out of it.
+ * Every one of those five overruns was a line-height: the prototype sets none and takes
+ * the browser's `normal`, while we had written explicit `leading-*` utilities that round
+ * up one or two pixels at each size — invisible per element, 42px across a card. The
+ * footer's 50px had a second cause: its arrow had no size class at all, so lucide drew
+ * it at its default 24px beside 12.5px type.
+ *
+ * The count is derived from the measured room rather than declared, and the link sits
+ * OUTSIDE the region that flexes, which is the structural half of the fix: a link that
+ * is not in the shrinking box cannot be pushed out of it.
  */
 
 const recent = readSrc('features/trades/RecentTrades.jsx');
@@ -23,17 +32,38 @@ const panel = readSrc('components/primitives/panel.jsx');
 const dashboard = readSrc('features/dashboard/Dashboard.jsx');
 const workspace = readSrc('features/prop/AccountWorkspace.jsx');
 
-test('ROW_H matches the row primitive it describes', () => {
-  // 13 + 16 + 13 = 42. Browser-measured at exactly 42; if PanelTableRow's padding or
-  // its cell's line-height moves, this fails rather than quietly mis-counting rows.
+test('ROW_H is derived from the row primitive, not asserted beside it', () => {
+  /* 13 + 15 + 13 = 41, browser-measured at exactly 41. This reads BOTH halves out of
+   * panel.jsx rather than restating either, because the previous version of this test
+   * hardcoded a 16px line-height that the cell did not have — it passed while ROW_H was
+   * wrong by 5px, which is the failure mode a pinning test exists to prevent. */
   const rowH = Number(/const ROW_H = (\d+)/.exec(recent)?.[1]);
-  assert.equal(rowH, 42);
   // The class list sits ABOVE the data-slot in this primitive, so anchor on the
   // function and read forward.
   const row = panel.slice(panel.indexOf('export function PanelTableRow'));
   const pad = Number(/py-\[(\d+)px\]/.exec(row)?.[1]);
-  assert.equal(pad, 13, 'PanelTableRow padding moved — ROW_H is now wrong');
-  assert.equal(pad * 2 + 16, rowH, 'ROW_H must equal padding + the cell line-height');
+  // The cell owns the line-height; the row owns the padding.
+  const cell = panel.slice(panel.indexOf('export function PanelTableCell'));
+  const lead = Number(/: 'text-\[12\.5px\] leading-\[(\d+)px\]'/.exec(cell)?.[1]);
+  assert.ok(pad && lead, 'the row padding or the cell line-height is no longer readable here');
+  assert.equal(pad * 2 + lead, rowH, `ROW_H should be ${pad * 2 + lead}, not ${rowH}`);
+  assert.equal(rowH, 41);
+});
+
+test('six rows and the footer fit the card the design draws', () => {
+  /* The whole point of bringing the chrome to the prototype's line-heights. Browser
+   * measured: tabs 49, header 37, row 41, footer 41 — 49 + 37 + 6*41 + 41 = 373, in a
+   * card of 374. One pixel of slack, which is the design's own margin. */
+  const TABS = 49; const HEAD = 36; const LINK = 41;
+  // The card is 374 with a 1px border each side, so 372 is what the content gets.
+  const CONTENT = 374 - 2;
+  const rowH = Number(/const ROW_H = (\d+)/.exec(recent)?.[1]);
+  const need = TABS + HEAD + 6 * rowH + LINK;
+  assert.ok(need <= CONTENT,
+    `six rows plus chrome comes to ${need}px inside a ${CONTENT}px content box`);
+  // And the footer's arrow is sized, or it draws at lucide's 24px default and the
+  // footer alone eats the slack.
+  assert.match(panel.slice(panel.indexOf('panel-link') - 900), /\[&_svg\]:size-3\.5/);
 });
 
 test('the row count comes from the measured room, not a constant', () => {

@@ -255,7 +255,8 @@ export function MeterRow({ className, children, ...rest }) {
  * @param {string} label   what rule this is
  * @param {node}   icon    the tone's glyph — required for warn/bad, see the header
  * @param {node}   value   the figure, already formatted
- * @param {node}   limit   the "/ $2,500" half, already formatted
+ * @param {node}   limit   the limit FIGURE alone ("$2,500"), already formatted — this
+ *                         component draws the "/" itself
  * @param {number} pct     0..1 fill
  * @param {string} tone    good | warn | bad | target | payout | na
  * @param {node}   sub     the footer line

@@ -63,7 +63,11 @@ export function UsageMeter({
       label={label}
       icon={Icon ? <Icon aria-hidden="true" /> : null}
       value={money(used)}
-      limit={limit == null ? null : `/ ${money(limit)}`}
+      /* THE SEPARATOR IS THE PRIMITIVE'S, so this passes the figure alone. It used to
+         pass "/ $2,500" while Meter also printed its own "/", and the meters read
+         "$0 / / $2,500". Presentation belongs to the component that owns the baseline
+         alignment between the two numbers; the caller owns the number. */
+      limit={limit == null ? null : money(limit)}
       pct={pct}
       tone={tone}
       sub={sub}
