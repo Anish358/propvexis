@@ -830,6 +830,24 @@ Build spec §5.2's five routes. Rules that are not negotiable:
 - The token exchange runs **first** in the callback, before any DB write — the auth code has 60 seconds.
 - `POST …/accounts` provisions via the existing `provisionAccount` (`src/domain/accounts/provision.js`), passing `platform: 'ctrader'`, `import_method: 'auto_sync'`, and the banded login. It does not duplicate provisioning logic.
 
+> **Implemented differently, deliberately — recorded 2026-08-31.**
+>
+> **`POST …/accounts` is not in this PR.** `provisionAccount` is MT5-credential
+> shaped throughout — it reads `credential.login`, `credential.server`,
+> `credential.password` and calls `sealPassword` — and `validateProvision`
+> rejects any platform whose registry entry is `enabled: false`. So a cTrader
+> provisioning route cannot succeed today no matter how it is written, and the
+> only way to test it end to end is with a real discovered account, which needs
+> the worker. It lands with Task 9, together with the extension of
+> `provisionAccount` that gives it an identity instead of a password.
+>
+> **Discovery is not a `sync_jobs` row.** `sync_jobs.account_id` is `NOT NULL`
+> and a discovery has no account yet — that is the whole point of it. Making the
+> column nullable to fit would weaken a constraint the queue relies on. Discovery
+> therefore belongs to the worker's own poll (Task 8), and until then a new
+> identity discovers nothing: `GET …/accounts` returns `pending: true`, which is
+> the honest state rather than an error.
+
 - [ ] **Step 4: Add the `discover` and `reconcile` job reasons**
 
 In `src/domain/sync/queue.js`, `reason` is already free text on the table; add the two values to the doc comment and add `cursor_at` to `leasedPayloadQuery`'s SELECT so a resumed backfill knows where it stopped.
