@@ -138,7 +138,22 @@ export function DailyBanner({
   markNotificationRead,
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const alerts = notifications.filter((n) => !n.read_at || n.severity !== 'info').slice(0, 4);
+  /* UNREAD ONLY, AND THAT IS WHAT MAKES Clear WORK (2026-08-30).
+   *
+   * This read `!n.read_at || n.severity !== 'info'` — keep it if unread, OR if it is
+   * anything more serious than info. The reasoning was sound in isolation: a read
+   * `warning` still means an account is near its limit, so why hide it?
+   *
+   * But Clear marks the alert read, and for every warning and critical row — which is
+   * every row a trader would want to clear — that predicate is still true afterwards.
+   * The row stayed exactly where it was. The unread count dropped and the alert was
+   * genuinely marked read server-side, so nothing was broken underneath; it simply did
+   * nothing a user could see, which is the same thing as being broken.
+   *
+   * A control named Clear has to clear. The alert is not destroyed — it stays in the
+   * notification panel and the Alerts page, which is where a read-but-still-true
+   * warning belongs. The brief is a summary of what needs attention NOW. */
+  const alerts = notifications.filter((n) => !n.read_at).slice(0, 4);
 
   // The full upcoming feed (global, via /api/calendar) — importance, currency and
   // time-window narrowing all happen here from the user's Brief prefs, so changing a
@@ -297,10 +312,8 @@ export function DailyBanner({
                      against the same route. The prototype clears into local component
                      state, which would give a dismissal that returns on reload and an
                      unread count disagreeing with the list beside it.
-                     OFFERED ON EVERY ROW, not only unread ones: the brief shows read
-                     alerts too (a read `warning` still means an account is near its
-                     limit), and gating Clear on `read_at` meant the rows most likely to
-                     be lingering were the ones with no way to dismiss them. */
+                     EVERY ROW HERE IS UNREAD (see the filter above), so Clear is
+                     offered on all of them and always removes the one it is on. */
                   onClear={markNotificationRead ? () => markNotificationRead(n.id) : undefined}
                 >
                   {n.body || n.message || ''}
@@ -326,12 +339,19 @@ function DashActions({ lastSynced }) {
   return (
     <ActionStrip
       action={(
-        /* SECONDARY, NOT PRIMARY (Rhea). It was a LIGHT fill — the page's one primary
-           action — and Rhea draws it as a quiet bordered pill. Right, on reflection:
-           the primary act on this page is READING it, and a white button at the top of
-           a dashboard pulls the eye to a control most traders touch once a session, if
-           the sync is not already automatic. */
-        <Button variant="secondary" size="sm" pill type="button">
+        /* NOT PRIMARY (Rhea). It was a LIGHT fill — the page's one primary action — and
+           Rhea draws it as a quiet FILLED pill. Right, on reflection: the primary act on
+           this page is READING it, and a white button at the top of a dashboard pulls
+           the eye to a control most traders touch once a session.
+
+           `tinted`, NOT `secondary`. The design draws this at #16161a behind #26262b —
+           which is exactly what --control-bg-strong is for; tokens.css names this very
+           button in that token's comment ("a FILLED quiet button — Sync Trades, This
+           month, Import"). `secondary` + `pill` resolved to --control-bg (#131316), the
+           TOP BAR's resting surface, so it sat a step darker than the design and read as
+           chrome rather than as an action. Same treatment as the account switcher, which
+           is correct: they are the same kind of control. */
+        <Button variant="tinted" size="sm" pill type="button">
           <RefreshCw aria-hidden="true" />
           Sync Trades
         </Button>

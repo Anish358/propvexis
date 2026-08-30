@@ -2,14 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useMatch } from 'react-router-dom';
 import {
   Activity, Bell, BarChart3, ChevronDown, ChevronUp, FileText, LayoutGrid, Notebook,
-  Menu, Settings as SettingsIcon, Shield, Target, Wrench,
+  Menu, Plus, Settings as SettingsIcon, Shield, Target, Wrench,
 } from 'lucide-react';
 import Logo from '../components/Logo.jsx';
 import { NAV } from './nav.js';
 import { BRAND } from '../lib/theme.js';
 import { useAuth } from './AuthContext.jsx';
 import {
-  Rail, RailAction, RailAvatar, RailBrand, RailFooter, RailItem, RailNav,
+  Rail, RailAction, RailAvatar, RailBrand, RailCta, RailFooter, RailItem, RailNav,
   RailSoon, RailSub, RailSubItem, RailUser, useRail,
 } from '@/components/primitives';
 
@@ -197,6 +197,15 @@ export default function Sidebar() {
       >
         {BRAND}
       </RailBrand>
+
+      {/* THE ONE ACTION IN THE RAIL, and it sits above the nav rather than inside it
+          because it is not a place — it starts the Add Account wizard and comes back.
+          A Router Link, not a button with a navigate(): it is a destination, so it
+          should middle-click, right-click and open in a new tab like every other
+          navigation in this rail. */}
+      <RailCta render={<Link to="/accounts/new" />} icon={<Plus aria-hidden="true" />}>
+        Add account
+      </RailCta>
 
       {/* A module with `subnavInPage` gets ONE rail row, not an accordion: its page
           draws its own section rail (Settings), so listing the same six children here

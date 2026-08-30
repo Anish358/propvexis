@@ -131,8 +131,14 @@ export function PanelTableHead({ cols, className, children, ...rest }) {
     <div
       data-slot="panel-table-head"
       className={cn(
+        /* 11 + 14 + 11 = 36. Every line-height in this card is measured rather than
+           taken off the type scale — see PanelTableRow — and the header is where the
+           last pixel came from: at leading-[15px] the card needed 283px for six rows
+           and had 282, because the card's own 1px border top and bottom are not in the
+           prototype's numbers. 14px on 12px text is the ratio the browser's `normal`
+           gives this face anyway. */
         'grid items-center bg-[var(--control-bg)] px-[18px] py-[11px]',
-        'text-[12px] leading-4 font-semibold text-[var(--text-2)]',
+        'text-[12px] leading-[14px] font-semibold text-[var(--text-2)]',
         className,
       )}
       style={{ gridTemplateColumns: cols }}
@@ -145,7 +151,18 @@ export function PanelTableHead({ cols, className, children, ...rest }) {
 
 /* A row in that table. NO HAIRLINE BETWEEN ROWS — Rhea separates them by the hover
  * surface alone. Six rows with five rules between them reads as a spreadsheet; the
- * point of "recent trades" is the three or four at the top. */
+ * point of "recent trades" is the three or four at the top.
+ *
+ * THE ROW IS 41px, AND THAT NUMBER IS LOAD-BEARING (2026-08-30). The card holding it
+ * is a fixed 374px, and the design fits SIX rows in it — but only just: 49 (tabs) + 37
+ * (header) + 6x41 + 41 (footer link) = 373. We were drawing 51 + 38 + 6x46 + 50 = 415,
+ * so only five rows fit and the sixth was clipped.
+ *
+ * Every one of those five overruns was a line-height. The prototype sets none and gets
+ * the browser's `normal`; we had written explicit `leading-*` utilities that round up
+ * one or two pixels at each size, which is invisible per element and 42px across a
+ * card. So the line-heights here are now the prototype's computed values, measured in
+ * a browser rather than derived from the type scale. */
 export function PanelTableRow({ cols, render, className, children, ...rest }) {
   const classes = cn(
     'grid w-full items-center px-[18px] py-[13px] text-left',
@@ -186,7 +203,9 @@ export function PanelTableCell({
       data-slot="panel-table-cell"
       className={cn(
         'truncate',
-        head ? 'text-[12px] leading-4 font-semibold' : 'text-[12.5px] leading-5',
+        // Both line-heights are measured, not derived — see PanelTableRow and the
+        // header above, which is a pixel tighter for the reason recorded there.
+        head ? 'text-[12px] leading-[14px] font-semibold' : 'text-[12.5px] leading-[15px]',
         ALIGN[align] || ALIGN.left,
         !head && mono && 'font-mono tabular-nums',
         !head && (strong ? 'font-semibold' : 'font-normal'),
@@ -233,9 +252,14 @@ export const PanelFill = React.forwardRef(function PanelFill({ className, childr
  * it lines up with the rows above it rather than with the card's edge. */
 export function PanelLink({ render, className, children, ...rest }) {
   const classes = cn(
-    'flex items-center gap-1.5 px-4 pt-3 pb-3.5 text-[12.5px] leading-4 font-[550] no-underline',
+    'flex items-center gap-1.5 px-4 pt-3 pb-3.5 text-[12.5px] leading-[15px] font-[550] no-underline',
     'text-[var(--text-link)] transition-colors hover:text-[var(--text)]',
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
+    /* 14px, AND IT HAD NO SIZE AT ALL BEFORE — so the arrow rendered at lucide's
+       default 24px beside 12.5px type, which is what made the link look like a button
+       and pushed the whole footer to 50px tall. The design draws a text arrow at the
+       link's own size; §23 keeps it lucide, so it is sized to the type instead. */
+    '[&_svg]:size-3.5',
     className,
   );
   if (render) {
@@ -279,7 +303,8 @@ export function PanelTab({ selected = false, className, children, ...rest }) {
       aria-selected={selected}
       data-slot="panel-tab"
       className={cn(
-        'border-b-2 px-3.5 pt-[15px] pb-[13px] text-[15px] leading-5 font-semibold tracking-[-0.1px]',
+        // leading-[18px] is the prototype's — see PanelTableRow on why these are measured.
+        'border-b-2 px-3.5 pt-[15px] pb-[13px] text-[15px] leading-[18px] font-semibold tracking-[-0.1px]',
         'transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         selected
           ? 'border-[var(--action-2)] text-[var(--text)]'

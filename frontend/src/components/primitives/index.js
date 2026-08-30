@@ -108,7 +108,7 @@ export {
 // under our names so app code keeps ONE import path and never reaches into
 // components/ui directly (ui-primitives.test.js asserts that).
 export {
-  Rail, RailAction, RailAvatar, RailBrand, RailDot, RailFooter, RailItem, RailNav,
+  Rail, RailAction, RailAvatar, RailBrand, RailCta, RailDot, RailFooter, RailItem, RailNav,
   RailNudge, RailProvider, RailSoon, RailSub, RailSubItem, RailUser, useRail,
 } from './rail.jsx';
 

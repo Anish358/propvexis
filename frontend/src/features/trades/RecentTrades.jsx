@@ -26,9 +26,10 @@ import { fmtVal, valueField, tradeOutcome } from '../../lib/metrics.js';
 //
 // So under `fit`, the count comes from the ROOM, measured. The rows region takes
 // whatever height the card has left over (PanelFill), a ResizeObserver reports it, and
-// this renders as many whole rows as fit — five in the dashboard's card, four at the
-// 1400px step where it shrinks to 340. The footer link is never what gives way, because
-// it is not inside the region that flexes.
+// this renders as many whole rows as fit — SIX in the dashboard's card, once the panel
+// chrome came down to the prototype's own line-heights (49 + 37 + 6x41 + 41 = 373 in a
+// 374px card), and fewer at the 1400px step where the card shrinks to 340. The footer
+// link is never what gives way, because it is not inside the region that flexes.
 //
 // `fit` IS OPT-IN, and that is not timidity. Accounts › Details hands this a `limit` of
 // 14 inside a box that is deliberately `overflow-y: auto` — there, the extra rows are
@@ -43,11 +44,16 @@ const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: 'numeric',
 // centres, the value sits right. Declared once — see the note in the render.
 const COLS = 'minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr)';
 
-/* One row's height, and it is derived rather than guessed: PanelTableRow is
- * `py-[13px]` around a `leading-4` (16px) cell — 13 + 16 + 13. Declared here because
- * the count has to be known BEFORE a row exists to measure, and pinned by
- * recent-trades-fit.test.js so it cannot drift away from the primitive it describes. */
-const ROW_H = 42;
+/* One row's height: PanelTableRow is `py-[13px]` around a `leading-[15px]` cell —
+ * 13 + 15 + 13 — and 41 is what a browser measures.
+ *
+ * IT WAS 42 AND THAT WAS WRONG, in a way worth recording: the 42 was measured against
+ * hand-written probe markup rather than the real component, whose cell was
+ * `leading-5` (20px) and therefore 46px tall. The two errors nearly cancelled — five
+ * rows either way — so nothing looked broken. The line-heights are the prototype's now
+ * and this is the measured number; recent-trades-fit.test.js derives it from
+ * PanelTableRow's own padding and line-height so the two cannot drift apart again. */
+const ROW_H = 41;
 
 export default function RecentTrades({ trades = [], unit, beRounding, limit = 6, fit = false }) {
   const field = valueField(unit);
