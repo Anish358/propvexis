@@ -126,8 +126,9 @@ export {
 
 // Account Health — the full-width rule-meter card. Same reasoning as the rail.
 export {
-  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardLink, AccountCardShell,
-  AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, Meter, MeterRow,
+  AccountBanner, AccountBannerAction, BANNER_CRITICAL, AccountCardFoot, AccountCardLink,
+  AccountCardShell, AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore,
+  AccountTabs, Meter, MeterRow,
 } from './account.jsx';
 
 // The dashboard's generic content card, its table vocabulary, the action strip and the

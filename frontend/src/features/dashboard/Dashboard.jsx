@@ -1,12 +1,12 @@
 import React, {
-  useEffect, useMemo, useRef, useState,
+  useEffect, useId, useMemo, useRef, useState,
 } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
   Loader2, RefreshCw, SlidersHorizontal, Sparkles,
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
 import DayTradesModal from '../calendar/DayTradesModal.jsx';
 import Explain from '../../components/Explain.jsx';
@@ -28,7 +28,7 @@ import Explain from '../../components/Explain.jsx';
 // counted as eleven because it is declared inline in a page rather than in its own
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
-  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardLink, AccountCardShell,
+  BANNER_CRITICAL, AccountCardFoot, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
@@ -46,10 +46,13 @@ import {
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
 import { healthStatus } from '../prop/PropOS.jsx';
+import AccountAlertBanner from '../prop/AccountAlertBanner.jsx';
+import { accountAlertFor } from '../prop/accountAlert.js';
 import AccountDetails from '../prop/AccountDetails.jsx';
 import RecentTrades from '../trades/RecentTrades.jsx';
 import { fetchProp, updateAccount, fetchCalendar } from '../../lib/api.js';
 import { chartPalette, token } from '../../lib/theme.js';
+import { cumulativeSeries, pnlAxis } from './cumulativePnl.js';
 import {
   computeMetrics, fmtVal, fmtValShort,
 } from '../../lib/metrics.js';
@@ -424,19 +427,25 @@ function ActivityCard({ trades, unit, beRounding }) {
 // line reads as an equity-style curve without needing a separate stats fetch
 // (built straight off the same per-day rollup the calendar uses).
 function CumulativePnlCard({ days, unit }) {
-  const data = useMemo(() => {
-    let cum = 0;
-    return days.map((d) => {
-      cum += d.pnl;
-      return { label: fmtDate(d.date), cum: Math.round(cum * 100) / 100 };
-    });
-  }, [days]);
+  const data = useMemo(() => cumulativeSeries(days, fmtDate), [days]);
+  const { domain, ticks, zeroOffset } = useMemo(() => pnlAxis(data), [data]);
+  /* THE GRADIENT IDS ARE PER-INSTANCE. They used to be two literal strings, which was
+     harmless while the offsets were constant and is not any more: SVG ids are
+     DOCUMENT-global, so two of these cards on one page would both resolve the same
+     url(#...) to whichever rendered first, and the second chart would split its colours
+     at the first chart's zero line. Caught in the visual harness, where four of them
+     sit side by side. */
+  const uid = useId().replace(/:/g, '');
+  const fillId = `dashEquityFill-${uid}`;
+  const lineId = `dashEquityLine-${uid}`;
 
   const last = data.length ? data[data.length - 1].cum : 0;
-  // Structural hue for the area (it sits under nothing), bright for the line (it is
-  // drawn ON that area) — the §4 split, applied.
-  const curveHue = last < 0 ? token('--loss-deep') : token('--profit-deep');
-  const curveLine = last < 0 ? token('--loss-bright') : token('--profit-bright');
+  // Structural hues for the area (it sits under nothing), bright for the line (it is
+  // drawn ON that area) — the §4 split, applied to both signs.
+  const upHue = token('--profit-deep');
+  const downHue = token('--loss-deep');
+  const upLine = token('--profit-bright');
+  const downLine = token('--loss-bright');
   return (
     /* Same as the activity card: the chart already declares its own height on the
        ResponsiveContainer, so `card-md` only added empty space beneath it. */
@@ -457,40 +466,77 @@ function CumulativePnlCard({ days, unit }) {
         <PanelChip>{unit === 'USD' ? 'USD' : 'R multiple'}</PanelChip>
         <Explain>Running total of each day's closed P&amp;L, in order, across all trades.</Explain>
       </PanelHead>
-      {data.length === 0 ? (
+      {/* KEYED ON `days`, NOT `data` — the series always carries its leading zero point
+          now, so `data` is never empty and the empty state would never show. */}
+      {days.length === 0 ? (
         <EmptyState title="No closed trades yet" description="Your cumulative P&L will chart here once you have closed trades." />
       ) : (
-        /* THE CURVE IS SIGNED, AND THAT IS THE ONE REAL CHANGE HERE. It drew --profit
-           whatever the account was doing, so a month that gave everything back plotted a
-           green line falling off a cliff. The line and its fill take the sign of where
-           the curve ENDS, which is the number printed in the head beside it — one fact,
-           two encodings, never disagreeing.
+        /* THE CURVE IS SIGNED POINT BY POINT, not as a whole. It first drew --profit
+           whatever the account was doing; it then took the sign of where the curve
+           ENDED, which is better but still one colour for a series that changes sign —
+           a month that went $4,000 up and gave $5,000 back drew its profitable half in
+           red. Green is now above zero and red below it, on the same line, because the
+           sign of a cumulative P&L is a property of every point in it.
            A single-series line is otherwise neutral (§4); this one is not a lone line,
            it is a P&L, and P&L has an outcome. */
         <div className="dash-equity-fill">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
+              {/* BOTH GRADIENTS SPLIT AT THE SAME OFFSET — the fraction of the plotted
+                  band that sits above zero, computed in cumulativePnl.js from the very
+                  domain handed to the YAxis below. The fill fades to nothing AT that
+                  line rather than at the card's edges, so the ink is densest where the
+                  curve is furthest from break-even; the stroke changes hue there with
+                  no fade, because a line that dissolves at zero stops being a line. */}
               <defs>
-                <linearGradient id="dashEquityFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={curveHue} stopOpacity={0.5} />
-                  <stop offset="100%" stopColor={curveHue} stopOpacity={0.02} />
+                <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={0} stopColor={upHue} stopOpacity={0.55} />
+                  <stop offset={zeroOffset} stopColor={upHue} stopOpacity={0.04} />
+                  <stop offset={zeroOffset} stopColor={downHue} stopOpacity={0.04} />
+                  <stop offset={1} stopColor={downHue} stopOpacity={0.55} />
+                </linearGradient>
+                <linearGradient id={lineId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={0} stopColor={upLine} />
+                  <stop offset={zeroOffset} stopColor={upLine} />
+                  <stop offset={zeroOffset} stopColor={downLine} />
+                  <stop offset={1} stopColor={downLine} />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke={chartPalette().grid} strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" stroke={chartPalette().axis} fontSize={11} minTickGap={48} tickLine={false} axisLine={false} />
-              <YAxis stroke={chartPalette().axis} fontSize={11} tickFormatter={(v) => fmtValShort(v, unit)} width={52} tickLine={false} axisLine={false} />
+              {/* THE DOMAIN AND TICKS ARE OURS, NOT RECHARTS'. Its own padded domain
+                  would put zero somewhere other than `zeroOffset`, and the colours
+                  would change hue at a height the curve does not cross zero at. */}
+              <YAxis
+                stroke={chartPalette().axis}
+                fontSize={11}
+                domain={domain}
+                ticks={ticks}
+                tickFormatter={(v) => fmtValShort(v, unit)}
+                width={52}
+                tickLine={false}
+                axisLine={false}
+              />
+              {/* Break-even, drawn once and solid, so the two fills have a stated edge
+                  to meet at rather than only a colour change. */}
+              <ReferenceLine y={0} stroke={chartPalette().axis} strokeWidth={1} />
               <Tooltip contentStyle={chartPalette().tip} formatter={(v) => fmtVal(v, unit)} labelStyle={{ color: chartPalette().label }} />
               {/* NO ENTER ANIMATION. recharts wipes the series in from zero width on
                   every mount, which means the equity curve is briefly absent every time
                   the unit toggle, a filter or the account scope changes — motion that
                   says nothing, on the one chart a trader checks to see whether they are
                   up. §10: animation settles, and this one had nothing to settle to. */}
+              {/* baseValue={0} IS WHAT MAKES THE SPLIT TRUE. An area fills to the
+                  BOTTOM of the plot by default, so a curve sitting at +$3,000 would
+                  wash the whole band beneath it — straight through the red half —
+                  and the gradient would colour that wash rather than the P&L. */}
               <Area
                 type="monotone"
                 dataKey="cum"
-                stroke={curveLine}
+                baseValue={0}
+                stroke={`url(#${lineId})`}
                 strokeWidth={2}
-                fill="url(#dashEquityFill)"
+                fill={`url(#${fillId})`}
                 isAnimationActive={false}
               />
             </AreaChart>
@@ -714,15 +760,19 @@ function AccountCard({
     }
   }
 
-  /* THE STOP-TRADING BANNER FIRES ON THE SAME SIGNAL THE METERS DO, so it can never
-   * disagree with them: `breached` is the account already gone, and `bad` is
-   * roomStatus() saying under 25% of the daily limit is left. There is no second
-   * threshold here for the banner to drift away from.
+  /* THE BANNER NAMES THE RULE IT IS ABOUT, and that is the change here.
    *
-   * The message names the account and the number, because "stop trading" without a
-   * reason is an instruction a trader will override. */
-  const dayTone = healthStatus(data.health.score, data.breach.breached);
-  const critical = data.breach.breached || dayTone === 'bad';
+   * It used to fire on `healthStatus(...) === 'bad'` — a blended 0-100 score over three
+   * meters — while its copy read "is close to today's loss limit", a sentence that
+   * could be false at the moment it appeared: the score also falls to `bad` on max
+   * drawdown alone, or on a breach that happened days ago. Six explicit states now live
+   * in features/prop/accountAlert.js, each reading ONE rule and quoting its number.
+   *
+   * THE CARD'S RED EDGE FOLLOWS THE BANNER'S OWN SEVERITY, from the banner's own set —
+   * so a green "phase passed" strip can never sit inside a red-edged card, and the two
+   * cannot drift apart the way the old copy drifted from its trigger. */
+  const alert = accountAlertFor(data);
+  const critical = alert ? BANNER_CRITICAL.has(alert.tone) : false;
 
   return (
     /* NO HEADING. The design opens this card on the account chips, and it is right to:
@@ -733,32 +783,22 @@ function AccountCard({
     <AccountCardShell critical={critical}>
       <AccountHeader candidates={candidates} selectedId={selectedId} onSelect={onSelect} />
 
-      {critical && (
-        <AccountBanner
-          icon={<AlertTriangle aria-hidden="true" />}
-          label="Stop trading zone"
-          /* LOCK ACCOUNT IS REAL, AND IT DOES THE ONE REAL THING AVAILABLE.
-           *
-           * PropVexis cannot reach into a prop firm and disable a login — no connector
-           * does that, and a button that pretends to would be the worst possible lie on
-           * the worst possible banner. What it CAN do is stop tracking the account here:
-           * `is_active = false`, the same soft archive Settings › Accounts has always
-           * offered, which removes it from the scope switcher and every aggregate so a
-           * trader is not staring at a dead account's figures.
-           *
-           * The confirm says exactly that, in those words, so nobody clicks it believing
-           * their broker just got a message. It is reversible from Settings. */
-          action={acctRecord && (
-            <AccountBannerAction onClick={lockAccount} disabled={locking}>
-              {locking ? 'Locking…' : 'Lock account'}
-            </AccountBannerAction>
-          )}
-        >
-          {data.breach.breached
-            ? `${data.label || `Account ${data.account_id}`} has breached its rules.`
-            : `${data.label || `Account ${data.account_id}`} is close to today's loss limit.`}
-        </AccountBanner>
-      )}
+      {/* LOCK ACCOUNT IS REAL, AND IT DOES THE ONE REAL THING AVAILABLE.
+          PropVexis cannot reach into a prop firm and disable a login — no connector
+          does that, and a button that pretends to would be the worst possible lie on
+          the worst possible banner. What it CAN do is stop tracking the account here:
+          `is_active = false`, the same soft archive Settings › Accounts has always
+          offered, which removes it from the scope switcher and every aggregate so a
+          trader is not staring at a dead account's figures. The confirm says exactly
+          that, in those words, so nobody clicks it believing their broker just got a
+          message. It is reversible from Settings.
+          Passed as null when there is no account record to act on — the banner then
+          renders its message without a control rather than a control that cannot act. */}
+      <AccountAlertBanner
+        data={data}
+        onLock={acctRecord ? lockAccount : null}
+        locking={locking}
+      />
 
       {/* The three rule meters live in AccountDetails.jsx — Accounts › Details renders
           the same section, and one component is what keeps the two from drifting. This
@@ -1108,3 +1148,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

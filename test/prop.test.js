@@ -137,6 +137,52 @@ test('tradingDaysState: eval ignores payouts (counter runs from phase start)', (
   assert.equal(td.met, true);
 });
 
+/* THE COUNT USED TO DROP TRADES THE ACCOUNT'S OWN DRAWDOWN MATH KEPT.
+ *
+ * `challenges.start_date` defaults to now() at insert and is never written explicitly,
+ * so it records when the account was ADDED TO PROPVEXIS. Bounding the trading-day
+ * count on it meant a trader who had been trading before signing up had that history
+ * dropped from the one figure a firm uses to decide whether they may be paid — while
+ * every one of those same trades still counted toward the drawdown that can end the
+ * account. These four pin both halves of the fix. */
+
+test('tradingDaysState: the account\'s first challenge counts its whole history, not just what came after the day it was added to PropVexis', () => {
+  // The trader signed up on the 20th with three weeks of trading already behind them.
+  const addedLate = { ...EVAL, start_date: '2026-06-20T09:00:00Z', first_on_account: true };
+  const trades = [trade('02', 10), trade('03', 20), trade('05', 30)];
+  const td = tradingDaysState(addedLate, trades, [], '2026-06-30T00:00:00Z');
+  assert.equal(td.completed, 3, 'history behind the signup date is still this phase');
+  assert.equal(td.met, true);
+  assert.equal(td.countFrom, null, 'nothing bounds the first challenge on an account');
+});
+
+test('tradingDaysState: the day the account was added counts, even for trades closed earlier that day', () => {
+  // The off-by-an-instant half: a 12:00 trade on the day an account is added at 14:14
+  // read as zero trading days on a day the trader had visibly traded.
+  const addedMidday = { ...EVAL, start_date: '2026-06-02T14:14:00Z', first_on_account: false };
+  const td = tradingDaysState(addedMidday, [trade('02', 10)], [], '2026-06-30T00:00:00Z');
+  assert.equal(td.completed, 1, 'a cycle measured in days cannot open halfway through one');
+});
+
+test('tradingDaysState: a genuine phase boundary (the account\'s second challenge) still bounds the count', () => {
+  // /api/prop/advance opens a second challenge on the SAME login — there, start_date
+  // is a real boundary and the previous phase's days must not carry over.
+  const phase2 = { ...EVAL, start_date: '2026-06-04T00:00:00Z', first_on_account: false };
+  const trades = [trade('02', 10), trade('03', 20), trade('05', 30), trade('06', 5)];
+  const td = tradingDaysState(phase2, trades, [], '2026-06-30T00:00:00Z');
+  assert.equal(td.completed, 2, 'only days 5 and 6 belong to phase 2');
+  assert.equal(td.countFrom, '2026-06-04T00:00:00.000Z');
+});
+
+test('tradingDaysState: cycleStart still reports the anchor upcomingPayouts schedules from', () => {
+  // propOverview.nextPayoutDate anchors a funded payout cycle on cycleStart, so it has
+  // to keep naming a date when nothing bounds the count.
+  const first = { ...EVAL, start_date: '2026-06-01T00:00:00Z', first_on_account: true };
+  const td = tradingDaysState(first, [trade('02', 10)], [], '2026-06-30T00:00:00Z');
+  assert.equal(td.countFrom, null);
+  assert.equal(td.cycleStart, '2026-06-01T00:00:00.000Z');
+});
+
 // --- profit target --------------------------------------------------------
 test('profitTargetState: eval tracks profit toward the target; funded is null', () => {
   const pt = profitTargetState(EVAL, 26000);
