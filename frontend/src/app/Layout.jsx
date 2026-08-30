@@ -36,7 +36,6 @@ export default function Layout({
   connected, flashId, saveTrade, removeTrade, addManualTrade,
   unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
   pinnedAccounts, setPinnedAccounts,
-  dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
   propLayout, setPropVisible, resetPropLayout,
   briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
   tradeSettings, setBeRounding, setColumnVisible, resetColumns,
@@ -100,8 +99,8 @@ export default function Layout({
           notifications, unread, markAllNotificationsRead, markNotificationRead,
           unit, filters, clearFilters,
           connected, flashId, saveTrade, removeTrade, addManualTrade, actionsSlot,
-          pinnedAccounts, setPinnedAccounts, dashLayout, setDashVisible, moveDashWidget,
-          resetDashLayout, propLayout, setPropVisible, resetPropLayout, briefPrefs,
+          pinnedAccounts, setPinnedAccounts,
+          propLayout, setPropVisible, resetPropLayout, briefPrefs,
           patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding,
           setColumnVisible, resetColumns,
         }}

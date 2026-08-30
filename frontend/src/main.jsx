@@ -10,11 +10,16 @@ import { AuthProvider } from './app/AuthContext.jsx';
    because the prototype is the thing people will copy from.
 
    TWO FAMILIES, AND THE SECOND ONE IS DATA. Geist is the UI face; Geist Mono is
-   every figure — P&L, R multiples, drawdown, times, the clock. Inter was the sole
-   family for one day (2026-08-28, on an intermediate Figma pass) and the mono
-   token was aliased to it; §22 reverts both. Tabular figures align digits but do
-   not give a number the distinct texture that separates data from prose, and this
-   app is mostly numbers. */
+   every figure — P&L, R multiples, drawdown, times, the clock. Tabular figures
+   align digits but do not give a number the distinct texture that separates data
+   from prose, and this app is mostly numbers.
+
+   THESE TWO IMPORTS ARE THE ONLY FONTS THE BUNDLE MAY CONTAIN. Inter was the sole
+   family for one day (2026-08-28, on an intermediate Figma pass) and lingered as a
+   --font-sans fallback and an installed package until 2026-08-30; both are gone.
+   font-geist.test.js fails if a third family is imported here or named in a token,
+   because a webfont nobody reviewed is one slow load away from being what the
+   product looks like. */
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 // Single CSS entry. Import order and the four-layer architecture live in

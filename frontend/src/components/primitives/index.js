@@ -121,19 +121,19 @@ export {
 // The KPI row. Here for the same reason as the rail and the brief.
 export {
   KpiAside, KpiCard, KpiChip, KpiChips, KpiGauge, KpiLabel, KpiMain, KpiPill,
-  KpiRing, KpiRow, KpiSpacer, KpiValue,
+  KpiRing, KpiRow, KpiValue,
 } from './kpi.jsx';
 
 // Account Health — the full-width rule-meter card. Same reasoning as the rail.
 export {
-  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
+  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, Meter, MeterRow,
 } from './account.jsx';
 
 // The dashboard's generic content card, its table vocabulary, the action strip and the
 // skeleton parts — see panel.jsx.
 export {
-  ActionLink, ActionStatus, ActionStrip, LoadingNote, PanelBody, PanelCard, PanelCell,
+  ActionStatus, ActionStrip, LoadingNote, PanelBody, PanelCard, PanelCell, PanelFill,
   PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelRowHead,
   PanelTab, PanelTableCell, PanelTableHead, PanelTableRow, PanelTabs, PanelValue,
   SkeletonBlock, SkeletonLine, SkeletonRegion,

@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   KpiAside, KpiCard, KpiChip, KpiChips, KpiGauge, KpiLabel, KpiMain, KpiPill,
-  KpiRing, KpiSpacer, KpiValue,
+  KpiRing, KpiValue,
 } from '@/components/primitives';
 import Explain from '../../components/Explain.jsx';
 import { fmtVal, fmtValShort } from '../../lib/metrics.js';
@@ -47,7 +47,6 @@ export function NetPnlCard({ m, unit }) {
       >
         Net P&amp;L
       </KpiLabel>
-      <KpiSpacer />
       {/* THE FIGURE CARRIES THE SIGN, and since Rhea it carries it alone — the card's
           10% wash and the trend arrow beside the number are both gone. At 25px of mono
           the colour of the digits is not a detail anyone has to hunt for, and three

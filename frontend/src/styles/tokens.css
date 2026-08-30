@@ -169,11 +169,31 @@
   /* ===== SPACING — 8px grid; 4px is the sole sub-8 exception, for hairline gaps. */
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-6:24px; --s-8:32px; --s-10:40px; --s-12:48px;
 
-  /* ===== DASHBOARD CARD SIZE SYSTEM ===== */
+  /* ===== DASHBOARD CARD SIZES ===== */
   --dash-card-gap:16px;
   /* The calendar day cell's FLOOR. Read by the grid's `minmax(floor, 1fr)` and by the
      cell's own min-height, which must agree — see calendar.jsx. */
   --cal-cell-h:82px;
+
+  /* THE DASHBOARD'S OWN THREE NUMBERS, WHICH ARE THE DESIGN'S (2026-08-30).
+     Every dashboard card used to take its height from its GRID SPAN, through the `md`
+     unit below and `lg = md * 2 + gap`. A configurable grid can only offer EQUAL cards,
+     and the design does not use equal cards — Recent trades is 374 and the chart is 390.
+     No single unit produces both, so the layout editor's flexibility and the design's
+     proportions were mutually exclusive; the editor won by default and the page was
+     726px where the design draws 780. Customization is out until every page is
+     finalised, so these are stated directly. */
+  --dash-trades-h:374px;   /* Recent trades / Open positions */
+  --dash-chart-h:390px;    /* Cumulative P&L */
+  /* DERIVED, NOT DECLARED. The calendar is exactly as tall as the two cards beside it
+     plus the gap between them — that alignment IS the design, and writing 780 here
+     would let it drift the first time either number above moved. */
+  --dash-cal-h:calc(var(--dash-trades-h) + var(--dash-chart-h) + var(--dash-card-gap));
+
+  /* THE OLD UNIT PAIR, STILL LIVE FOR PROP OS. `.card-md` / `.card-lg` are worn by
+     AccountWorkspace, PropCards and the Prop OS calendar, which are still on the old
+     look and are not this pass's business. The dashboard no longer reads either.
+     They go when those pages are rebuilt against the design. */
   --dash-card-h-md:355px;
   --dash-card-h-lg:calc(var(--dash-card-h-md) * 2 + var(--dash-card-gap));
 
@@ -186,9 +206,23 @@
      GEIST + GEIST MONO, self-hosted via @fontsource-variable (main.jsx), never the
      Google CDN the prototype links. Two families and the second one is DATA: every
      figure is mono, because tabular figures align digits but do not give a number
-     the distinct texture that separates data from prose. Inter was the sole family
-     for one day (2026-08-28) and is now only a fallback. */
-  --font-sans:'Geist Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+     the distinct texture that separates data from prose.
+
+     TWO FAMILIES MEANS TWO, AND INTER IS NO LONGER ONE OF THEM (2026-08-30). Inter
+     was the sole family for one day (2026-08-28) and survived here as the first
+     fallback long after §3 locked Geist. A fallback is not a dead letter: it is the
+     face the whole product renders in whenever Geist has not arrived — a cold load
+     on a slow link, a failed chunk — so the app had a second, unreviewed typeface it
+     could show a user at any moment. It is gone from the chain and its package is
+     uninstalled, so it cannot come back by being merely present.
+
+     WHAT REMAINS AFTER GEIST IS THE PLATFORM STACK, deliberately, and it is not a
+     second brand face: -apple-system and friends resolve to whatever the OS already
+     draws its own UI in. Dropping them too would not make the app more Geist, it
+     would hand a failed font load to the browser's default serif — Times — which is
+     further from the design than San Francisco is. The generic tail is the floor,
+     not a choice. */
+  --font-sans:'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono:'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Weight scale — CEILING 650, AND HALF-STEPS ARE LEGAL (§3, amended 2026-08-29).
@@ -322,3 +356,49 @@
    `data-theme` is not read anywhere in the app. This is also why the Rhea prototype's
    Appearance (sun) button is NOT built: a control with nothing behind it.
    ===== */
+
+/* THE RESPONSIVE RE-DECLARATIONS, AND WHY THEY ARE IN THIS FILE (2026-08-30).
+   §22 says a size that must change at a breakpoint changes the TOKEN, so the page
+   narrows from one declaration rather than a media query per component. These lived in
+   legacy/app.css — which is `layer(legacy)`, while this file is UNLAYERED, and an
+   unlayered declaration beats a layered one at any specificity, inside a media query or
+   not. So every one of them was dead on arrival: `--cal-cell-h` never narrowed from
+   82px and `--dash-card-h-md` never narrowed from 355px, at any width, since the
+   cascade was inverted on 2026-08-28. Nothing failed loudly; the page was simply always
+   drawn at its widest sizes — which is the defect §22 asks to be caught by rendering at
+   both ends of the range.
+   Anything re-declaring a token belongs HERE, beside the token, for that reason. */
+@media (max-width: 1400px) {
+  :root {
+    /* The two right-hand cards shrink together and keep their 16px gap, so the calendar
+       follows them down on its own — that is the point of deriving it. 340 + 16 + 352. */
+    --dash-trades-h:340px;
+    --dash-chart-h:352px;
+    --cal-cell-h:72px;
+    --dash-card-h-md:320px;   /* Prop OS, which still sizes cards by span */
+  }
+}
+
+@media (max-width: 1200px) {
+  /* One column. The calendar has no second column to match, so app.css drops the cell
+     heights entirely and only the day-cell floor still matters here. */
+  :root {
+    --cal-cell-h:64px;
+    --dash-card-h-md:auto;    /* Prop OS */
+  }
+}
+
+/* PRINT — the report laid out clean on white for Save-as-PDF. legacy/app.css hides the
+   chrome; this is the palette half.
+   IT IS HERE FOR THE SAME CASCADE REASON as the breakpoints above. It was a `:root`
+   block in app.css, which is layered, so it lost to the declarations at the top of this
+   file and never applied — every Save-as-PDF came out on the dark palette, which prints
+   as near-white text on white. Found 2026-08-30 while moving the responsive tokens;
+   same one-line cause, same fix. */
+@media print {
+  :root {
+    --bg:#fff; --panel:#fff; --surface:#fff; --surface-raised:#fff; --surface-sunken:#fff;
+    --text:#111; --text-body:#111; --text-2:#333; --muted:#555;
+    --line:#ccc; --line-inset:#ddd; --line-strong:#bbb;
+  }
+}

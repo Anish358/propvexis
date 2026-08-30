@@ -129,7 +129,29 @@ const RADIUS = 'rounded-lg';
  *
  * `tinted` opts out below. The account switcher is deliberately a step brighter than
  * its neighbours, because it is the one control that changes what every figure on the
- * page MEANS rather than how it is written or which rows feed it. */
+ * page MEANS rather than how it is written or which rows feed it.
+ *
+ * A STEP, NOT THREE (2026-08-30). `tinted` took its surface from the generated
+ * `secondary` variant, which resolves to --secondary = --sel-bg (#1c1c21) and hovers by
+ * mixing 5% of the foreground into it (~#232327). The design draws this control at
+ * #141418 resting and #1b1b20 hovered — one step above the Filters button beside it,
+ * not three, and the hover a step above that rather than a jump into chip territory.
+ * --control-bg-strong is literally "a FILLED quiet button" and --surface-hover is "any
+ * control's hover"; both land within two hex steps of the design, which is why this is
+ * a re-point rather than two new tokens (§21 would make that an owner-approval change
+ * for a difference nobody can see). */
+const TINTED = [
+  // --line-strong IS #26262b, the design's own border for this control, and the same
+  // hairline `.acct-switch-sub` already draws between the scope and its phases — so the
+  // button's edge and the rule inside it are one colour rather than two that nearly
+  // match.
+  'border border-[var(--line-strong)] bg-[var(--control-bg-strong)] text-[var(--text)]',
+  // 550, not the preset's 500: this is the one control in the bar whose label is a
+  // value rather than a name, and the design sets it a half-step up from its neighbours.
+  'text-[13.5px] font-[550]',
+  'hover:bg-[var(--surface-hover)]',
+].join(' ');
+
 const PILL = [
   'h-9 rounded-full border border-[var(--line-control)] bg-[var(--control-bg)]',
   'text-[13.5px] font-medium text-[var(--text-2)]',
@@ -168,8 +190,8 @@ const Button = React.forwardRef(function Button({
         // An engaged control keeps the hover but not the muted rest, so the two states
         // stay distinguishable — hence only the resting half is conditional.
         isChrome && (active ? 'text-foreground' : CHROME_REST),
-        // `tinted` keeps the pill's SHAPE and its own surface — see PILL above.
-        pill && (variant === 'tinted' ? 'h-9 rounded-full' : PILL),
+        // `tinted` keeps the pill's SHAPE and brings its own surface — see TINTED above.
+        pill && (variant === 'tinted' ? `h-9 rounded-full ${TINTED}` : PILL),
         pill && String(size).startsWith('icon') && PILL_ICON,
         block && 'w-full',
         className,

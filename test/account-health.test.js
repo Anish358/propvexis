@@ -134,3 +134,31 @@ test('the account primitives stay presentation only', () => {
     assert.ok(!accountCode.includes(leak), `account.jsx must not know about ${leak}`);
   }
 });
+
+/* THE CARD OPENS ON ITS ACCOUNTS (2026-08-30) — no heading, and a link that does not
+ * outweigh its own words.
+ *
+ * Both are §24/§23 rules the card broke in the same corner. A "Account Health" title
+ * over the account chips is the card narrating itself, and it spent 40px at the top of
+ * the one card a trader reads under pressure. The "View account" link carried a 16px
+ * icon beside 13px type, which reads as a button that has lost its border. */
+test('the account card has no heading of its own', async () => {
+  const { readSrc } = await import('./helpers/src-files.js');
+  const account = readSrc('components/primitives/account.jsx');
+  const dashboard = readSrc('features/dashboard/Dashboard.jsx');
+  assert.ok(!/export function AccountCardHead/.test(account),
+    'AccountCardHead is back — the design opens this card on the account chips');
+  assert.ok(!/<AccountCardHead/.test(dashboard), 'Dashboard renders a heading on the account card');
+  // The live card and its skeleton must agree, or the title-shaped gap is a load jump.
+  assert.ok(!/Account Health<\/|>Account Health</.test(dashboard),
+    'the words are back in the markup');
+});
+
+test('the View account arrow is sized to its type, not to a button', async () => {
+  const { readSrc } = await import('./helpers/src-files.js');
+  const account = readSrc('components/primitives/account.jsx');
+  const link = /account-link[\s\S]*?\[&_svg\]:size-(\S+?)'/.exec(account)
+    ?? /AccountCardLink[\s\S]*?\[&_svg\]:size-([\d.]+)/.exec(account);
+  assert.ok(link, 'the link no longer sizes its icon — it will inherit a full-size glyph');
+  assert.equal(link[1], '3.5', 'the arrow must be 14px against the link’s 13px type');
+});

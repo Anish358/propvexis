@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readSrc, stripComments } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { defaultDashLayout } from '../frontend/src/features/dashboard/dashLayout.js';
 
 import { appCss } from './helpers/app-css.js';
 // Guards the dashboard action strip (Sync Trades / Customize layout). Its whole
@@ -13,15 +12,20 @@ const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'ut
 const css = appCss;
 const dash = read('../frontend/src/features/dashboard/Dashboard.jsx');
 
-test('out of the box, the strip sits between Today\'s Brief and the KPI row', () => {
-  // Page order is now data, not markup order (see dash-layout.test.js), so this
-  // asserts the default arrangement rather than the source order: brief first,
-  // KPI row next, and the strip rendered in between the two.
-  const sections = defaultDashLayout().sections;
-  assert.equal(sections.indexOf('brief'), 0, 'Today\'s Brief should lead the default layout');
-  assert.equal(sections.indexOf('kpis'), 1, 'the KPI row should follow it');
-  assert.match(dash, /stripAfter === id && <DashActions/, 'strip must render after its anchor row');
-  assert.match(dash, /stripAfter = isDashVisible\(layout, 'brief'\) \? 'brief'/, 'the anchor should be the brief');
+test('the strip sits between Today\'s Brief and the KPI row', () => {
+  /* MARKUP ORDER AGAIN (2026-08-30). The page order was data — a stored, reorderable
+   * list of sections — so this used to assert the default arrangement instead of the
+   * source. Customization is gone and the arrangement is the JSX, so the source order
+   * IS the page order and can be read directly. */
+  const body = dash.slice(dash.indexOf('page-body dash-page-body'));
+  const at = (needle) => {
+    const i = body.indexOf(needle);
+    assert.notEqual(i, -1, `${needle} is not on the page`);
+    return i;
+  };
+  assert.ok(at('<DailyBanner') < at('<DashActions'), "Today's Brief leads the page");
+  assert.ok(at('<DashActions') < at('<KpiRow'), 'the strip sits above the KPI row');
+  assert.ok(at('<KpiRow') < at('dash-main-grid'), 'the content grid comes last');
 });
 
 test('the action strip is the shared Button plus strip primitives, never a raw button', () => {
@@ -46,8 +50,13 @@ test('the action strip is the shared Button plus strip primitives, never a raw b
    * unchanged. */
   assert.match(block, /<Button\b[\s\S]*variant="secondary"/, 'Sync Trades is a quiet pill, not the page\'s primary action');
   assert.doesNotMatch(block, /<button\b/, 'no raw <button> in the strip');
-  assert.match(block, /<ActionLink/);
   assert.match(block, /<ActionStatus/, 'the strip still reports sync state');
+  /* ONE CONTROL. "Customize layout" sat at the far end and opened the layout editor;
+   * both went on 2026-08-30, and ActionLink — which existed for that control alone —
+   * went with them. A second quiet control at the far end is what made this strip read
+   * as two sentences rather than an action and its status. */
+  assert.doesNotMatch(block, /<ActionLink/, 'the strip is an action and a status, nothing else');
+  assert.doesNotMatch(block, /Customize/, 'customize layout is gone until every page is finalised');
 });
 
 test('the sync status is the design\'s label with a TRUE value in it', () => {

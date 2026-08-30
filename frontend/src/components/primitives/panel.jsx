@@ -200,6 +200,35 @@ export function PanelTableCell({
   );
 }
 
+/* THE REGION THAT TAKES WHATEVER HEIGHT IS LEFT, and hides what does not fit.
+ *
+ * A flush card is a fixed-height box holding three bands: a tab strip, a list, and a
+ * footer link. Only the middle one can give ground, and `flex-1 min-h-0` is what lets
+ * it — without `min-h-0` a flex child refuses to shrink below its content, so the list
+ * pushes the footer link out of the bottom of the card and it is simply not there. That
+ * is exactly what happened to "View all trades" when these cards gained fixed heights.
+ *
+ * `overflow-hidden` is the backstop, not the mechanism: the list is expected to render
+ * only as many rows as fit (see RecentTrades), and a clipped half-row means the count
+ * is wrong. It is here so the failure is a missing row rather than a lost footer.
+ *
+ * forwardRef, because the whole point is that a caller measures it. It lives in the
+ * library rather than in the page for the usual reason: a Tailwind utility written in
+ * `features/` compiles to nothing at all.
+ */
+export const PanelFill = React.forwardRef(function PanelFill({ className, children, ...rest }, ref) {
+  return (
+    <div
+      ref={ref}
+      data-slot="panel-fill"
+      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+});
+
 /* The panel's footer link — "View all trades →". Inside the flush card's own inset, so
  * it lines up with the rows above it rather than with the card's edge. */
 export function PanelLink({ render, className, children, ...rest }) {
@@ -367,14 +396,17 @@ export function PanelCell({ width = 'auto', muted = false, className, children, 
 }
 
 /* THE DASHBOARD'S ACTION STRIP — deliberately chrome-free. No panel, border, background
- * or divider: the frame reads it as two controls floating in whitespace between the
- * brief and the KPI row, not as a third section competing with them. That is why it
+ * or divider: the frame reads it as a control floating in whitespace between the brief
+ * and the KPI row, not as a third section competing with them. That is why it
  * lives here as its own component rather than as a PanelCard with the box turned off —
  * a card that has to be told not to look like a card invites someone to turn it back on.
  *
  * `status` sits beside the primary action rather than under it, so the strip stays one
  * line high at every width in the range and the KPI row does not move when a sync
  * finishes. It wraps at the narrow end instead of truncating a timestamp. */
+/* `children` is kept though nothing passes it today: the strip's far end is where a
+ * second control would go, and the slot is one line. Its only caller went with the
+ * layout editor. */
 export function ActionStrip({ action, status, children, className, ...rest }) {
   return (
     <div
@@ -391,28 +423,12 @@ export function ActionStrip({ action, status, children, className, ...rest }) {
   );
 }
 
-/* The strip's quiet right-hand control ("Customize layout"). Not the generated Button's
- * ghost variant: that one carries the preset's own padding and a hover fill, and the
- * frame draws this as a label with an icon — the same weight as the status text it sits
- * across from. */
-export function ActionLink({ className, children, ...rest }) {
-  return (
-    <button
-      type="button"
-      data-slot="action-link"
-      className={cn(
-        'flex shrink-0 items-center gap-2 rounded-[6px] px-2 py-1.5',
-        'text-[13px] leading-5 font-medium text-[var(--muted)] transition-colors',
-        'hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-        '[&_svg]:size-4',
-        className,
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
-}
+/* ActionLink is DELETED (2026-08-30) — it existed for one control, "Customize layout",
+ * which went with the layout editor. Left in place it would be an unused export shaped
+ * exactly like the thing a future strip control should NOT be: the strip's own argument
+ * (see ActionStrip) is that it holds a primary action and a status, and a second quiet
+ * control at the far end is what made it read as two sentences in the first place.
+ * It comes back with customization, from git. */
 
 /* A sync status line. `tone="pos"` gets the profit colour for the success tick, which is
  * the frame's own choice and the one place a non-outcome uses it — a completed sync is

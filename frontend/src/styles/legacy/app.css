@@ -783,6 +783,9 @@ label.full { margin-bottom: 16px; }
        content-sized grid row can't provide. card-lg supplies it.
    So: a widget's height class must match its declared row span. A test pins that
    pairing for the current catalogue. */
+/* THE GENERIC N-COLUMN GRID, still worn by Prop OS and AccountWorkspace, which set
+   --dash-grid-cols and span their cells by hand. Untouched: those pages are on the old
+   look and are not this pass's business. */
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(var(--dash-grid-cols, 3), minmax(0, 1fr));
@@ -790,22 +793,41 @@ label.full { margin-bottom: 16px; }
   gap: var(--dash-card-gap);
   align-items: start;
 }
-/* THE UNIT IS ON THE WIDGET, NOT ON THE ROW (2026-08-29), and the distinction is the
-   whole reason this works.
-
-   `grid-auto-rows: <unit>` is the obvious version and it is wrong: Account Health is a
-   3x1 widget with no height of its own, so a fixed row would stretch it to 355px and
-   leave ~75px of dead card under its footer. dash-layout.test.js has warned about
-   exactly that since the row heights were first removed.
-
-   Sizing the WIDGETS instead keeps `align-items: start` — Account Health still sizes to
-   its content — while the calendar's 2-row span comes out at exactly two 1-row cards
-   plus the gap between them, which is the alignment the design draws and the reason
-   --dash-card-h-lg is defined as (2 x md + gap) rather than as a number.
-
-   Set inline by Dashboard.jsx from the widget's own span, so the catalogue stays the
-   single source of a widget's footprint. */
+.dash-grid-cell { min-width: 0; }
 .dash-grid-cell > * { height: 100%; }
+
+/* THE DASHBOARD'S OWN CONTENT GRID — two columns, 67/33, exactly the prototype's
+   `minmax(0,67fr) minmax(0,33fr)`.
+
+   It used to borrow `.dash-grid` above: three equal columns with the calendar spanning
+   two, dense auto-flow, and a per-cell height computed from its span. All of that
+   existed so a trader could rearrange the page, and all of it went with the layout
+   editor (2026-08-30). What is left is what the design actually draws — a full-width
+   banner, then a tall card beside a stacked pair — and it is a SEPARATE class because
+   Prop OS still needs the generic one.
+
+   Account Health keeps sizing to its CONTENT. It has no neighbour to line up with, and
+   pinning it to a card height leaves dead surface under its footer — that was true
+   under the old system too, and it is the one thing worth carrying across. */
+.dash-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 67fr) minmax(0, 33fr);
+  gap: var(--dash-card-gap);
+  align-items: start;
+}
+.dash-account-cell { grid-column: 1 / -1; min-width: 0; }
+.dash-cal-cell     { min-width: 0; height: var(--dash-cal-h); }
+/* The right column: two cards whose heights plus the gap equal the calendar's, which
+   is where --dash-cal-h comes from. A flex column rather than two grid rows, so the
+   two heights are stated once each instead of being reverse-engineered from tracks. */
+.dash-side {
+  display: flex; flex-direction: column; gap: var(--dash-card-gap); min-width: 0;
+}
+.dash-trades-cell { height: var(--dash-trades-h); min-height: 0; }
+.dash-chart-cell  { height: var(--dash-chart-h);  min-height: 0; }
+/* Every cell's card fills it — the heights are on the cells so the cards stay unaware
+   of where they have been placed. */
+.dash-cal-cell > *, .dash-trades-cell > *, .dash-chart-cell > * { height: 100%; min-height: 0; }
 /* The meter footer's optional "Edit payout target" control. It is a THIRD item in a row
    built for two (a percentage on the left, a note on the right), so it wraps onto its
    own line rather than colliding with the note — which is what it did at every width
@@ -821,22 +843,24 @@ label.full { margin-bottom: 16px; }
    ground and the card grows past the row it was given. */
 .dash-equity-fill { flex: 1; min-height: 0; }
 
-/* THE RESPONSIVE RANGE, applied to the dashboard's own sizes (DESIGN-LANGUAGE §22).
-   The card unit and the calendar cell are the two numbers that decide whether this page
-   fits, and both are single tokens — so the whole page narrows by re-declaring two
-   values rather than by a media query per component. */
-@media (max-width: 1400px) {
-  :root { --dash-card-h-md: 320px; --cal-cell-h: 72px; }
-}
+/* THE RESPONSIVE RANGE (DESIGN-LANGUAGE §22).
+   THE TOKEN RE-DECLARATIONS THAT USED TO LIVE HERE HAVE MOVED TO tokens.css, and they
+   had to: this file is `layer(legacy)` and tokens.css is UNLAYERED, so an unlayered
+   declaration beats a layered one no matter the specificity or the media query. Every
+   `:root { --token: … }` written here was dead on arrival — see the note in tokens.css
+   for what that silently cost. What stays below is ordinary rules on this file's own
+   classes, which nothing competes with.
+
+   The design goes to one column at 1180 and drops its fixed heights there; our closed
+   breakpoint set has 1200, which is the same reorganisation one step earlier. */
 @media (max-width: 1200px) {
-  /* One column: a widget's span no longer means anything, so its height must not
-     either — a 2-unit calendar stacked above a 1-unit list would be 726px of a laptop
+  /* One column, so there is no second column for the calendar to match and nothing to
+     align to — a fixed 780px calendar stacked above the two cards is most of a laptop
      viewport spent on one month. Cards size to their content again here. */
-  :root { --dash-card-h-md: auto; --cal-cell-h: 64px; }
-  .dash-grid-cell { height: auto !important; }
-  .dash-grid-cell > * { height: auto; }
+  .dash-main-grid { grid-template-columns: minmax(0, 1fr); }
+  .dash-cal-cell, .dash-trades-cell, .dash-chart-cell { height: auto; }
+  .dash-cal-cell > *, .dash-trades-cell > *, .dash-chart-cell > * { height: auto; }
 }
-.dash-grid-cell { min-width: 0; }
 
 /* Card-size system (see --dash-card-h-md/-lg above): a flex column so each card's
    own content (tabs, chart, calendar grid) can flex to fill it. min-height: 0
@@ -1318,6 +1342,15 @@ label.full { margin-bottom: 16px; }
 .acct-switch-sub {
   color: var(--text-3); font-size: 11.5px; white-space: nowrap;
   border-left: 1px solid var(--line-strong); padding-left: 9px; margin-left: 1px;
+}
+/* THE PHASES DROP BEFORE THE SCOPE DOES. The trigger is capped at 200px, so at narrow
+   widths something has to give — and the answer is the detail, not the label: "All
+   accounts · 5" truncated to "All accou…" beside an intact "P1 · P2 · Funded" is §22's
+   "a label truncated to nothing while the badges keep their full width", exactly.
+   The design drops it at 1180; 1200 is the closed set's neighbouring number and the
+   same reorganisation one step earlier. */
+@media (max-width: 1200px) {
+  .acct-switch-sub { display: none; }
 }
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 /* PRESET SKIN (2026-08-05). Surface, border, radius, padding and shadow are the
@@ -3686,7 +3719,9 @@ label.full { margin-bottom: 16px; }
      to name is gone, and the container is the more honest target anyway: hiding the
      wrapper hides the trigger AND anything it opens. */
   .sidebar, .filterbar, .pagehead, .pagehead-actions, .notif, .toasts, .no-print { display: none !important; }
-  :root { --bg: #fff; --panel: #fff; --text: #111; --muted: #555; --line: #ccc; }
+  /* THE PALETTE FLIP MOVED TO tokens.css (2026-08-30). It was a `:root` block here, and
+     this file is layered while tokens.css is not — so it never applied and every
+     Save-as-PDF came out on the dark palette. See the note beside it there. */
   body, .shell, .shell-main, .page { background: #fff !important; color: #111 !important; display: block !important; }
   .shell-main { margin: 0 !important; padding: 0 !important; }
   .page { padding: 0 !important; }
