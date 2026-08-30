@@ -21,7 +21,13 @@ const bridgeCode = strip(bridge);
 test('tokens.css is the only file that declares values', () => {
   const literals = bridgeCode.match(/:\s*(#[0-9a-fA-F]{3,8}|rgba?\(|oklch\(|hsla?\()/g) || [];
   assert.deepEqual(literals, [], 'bridge.css must not contain literal colour values');
-  assert.match(tokensCss, /--bg:\s*#/, 'tokens.css holds the actual values');
+  /* WAS /--bg:\s*#/. --bg now resolves THROUGH a primitive (var(--zinc-950)) because
+   * Rhea's palette is zinc and the ramp is named once — so the literal moved one hop
+   * without leaving the file. What this test protects is the SPLIT (bridge maps,
+   * tokens hold), so it asserts tokens.css still carries literals somewhere and that
+   * --bg is one of the things it defines. */
+  assert.match(tokensCss, /--zinc-950:\s*#/, 'tokens.css holds the actual values');
+  assert.match(tokensCss, /--bg:\s*(#|var\(--zinc-)/, 'tokens.css defines the page colour');
 });
 
 test('tailwind.css stays a wiring file — no tokens, no values', () => {
@@ -64,9 +70,19 @@ test('the --accent collision stays resolved in our favour', () => {
   // grayscale (DESIGN-LANGUAGE N4). Our brand blue is exposed as brand-*.
   assert.match(bridgeCode, /--color-accent:\s*var\(--surface-hover\)/);
   assert.match(bridgeCode, /--color-brand:\s*var\(--accent\)/);
-  assert.match(bridgeCode, /--color-primary:\s*var\(--accent\)/);
-  // Which blue step is a foundation value (preset b2qKmlY80 uses blue-800 in
-  // dark); that it is a blue at all is the invariant.
+  /* PRIMARY IS NO LONGER THE ACCENT (2026-08-28). This asserted
+   * `--color-primary: var(--accent)`, on the reading that a primary button is a
+   * brand-filled one. The Figma redesign fills it light instead: on a near-black page a
+   * light fill outranks any hue, and pointing primary at the brand forced blue to be
+   * both "the product" and "the button you press" — which is exactly why the accent
+   * needed a SECOND value (--accent-on-surface) to stay legible as a link.
+   *
+   * The collision this test is named for is untouched and is still the point: shadcn's
+   * "accent" means a subtle hover background, ours means brand blue, and their name is
+   * still served from our neutral hover token. */
+  assert.match(bridgeCode, /--color-primary:\s*var\(--action\)/);
+  assert.match(bridgeCode, /--color-primary-foreground:\s*var\(--on-action\)/);
+  // Blue remains the brand — it just stopped being the fill of every primary button.
   assert.match(tokensCss, /--accent:\s*var\(--blue-\d00\)/);
 });
 
@@ -74,15 +90,27 @@ test('the --muted collision stays resolved in our favour', () => {
   // Theirs is a surface, ours is a text colour.
   assert.match(bridgeCode, /--color-muted:\s*var\(--sel-bg\)/);
   assert.match(bridgeCode, /--color-muted-foreground:\s*var\(--text-2\)/);
-  assert.match(tokensCss, /--muted:\s*var\(--slate-400\)/);
+  // WAS var(--slate-400). The slate primitives went with the Rhea foundation; --muted
+  // is zinc-400 now. The COLLISION is what this test is about and it is unchanged.
+  assert.match(tokensCss, /--muted:\s*var\(--zinc-400\)/);
 });
 
-test('dark stays default and theming stays on data-theme', () => {
+test('there is one theme, it is dark, and no .dark class exists', () => {
+  /* WHAT CHANGED 2026-08-28. This used to assert a `:root[data-theme="light"]` block
+   * and a `dark:` variant derived from its absence. The app is dark-only now, so both
+   * halves invert: there must be NO light block (a palette no screen is designed
+   * against drifts silently), and `dark:` must match unconditionally — a variant keyed
+   * on a selector that is never present would silently drop the dark styling off every
+   * generated component that uses it.
+   *
+   * The `.dark` prohibition is unchanged and is the part that was never about light:
+   * shadcn ships `.dark`, we theme on :root, and two mechanisms for one concept is the
+   * drift the bridge exists to prevent. */
   for (const [name, css] of [['tokens', tokensCss], ['bridge', bridge], ['tailwind', tailwind]]) {
     assert.ok(!/(^|[\s,{>+~])\.dark\b/.test(strip(css)), `${name} must not introduce a .dark class`);
   }
-  assert.match(tokensCss, /:root\[data-theme="light"\]/, 'light mode overrides tokens only');
-  assert.match(bridgeCode, /@custom-variant dark \([^)]*data-theme="light"/, 'dark: derives from data-theme');
+  assert.doesNotMatch(tokensCss, /:root\[data-theme="light"\]\s*\{/, 'the light theme is gone — do not re-add it untested');
+  assert.match(bridgeCode, /@custom-variant dark \(&\)/, 'dark: must match unconditionally');
 });
 
 test('our domain ring survives and is first-class in Tailwind', () => {
@@ -95,7 +123,19 @@ test('our domain ring survives and is first-class in Tailwind', () => {
 });
 
 test('typography stays ours', () => {
+  /* WHAT THIS USED TO PIN: Inter as the sole family, with --font-mono aliased to the
+   * sans stack, on the 2026-08-28 Figma pass. §22 reverts both (2026-08-29): Geist is
+   * the preset's own typography and MONO IS BACK AS A REAL FACE, because tabular
+   * figures align digits but do not give a number the distinct texture that separates
+   * data from prose — and this app is mostly numbers.
+   *
+   * The alias is the half worth asserting hardest: while --font-mono pointed at the
+   * sans stack, every `font-mono` in the app silently rendered as body text and
+   * nothing failed. */
   assert.match(tokensCss, /--font-sans:\s*'Geist Variable'/);
+  assert.match(tokensCss, /--font-mono:\s*'Geist Mono Variable'/);
+  assert.doesNotMatch(tokensCss, /--font-mono:\s*var\(--font-sans\)/,
+    'mono must be a real face, not an alias of the sans stack');
   // Mapping --font-sans in @theme would be circular; the cascade already makes
   // ours win. Guard that nobody "fixes" it by duplicating the stack.
   assert.ok(!/--font-sans\s*:/.test(bridgeCode), 'bridge must not redeclare --font-sans');

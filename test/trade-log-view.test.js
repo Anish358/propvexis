@@ -7,6 +7,7 @@ import { fmtDayShort } from '../frontend/src/lib/constants.js';
 import { exportValue, csvText, tradesToCsv } from '../frontend/src/features/trades/tradeExport.js';
 
 import { appCss } from './helpers/app-css.js';
+import { readSrc } from './helpers/src-files.js';
 // The Trade Log's default view, table behaviour and headline KPI row. The column
 // SPEC is plain data (tradeColumns.js) so it can be asserted directly; the cells
 // are JSX and node can't import those, so their behaviour is read from source.
@@ -105,14 +106,14 @@ test('checkboxes appear on hover, and never open the row', () => {
   // A box on every row is noise; opacity (not display) so revealing one doesn't
   // shift the row. A TICKED box stays visible or the selection would be invisible.
   assert.match(css, /\.row-check \{[\s\S]*?opacity: 0;/);
-  assert.match(css, /\.grid tbody tr:hover \.row-check, \.row-check\.is-on, \.row-check:focus-visible \{ opacity: 1; \}/);
+  assert.match(css, /\.log-grid tbody tr:hover \.row-check, \.row-check\.is-on, \.row-check:focus-visible \{ opacity: 1; \}/);
   // The select-all in the header is the column's control, not a per-row hint.
-  assert.match(css, /\.grid thead \.row-check \{ opacity: 1; \}/);
+  assert.match(css, /\.log-grid thead \.row-check \{ opacity: 1; \}/);
   // Clicking a box must not also open the preview panel behind it.
   assert.match(table, /onClick=\{\(e\) => e\.stopPropagation\(\)\}/);
   assert.match(table, /onChange=\{\(e\) => \{ e\.stopPropagation\(\); onChange\(e\.target\.checked\); \}\}/);
   // Narrower than a data column — 44px for a 14px box.
-  assert.match(css, /\.grid th\.col-select, \.grid td\.col-select \{ width: \d+px/);
+  assert.match(css, /\.log-grid th\.col-select, \.log-grid td\.col-select \{ width: \d+px/);
 });
 
 test('the header box reflects, and acts on, the rows in view', () => {
@@ -171,7 +172,7 @@ test('Notes is an icon, not the prose', () => {
   // The old full-text cell (and its width cap) is gone.
   assert.ok(!table.includes('className="comments"'), 'the prose cell should be gone');
   assert.ok(!css.includes('.comments {'), 'dead .comments rule left behind');
-  // Centering comes from .grid td now that every column is centered — the column
+  // Centering comes from .log-grid td now that every column is centered — the column
   // needs no rule of its own.
   assert.ok(!css.includes('.cell-notes {'), 'redundant .cell-notes rule');
 });
@@ -225,7 +226,16 @@ test('the column header sticks to the top bar, and the page is the only scroller
   assert.match(bar, /setProperty\('--topbar-h', `\$\{el\.offsetHeight\}px`\)/);
   assert.match(bar, /new ResizeObserver\(publish\)/);
   assert.match(bar, /ro\.disconnect\(\)/);
-  assert.match(bar, /<div className="topbar" ref=\{barRef\}>/);
+  /* `<TopBar ref={barRef}>` since the 2026-08-28 rebuild. The measurement is the point
+   * and it is unchanged; what this line has to keep watching is that the ref still
+   * reaches a real element. TopBar is forwardRef'd for exactly this — React 18.3 does
+   * not pass `ref` as an ordinary prop, so a plain function component would swallow it
+   * and --topbar-h would never be published: the sticky header would fall back to its
+   * hardcoded 50px guess and sit wrong on one page only, with no error anywhere. */
+  assert.match(bar, /<TopBar ref=\{barRef\}>/);
+  const topbar = readSrc('components/primitives/topbar.jsx');
+  assert.match(topbar, /export const TopBar = React\.forwardRef/, 'TopBar must forward its ref');
+  assert.match(topbar, /<header\s*\n\s*ref=\{ref\}/, 'the ref must reach the element being measured');
 });
 
 test('nothing but the top bar is pinned', () => {
@@ -235,7 +245,9 @@ test('nothing but the top bar is pinned', () => {
   const pinned = css.split('\n')
     .filter((l) => /\.log-kpis|\.log-toolbar/.test(l) && /position:\s*(sticky|fixed)/.test(l));
   assert.deepEqual(pinned, [], `nothing on the trade log may be pinned:\n${pinned.join('\n')}`);
-  assert.match(log, /className="jo-kpis dash-stats log-kpis"/);
+  // The row is <KpiRow> now, so there is no `.log-kpis` element left to pin — but the
+  // rule above still scans for one, which is what keeps this honest if the class returns.
+  assert.match(log, /<KpiRow>/);
 });
 
 test('the KPI row is spaced by the standard gap, not a margin on top of it', () => {
@@ -248,7 +260,7 @@ test('the KPI row is spaced by the standard gap, not a margin on top of it', () 
 });
 
 test('column headers read as titles, not eyebrow caps', () => {
-  const th = css.slice(css.indexOf('.grid th {'), css.indexOf('}', css.indexOf('.grid th {')));
+  const th = css.slice(css.indexOf('.log-grid th {'), css.indexOf('}', css.indexOf('.log-grid th {')));
   // A declaration, not the word — the rule's comment explains its own absence.
   assert.ok(!/text-transform\s*:/.test(th), 'headers use the label as authored');
   // Wide tracking exists to open up all-caps; on mixed case it just reads loose.
@@ -263,10 +275,10 @@ test('column headers read as titles, not eyebrow caps', () => {
 // ---- 4 + 5. widths and alignment -------------------------------------------
 
 test('columns are equal width with centered titles', () => {
-  assert.match(css, /\.grid \{[^}]*table-layout: fixed/);
+  assert.match(css, /\.log-grid \{[^}]*table-layout: fixed/);
   // Fixed layout truncates instead of widening, so cells must be able to ellipsis.
-  assert.match(css, /\.grid td \{[\s\S]*?text-overflow: ellipsis/);
-  const th = css.slice(css.indexOf('.grid th {'), css.indexOf('}', css.indexOf('.grid th {')));
+  assert.match(css, /\.log-grid td \{[\s\S]*?text-overflow: ellipsis/);
+  const th = css.slice(css.indexOf('.log-grid th {'), css.indexOf('}', css.indexOf('.log-grid th {')));
   assert.match(th, /text-align: center/);
   // The width floor scales with the number of visible columns rather than being a
   // flat number that crushes a 21-column view.
@@ -275,22 +287,22 @@ test('columns are equal width with centered titles', () => {
 });
 
 test('every column is centered, header and body alike', () => {
-  assert.match(css, /\.grid td \{[\s\S]*?text-align: center;/);
+  assert.match(css, /\.log-grid td \{[\s\S]*?text-align: center;/);
   // .num is shared with other tables, so its right alignment is overridden here
   // rather than removed — the tabular figures it brings are still wanted.
   assert.match(css, /\.num \{ text-align: right/);
-  assert.match(css, /\.grid td\.num \{ text-align: center; \}/);
+  assert.match(css, /\.log-grid td\.num \{ text-align: center; \}/);
   // The old per-column centering hack is gone now that centering is the default.
-  assert.ok(!css.includes('.grid td.cell-center'), 'cell-center is redundant');
+  assert.ok(!css.includes('.log-grid td.cell-center'), 'cell-center is redundant');
   assert.ok(!table.includes('cell-center'), 'no cell should still ask to be centered');
 });
 
 test('the header is bigger, and taller than the rows', () => {
-  const th = css.slice(css.indexOf('.grid th {'), css.indexOf('}', css.indexOf('.grid th {')));
+  const th = css.slice(css.indexOf('.log-grid th {'), css.indexOf('}', css.indexOf('.log-grid th {')));
   const size = Number(/font-size: (\d+)px/.exec(th)[1]);
   const pad = Number(/padding: (\d+)px/.exec(th)[1]);
   assert.ok(size >= 13, `header font should be at least 13px, got ${size}`);
-  const tdPad = Number(/padding: (\d+)px/.exec(css.slice(css.indexOf('.grid td {'), css.indexOf('}', css.indexOf('.grid td {'))))[1]);
+  const tdPad = Number(/padding: (\d+)px/.exec(css.slice(css.indexOf('.log-grid td {'), css.indexOf('}', css.indexOf('.log-grid td {'))))[1]);
   assert.ok(pad > tdPad, `header padding (${pad}) should exceed the rows' (${tdPad})`);
 });
 
@@ -404,10 +416,14 @@ test('the trade log shows the four requested KPI cards', () => {
   assert.match(log, /<NetPnlCard m=\{m\} unit=\{unit\} \/>/);
   assert.match(log, /<ProfitFactorCard m=\{m\} \/>/);
   assert.match(log, /<TradeWinCard m=\{m\} \/>/);
-  assert.match(log, /<AvgWinLossCard m=\{m\} \/>/);
-  // Four columns, so the row splits evenly instead of leaving a fifth gap.
-  assert.match(log, /style=\{\{ '--kpi-count': 4 \}\}/);
-  assert.match(css, /\.dash-stats \{ grid-template-columns: repeat\(var\(--kpi-count, 5\)/);
+  /* `unit` IS REQUIRED HERE AS OF RHEA, and forgetting it is a silent bug rather than
+   * a crash: the card's chips print the average win and loss as figures, so without the
+   * prop they would format as R on a page showing dollars and nothing would say so. */
+  assert.match(log, /<AvgWinLossCard m=\{m\} unit=\{unit\} \/>/);
+  // Four cards in the shared KpiRow, which splits itself — the `--kpi-count: 4` this
+  // used to pass is retired along with the CSS grid that read it (2026-08-28).
+  assert.match(log, /<KpiRow>/);
+  assert.doesNotMatch(log, /--kpi-count/);
 });
 
 test('the cards describe the filtered rows underneath them', () => {

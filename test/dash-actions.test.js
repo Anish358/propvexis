@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readSrc, stripComments } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defaultDashLayout } from '../frontend/src/features/dashboard/dashLayout.js';
@@ -23,24 +24,77 @@ test('out of the box, the strip sits between Today\'s Brief and the KPI row', ()
   assert.match(dash, /stripAfter = isDashVisible\(layout, 'brief'\) \? 'brief'/, 'the anchor should be the brief');
 });
 
-test('action strip uses the shared Button primitive, not bespoke buttons', () => {
+test('the action strip is the shared Button plus strip primitives, never a raw button', () => {
+  /* THREE THINGS CHANGED WITH THE 2026-08-28 REBUILD and one did not.
+   *
+   * Sync Trades is `primary` now, not `secondary`: it is the only action on the page
+   * and the frame fills it. Primary is a LIGHT fill since this redesign (see
+   * token-bridge.test.js), not the brand blue it used to be.
+   *
+   * `.dash-actions-status` is gone with the rest of the legacy classes, and the copy it
+   * held has changed on purpose — see the test below.
+   *
+   * What did not change is the rule this test exists for: no raw <button> in a page.
+   * The strip's own quiet control is a primitive (ActionLink) so its focus ring, hover
+   * and hit area match every other chrome control instead of being re-derived here. */
   const block = dash.slice(dash.indexOf('function DashActions'), dash.indexOf('// ---- Section 2'));
-  assert.match(block, /<Button\b[\s\S]*variant="secondary"/, 'buttons should be secondary Button primitives');
+  /* SECONDARY SINCE RHEA (was `primary`, a light fill). The primary act on this page is
+   * READING it: a white button at the top of a dashboard pulls the eye to a control most
+   * traders touch once a session, and the design draws it as a quiet bordered pill. The
+   * rule this test protects — no raw <button> in a page, the strip's controls are
+   * primitives so their focus ring and hit area match the rest of the chrome — is
+   * unchanged. */
+  assert.match(block, /<Button\b[\s\S]*variant="secondary"/, 'Sync Trades is a quiet pill, not the page\'s primary action');
   assert.doesNotMatch(block, /<button\b/, 'no raw <button> in the strip');
-  assert.match(block, /dash-actions-status/, 'missing the last-synced status line');
+  assert.match(block, /<ActionLink/);
+  assert.match(block, /<ActionStatus/, 'the strip still reports sync state');
+});
+
+test('the sync status is the design\'s label with a TRUE value in it', () => {
+  /* WHAT THIS USED TO PIN: that "Last synced: 2 min ago" — the design's copy, shipped as
+   * a static string — was absent, because an elapsed time with nothing behind it is a
+   * number a trader will act on ("it synced two minutes ago, so this P&L is current")
+   * when nothing has run. It asserted the honest placeholder instead.
+   *
+   * The design's LABEL is right and it is back; what was wrong was the hardcoded value.
+   * There is still no sync-status endpoint, but the newest ingested trade IS evidence
+   * that a sync happened and when — so the figure is derived, says "never" with no
+   * trades, and stops being a guess the day a real feed lands without the label
+   * changing at all.
+   *
+   * So this now pins the thing that actually matters: the value is COMPUTED, never a
+   * literal. */
+  const code = stripComments(dash);
+  const block = code.slice(code.indexOf('function DashActions'), code.indexOf('Section 2'));
+  assert.match(block, /Last synced: \{lastSynced \|\| 'never'\}/, "the label is the design's");
+  assert.doesNotMatch(code, /['"`]\s*\d+ min ago\s*['"`]/, 'no hardcoded elapsed time anywhere');
+  // And it is derived from the data, not from a constant.
+  assert.match(code, /const lastSynced = useMemo\(/);
+  assert.match(code, /Date\.now\(\) - newest/);
 });
 
 test('Today\'s Brief banner has a titled head with a settings control', () => {
+  /* REWRITTEN FOR THE 2026-08-28 FIGMA REBUILD. The `.dash-banner-*` markup this pinned
+   * is gone — the card is composed from Brief* primitives now — so the class-name
+   * assertions could only have gone on passing against legacy CSS that nothing wears.
+   * What they were protecting survives verbatim and is what is asserted here: the card
+   * has a real heading, the settings control carries a visible name rather than being a
+   * bare icon, and the head comes before the content it titles. */
   const block = dash.slice(dash.indexOf('function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
-  assert.match(block, /<div className="dash-banner-head">/);
-  assert.match(block, /<h3>Today's Brief<\/h3>/);
-  // Icon-only, so it needs an accessible name. (The class is now a template
-  // literal — it also carries an is-open state for the settings popover.)
-  assert.match(block, /className=\{`dash-banner-settings [\s\S]*aria-label="Brief settings"/);
+  assert.match(block, /<BriefHeader/);
+  assert.match(block, /title="Today's Brief"/);
+  // Was icon-only and needed an aria-label; the frame gives it a text label instead,
+  // which is strictly better — the name is visible to everyone, not just a screen reader.
+  // Icon-only since 2026-08-28, so the name is an attribute rather than a child.
+  assert.match(block, /<BriefAction[\s\S]*?aria-label="Brief settings"/);
+  assert.match(block, /aria-expanded=\{settingsOpen\}/);
   // Head must precede the events/alerts content it titles.
-  assert.ok(block.indexOf('dash-banner-head') < block.indexOf('dash-banner-news'));
-  // Title uses the app's section-title tokens, not a bespoke size/weight.
-  assert.match(css, /\.dash-banner-head h3 \{[^}]*font-size: var\(--fs-section-title\)/);
+  assert.ok(block.indexOf('<BriefHeader') < block.indexOf('<BriefColumns'));
+  // The title is Rhea's 18.5/650/-0.25, declared once in the primitive. WAS 15/600 on
+  // the intermediate Figma pass, where the card opened with an amber icon tile that
+  // carried some of the weight; Rhea drops the tile and lets the words be the heading.
+  const brief = readSrc('components/primitives/brief.jsx');
+  assert.match(brief, /text-\[18\.5px\] leading-7 font-\[650\] tracking-\[-0\.25px\]/);
 });
 
 test('action strip carries no container chrome', () => {

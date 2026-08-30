@@ -1,78 +1,49 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { RailProvider, useRail } from '@/components/primitives';
 import Sidebar from './Sidebar.jsx';
 import FilterBar from '../features/filters/FilterBar.jsx';
 import { Toasts } from '../features/alerts/Notifications.jsx';
 import VerifyBanner from '../features/auth/VerifyBanner.jsx';
 import Announcer, { connectionAnnouncement, tradeFeedAnnouncement } from '../components/Announcer.jsx';
-import { useIsMobile } from '../lib/useMediaQuery.js';
 
-// App shell: fixed left sidebar + a global filter bar + the routed page area.
-// The display unit and data filters come from the active scope's ViewConfig
-// (owned by App); they are no longer derived from the selected account.
-//
-// Below 900px the sidebar becomes an off-canvas drawer instead: a 230px fixed
-// rail on a 390px phone leaves 160px for a data table, which is not a layout.
+/* App shell: the navigation rail + a global filter bar + the routed page area.
+ *
+ * THE RAIL'S STATE MOVED OUT OF THIS FILE (2026-08-29, Rhea). It used to live here as
+ * a single `collapsed` boolean that meant two different things — "the user hid the
+ * rail" on desktop, "the drawer is shut" on mobile — plus ~40 lines re-implementing
+ * Escape, body-scroll lock, focus return and a scrim.
+ *
+ * All of that is now RailProvider (the generated shadcn SidebarProvider), which
+ * separates the two states properly: `open` is the desktop 248 <-> 70 icon collapse
+ * Rhea asks for, `openMobile` is the drawer. THE DRAWER BEHAVIOUR IS STRICTLY BETTER
+ * FOR BEING GIVEN AWAY: it is a Base UI Dialog now, so Escape, the scroll lock, the
+ * scrim, the focus TRAP (which the hand-rolled version never had) and focus return
+ * are the library's, tested upstream, instead of four effects here.
+ *
+ * WHAT THIS FILE KEPT, because it is ours and not the library's: the skip link, the
+ * live-region announcer, and closing the drawer on navigation.
+ *
+ * Below 900px the rail leaves the flow entirely rather than narrowing — a 248px rail
+ * on a 390px phone leaves 140px for a data table, which is not a layout you fix by
+ * shrinking it. 900 is set in TWO places that must agree (bridge.css's --breakpoint-md
+ * and hooks/use-mobile.js); sidebar-breakpoint.test.js pins that they do.
+ */
 export default function Layout({
-  trades, account, accounts, payouts, reloadPayouts, fees, reloadFees, accountId, setAccountId, reloadAccounts,
+  trades, tradesLoading = false, account, accounts, payouts, reloadPayouts, fees, reloadFees, accountId, setAccountId, reloadAccounts,
   strategies, reloadStrategies, reloadTrades,
-  notifications, unread, markAllNotificationsRead, toasts, dismissToast,
+  notifications, unread, markAllNotificationsRead, markNotificationRead, toasts, dismissToast,
   connected, flashId, saveTrade, removeTrade, addManualTrade,
   unit, filters, filterOptions, setUnit, patchFilters, clearFilters,
   pinnedAccounts, setPinnedAccounts,
   dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
   propLayout, setPropVisible, resetPropLayout,
-  theme = 'dark', setTheme = () => {},
   briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
   tradeSettings, setBeRounding, setColumnVisible, resetColumns,
 }) {
-  const isMobile = useIsMobile();
-  const location = useLocation();
-  // On desktop this means "the user hid the rail". On mobile it means "the
-  // drawer is shut", which is the correct default — hence the sync below.
-  const [collapsed, setCollapsed] = useState(isMobile);
-  const toggleSidebar = () => setCollapsed((c) => !c);
-  // The top bar owns a slot node for per-page actions; PageHeader portals into
-  // it (callback ref → state so consumers re-render once the node exists).
+  // The top bar owns a slot node for per-page actions; PageHeader portals into it
+  // (callback ref -> state so consumers re-render once the node exists).
   const [actionsSlot, setActionsSlot] = useState(null);
-  const drawerOpen = isMobile && !collapsed;
-
-  // Crossing the breakpoint resets to that layout's sensible default: shut on
-  // mobile, shown on desktop. Without this, rotating a phone with the drawer
-  // open leaves a permanently-open rail eating the viewport.
-  useEffect(() => { setCollapsed(isMobile); }, [isMobile]);
-
-  // Navigating is the whole point of the drawer, so it must close itself on
-  // arrival. Otherwise every tap leaves the destination hidden behind the menu
-  // the user just used.
-  useEffect(() => {
-    if (isMobile) setCollapsed(true);
-  }, [location.pathname, isMobile]);
-
-  // ---- Drawer behaviour: Escape, scroll lock, and focus return ----
-  const restoreFocusTo = useRef(null);
-  useEffect(() => {
-    if (!drawerOpen) return undefined;
-    restoreFocusTo.current = document.activeElement;
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setCollapsed(true);
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    // The page behind a drawer must not scroll under the user's finger.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      // Send focus back where it came from, or the next Tab starts at the top
-      // of the document — the classic "dismissed a dialog and lost my place".
-      const target = restoreFocusTo.current;
-      if (target && typeof target.focus === 'function' && document.contains(target)) target.focus();
-    };
-  }, [drawerOpen]);
 
   // ---- Announcements (see components/Announcer.jsx) ----
   const [announcement, setAnnouncement] = useState('');
@@ -91,53 +62,96 @@ export default function Layout({
   }, [connected]);
 
   return (
-    <div className={`shell ${collapsed ? 'collapsed' : ''} ${drawerOpen ? 'drawer-open' : ''}`}>
-      {/* First focusable thing in the document. The sidebar is ~20 tab stops,
-          so without this a keyboard user traverses the whole nav on every page
-          to reach the content. Visually hidden until focused. */}
+    <RailProvider className="shell">
+      {/* First focusable thing in the document. The rail is ~20 tab stops, so without
+          this a keyboard user traverses the whole nav on every page to reach the
+          content. Visually hidden until focused. */}
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <Announcer message={announcement} />
 
-      {!collapsed && <Sidebar onToggle={toggleSidebar} inDrawer={drawerOpen} />}
-      {/* Scrim: dismisses the drawer, and hides the page behind it from assistive
-          tech so the reading order does not run straight past the menu. */}
-      {drawerOpen && (
-        <div className="shell-scrim" onClick={() => setCollapsed(true)} aria-hidden="true" />
-      )}
+      <Sidebar />
 
-      {/* tabIndex -1 so the skip link can move focus here; it is not in the tab
-          order itself. */}
-      <main className="shell-main" id="main-content" tabIndex={-1}>
-        <Toasts items={toasts} onDismiss={dismissToast} />
-        {/* Above the filter bar, below the toasts: it is an account-level
-            message, so it should not scroll away with the page content, and it
-            renders nothing once the address is confirmed. */}
-        <VerifyBanner />
-        <FilterBar
-          collapsed={collapsed}
-          onToggleSidebar={toggleSidebar}
-          slotRef={setActionsSlot}
-          unit={unit}
-          filters={filters}
-          options={filterOptions}
-          setUnit={setUnit}
-          patchFilters={patchFilters}
-          clearFilters={clearFilters}
-          notifications={notifications}
-          unread={unread}
-          onMarkAllRead={markAllNotificationsRead}
-          accounts={accounts}
-          accountId={accountId}
-          setAccountId={setAccountId}
-          tradeSettings={tradeSettings}
-          setBeRounding={setBeRounding}
-          setColumnVisible={setColumnVisible}
-          resetColumns={resetColumns}
-          theme={theme}
-          setTheme={setTheme}
-        />
-        <Outlet context={{ trades, account, accountId, setAccountId, accounts, reloadAccounts, payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades, notifications, unread, markAllNotificationsRead, unit, filters, clearFilters, connected, flashId, saveTrade, removeTrade, addManualTrade, toggleSidebar, actionsSlot, pinnedAccounts, setPinnedAccounts, theme, setTheme, dashLayout, setDashVisible, moveDashWidget, resetDashLayout, propLayout, setPropVisible, resetPropLayout, briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding, setColumnVisible, resetColumns }} />
-      </main>
-    </div>
+      {/* Everything that needs the rail's state lives below the provider, because a
+          hook cannot read a context its own component supplies. */}
+      <Shell
+        actionsSlot={actionsSlot}
+        setActionsSlot={setActionsSlot}
+        toasts={toasts}
+        dismissToast={dismissToast}
+        unit={unit}
+        filters={filters}
+        filterOptions={filterOptions}
+        setUnit={setUnit}
+        patchFilters={patchFilters}
+        clearFilters={clearFilters}
+        notifications={notifications}
+        unread={unread}
+        markAllNotificationsRead={markAllNotificationsRead}
+        accounts={accounts}
+        accountId={accountId}
+        setAccountId={setAccountId}
+        tradeSettings={tradeSettings}
+        setBeRounding={setBeRounding}
+        setColumnVisible={setColumnVisible}
+        resetColumns={resetColumns}
+        outletContext={{
+          trades, tradesLoading, account, accountId, setAccountId, accounts, reloadAccounts,
+          payouts, reloadPayouts, fees, reloadFees, strategies, reloadStrategies, reloadTrades,
+          notifications, unread, markAllNotificationsRead, markNotificationRead,
+          unit, filters, clearFilters,
+          connected, flashId, saveTrade, removeTrade, addManualTrade, actionsSlot,
+          pinnedAccounts, setPinnedAccounts, dashLayout, setDashVisible, moveDashWidget,
+          resetDashLayout, propLayout, setPropVisible, resetPropLayout, briefPrefs,
+          patchBriefPrefs, setBriefSection, resetBriefPrefs, tradeSettings, setBeRounding,
+          setColumnVisible, resetColumns,
+        }}
+      />
+    </RailProvider>
+  );
+}
+
+/* The routed half of the shell. Split out for ONE reason: `useRail` reads the context
+ * RailProvider supplies, and a component cannot read its own provider — so anything
+ * that needs the rail's state has to be a child of it.
+ *
+ * `toggleSidebar` reaches the outlet context from here rather than from Layout, so a
+ * page that wants to open the nav (there is one) still can. */
+function Shell({ actionsSlot, setActionsSlot, toasts, dismissToast, outletContext, ...bar }) {
+  const { isMobile, openMobile, setOpenMobile, toggleSidebar } = useRail();
+  const { pathname } = useLocation();
+
+  /* NAVIGATING CLOSES THE DRAWER, and this is the one drawer behaviour the library
+   * does not supply — it has no idea the app routed. Without it every tap leaves the
+   * destination hidden behind the menu the user just used to reach it.
+   *
+   * Desktop is deliberately untouched: collapsing the rail on navigation would undo a
+   * choice the user made on purpose. */
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [pathname, isMobile, setOpenMobile]);
+
+  return (
+    /* tabIndex -1 so the skip link can move focus here; it is not in the tab order
+       itself. */
+    <main className="shell-main" id="main-content" tabIndex={-1}>
+      <Toasts items={toasts} onDismiss={dismissToast} />
+      {/* Above the filter bar, below the toasts: it is an account-level message, so it
+          should not scroll away with the page content, and it renders nothing once the
+          address is confirmed. */}
+      <VerifyBanner />
+      <FilterBar
+        /* THE BAR'S NAV BUTTON IS NOW A MOBILE-ONLY CONCERN, and the rename is the
+           point. It used to appear whenever `collapsed` was true, because collapsing
+           REMOVED the rail and this was the only way back. An icon rail is still on
+           screen and carries its own expand control, so the only state with no visible
+           rail is the under-900 drawer. */
+        showNavButton={isMobile}
+        navOpen={openMobile}
+        onToggleSidebar={toggleSidebar}
+        slotRef={setActionsSlot}
+        {...bar}
+      />
+      <Outlet context={{ ...outletContext, toggleSidebar }} />
+    </main>
   );
 }

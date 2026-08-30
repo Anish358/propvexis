@@ -31,9 +31,54 @@ test('brand accent is the blue family, not green', () => {
 });
 
 test('outcome + accent tokens exist and are the right hues', () => {
-  assert.match(root, /--profit:\s*var\(--green-500\)/); // green = profit
-  assert.match(root, /--loss:\s*var\(--red-500\)/);     // red = loss
+  /* WHAT THIS USED TO PIN: that --profit and --loss pointed at the --green-500 /
+   * --red-500 PRIMITIVES. Those primitives are gone (Rhea foundation, 2026-08-29):
+   * the outcome roles hold their hues directly and the raw green/red/amber scales
+   * they aliased were deleted, because a primitive with exactly one consumer is a
+   * second name for the same fact.
+   *
+   * So this asserts the HUE rather than the indirection, which is what the test was
+   * ever really for — green must be green and red must be red, however it is spelled.
+   * That also survives the next palette move without needing a rewrite. */
+  const hue = (name) => {
+    const m = root.match(new RegExp(`(?<![\\w-])--${name}\\s*:\\s*(#[0-9a-f]{6})`, 'i'));
+    assert.ok(m, `--${name} must resolve to a literal hue in the token layer`);
+    const [, r, g, b] = m[1].match(/#(..)(..)(..)/).map((x, i) => (i ? parseInt(x, 16) : x));
+    return { r, g, b, hex: m[1] };
+  };
+  const profit = hue('profit');
+  assert.ok(profit.g > profit.r && profit.g > profit.b, `--profit (${profit.hex}) must be green-dominant`);
+  const loss = hue('loss');
+  assert.ok(loss.r > loss.g && loss.r > loss.b, `--loss (${loss.hex}) must be red-dominant`);
   assert.match(root, /--ai:\s*var\(--purple-500\)/);    // purple = AI/insight
+
+  /* THE SECOND GREEN AND THE SECOND RED ARE LOAD-BEARING, so they are pinned too.
+   * The structural hue is drawn on the page; the bright one is drawn ON A TINT, where
+   * the structural one does not carry. Collapsing them to one token is the change that
+   * would quietly make a losing day cell unreadable. */
+  for (const n of ['profit-bright', 'loss-bright']) {
+    assert.ok(root.includes(`--${n}:`), `--${n} must exist — see COLOUR-INVENTORY §6`);
+  }
+});
+
+test('the risk ramp carries no green at any fill', () => {
+  /* A drawdown meter measures CONSUMPTION, so its bar runs yellow -> orange -> red and
+   * never reaches green: used drawdown is never good news, only less bad. A green
+   * drawdown bar would be the app congratulating a trader for surviving, and it is
+   * also what §4 forbids — green and red are trade outcomes, never status. */
+  const ramp = root.match(/--risk-ramp:\s*([^;]+);/);
+  assert.ok(ramp, '--risk-ramp must exist');
+  for (const step of ['--risk-1', '--risk-2', '--risk-3']) {
+    assert.ok(ramp[1].includes(step), `the ramp must be built from ${step}, not from literals`);
+  }
+  const stops = ['risk-1', 'risk-2', 'risk-3'].map((n) => {
+    const m = root.match(new RegExp(`(?<![\\w-])--${n}\\s*:\\s*(#[0-9a-f]{6}|var\\(--loss\\))`, 'i'));
+    return m[1] === 'var(--loss)' ? root.match(/--loss:\s*(#[0-9a-f]{6})/i)[1] : m[1];
+  });
+  for (const hex of stops) {
+    const [, r, g, b] = hex.match(/#(..)(..)(..)/).map((x, i) => (i ? parseInt(x, 16) : x));
+    assert.ok(!(g > r && g > b), `risk ramp stop ${hex} is green-dominant — the ramp must never read as "good"`);
+  }
 });
 
 test('foundation token scales are defined', () => {

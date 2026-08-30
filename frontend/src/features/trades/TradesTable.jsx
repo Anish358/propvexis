@@ -181,7 +181,7 @@ export default function TradesTable({
     <div className="grid-wrap">
       {/* Column count drives the table's minimum width (see .grid), so showing
           more columns widens the table instead of squeezing every one of them. */}
-      <table className="grid" style={{ '--grid-cols': cols.length }}>
+      <table className="log-grid" style={{ '--grid-cols': cols.length }}>
         <thead>
           <tr>{cols.map((c) => <th key={c.id} className={c.narrow ? 'col-select' : undefined}>{c.header}</th>)}</tr>
         </thead>

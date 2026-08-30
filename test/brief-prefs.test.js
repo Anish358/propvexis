@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readSrc } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
@@ -8,6 +9,7 @@ import {
   defaultBriefPrefs, sanitizeBriefPrefs, isDefaultBriefPrefs, briefSectionOn,
   impactAllowed, briefWindowRange, filterBriefEvents, briefEmptyReason,
   formatBriefTime, briefEventsLabel, formatBriefDate, formatBriefClock,
+  fallbackBriefEvents,
 } from '../frontend/src/features/dashboard/briefPrefs.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
@@ -241,14 +243,22 @@ test('filter tolerates junk events and a junk list', () => {
 // ---- formatting -------------------------------------------------------------
 
 test('formatBriefTime honours the timezone and prefixes other days', () => {
+  /* 24-HOUR SINCE 2026-08-29 (was "1:00 PM"). These sit in the same column as a heading
+   * clock written 14:42:07, and two time conventions four inches apart on a card whose
+   * job is "what is about to happen, and how long have I got" is the conversion this
+   * design set out to REMOVE, not relocate. Everything else this test protects — the
+   * timezone honoured, a weekday prefix on another day, an empty string for garbage —
+   * is unchanged. */
   const sameDayUtc = formatBriefTime('2026-07-24T13:00:00Z', 'utc', NOW);
-  assert.equal(sameDayUtc, '1:00 PM', 'UTC time, no weekday for today');
+  assert.equal(sameDayUtc, '13:00', 'UTC time, no weekday for today');
   const otherDayUtc = formatBriefTime('2026-07-28T09:00:00Z', 'utc', NOW);
-  assert.match(otherDayUtc, /^Tue 9:00 AM$/, 'a later day gets its weekday');
+  assert.match(otherDayUtc, /^Tue 09:00$/, 'a later day gets its weekday');
   assert.equal(formatBriefTime('nonsense', 'utc', NOW), '');
-  // Local mode must not force a UTC timeZone — the two agree only when the
-  // runtime happens to be at UTC+0, so just assert it produces a time.
-  assert.match(formatBriefTime('2026-07-24T13:00:00Z', 'local', NOW), /\d{1,2}:\d{2}\s?(AM|PM)/);
+  // Local mode must not force a UTC timeZone — the two agree only when the runtime
+  // happens to be at UTC+0, so just assert it produces a time.
+  const local = formatBriefTime('2026-07-24T13:00:00Z', 'local', NOW);
+  assert.match(local, /^\d{2}:\d{2}$/);
+  assert.ok(!/[AP]M/.test(local), 'event times are 24-hour, like the clock above them');
 });
 
 test('the heading date follows the selected timezone', () => {
@@ -263,12 +273,21 @@ test('the heading date follows the selected timezone', () => {
   assert.equal(formatBriefDate(lateUtc, 'utc'), 'Saturday, Jul 25');
 });
 
-test('the heading clock marks UTC explicitly', () => {
-  assert.equal(formatBriefClock(NOW, 'utc'), '12:00 PM UTC');
-  // Local needs no suffix — it matches the viewer's own clock. Shape only, since
-  // the runtime's zone decides the value.
+test('the heading clock is 24-hour with seconds, and marks UTC explicitly', () => {
+  /* WAS "12:00 PM UTC". Rhea writes it 24-hour with seconds (2026-08-29) and both
+   * halves are right for this app: every other time on the screen — a release, a
+   * session, a drawdown reset — is 24-hour, and a clock in a different convention
+   * beside them is one more conversion to do under pressure. The seconds make it read
+   * as a LIVE clock rather than the time the page happened to load, on a card whose
+   * whole job is "what is about to happen".
+   *
+   * The UTC suffix is unchanged and is the half that actually prevents a mistake. */
+  assert.equal(formatBriefClock(NOW, 'utc'), '12:00:00 UTC');
+  // Local needs no suffix — it matches the viewer's own clock. Shape only, since the
+  // runtime's zone decides the value.
   const local = formatBriefClock(NOW, 'local');
-  assert.match(local, /^\d{1,2}:\d{2}\s?(AM|PM)$/);
+  assert.match(local, /^\d{2}:\d{2}:\d{2}$/);
+  assert.ok(!/[AP]M/.test(local), '24-hour: no meridiem');
   assert.ok(!local.includes('UTC'), 'local time must not be labelled UTC');
 });
 
@@ -355,11 +374,37 @@ test('the banner filters and formats through the prefs', () => {
   // The heading date renders through the same timezone pref as the event times.
   assert.match(dash, /formatBriefDate\(now, prefs\.timezone\)/);
   assert.match(dash, /formatBriefClock\(now, prefs\.timezone\)/);
-  assert.match(css, /\.dash-banner-date \{[^}]*margin-right: auto/);
+  /* The date used to be pushed away from the title by `margin-right: auto` on
+   * `.dash-banner-date`. The rebuilt header is a flex row with an explicit 16px gap and
+   * a centred alignment, so the spacing is declared rather than squeezed out of a
+   * margin — asserted at the primitive, since the legacy rule no longer applies to
+   * anything. */
+  /* WAS a pin on the header's flex row (`gap-x-4 gap-y-1`), which replaced an older
+   * `margin-right: auto` hack. Rhea's header separates the title, date and clock with
+   * `·` glyphs instead of gap alone — they read as one sentence rather than three items
+   * — so the class string is different and the REQUIREMENT is the same: the spacing is
+   * declared, not squeezed out of a margin. */
+  const briefSrc = readSrc('components/primitives/brief.jsx');
+  assert.match(briefSrc, /flex flex-wrap items-center gap-2\.5 px-\[26px\]/);
+  assert.ok(!/margin-right: auto|mr-auto/.test(briefSrc), 'spacing is declared, not squeezed from a margin');
   // Hide-empty gates each section, and the all-hidden case says something.
-  assert.match(dash, /briefSectionOn\(prefs, 'events'\) && \(!prefs\.hideEmpty \|\| shown\.length > 0\)/);
+  /* `eventRows`, not `shown`, since the fallback landed (2026-08-28). hideEmpty has to
+   * consider what will ACTUALLY be rendered — with a fallback list present the column is
+   * not empty, and hiding it would hide the very events the fallback exists to surface. */
+    /* hideEmpty no longer hides a section the DATA emptied — only one the user's own
+   * filter emptied. The provider publishes the current week only, so from Friday
+   * evening the events column is legitimately empty, and hiding it took the
+   * explanation and the fallback down with it: the column simply vanished. */
+  /* hideEmpty no longer hides a section the DATA emptied — only one the user's own
+   * filter emptied. The provider publishes the current week only (config.js records
+   * the verification), so from Friday evening the events column is legitimately empty,
+   * and hiding it took the explanation AND the high-impact fallback down with it: the
+   * column simply vanished, which is what the owner reported seeing. */
+  assert.match(dash, /!prefs\.hideEmpty \|\| eventRows\.length > 0/);
+  assert.match(dash, /!USER_EMPTIED\.has\(emptyReason\)/);
+  assert.match(dash, /const USER_EMPTIED = new Set\(\['filtered-out', 'no-currencies'\]\)/);
   assert.match(dash, /briefSectionOn\(prefs, 'alerts'\) && \(!prefs\.hideEmpty \|\| alerts\.length > 0\)/);
-  assert.match(dash, /allQuiet && \(/);
+  assert.match(dash, /allQuiet \? \(/);
 });
 
 test('currencies use two columns on a roomy panel', () => {
@@ -368,18 +413,107 @@ test('currencies use two columns on a roomy panel', () => {
 });
 
 test('the heading clock ticks, and drives the window filter', () => {
-  // A once-computed `new Date()` would freeze the clock at the page-load time, so
-  // the banner must own a ticking value...
-  assert.match(dash, /function useMinuteClock\(\)/);
-  // Scoped to DailyBanner: the Dashboard component has its own unrelated
-  // `new Date()` that only seeds the calendar's initial month.
+  /* THE CLOCK TICKS PER SECOND AND THE FILTER RUNS PER MINUTE (2026-08-29). This used
+   * to pin `useMinuteClock` and `[events, prefs, now]`, which were the same value doing
+   * both jobs — correct while the clock only changed once a minute.
+   *
+   * Rhea shows seconds, so the display value now changes 60x more often, and feeding
+   * THAT to the memo would re-walk and re-slice the whole calendar feed sixty times a
+   * minute to redraw two digits. The hook returns both: `now` to render, `minute` as
+   * the key. The requirement each half protects is unchanged — the clock must not
+   * freeze, and events must still age out of the window unaided. */
+  assert.match(dash, /function useBriefClock\(\)/);
+  // Scoped to DailyBanner: the Dashboard component has its own unrelated `new Date()`
+  // that only seeds the calendar's initial month.
   const banner = dash.slice(dash.indexOf('function DailyBanner'), dash.indexOf('// Dashboard-level actions'));
-  assert.match(banner, /const now = useMinuteClock\(\);/);
+  assert.match(banner, /const \{ now, minute \} = useBriefClock\(\);/);
   assert.ok(!/const now = new Date\(\);/.test(banner), 'the banner must not read a frozen clock');
-  // ...aligned to the minute boundary rather than 60s from mount,
-  assert.match(dash, /60_000 - \(Date\.now\(\) % 60_000\)/);
+  // ...aligned to the second boundary rather than 1000ms from mount,
+  assert.match(dash, /1000 - \(Date\.now\(\) % 1000\)/);
   // ...cleaned up on unmount,
   assert.match(dash, /clearTimeout\(timeout\); clearInterval\(interval\);/);
-  // ...and fed into the filter, so events age out of the window unaided.
-  assert.match(dash, /\[events, prefs, now\]/);
+  // ...and the filter still ages events out, keyed on the minute.
+  assert.match(dash, /\[events, prefs, minute\]/);
+});
+
+// ---- the fallback list -------------------------------------------------------
+
+test('when the window is quiet, the fallback offers the next high-impact events', () => {
+  /* The user's window is usually a few hours, so on a slow afternoon the filtered list
+   * is legitimately empty — and "nothing in the next four hours" only half-answers the
+   * question the column exists for, which is "what is coming that could move this
+   * against me". The fallback ignores the WINDOW and the importance setting, keeps HIGH
+   * only, and still respects the chosen currencies: those are a statement about what the
+   * trader trades, not about when they happen to be looking. */
+  const now = new Date('2026-08-28T09:00:00Z');
+  const hours = (n) => new Date(now.getTime() + n * 3600_000).toISOString();
+  const events = [
+    { date: hours(1), title: 'Minor', country: 'USD', impact: 'low' },
+    { date: hours(30), title: 'NFP', country: 'USD', impact: 'high' },
+    { date: hours(50), title: 'CPI', country: 'EUR', impact: 'high' },
+    { date: hours(40), title: 'BoJ', country: 'JPY', impact: 'high' },
+    { date: hours(-2), title: 'Past', country: 'USD', impact: 'high' },
+  ];
+  const prefs = { ...defaultBriefPrefs(), currencies: ['USD', 'EUR'] };
+  const out = fallbackBriefEvents(events, prefs, now);
+  assert.deepEqual(out.map((e) => e.title), ['NFP', 'CPI'], 'high impact, chosen currencies, in time order');
+});
+
+test('the fallback never reaches past the currencies, and never backwards', () => {
+  const now = new Date('2026-08-28T09:00:00Z');
+  const hours = (n) => new Date(now.getTime() + n * 3600_000).toISOString();
+  // A currency the user does not trade is not "better than nothing" — it is noise on the
+  // one card that exists to say what matters to THEM.
+  const out = fallbackBriefEvents(
+    [{ date: hours(5), title: 'RBA', country: 'AUD', impact: 'high' }],
+    { ...defaultBriefPrefs(), currencies: ['USD'] },
+    now,
+  );
+  assert.deepEqual(out, []);
+  // An empty currency list means the user has switched the column off by other means.
+  assert.deepEqual(fallbackBriefEvents([{ date: hours(5), title: 'X', country: 'USD', impact: 'high' }],
+    { ...defaultBriefPrefs(), currencies: [] }, now), []);
+  // Past events never come back, whatever their impact.
+  assert.deepEqual(fallbackBriefEvents([{ date: hours(-1), title: 'Gone', country: 'USD', impact: 'high' }],
+    { ...defaultBriefPrefs(), currencies: ['USD'] }, now), []);
+});
+
+test('the fallback is labelled as a substitute, not blended into the real list', () => {
+  /* A substitute list that looks like the real one teaches the trader their window
+   * setting does nothing. The column heading changes AND a note under the rows says
+   * what happened. */
+  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
+  assert.match(dashSrc, /shown\.length \? briefEventsLabel\(prefs\) : \(samples\.length \? 'Sample events' : 'Next high-impact events'\)/);
+  assert.match(dashSrc, /Nothing inside your Brief window/);
+  // And it is only computed when the real list is empty — never merged in alongside.
+  assert.match(dashSrc, /shown\.length \? \[\] : fallbackBriefEvents/);
+});
+
+test('sample events exist only behind the dev gate', () => {
+  /* THESE ARE INVENTED ECONOMIC RELEASES. A trader who reads "USD Core CPI 13:30" on a
+   * dashboard plans a session around it — that is what the card is FOR — and being wrong
+   * about when the market moves is not a cosmetic bug. They exist so the design can be
+   * looked at during the third of every week when the provider's feed has no future
+   * events left (config.js records that finding), and they must never reach a real
+   * screen.
+   *
+   * `import.meta.env.DEV` is statically replaced with `false` by Vite in a production
+   * build, so the branch and everything it references are dropped by the bundler —
+   * verified by grepping dist/ after a real build: neither `sampleBriefEvents` nor any
+   * of the invented titles survives.
+   *
+   * What this test protects is the GATE, which is the part a refactor can quietly lose:
+   * the moment the call is not behind it, the samples ship. */
+  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
+  const calls = [...dashSrc.matchAll(/sampleBriefEvents\(/g)];
+  assert.equal(calls.length, 1, 'exactly one call site, so there is one thing to gate');
+  const line = dashSrc.slice(0, calls[0].index).split('\n').pop()
+    + dashSrc.slice(calls[0].index).split('\n')[0];
+  assert.match(line, /import\.meta\.env\.DEV/,
+    'sampleBriefEvents must be called only behind import.meta.env.DEV');
+  // And the samples must never merge with real data — they stand in for an empty list,
+  // they do not pad a short one.
+  assert.match(dashSrc, /!shown\.length && !fallback\.length \? sampleBriefEvents/);
+  // Labelled in the UI as well as gated, so a dev never mistakes them for the feed.
+  assert.match(dashSrc, /Sample events — development build only/);
 });

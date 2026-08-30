@@ -397,13 +397,41 @@ test('the button, its position and the top bar are untouched', () => {
   // implementation, not of icon, label, badge or order — so the assertions are restated
   // against what is durable. Anything pinned to a class name was pinning the migration's
   // starting point rather than the requirement.
-  assert.match(bar, /variant="chrome" size="sm" active=\{active > 0\}/, 'still a quiet control that brightens when engaged');
+  /* THE LABEL IS BACK (Rhea, 2026-08-29), which reverses the 2026-08-28 note this
+   * replaces. That note said the word "Filters" was the only label in a row of glyphs,
+   * so the bar read as one text button among icons — true of THAT bar, where the scope
+   * switcher was a bare pill. Rhea's bar has two labelled controls against two glyphs,
+   * so the funnel alone became the odd one out instead.
+   *
+   * It drops below 1200 via ButtonLabel, where the bar genuinely runs out of room — and
+   * the aria-label carries the name at BOTH widths, because a control that is labelled
+   * at one width and not another still owes a reader its name at the narrow one. That
+   * requirement is the durable half and is unchanged. */
+  assert.match(bar, /variant="chrome"\s*\n\s*size="sm"\s*\n\s*active=\{active > 0\}/, 'still a quiet control that brightens when engaged');
   assert.match(bar, /<Filter aria-hidden="true" \/>/, 'still a funnel icon');
-  assert.match(bar, /<span>Filters<\/span>/);
+  assert.match(bar, /aria-label=\{active > 0 \? `Filters — \$\{active\} active` : 'Filters'\}/,
+    'the name is an attribute at every width, label or no label');
+  assert.match(bar, /<ButtonLabel>Filters<\/ButtonLabel>/, 'and a visible label where there is room');
   assert.match(bar, /\{active > 0 && <CountBadge>\{active\}<\/CountBadge>\}/, 'still a count badge');
   // Order in the right-hand cluster: after the unit switch, before the account switcher.
-  assert.ok(bar.indexOf('<FiltersButton') > bar.indexOf('<ToggleGroupExclusive'));
-  assert.ok(bar.indexOf('<FiltersButton') < bar.indexOf('<AccountSwitcher'));
+  /* THE CLUSTER REORDERED AGAIN (Rhea, 2026-08-29): unit -> filters -> scope -> bell,
+   * reversing the 2026-08-28 arrangement that put the scope first "because it changes
+   * what every figure MEANS, and reading order is left to right".
+   *
+   * Rhea's answer is that this cluster reads RIGHT to left in weight — the widest,
+   * most-labelled control anchors the end of the bar rather than competing with the page
+   * title at the other end — and the scope is that control. The bell stays outside the
+   * group as chrome.
+   *
+   * What has survived both reorderings, and is the thing actually worth pinning: FILTERS
+   * SITS WITH THE VIEW CONTROLS AND BEFORE THE ALERT FEED. It is a view control, not
+   * chrome, and that is the classification a reorder is most likely to lose. */
+  assert.ok(bar.indexOf('<ToggleGroupExclusive') < bar.indexOf('<FiltersButton'),
+    'the unit toggle leads the view controls');
+  assert.ok(bar.indexOf('<FiltersButton') < bar.indexOf('<AccountSwitcher'),
+    'the scope anchors the right-hand end');
+  assert.ok(bar.indexOf('<FiltersButton') < bar.indexOf('<NotificationBell'),
+    'and ahead of the alert feed');
   assert.match(css, /\.tb-filters \{ position: relative; \}/);
 });
 

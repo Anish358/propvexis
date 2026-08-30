@@ -104,6 +104,39 @@ const SIZES = { sm: 'sm', md: 'default', lg: 'lg' };
  */
 const RADIUS = 'rounded-lg';
 
+/* `pill` — the top bar's shape, added 2026-08-28 with the Figma redesign.
+ *
+ * The frame draws every control in the bar fully rounded: the account switcher, the
+ * unit toggle's container, the notification bell and the avatar. That is a statement
+ * about the BAR, not about buttons — chrome that floats above the page is a capsule,
+ * content actions are rects — so it is a boolean any variant can take rather than a
+ * fifth variant, and the same reasoning as `active` above: it is orthogonal.
+ *
+ * It sits after RADIUS in the class list so tailwind-merge lets it replace both the
+ * generated `rounded-2xl` and the corrected `rounded-lg` — one radius on the element,
+ * never two racing on specificity. */
+/* AND ONE HEIGHT WITH IT. The bar's controls were three sizes — `sm` for the switcher,
+ * `icon-sm` for the glyphs, a padded container for the toggle — which is invisible in
+ * isolation and obvious in a row. `pill` carries the height because in this app the
+ * capsule IS the bar: nothing else uses it, and a shape that only appears in one place
+ * may as well bring that place's metrics. `w-9` only for the icon sizes, so a labelled
+ * pill still sizes to its text. */
+/* AND THE BAR'S SURFACE WITH IT (2026-08-29, Rhea). Every control in Rhea's bar rests
+ * on --control-bg behind --line-control and hovers to --surface-hover — the Filters
+ * button, the two icon buttons and the toggle's track are one family, drawn once.
+ * Carried by `pill` for the same reason the height is: nothing outside the bar uses
+ * this shape, so the shape may as well bring the place's colours.
+ *
+ * `tinted` opts out below. The account switcher is deliberately a step brighter than
+ * its neighbours, because it is the one control that changes what every figure on the
+ * page MEANS rather than how it is written or which rows feed it. */
+const PILL = [
+  'h-9 rounded-full border border-[var(--line-control)] bg-[var(--control-bg)]',
+  'text-[13.5px] font-medium text-[var(--text-2)]',
+  'hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
+].join(' ');
+const PILL_ICON = 'w-9';
+
 const Button = React.forwardRef(function Button({
   variant = 'secondary',
   size = 'md',
@@ -114,6 +147,8 @@ const Button = React.forwardRef(function Button({
   // did. A boolean rather than a second variant because it is orthogonal: any chrome
   // control can be engaged or not.
   active = false,
+  // See PILL above: the top bar's controls are capsules, content actions are not.
+  pill = false,
   as: As,
   className,
   ...rest
@@ -133,6 +168,9 @@ const Button = React.forwardRef(function Button({
         // An engaged control keeps the hover but not the muted rest, so the two states
         // stay distinguishable — hence only the resting half is conditional.
         isChrome && (active ? 'text-foreground' : CHROME_REST),
+        // `tinted` keeps the pill's SHAPE and its own surface — see PILL above.
+        pill && (variant === 'tinted' ? 'h-9 rounded-full' : PILL),
+        pill && String(size).startsWith('icon') && PILL_ICON,
         block && 'w-full',
         className,
       )}
@@ -145,4 +183,51 @@ const Button = React.forwardRef(function Button({
   );
 });
 
-export { Button, buttonVariants };
+/* A BUTTON LABEL THAT DROPS AT THE NARROW END OF THE RANGE.
+ *
+ * It exists because a PAGE CANNOT WRITE `max-[1200px]:hidden` — utilities compile only
+ * under components/{ui,primitives}, so the class emits nothing and the label stays at
+ * every width, which is how the top bar overflows at 1080. The one control that needs
+ * this is the top bar's Filters button: Rhea labels it, and below 1200 the bar is
+ * carrying a title, a unit toggle, a scope summary and two glyphs already.
+ *
+ * `hidden` is safe HERE and nowhere else in this repo: it is applied to a bare <span>
+ * with no author `display` of its own, which is the one case the UA rule can win. */
+function ButtonLabel({ className, children, ...rest }) {
+  return (
+    <span data-slot="button-label" className={cn('max-[1200px]:hidden', className)} {...rest}>
+      {children}
+    </span>
+  );
+}
+
+/* A STATUS DOT INSIDE A BUTTON — the top bar's account scope wears one.
+ *
+ * Rhea opens the scope trigger with a dot rather than a layers glyph, and the swap is
+ * the point: the glyph said "this is a scope control", which the label already says,
+ * where the dot says whether the accounts in that scope are HEALTHY — which nothing
+ * else in the bar does.
+ *
+ * It is never the only carrier of that: the Alerts rail item, the bell's badge and the
+ * account card all say the same thing in words. A 6px dot is a reminder, not a report.
+ */
+const DOT = {
+  ok: 'var(--profit)',
+  warn: 'var(--warning)',
+  bad: 'var(--loss)',
+  none: 'var(--text-dim)',
+};
+
+function ButtonDot({ tone = 'ok', className, ...rest }) {
+  return (
+    <span
+      data-slot="button-dot"
+      aria-hidden="true"
+      className={cn('size-1.5 shrink-0 rounded-full', className)}
+      style={{ background: DOT[tone] || DOT.ok }}
+      {...rest}
+    />
+  );
+}
+
+export { Button, ButtonDot, ButtonLabel, buttonVariants };

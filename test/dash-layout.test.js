@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readSrc, stripComments } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
@@ -405,9 +406,36 @@ test('layout state is global and persisted, not per account scope', () => {
   }
 });
 
-test('CSS drives the KPI column count, and grid rows size to content', () => {
-  assert.match(css, /\.dash-stats \{ grid-template-columns: repeat\(var\(--kpi-count, 5\)/);
-  assert.match(dash, /'--kpi-count': visibleKpis\.length/);
+test('the KPI row re-splits itself, and grid rows are a fixed unit', () => {
+  /* `--kpi-count` IS GONE (2026-08-28). The row was a CSS grid told how many columns to
+   * draw, so hiding a card meant passing a new number or leaving a hole. KpiRow is flex:
+   * the cards share the space, and the hero keeps the frame's 392:231 proportion by
+   * ratio rather than by track. Same guarantee — hide a card and the rest widen — with
+   * nothing to keep in sync. Asserted at the primitive, since the legacy `.dash-stats`
+   * rule no longer applies to anything. */
+  const kpi = readSrc('components/primitives/kpi.jsx');
+  // 12.5rem since Rhea (was 10rem): the cards gained a gauge beside the figure, so the
+  // width at which a card stops being legible moved with it.
+  assert.match(kpi, /\[&>\*\]:min-w-\[12\.5rem\] \[&>\*\]:flex-1/);
+  /* FIVE EQUAL CARDS SINCE 2026-08-28 (owner call). The frame draws the hero at 1.7x a
+   * default card (392 : 231) and it was built that way; in the real row the extra width
+   * bought nothing — Net P&L's figure is no longer than "58.33%" — while making the row
+   * visibly lopsided. The hero gives up the width.
+   *
+   * AND SINCE RHEA IT ALSO GAVE UP THE WASH (2026-08-29). What marks it out now is a
+   * step-brighter surface behind a stronger hairline, with the sign carried by the
+   * FIGURE — 25px of mono, coloured. The wash was solving a problem the old 20px figure
+   * had; three encodings of one fact (wash, trend arrow, colour) crowded out the four
+   * cards beside it.
+   *
+   * Asserted as ABSENT because the ratio is the tempting thing to re-add from the frame
+   * without noticing it was tried. */
+  assert.doesNotMatch(kpi, /flex-\[1\.7\]/, 'the hero is the same size as every other card');
+  assert.match(kpi, /data-kpi=\{hero \? 'hero' : undefined\}/, 'the hero is still marked, just not wider');
+  assert.match(dash, /<KpiRow>/);
+  // stripComments, because the note above KpiRow in Dashboard.jsx explains what
+  // `--kpi-count` was — a rule that forbids a name cannot be explained using it.
+  assert.doesNotMatch(stripComments(dash), /--kpi-count/, 'the column-count property is retired');
   // Rows must NOT be pinned to a fixed unit: that would stretch Account Health
   // (which has no height of its own) to a 355px row and change the page.
   assert.ok(!/\.dash-grid \{[^}]*grid-auto-rows/.test(css), 'grid rows should size to content');
@@ -416,44 +444,59 @@ test('CSS drives the KPI column count, and grid rows size to content', () => {
   assert.match(css, /\.dash-grid > \.dash-grid-cell \{ grid-column: span 1 !important; grid-row: span 1 !important; \}/);
 });
 
-test('a widget\'s card height class matches its declared row span', () => {
-  // Content-sized rows mean each card supplies its own height, so the two must
-  // agree or the columns misalign. --dash-card-h-lg is defined as (md*2 + gap),
-  // which is exactly why a 2-row card-lg lines up with two stacked card-md.
-  assert.match(css, /--dash-card-h-lg:calc\(var\(--dash-card-h-md\) \* 2 \+ var\(--dash-card-gap\)\)/);
-  assert.match(css, /\.card-md \{ height: var\(--dash-card-h-md\); \}/);
-  assert.match(css, /\.card-lg \{ height: var\(--dash-card-h-lg\); \}/);
+test('a widget with a fixed height still matches its declared row span', () => {
+  /* THE CALENDAR LEFT THIS RULE ON 2026-08-28, and the rule is still right for the
+   * widgets that remain under it.
+   *
+   * `--dash-card-h-lg` is (md * 2 + gap), so a `large` widget spanning two rows lines up
+   * with two `small` card-md widgets stacked beside it — arithmetic that only matters
+   * for a card whose height is DECLARED. The calendar's was, because its six week rows
+   * divided the panel to fill it; the rebuilt cells carry their own height, so it sizes
+   * to content now and a forced two-row height was just empty space under a five-week
+   * month.
+   *
+   * Recent Activity and the chart keep theirs: one holds a scrolling list, the other a
+   * ResponsiveContainer, and both need a definite box to flex into. */
+  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
+  assert.match(dashSrc, /<PanelCard className="dash-cal-panel">/, 'the calendar sizes to content');
+  assert.ok(!/dash-cal-panel card-lg/.test(dashSrc), 'no fixed height on the calendar');
+  /* NOTHING ON THIS PAGE DECLARES A HEIGHT ANY MORE (2026-08-28). The activity list is
+   * capped at six rows by RecentTrades' own `limit`, and the chart declares its height
+   * on the ResponsiveContainer — so both had a natural ceiling already and `card-md`
+   * only added empty space beneath it. The classes still exist for Prop OS, which this
+   * redesign has not reached. */
+  assert.ok(!/className="card-(md|lg)"/.test(dashSrc), 'dashboard cards size to their content');
+});
 
-  const classFor = { 1: 'card-md', 2: 'card-lg' };
-  // The height class may sit on the thunk's own markup (calendar) or inside the
-  // component it renders (ActivityCard/CumulativePnlCard), so follow the
-  // reference one hop before deciding.
-  const heightClassOf = (id) => {
-    const from = dash.indexOf(`    ${id}: () =>`);
-    const thunk = dash.slice(from, from + 400);
-    const direct = /card-(md|lg)/.exec(thunk);
-    if (direct) return `card-${direct[1]}`;
-    const comp = /<([A-Z]\w+)/.exec(thunk)?.[1];
-    if (!comp) return null;
-    const defAt = dash.indexOf(`function ${comp}(`);
-    if (defAt < 0) return null;
-    const hit = /card-(md|lg)/.exec(dash.slice(defAt, defAt + 700));
-    return hit ? `card-${hit[1]}` : null;
-  };
+test('no data is not a zero value — the empty KPI shapes say nothing, not "all losses"', () => {
+  /* CAUGHT BY RENDERING THE ZERO STATE, which is the whole reason that state exists.
+   *
+   * The profit-factor RING draws gross loss all the way round and gross profit over it,
+   * so a share of 0 paints it entirely red. That is correct for "every trade lost" and
+   * catastrophically wrong for "no trades yet" — a brand-new account's dashboard drew a
+   * full red ring on the one screen where a new user decides whether this app knows
+   * anything about them.
+   *
+   * The GAUGE had the same class of bug for a different reason: a zero-length dash with
+   * a round linecap draws a DOT rather than nothing, so every empty gauge carried a
+   * stray amber pip that reads as a value.
+   *
+   * Both are pinned as RULES rather than as pixels, because the number drifting is
+   * cosmetic and the rule drifting is a new user being told they are losing. */
+  const kpi = readSrc('components/primitives/kpi.jsx');
+  const cards = readSrc('features/dashboard/KpiCards.jsx');
 
-  for (const w of MAIN_WIDGETS) {
-    const rows = widgetSpan(w.id).rows;
-    if (w.id === 'account') {
-      // The one intentional exception: a full-width banner sized by its content,
-      // which is what keeps it from being stretched to a fixed row height.
-      assert.equal(heightClassOf('account'), null, 'Account Health should stay content-sized');
-      assert.equal(rows, 1);
-      continue;
-    }
-    assert.equal(heightClassOf(w.id), classFor[rows], `${w.id} spans ${rows} row(s) so it needs ${classFor[rows]}`);
-  }
+  // The ring's base stroke is conditional, and `empty` is a separate input from `share`.
+  assert.match(kpi, /stroke=\{empty \? 'var\(--chart-grid\)' : 'var\(--loss\)'\}/);
+  assert.match(kpi, /\{!empty && \(/, 'the value arc is not drawn at all with no data');
+  // The gauge draws no value path at zero, rather than a zero-length one.
+  assert.match(kpi, /\{v > 0 && \(/);
+  assert.match(kpi, /const v = empty \? 0 :/);
 
-  // The calendar specifically NEEDS a definite height: .cal divides the panel
-  // height across its 6 week rows, so a content-sized panel would collapse it.
-  assert.match(dash, /className="panel dash-cal-panel card-lg"/);
+  // And the caller distinguishes "no losers" (real, full green) from "no trades".
+  assert.match(cards, /const noData = !infinite && gross === 0;/);
+  assert.match(cards, /<KpiRing share=\{share\} empty=\{noData\} \/>/);
+  // Every gauge is told, and the outcome chips go neutral with nothing to colour.
+  assert.equal((cards.match(/empty=\{!/g) || []).length, 3, 'all three gauges take an empty state');
+  assert.match(cards, /tone=\{m\.tradeCount \? 'pos' : 'flat'\}/);
 });

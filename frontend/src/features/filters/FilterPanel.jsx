@@ -282,6 +282,10 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
   // still shows where you are in the list.
   const [adding, setAdding] = useState(active === 0);
   const [pickedId, setPickedId] = useState(null);
+  /* Nothing to show yet AND the picker is open — the outer panel would be a title over
+   * a button that is already pressed. Recomputed rather than stored, so adding the first
+   * filter restores the panel in the same render that adds the chip. */
+  const bare = active === 0 && adding && !pickedId;
   const def = pickedId ? FILTER_BY_ID[pickedId] : null;
   const chips = activeDefs(filters);
 
@@ -398,8 +402,25 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
     // The panel sits under the button; the cascade sits under the PANEL, opening
     // right-to-left (see .fp-cascade) because the button is at the right edge of
     // the top bar — so every column stays on screen without measuring anything.
-    <div className="fp-stack">
-      <div className="fp">
+    /* WHEN THERE ARE NO FILTERS, THERE IS ONE PANEL (2026-08-28).
+     *
+     * The stack used to open as two: a small panel holding a "Filters" title and a
+     * single "+ Add filter" row, with the picker floating beneath it under its own
+     * "Add filter" heading. Two panels, two headings, and the top one had nothing in it
+     * — the click that opened the whole thing had already answered the question it was
+     * asking. The picker IS the panel until a filter exists to list.
+     *
+     * `bare` is the whole change: the outer panel keeps its structure so the chip list
+     * and Clear all appear the moment there is something to show, and loses only its
+     * surface and its head while empty. That is a conditional class rather than a second
+     * render path, which is what keeps the cascade's positioning identical in both. */
+    <div className={`fp-stack ${bare ? 'fp-stack--bare' : ''}`}>
+      <div className={`fp ${bare ? 'fp--bare' : ''}`}>
+        {/* CONDITIONALLY RENDERED, NOT `hidden`. The attribute's `display: none` comes
+            from the UA stylesheet, which loses to ANY author rule — and `.fp-head` sets
+            `display: flex`. So `hidden` here was inert: the element stayed on screen and
+            only stopped being announced, which is the worst of both. */}
+        {!bare && (
         <div className="fp-head">
           <span className="fp-head-title">Filters</span>
           {active > 0 && (
@@ -408,6 +429,7 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
             </button>
           )}
         </div>
+        )}
 
         {chips.length > 0 && (
           <div className="fp-chips">
@@ -436,6 +458,7 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
           </div>
         )}
 
+        {!bare && (
         <button
           type="button"
           className={`fp-add ${adding && !pickedId ? 'is-on' : ''}`}
@@ -445,6 +468,7 @@ export default function FilterPanel({ options = {}, filters, patchFilters, clear
           <Plus />
           <span>Add filter</span>
         </button>
+        )}
 
         {chips.length === 0 && !adding && (
           <p className="fp-blank">No filters — every trade in scope is included.</p>

@@ -55,6 +55,16 @@ export function upcomingEvents(raw, now = new Date(), limit = DEFAULT_LIMIT) {
       ts: Date.parse(e.date),
     }))
     .filter((e) => Number.isFinite(e.ts) && e.ts >= cutoff)
+    /* DEDUPE. One feed is configured today, but `econCalendarUrls` is a list and this
+     * function flatMaps every one of them — the moment a second provider is added for
+     * forward coverage (see config.js) the two overlap at the week boundary and the same
+     * release arrives twice, which reads as a scheduling error rather than as a
+     * duplicate. Keyed on the three fields that identify a release, with `ts` rather than
+     * the raw string so two feeds writing the same instant at different offsets still
+     * collapse. */
+    .filter((e, i, all) => all.findIndex(
+      (o) => o.ts === e.ts && o.title === e.title && o.country === e.country,
+    ) === i)
     .sort((a, b) => a.ts - b.ts)
     .slice(0, limit)
     .map(({ ts, ...e }) => e); // ts was only for filter/sort — not part of the API shape

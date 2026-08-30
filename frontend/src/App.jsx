@@ -103,6 +103,12 @@ function clearLegacyViewState() {
 export default function App() {
   const { user, loading, setUser } = useAuth();
   const [trades, setTrades] = useState([]);
+  /* "STILL LOADING" AND "NOTHING TO SHOW" WERE THE SAME STATE, and they are not the
+     same story. `trades` starts as [] and fills in, so a trader whose data is three
+     seconds away saw exactly what a brand-new account with no trades sees: an empty
+     dashboard telling them they have never traded. Starts true because the first fetch
+     is already on its way by the time anything renders. */
+  const [tradesLoading, setTradesLoading] = useState(true);
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [payouts, setPayouts] = useState([]);
@@ -197,16 +203,11 @@ export default function App() {
   });
   const setUnit = (u) => setViewConfigs((prev) => ({ ...prev, unit: u }));
 
-  // Colour theme — global like `unit`, and server-synced so it follows the user
-  // across devices. Dark is the default, and :root already holds the dark values,
-  // so the attribute is only set when the theme is light.
-  const theme = viewConfigs.theme === 'light' ? 'light' : 'dark';
-  const setTheme = (t) => setViewConfigs((prev) => ({ ...prev, theme: t === 'light' ? 'light' : 'dark' }));
-  useEffect(() => {
-    const el = document.documentElement;
-    if (theme === 'light') el.dataset.theme = 'light';
-    else delete el.dataset.theme;
-  }, [theme]);
+  /* NO THEME STATE. The app is dark-only as of 2026-08-28 (tokens.css, "NO LIGHT
+     THEME"), so there is nothing to hold, nothing to persist and no `data-theme`
+     attribute to write — :root IS the theme. A stored `theme: 'light'` left over in a
+     user's view state is simply never read; it costs one dead key rather than a
+     migration, and it is what a returning light theme would read first. */
 
   // Dashboard layout — global like `unit`, not per scope, so switching accounts
   // never rearranges the page. Sanitized on read rather than on hydrate so a
@@ -364,6 +365,28 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
+  /* DISMISS ONE, for Today's Brief's Clear button (2026-08-29, Rhea).
+   *
+   * The route has always taken `{ ids: [...] }` — only `{ all: true }` was ever called.
+   * The prototype clears an alert into local component state, which would mean a
+   * dismissal that comes back on the next reload and an unread count that disagrees
+   * with the list beside it. Marking it read is the same act the notification panel
+   * already performs, so one alert cannot be "cleared" here and unread there.
+   *
+   * OPTIMISTIC, THEN RECONCILED: the row goes immediately (dismissing a warning should
+   * not wait on a round trip) and the server's own unread count replaces the local
+   * guess when it lands. A failure leaves the alert visible, which is the safe
+   * direction for a message about a drawdown. */
+  async function markNotificationRead(id) {
+    const now = new Date().toISOString();
+    setNotifications((prev) => prev.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: now } : n)));
+    setUnread((u) => Math.max(0, u - 1));
+    try {
+      const { unread: u } = await markNotificationsRead({ ids: [id] });
+      setUnread(u);
+    } catch { /* the row is already gone; the next fetch reconciles */ }
+  }
+
   // Reload payouts for the active scope (funded-account withdrawals).
   function reloadPayouts() {
     return fetchPayouts(accountIdRef.current).then(setPayouts).catch(() => {});
@@ -383,12 +406,24 @@ export default function App() {
   // Load trades + account snapshot + payouts for the selected scope. Waits until
   // accounts are known before trusting a specific (non-god) selection.
   useEffect(() => {
-    if (!user) { setTrades([]); setAccount(null); setPayouts([]); setFees([]); return; }
+    if (!user) {
+      setTrades([]); setAccount(null); setPayouts([]); setFees([]);
+      // Not logged in is not "loading" — it is an answer, and the router is about to
+      // send them to the login screen anyway.
+      setTradesLoading(false);
+      return;
+    }
     const owned = accountId === 'all'
       || String(accountId).split(',').every((l) => accounts.some((a) => String(a.mt5_login) === l));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
-    fetchTrades(accountId).then(setTrades).catch((e) => setLoadError(e.message));
+    setTradesLoading(true);
+    // finally, not then: a failed load must stop claiming to be loading, or the page
+    // shows a skeleton for ever with the error banner sitting above it.
+    fetchTrades(accountId)
+      .then(setTrades)
+      .catch((e) => setLoadError(e.message))
+      .finally(() => setTradesLoading(false));
     fetchAccount(accountId).then(setAccount).catch(() => {});
     fetchPayouts(accountId).then(setPayouts).catch(() => {});
     fetchFees(accountId).then(setFees).catch(() => {});
@@ -490,6 +525,7 @@ export default function App() {
               element={
               <Layout
                 trades={filteredTrades}
+                tradesLoading={tradesLoading}
                 account={account}
                 accounts={accounts}
                 payouts={payouts}
@@ -505,6 +541,7 @@ export default function App() {
                 notifications={notifications}
                 unread={unread}
                 markAllNotificationsRead={markAllNotificationsRead}
+                markNotificationRead={markNotificationRead}
                 toasts={toasts}
                 dismissToast={dismissToast}
                 connected={connected}
@@ -527,8 +564,6 @@ export default function App() {
                 propLayout={propLayout}
                 setPropVisible={setPropVisible}
                 resetPropLayout={resetPropLayout}
-                theme={theme}
-                setTheme={setTheme}
                 briefPrefs={briefPrefs}
                 patchBriefPrefs={patchBriefPrefs}
                 setBriefSection={setBriefSection}

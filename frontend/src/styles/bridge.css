@@ -31,9 +31,16 @@
   --color-popover: var(--surface-2);
   --color-popover-foreground: var(--text);
 
-  /* Their "primary" is a brand-filled action — exactly our accent. */
-  --color-primary: var(--accent);
-  --color-primary-foreground: var(--on-accent);
+  /* THEIR "primary" IS OUR PRIMARY ACTION, AND THAT IS NO LONGER THE ACCENT.
+     Until 2026-08-28 this pointed at --accent, on the reading that a primary button is
+     a brand-filled one. The Figma redesign fills it light instead (see --action in
+     tokens.css): on a near-black page a light fill outranks any hue, and pointing
+     primary at the brand meant blue had to be both "the product" and "the button",
+     which is why the accent needed a second value (--accent-on-surface) to stay
+     legible. One line here moves every primary button in the app, which is the whole
+     reason the bridge exists. */
+  --color-primary: var(--action);
+  --color-primary-foreground: var(--on-action);
 
   --color-secondary: var(--sel-bg);
   --color-secondary-foreground: var(--text);
@@ -273,10 +280,16 @@
   --text-lg: var(--fs-section-title);
   --text-2xl: var(--fs-page-title);
 
-  /* Weights — 400 default, 600 ceiling (DESIGN-LANGUAGE N2) */
+  /* Weights — 400 default, CEILING 650, half-steps legal (DESIGN-LANGUAGE §3,
+     amended 2026-08-29). Geist is a variable face, so the ladder gained the
+     in-between steps the whole-step scale could not express. Tailwind's `font-bold`
+     is repointed at 650 rather than its own 700: 700 is brand-lockup only, and a
+     generated component asking for `font-bold` must not be the thing that reaches
+     for it. */
   --font-weight-normal: var(--fw-regular);
   --font-weight-medium: var(--fw-medium);
   --font-weight-semibold: var(--fw-semibold);
+  --font-weight-bold: var(--fw-bold);
 
   /* Spacing. Our --s-* scale is 4px-based (s-1:4 s-2:8 s-3:12 s-4:16 s-6:24
      s-8:32 s-10:40 s-12:48), so pointing Tailwind's base unit at --s-1 makes
@@ -338,19 +351,23 @@
 @custom-variant max-520 (@media (max-width: 520px));
 
 /* ---------------------------------------------------------------------------
-   5. THEMING — data-theme, NEVER .dark
-   shadcn ships `@custom-variant dark (&:is(.dark *))`. This app is dark-FIRST:
-   :root is dark and `[data-theme="light"]` overrides tokens. Redefining the
-   variant here means a generated component using `dark:` behaves correctly under
-   our architecture, and no `.dark` class ever has to exist.
+   5. THEMING — DARK ONLY, and never `.dark`
+   shadcn ships `@custom-variant dark (&:is(.dark *))`. This app has exactly one
+   theme, declared on :root in tokens.css, and no `.dark` class or `data-theme`
+   attribute exists to hang a variant off.
 
-   Theming does not actually depend on these variants: because section 1 points
-   every colour at a token that already flips under [data-theme="light"], generated
-   components are theme-correct without a single `dark:` utility. These exist only
-   so that library code which does use `dark:` is not silently wrong.
+   Theming does not actually depend on these variants: section 1 points every colour
+   at a token, so generated components are correct without a single `dark:` utility.
+   These exist only so that library code which does use `dark:` is not silently wrong.
 --------------------------------------------------------------------------- */
-@custom-variant dark (&:where(html:not([data-theme="light"]), html:not([data-theme="light"]) *));
-@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+/* DARK IS UNCONDITIONAL AS OF 2026-08-28. There is no light theme and no `data-theme`
+   attribute any more (tokens.css, "NO LIGHT THEME"), so `dark:` must match everywhere
+   rather than match a selector that is now never present — a generated component using
+   `dark:bg-...` would otherwise silently lose its dark styling on every page.
+   `&` alone is the always-true variant. `light:` is defined as never-matching rather
+   than deleted, so library code that uses it compiles to nothing instead of erroring. */
+@custom-variant dark (&);
+@custom-variant light (&:where(.__no-light-theme__));
 
 /* ---------------------------------------------------------------------------
    6. LIBRARY VARIABLES REFERENCED DIRECTLY BY GENERATED COMPONENTS
@@ -444,6 +461,27 @@
   :where(button[data-slot], [data-slot] button) {
     background-color: transparent;
   }
+
+  /* THE THIRD ONE — 2026-08-28, found by the rebuilt navigation rail, and predicted by
+     the note above in the same breath as the second.
+
+     Preflight sets `*, ::before, ::after { border: 0 solid }`. Without it the UA sheet's
+     `border: 2px outset ButtonBorder` stands, so every generated control that declares
+     no border of its own draws one. It went unseen until now because the controls that
+     came before either declared a border (`variant="outline"`) or sat on legacy CSS that
+     did (`.sb-group-head { border: none }`) — and that legacy rule is exactly what the
+     rail stopped using. Caught in a headless render of the rail: the three accordion
+     headers and the collapse button had a light outset frame the frame does not have.
+
+     Border-WIDTH only, not the shorthand: the shorthand would also reset `border-color`
+     to currentColor, and Tailwind's `border` utility sets width and colour separately —
+     a component asking for `border` and nothing else would then inherit the text colour
+     as its border instead of the token the bridge points at. Same `:where()` zero
+     specificity as the two above, so any author rule still wins and this can only ever
+     remove a browser default. */
+  :where(button[data-slot], [data-slot] button) {
+    border-width: 0;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -502,3 +540,55 @@
    · Layout tokens (--dash-card-*, --dur-fast) — consumed by the CSS layer
      directly; no utility needs them yet.
 --------------------------------------------------------------------------- */
+
+
+/* ---------------------------------------------------------------------------
+   BREAKPOINTS — `md` is repointed at 900, the rail's own number (DESIGN-LANGUAGE §22).
+
+   The generated Sidebar gates its desktop rail on `md:block` / `md:flex` and its
+   drawer on useIsMobile(). Repointing the screen is what makes those land on OUR
+   breakpoint set instead of adding a fourth number at Tailwind's 768. The only other
+   `md:` in the library is the `md:text-sm` shadcn puts on form controls, which now
+   steps at 900 — harmless, and 900 is where the layout reorganises anyway. sm/lg/xl
+   keep Tailwind's defaults: nothing in the library uses them for layout, and inventing
+   values we have no design for is inventing design.
+
+   PLAIN `@theme`, NOT `@theme inline`, AND THAT IS THE WHOLE BUG THIS COMMENT EXISTS
+   FOR. Declared inside one of the `@theme inline` blocks above, `--breakpoint-md`
+   does not register as a screen — and the failure is silent and total: `md:block`
+   and `md:flex` are then emitted by NOTHING, so the rail keeps the `hidden` half of
+   `hidden md:block` at every width and the whole navigation disappears. The markup
+   is correct, the class is on the element, and there is no rule to apply. Found by
+   dumping the DOM and grepping the served CSS for `md\:block`, which was absent.
+
+   `inline` is right for the mappings above (they resolve a var at the use site so a
+   token change reaches a generated component without a rebuild) and wrong here: a
+   breakpoint is not a value a utility interpolates, it is a variant the compiler has
+   to know about while generating.
+--------------------------------------------------------------------------- */
+@theme {
+  --breakpoint-md: 900px;
+}
+
+/* ---------------------------------------------------------------------------
+   KEYFRAMES the component library owns.
+
+   `@keyframes` are global and layer-free, so declaring them here rather than in
+   legacy/app.css means they survive that file's deletion. Utilities reference them by
+   name (`animate-[pv-breathe_2.4s_ease-in-out_infinite]`).
+
+   pv-breathe — THE ONE LOOPING ANIMATION IN THIS APP, and it is on the stop-trading
+   banner. Everything else animates on a state change and settles; this does not settle
+   because the CONDITION does not. An account 88% through its daily loss limit is still
+   88% through it a minute later, and a static red bar is something the eye stops
+   seeing within a minute of it appearing.
+
+   It pulses a RING rather than the fill, so nothing under it moves and no text
+   reflows — a banner whose words shift is harder to read, not more urgent. Every
+   caller gates it behind `motion-safe:`, which is §10's rule: a reduced-motion user
+   gets the banner, just not the pulse. The state change still happens.
+--------------------------------------------------------------------------- */
+@keyframes pv-breathe {
+  0%, 100% { box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--loss) 28%, transparent); }
+  50% { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--loss) 0%, transparent); }
+}

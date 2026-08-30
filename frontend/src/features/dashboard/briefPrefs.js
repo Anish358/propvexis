@@ -207,15 +207,23 @@ export function formatBriefDate(now = new Date(), timezone = 'local') {
   });
 }
 
-// The wall clock for the banner heading, e.g. "3:42 PM".
-//
-// UTC gets an explicit suffix: with that mode selected every time in the widget
-// is UTC, and the clock is the natural place to say so — otherwise a viewer sees
-// a time that silently disagrees with the one on their taskbar.
+/* The wall clock for the brief's heading, e.g. "14:42:07".
+ *
+ * 24-HOUR WITH SECONDS as of 2026-08-29 (Rhea; was "3:42 PM"). Both halves are the
+ * design's and both are right for this app: every other time on this screen — an event
+ * release, a session, a drawdown reset — is written 24-hour, and a clock in a different
+ * convention beside them is one more conversion to do under pressure. The seconds are
+ * what make it read as a LIVE clock rather than a timestamp of when the page loaded,
+ * which matters on a card whose whole job is "what is about to happen".
+ *
+ * UTC gets an explicit suffix: with that mode selected every time in the widget is UTC,
+ * and the clock is the natural place to say so — otherwise a viewer sees a time that
+ * silently disagrees with the one on their taskbar. */
 export function formatBriefClock(now = new Date(), timezone = 'local') {
   const utc = timezone === 'utc';
   const t = now.toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', ...(utc ? { timeZone: 'UTC' } : {}),
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    ...(utc ? { timeZone: 'UTC' } : {}),
   });
   return utc ? `${t} UTC` : t;
 }
@@ -238,7 +246,14 @@ export function formatBriefTime(iso, timezone = 'local', now = new Date()) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const utc = timezone === 'utc';
-  const opts = { hour: 'numeric', minute: '2-digit', ...(utc ? { timeZone: 'UTC' } : {}) };
+  /* 24-HOUR, MATCHING THE CLOCK ABOVE IT (2026-08-29, Rhea). These sit in the same
+     column as a heading clock written 14:42:07; leaving them at "7:00 PM" put two time
+     conventions four inches apart on a card whose job is to answer "what is about to
+     happen, and how long have I got". That is the conversion this design set out to
+     remove, not to relocate. */
+  const opts = {
+    hour: '2-digit', minute: '2-digit', hour12: false, ...(utc ? { timeZone: 'UTC' } : {}),
+  };
   const time = d.toLocaleTimeString('en-US', opts);
   const sameDay = utc
     ? d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth() && d.getUTCDate() === now.getUTCDate()
@@ -246,4 +261,71 @@ export function formatBriefTime(iso, timezone = 'local', now = new Date()) {
   if (sameDay) return time;
   const day = d.toLocaleDateString('en-US', { weekday: 'short', ...(utc ? { timeZone: 'UTC' } : {}) });
   return `${day} ${time}`;
+}
+
+/**
+ * THE FALLBACK LIST, for when the user's own filter matches nothing.
+ *
+ * `filterBriefEvents` narrows by importance, currency AND time window, and the window
+ * is usually a few hours — so on a quiet afternoon, or at 6pm on a Friday, the column
+ * is legitimately empty and the card has nothing to say. That is honest and it is also
+ * useless: the question a trader is asking is "what is coming that could move this
+ * against me", and "nothing in the next four hours" is only half an answer.
+ *
+ * So when the narrow list is empty, this returns the next HIGH-IMPACT events from the
+ * whole feed, ignoring the window and the importance setting — the ones that would end
+ * a session — while still respecting the CURRENCIES the user chose, because those are a
+ * statement about what they trade rather than about when they are looking.
+ *
+ * Deliberately not merged into filterBriefEvents: the caller has to know which list it
+ * is showing so it can say so. A fallback that silently looks like the real list
+ * teaches the trader that their window setting does nothing.
+ */
+export function fallbackBriefEvents(events, prefs, now = new Date(), limit = 4) {
+  const p = sanitizeBriefPrefs(prefs);
+  if (!Array.isArray(events) || p.currencies.length === 0) return [];
+  const from = now.getTime();
+  return events
+    .filter((e) => {
+      const t = new Date(e.date).getTime();
+      if (!Number.isFinite(t) || t < from) return false;
+      if (!p.currencies.includes(e.country)) return false;
+      // High only. A fallback that admits medium and low is just a wider window, and
+      // the point of it is "the things that matter, whenever they are".
+      return (e.impact || '').toLowerCase() === 'high';
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, limit);
+}
+
+/* ---- SAMPLE EVENTS — DEVELOPMENT BUILDS ONLY --------------------------------
+ *
+ * WHY THIS IS GATED AND NOT JUST SEEDED. These are invented economic releases. A trader
+ * who reads "USD Non-Farm Employment Change 13:30" on a dashboard will plan a session
+ * around it — that is the entire purpose of the card — and being wrong about when the
+ * market moves is not a cosmetic bug. So they exist to make the design visible while
+ * building it and must never reach anyone's real screen.
+ *
+ * The gate is the CALLER's (`import.meta.env.DEV`, which Vite statically replaces with
+ * `false` in a production build, so a bundler drops this branch entirely). This function
+ * stays pure and dateless — it takes `now` and generates times relative to it, so the
+ * list is always plausibly "upcoming" whenever you happen to look, and node:test can
+ * assert on it without a clock.
+ *
+ * Real-looking on purpose: sample data that says "Event One" tells you nothing about
+ * whether a title truncates at 380px. The FALLBACK NOTE that renders alongside is what
+ * says they are samples.
+ */
+export function sampleBriefEvents(now = new Date()) {
+  const at = (hours, minutes = 0) => {
+    const d = new Date(now.getTime() + hours * 3600_000);
+    d.setMinutes(minutes, 0, 0);
+    return d.toISOString();
+  };
+  return [
+    { title: 'Core CPI m/m', country: 'USD', impact: 'high', date: at(2, 30) },
+    { title: 'FOMC Statement', country: 'USD', impact: 'high', date: at(5, 0) },
+    { title: 'ECB President Speaks', country: 'EUR', impact: 'medium', date: at(7, 15) },
+    { title: 'Retail Sales m/m', country: 'GBP', impact: 'medium', date: at(9, 30) },
+  ];
 }

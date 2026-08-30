@@ -37,6 +37,13 @@ export function appFiles({ ext = /\.jsx?$/ } = {}) {
 /** Application .jsx files only. */
 export const appJsx = () => appFiles({ ext: /\.jsx$/ });
 
+/** The component library itself — components/{ui,primitives}. The complement of
+ *  appFiles(), and the surface where Tailwind utilities actually compile, so a rule
+ *  about utilities has to scan HERE rather than over application code. */
+export function libraryFiles({ ext = /\.jsx?$/ } = {}) {
+  return allSrcFiles().filter((f) => ext.test(f) && LIBRARY.test(f));
+}
+
 const index = new Map();
 for (const rel of walk(srcDir)) {
   const name = path.basename(rel);

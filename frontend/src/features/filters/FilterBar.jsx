@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Filter, Moon, Settings, Star, Sun } from 'lucide-react';
+// `Menu as MenuIcon` — the primitives barrel below already exports a `Menu`
+// component, and the icon would silently shadow it.
+import { Bell, ChevronDown, Filter, Menu as MenuIcon, Settings, Star } from 'lucide-react';
 import { activeFilterCount } from './filters.js';
 import { navTitle, isSingleAccountRoute } from '../../app/nav.js';
-import { titleCase } from '../../lib/constants.js';
 import FilterPanel from './FilterPanel.jsx';
 // PHASE 4b (overlays) + PHASE 4c (the controls themselves).
 //
@@ -24,46 +25,23 @@ import FilterPanel from './FilterPanel.jsx';
 // may not originate visual values (pinned by topbar-overlays.test.js), so what stays
 // here is geometry the preset has no opinion about — a width cap, a truncation.
 import {
-  Avatar, AvatarFallback, AvatarImage,
-  Button, CountBadge,
-  Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
+  Badge, Button, ButtonDot, ButtonLabel, CountBadge,
+  Menu, MenuCheckboxItem, MenuContent, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger,
   ToggleGroupExclusive, ToggleGroupItem,
+  TopBar, TopBarActions, TopBarTitle,
 } from '@/components/primitives';
-import { useAuth } from '../../app/AuthContext.jsx';
 import { NotificationBell } from '../alerts/Notifications.jsx';
-import TradeSettingsModal from '../trades/TradeSettingsModal.jsx';
 
-// Light/dark switch. Shows the theme you'd GET by clicking — a sun while you're in
-// dark — which reads faster than showing the state you're already in.
-//
-// The light theme it toggles is KNOWINGLY UNFINISHED: contrast is verified but the
-// palette hasn't been tuned, and it currently reads flat (white sidebar against a
-// near-white page, cards barely separated from it). Mounted deliberately anyway so
-// it can be improved in place. Dark is unaffected either way — dark is :root, and
-// the toggle only adds data-theme="light" to <html>.
-//
-// PHASE 4c — a chrome icon Button, replacing `.tb-icon-btn`. The two hand-written SVG
-// paths are lucide's `Sun` and `Moon`: `components.json` sets `iconLibrary: "lucide"`,
-// and the generated Button already sizes any `svg` child it is given, so the explicit
-// width/height this used to carry is now the component's business rather than each
-// icon's. `size="icon-sm"` is the same square the bell uses, so "matches the
-// notification bell's footprint" is true by construction now instead of by two legacy
-// rules agreeing on 30px.
-function ThemeToggle({ theme, setTheme }) {
-  const toLight = theme !== 'light';
-  return (
-    <Button
-      variant="chrome"
-      size="icon-sm"
-      onClick={() => setTheme(toLight ? 'light' : 'dark')}
-      title={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
-      aria-label={toLight ? 'Switch to light theme' : 'Switch to dark theme'}
-    >
-      {toLight ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-    </Button>
-  );
-}
+
+// The phase as a short tag for the switcher's scope summary — the same vocabulary the
+// account wizard uses for a name suffix, for the same reason: "Phase 2" does not fit
+// three times in a top-bar pill.
+const PHASE_TAG = { p1: 'P1', p2: 'P2', p3: 'P3', funded: 'Funded' };
+// Lifecycle order, so a scope summary reads "P1 · P2 · Funded" however the accounts
+// happen to be sorted. A summary whose order follows the account list is a summary that
+// changes when an account is added.
+const PHASE_ORDER = ['P1', 'P2', 'P3', 'Funded'];
 
 const GOD = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
@@ -95,7 +73,7 @@ const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 // than being told "checkbox" and then finding the other boxes clear themselves.
 // "All accounts" stays: god view is still a legitimate scope, and it is what the
 // page shows before an account has been picked.
-function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect = false }) {
+function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect = false, notifications = [] }) {
   // Bound + active only; archived accounts stay out of the switcher (still in the modal).
   const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
   const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
@@ -112,10 +90,35 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
   // by re-clicking the current account — "All accounts" is the row for that.
   const pick = (login) => setAccountId(String(login));
 
+  /* THE LABEL CARRIES ITS COUNT (Rhea: "All accounts · 5"). God view used to read just
+   * "All accounts", which says the scope is everything without saying how much
+   * everything is — and "everything" is 2 accounts for one trader and 11 for another. */
   let current;
-  if (accountId === GOD) current = 'All accounts';
+  if (accountId === GOD) current = bound.length ? `All accounts · ${bound.length}` : 'All accounts';
   else if (selected.length === 1) current = acctLabel(bound.find((a) => String(a.mt5_login) === selected[0]) || {});
-  else current = `${selected.length} accounts`;
+  else current = `${selected.length} Accounts`;
+
+  /* WHICH accounts, not just how many. Phases rather than logins, because that is what a
+   * trader is actually scoping by, and three of them fit where three five-digit numbers
+   * do not. Shown in GOD VIEW TOO as of Rhea — "All accounts · 5" still does not say
+   * whether those five are evaluations or funded, and that changes what every figure on
+   * the page means. Deduped and in lifecycle order, so it reads "P1 · P2 · Funded"
+   * rather than repeating a phase once per account. */
+  const summaryOf = (list) => {
+    const tags = new Set(list.map((a) => PHASE_TAG[a.phase] || a.phase).filter(Boolean));
+    return PHASE_ORDER.filter((t) => tags.has(t)).join(' · ') || null;
+  };
+  /* THE DOT'S TONE COMES FROM THE ALERT STREAM, which the bar already receives — no new
+   * plumbing, and no invented health. An unread critical notification means an account
+   * in this scope is in trouble; that is the same signal the Alerts page and the bell
+   * are reading, so the three cannot disagree. */
+  const worst = notifications.find((n) => !n.read_at && n.severity === 'critical') ? 'bad'
+    : notifications.find((n) => !n.read_at && n.severity === 'warning') ? 'warn' : 'ok';
+  const scopeTone = bound.length ? worst : 'none';
+
+  const scopeSummary = accountId === GOD
+    ? summaryOf(bound)
+    : (selected.length > 1 ? summaryOf(bound.filter((a) => isSel(a.mt5_login))) : null);
 
   return (
     <div className="tb-acct">
@@ -128,14 +131,30 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
             it keeps aria-haspopup/aria-expanded on the focusable element. The
             generated Button reads `aria-expanded` itself (`aria-expanded:bg-…`), so
             the open state paints without a class of ours. */}
-        <MenuTrigger render={<Button variant="tinted" size="sm" />}>
+        <MenuTrigger render={<Button variant="tinted" size="sm" pill />}>
           {/* Long account labels truncate rather than widening the bar. The width cap
               and the ellipsis are A1 geometry, not styling the preset owns — and they
               live in legacy CSS on `.tb-acct` / `.acct-switch-cur` rather than as
               utilities here, because Tailwind's `@source` is scoped to
               `components/` (deliberately — see tailwind.css). A utility written in a
               page is never compiled, so it is not a shortcut, it is a no-op. */}
+          {/* THE FRAME'S TRIGGER: a scope icon, the count, and a muted summary of WHICH
+              accounts — "3 Accounts · P1 · P2 · Funded". The label alone ("2 accounts")
+              said how many without saying which, so the one thing a multi-account trader
+              checks before reading any figure was a click away.
+
+              THE MENU BEHIND IT IS UNCHANGED, deliberately. @coss ships a Combobox and it
+              was read first: 15 KB, searchable, chips, its own input and scroll-area. This
+              control is a multi-SELECT with god-view semantics (`all` vs a comma-joined
+              login list), a single-select mode on two routes, and a pending-accounts
+              footer — all tested. Swapping it would trade working behaviour for a
+              different-looking trigger, which is the half we can just draw. */}
+          {/* A DOT, NOT A GLYPH (Rhea). The layers icon said "this is a scope control",
+              which the label already says; the dot says whether the accounts IN that
+              scope are healthy, which nothing else in the bar does. */}
+          <ButtonDot tone={scopeTone} />
           <span className="acct-switch-cur">{current || 'Select account'}</span>
+          {scopeSummary && <span className="acct-switch-sub">{scopeSummary}</span>}
           <ChevronDown aria-hidden="true" data-icon="inline-end" />
         </MenuTrigger>
         {/* PRESET SKIN. The surface, item metrics and separator are the generated
@@ -152,10 +171,23 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
             All accounts <span className="acct-opt-sub">God view</span>
           </MenuItem>
           {bound.map((a) => {
+            /* A ROW THAT SAYS WHAT THE ACCOUNT IS (2026-08-28). It used to read a label
+               and then either "Manual" or a five-digit login — the login is the least
+               useful thing about an account you are choosing BY NAME, and "Manual" is
+               how trades arrive, not what the account is.
+               What a trader picks by is the phase, so that is the badge; the connection
+               kind stays as quiet text for the manual case, where it does explain why
+               there is no live balance. Uses the Badge primitive rather than a fourth
+               hand-styled span, so it matches the phase badges in Prop OS. */
             const row = (
               <>
                 <span className="acct-opt-name">{acctLabel(a)}</span>
-                <span className="acct-opt-sub">{a.kind === 'manual' ? 'Manual' : a.mt5_login}</span>
+                {PHASE_TAG[a.phase] && (
+                  <Badge tone={a.phase === 'funded' ? 'profit' : 'neutral'}>
+                    {PHASE_TAG[a.phase]}
+                  </Badge>
+                )}
+                {a.kind === 'manual' && <span className="acct-opt-sub">Manual</span>}
               </>
             );
             return singleSelect ? (
@@ -223,9 +255,30 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
             strength once any filter is set, because a bar with filters applied has to
             look different from one without. Both now say what they mean instead of
             naming a colour. */}
-        <PopoverTrigger render={<Button variant="chrome" size="sm" active={active > 0} />}>
+        {/* ICON ONLY (2026-08-28). The word "Filters" was the only label left in a row
+            of glyphs, so the bar read as one text button among icons. The funnel is the
+            universal mark for this and the count badge already says whether anything is
+            on; the accessible name moves to aria-label, which is what an icon-only
+            control owes a reader. */}
+        {/* LABELLED AGAIN (Rhea, and the design is explicit). It was icon-only on the
+            argument that the bar read as one text button among glyphs — true of the
+            intermediate pass, where the switcher was a bare pill. Rhea's bar has TWO
+            labelled controls (this and the scope) against two glyphs, so the funnel
+            alone now reads as the odd one out instead. The label drops below 1200,
+            where the bar genuinely runs out of room, and the aria-label carries the
+            name in both cases. */}
+        <PopoverTrigger render={(
+          <Button
+            variant="chrome"
+            size="sm"
+            active={active > 0}
+            pill
+            aria-label={active > 0 ? `Filters — ${active} active` : 'Filters'}
+            title="Filters"
+          />
+        )}>
           <Filter aria-hidden="true" />
-          <span>Filters</span>
+          <ButtonLabel>Filters</ButtonLabel>
           {active > 0 && <CountBadge>{active}</CountBadge>}
         </PopoverTrigger>
         {/* `surface="none"` because this popover's CONTENT is already made of panels:
@@ -248,104 +301,14 @@ function FiltersButton({ options, filters, patchFilters, clearFilters, active })
   );
 }
 
-// The avatar opens a DROPDOWN (not a modal) with the user's identity + settings
-// shortcuts. "Trade settings" still opens its own modal (column visibility etc.) —
-// the same controls Settings > Trade Settings hosts as a page, rendered from the one
-// `TradeSettingsPanel` so the quick way in and the durable home cannot drift.
-//
-// PHASE 4b — on Base UI. Same markup, same classes, same order; the open/close state,
-// the outside-click listener and the hand-written role="menu"/role="menuitem"
-// attributes are gone because the primitive owns all four. Note what those roles were
-// promising and not delivering: arrow-key navigation between items, Escape, and focus
-// returning to the avatar. A screen reader was told this was a menu and then found
-// none of a menu's behaviour. It is now actually one.
-//
-// `onClick` handlers no longer close the menu by hand — activating a MenuItem closes
-// it. The two that open something else (Trade settings, Sign out) keep their handler
-// and drop the setOpen call.
-function UserMenu({ tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns }) {
-  const { user, logout } = useAuth();
-  const [prefsOpen, setPrefsOpen] = useState(false);
-
-  if (!user) return null;
-  const initial = (user.name || user.email || '?').trim().charAt(0).toUpperCase();
-  const plan = titleCase(user.plan || 'free');
-  // PHASE 4c — the generated Avatar. This replaces a hand-built pair (`<img>` OR a
-  // fallback `<span>`, chosen by whether `user.picture` is truthy) with one component
-  // that renders both and swaps on the image's actual load result. The old test could
-  // only ask whether a URL was present: a Google avatar URL that 404s or is blocked
-  // by the referrer policy left a broken image where the initial should have been.
-  // `size="sm"` is 24px, the footprint the legacy 28px rule sat closest to on the
-  // component's own scale.
-  const avatar = (
-    <Avatar size="sm">
-      <AvatarImage src={user.picture || undefined} alt="" referrerPolicy="no-referrer" />
-      <AvatarFallback>{initial}</AvatarFallback>
-    </Avatar>
-  );
-
-  return (
-    <div className="tb-user">
-      <Menu>
-        {/* A chrome icon Button holding the avatar, replacing `.tb-avatar-link`. The
-            legacy hover brightened a border that was otherwise transparent; §13 gives
-            a borderless control a surface hover instead, which is what `chrome`
-            already does — so the state is inherited rather than restated.
-            The hover target has to be circular to match the avatar inside it; that is
-            one declaration on `.tb-user` in legacy CSS, for the same @source reason as
-            the account switcher above. */}
-        <MenuTrigger
-          render={<Button variant="chrome" size="icon-sm" />}
-          title="Account"
-          aria-label="Account"
-        >
-          {avatar}
-        </MenuTrigger>
-        <MenuContent className="tb-user-menu">
-          {/* Identity and plan are information, not commands. As bare divs in a
-              role="menu" they were orphan nodes; as a group label they are
-              addressable, and the items below read as belonging to this account. */}
-          <MenuGroup>
-            <MenuGroupLabel className="tb-user-head">
-              {avatar}
-              <div className="tb-user-id">
-                <span className="tb-user-name">{user.name || 'Account'}</span>
-                <span className="tb-user-email">{user.email}</span>
-              </div>
-            </MenuGroupLabel>
-            <div className="tb-user-plan">
-              <span className="muted">Plan</span>
-              <span className={`sb-plan-badge ${user.plan || 'free'}`}>{plan}</span>
-            </div>
-            {/* PRESET SKIN. `.tb-menu-item` and `.tb-menu-sep` are deleted — item
-                padding, radius, size and focus background are the generated
-                component's. Sign out uses the component's own `variant="destructive"`
-                rather than a `.danger` class; `--destructive` is bridged to `--loss`, so
-                it is the same colour reached through the library's API. */}
-            <MenuSeparator />
-            <MenuItem onClick={() => setPrefsOpen(true)}>Trade settings</MenuItem>
-            {/* `render` is how Base UI keeps an item's menu semantics while letting it
-                be a router Link — the anchor is real, so middle-click and copy-link
-                still work, which a div with an onClick would have broken. */}
-            <MenuItem render={<Link to="/settings" />}>Settings</MenuItem>
-            <MenuItem render={<Link to="/billing" />}>Manage plan</MenuItem>
-            <MenuSeparator />
-            <MenuItem variant="destructive" onClick={logout}>Sign out</MenuItem>
-          </MenuGroup>
-        </MenuContent>
-      </Menu>
-      <TradeSettingsModal
-        open={prefsOpen}
-        onClose={() => setPrefsOpen(false)}
-        beRounding={!!tradeSettings.beRounding}
-        setBeRounding={setBeRounding}
-        columnOverrides={tradeSettings.columns || {}}
-        setColumnVisible={setColumnVisible}
-        resetColumns={resetColumns}
-      />
-    </div>
-  );
-}
+/* `UserMenu` IS GONE (2026-08-28). It was the top bar's avatar and the menu behind it.
+ *
+ * Everything it held has a verified home: TradeSettingsModal is mounted by TradeLog.jsx
+ * with its own trigger (checked, not assumed — it is the page the settings apply to),
+ * Manage plan is a Settings route, and Sign out is Settings > Session, which the rail's
+ * identity row links to. The rail already showed the same person's name, plan and
+ * avatar 40px away, so the bar's copy was the second one.
+ */
 
 // The single global bar. Left: only the sidebar re-opener, when the sidebar is
 // collapsed. Middle→right: per-page actions portaled in from PageHeader
@@ -357,8 +320,7 @@ export default function FilterBar({
   notifications = [], unread = 0, onMarkAllRead,
   accounts = [], accountId = 'all', setAccountId = () => {},
   tradeSettings = {}, setBeRounding, setColumnVisible, resetColumns,
-  collapsed = false, onToggleSidebar = () => {}, slotRef,
-  theme = 'dark', setTheme = () => {},
+  showNavButton = false, navOpen = false, onToggleSidebar = () => {}, slotRef,
 }) {
   const active = activeFilterCount(filters);
   // Publish this bar's height as --topbar-h. Anything else that wants to sit
@@ -386,28 +348,39 @@ export default function FilterBar({
   // a page reaching up to reconfigure the bar it does not own.
   const singleAccount = isSingleAccountRoute(pathname);
 
+  /* NO GREETING (Rhea, 2026-08-29). The dashboard's title used to carry a second line —
+   * "Good afternoon, Anish" — and Rhea's bar is 64px of ONE line. Two things went with
+   * it: the bar's extra height, and a title block that was a different shape on the
+   * dashboard than on every other route. The greeting was a nice touch that cost the
+   * chrome its consistency, and the design settles it. */
+
   return (
-    <div className="topbar" ref={barRef}>
-      {/* The view controls moved across to the right; the left now holds the
-          sidebar re-opener and the current page's name. */}
-      <div className="tb-left">
-        {collapsed && (
-          <button className="tb-menu" onClick={onToggleSidebar} title="Show sidebar" aria-label="Show sidebar">
-            <span /><span /><span />
-          </button>
-        )}
-        {title && (
-          <h1 className="tb-title">
-            {title.module && <span className="tb-title-module">{title.module}</span>}
-            <span className="tb-title-page">{title.page}</span>
-          </h1>
-        )}
-      </div>
+    <TopBar ref={barRef}>
+      {/* MOBILE ONLY (2026-08-29, Rhea). This used to appear whenever the rail was
+          `collapsed`, because collapsing REMOVED the rail and this button was the only
+          way back. Rhea collapses to a 70px icon rail that carries its own expand
+          control, so the only state with no rail on screen is the under-900 drawer —
+          and a drawer with no trigger is a menu nobody can open. */}
+      {showNavButton && (
+        <Button
+          variant="chrome"
+          size="icon-sm"
+          onClick={onToggleSidebar}
+          title="Open menu"
+          aria-label="Open menu"
+          aria-expanded={navOpen}
+        >
+          <MenuIcon aria-hidden="true" />
+        </Button>
+      )}
+      {title && (
+        <TopBarTitle module={title.module}>{title.page}</TopBarTitle>
+      )}
 
       {/* Per-page actions portal here (PageHeader → this node). */}
       <div className="tb-page" ref={slotRef} />
 
-      <div className="tb-right">
+      <TopBarActions>
         {/* PHASE 4c. `.fb-unit` / `.fb-unit-btn` are deleted; this is a real
             ToggleGroup. The old version was two independent <button>s in a
             role="group" whose selected state existed only as a CSS class — visually
@@ -416,7 +389,18 @@ export default function FilterBar({
             navigation between the segments come from the primitive.
             `ToggleGroupExclusive` is the wrapper that refuses to end up with
             neither unit pressed; see components/primitives/toggle-group.jsx. */}
-        <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit">
+        {/* The frame wraps the two segments in a bordered capsule rather than letting
+            them float; `pill` on the group is what makes the container read as one
+            control with two states instead of two adjacent buttons. */}
+        {/* ORDER: unit -> filters -> scope -> bell, which is Rhea's and reverses the
+            2026-08-28 arrangement that put the scope first.
+            The old argument was that the scope changes what every figure MEANS, so it
+            should be read first. Rhea's answer is that the cluster reads RIGHT to left
+            in importance — the controls nearest the page's own content are the ones you
+            reach for most — and the scope is the widest, most-labelled control in the
+            row, so it anchors the right-hand end rather than competing with the title
+            at the left. The bell is chrome and sits outside the group entirely. */}
+        <ToggleGroupExclusive value={unit} onValueChange={setUnit} aria-label="Display unit" pill>
           <ToggleGroupItem value="R" size="sm">R</ToggleGroupItem>
           <ToggleGroupItem value="USD" size="sm">$</ToggleGroupItem>
         </ToggleGroupExclusive>
@@ -426,17 +410,15 @@ export default function FilterBar({
           accountId={accountId}
           setAccountId={setAccountId}
           singleSelect={singleAccount}
+          notifications={notifications}
         />
-        <ThemeToggle theme={theme} setTheme={setTheme} />
         <NotificationBell inline notifications={notifications} unread={unread} onMarkAllRead={onMarkAllRead} />
-        <UserMenu
-          tradeSettings={tradeSettings}
-          setBeRounding={setBeRounding}
-          setColumnVisible={setColumnVisible}
-          resetColumns={resetColumns}
-        />
-      </div>
-
-    </div>
+        {/* NO AVATAR MENU HERE (2026-08-28, owner call). The rail's footer already
+            carries the identity row — name, plan and a link to the profile — so a second
+            avatar 40px away was the same person twice. Its MENU items had somewhere to
+            go: Trade settings opens from the Trade Log where it applies, Manage plan and
+            Sign out live in Settings, which the rail row links to. */}
+</TopBarActions>
+    </TopBar>
   );
 }
