@@ -408,10 +408,15 @@ export function AccountFootRule() {
  * action this card wants you to take — reading the meters is. */
 export function AccountCardLink({ render, className, children, ...rest }) {
   const classes = cn(
-    'flex shrink-0 items-center gap-2 rounded-[6px] text-[13px] leading-5 font-[550] no-underline',
+    'flex shrink-0 items-center gap-1.5 rounded-[6px] text-[13px] leading-5 font-[550] no-underline',
     'text-[var(--text-link)] transition-colors hover:text-[var(--text)]',
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-    '[&_svg]:size-4',
+    /* 14px, NOT 16. The design draws this as a text arrow at the link's own 13px, so a
+       16px icon beside 13px type reads as a button that lost its border — the glyph
+       outweighed the words it belongs to. §23 keeps it lucide rather than a "→"
+       character (a glyph re-tunes itself in every typeface), so the fix is to size the
+       icon to the type instead: 14px, with the gap tightened to match. */
+    '[&_svg]:size-3.5',
     className,
   );
   if (render) {
@@ -431,14 +436,12 @@ export function AccountCardLink({ render, className, children, ...rest }) {
 /* The card's title row. Kept as a slot for callers that want one; Rhea's own card opens
  * straight on the account chips, because the chips ARE the title — they say which
  * account these meters describe, which is the only thing a heading here could add. */
-export function AccountCardHead({ icon, sub, className, children, ...rest }) {
-  return (
-    <div data-slot="account-head" className={cn('flex flex-col gap-1.5 px-[18px] pt-4', className)} {...rest}>
-      <div className="flex items-center gap-3">
-        {icon && <span className="shrink-0 text-[var(--text-2)] [&_svg]:size-5">{icon}</span>}
-        <h3 className="text-[15px] leading-6 font-[650] text-[var(--text)]">{children}</h3>
-      </div>
-      {sub && <p className="m-0 text-[13px] leading-5 text-[var(--muted)]">{sub}</p>}
-    </div>
-  );
-}
+/* AccountCardHead is DELETED (2026-08-30). It drew a shield icon and the words
+ * "Account Health" above the account chips, and the design has neither: the card opens
+ * on the chips, because they say which account this is about and the meters say how it
+ * is doing. A title over them is the card narrating itself (§24 — "a label is not a
+ * heading"), and it cost 40px at the top of the one card a trader reads under pressure.
+ *
+ * Removed rather than left unused. Its only two call sites were the live card and its
+ * skeleton, both in Dashboard.jsx, and an unexported-but-present heading is the thing
+ * the next account surface would reach for by default. */

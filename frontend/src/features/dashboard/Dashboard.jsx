@@ -4,7 +4,7 @@ import React, {
 import { Link, useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
-  Loader2, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles,
+  Loader2, RefreshCw, SlidersHorizontal, Sparkles,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
@@ -28,7 +28,7 @@ import Explain from '../../components/Explain.jsx';
 // counted as eleven because it is declared inline in a page rather than in its own
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
-  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
+  AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionLink, ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
@@ -716,9 +716,12 @@ function AccountCard({
   const critical = data.breach.breached || dayTone === 'bad';
 
   return (
+    /* NO HEADING. The design opens this card on the account chips, and it is right to:
+       the chips say which account, the meters say how it is doing, and a "Account
+       Health" title above them is the card narrating itself — DESIGN-LANGUAGE §24, "a
+       label is not a heading". Nothing else on the page identifies this card, and
+       nothing needs to; it is the only one with account chips in it. */
     <AccountCardShell critical={critical}>
-      <AccountCardHead icon={<ShieldCheck aria-hidden="true" />}>Account Health</AccountCardHead>
-
       <AccountHeader candidates={candidates} selectedId={selectedId} onSelect={onSelect} />
 
       {critical && (
@@ -859,7 +862,8 @@ export function DashSkeleton() {
       </KpiRow>
 
       <AccountCardShell>
-        <AccountCardHead icon={<ShieldCheck aria-hidden="true" />}>Account Health</AccountCardHead>
+        {/* The heading is gone from the real card, so it goes from its skeleton too —
+            a placeholder for a title that never arrives is a layout jump on load. */}
         <AccountTabs>
           {/* `w` as a prop, not a class: a Tailwind width written in this file would
               compile to nothing — see SkeletonBlock. */}
