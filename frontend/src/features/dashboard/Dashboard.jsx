@@ -29,6 +29,7 @@ import Explain from '../../components/Explain.jsx';
 // `*Modal.jsx` file. Same hand-rolled backdrop, same six missing behaviours.
 import {
   BANNER_CRITICAL, AccountCardFoot, AccountCardLink, AccountCardShell,
+  Menu, MenuContent, MenuItem, MenuTrigger,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
@@ -577,15 +578,6 @@ function AccountAlertIcon({ status }) {
 // first 3 by phase order, so picking an account from the overflow menu
 // doesn't make it disappear again.
 function AccountHeader({ candidates, selectedId, onSelect }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
   const firstThree = candidates.slice(0, 3);
   const selectedAcc = candidates.find((a) => String(a.account_id) === String(selectedId));
   const selInFirstThree = firstThree.some((a) => String(a.account_id) === String(selectedId));
@@ -617,28 +609,54 @@ function AccountHeader({ candidates, selectedId, onSelect }) {
           </AccountTab>
         );
       })}
+      {/* THE OVERFLOW IS THE `Menu` PRIMITIVE NOW, and it had to become one.
+          It was a hand-rolled `position: absolute` panel inside this strip, and two
+          things were wrong with that. Its wrapper carried no `position: relative`, so
+          the panel resolved against whatever ancestor happened to be positioned and
+          landed over the SIDEBAR, on the far side of the page from the button that
+          opened it. And `AccountTabs` is `overflow-x-auto` — a scroll container clips
+          anything absolutely positioned inside it, so even correctly anchored the panel
+          would have been cut off at the strip's edge.
+          `Menu` is portaled and viewport-aware, so neither is reachable: it anchors to
+          its trigger, flips rather than running off an edge, and escapes the scroller
+          entirely. It also brings what the hand-rolled version never had — Escape to
+          close, focus returned to the trigger, arrow-key and typeahead navigation, and
+          aria-haspopup/aria-expanded kept in sync — which is the build order's whole
+          argument for reaching for a primitive before writing a panel. */}
       {overflow.length > 0 && (
-        <div className="dash-acct-more" ref={ref}>
-          <AccountTabMore onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <Menu>
+          <MenuTrigger render={<AccountTabMore />}>
             <ChevronDown aria-hidden="true" />
             +{overflow.length} Account{overflow.length > 1 ? 's' : ''}
-          </AccountTabMore>
-          {open && (
-            <div className="wcz-menu dash-acct-more-menu">
-              {overflow.map((a) => (
-                <button
-                  key={a.account_id}
-                  type="button"
-                  className="wcz-opt"
-                  onClick={() => { onSelect(a.account_id); setOpen(false); }}
-                >
-                  <span>{a.label || `Account ${a.account_id}`}</span>
-                  {a.phase && <span className="muted">{PHASE_LABEL[a.phase] || a.phase}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+          </MenuTrigger>
+          {/* `align="start"` so it hangs under the chip's LEFT edge: this trigger sits at
+              the right end of a horizontal strip, and the default end-alignment pushed
+              the panel further right again, off the card. */}
+          <MenuContent align="start" className="dash-acct-more-menu">
+            {overflow.map((a) => {
+              const st = healthStatus(a.health.score, a.breach.breached);
+              return (
+                <MenuItem key={a.account_id} onClick={() => onSelect(a.account_id)}>
+                  {/* THE ROW IS THE CHIP, SMALLER. An account in this menu is the same
+                      object as one in the strip beside it, so it carries the same three
+                      facts in the same order — health, name, phase. The dot is the
+                      chip's health ring reduced to its inner mark; `prop-*` sets
+                      --status, which is the tone vocabulary the meters and the rail
+                      already share. */}
+                  <span className={`dash-acct-menu-row prop-${st}`}>
+                    <span className="dash-acct-menu-dot" aria-hidden="true" />
+                    <span className="dash-acct-menu-name">
+                      {a.label || `Account ${a.account_id}`}
+                    </span>
+                    {a.phase && (
+                      <span className="dash-acct-menu-phase">{PHASE_LABEL[a.phase] || a.phase}</span>
+                    )}
+                  </span>
+                </MenuItem>
+              );
+            })}
+          </MenuContent>
+        </Menu>
       )}
     </AccountTabs>
   );
@@ -821,12 +839,27 @@ function AccountCard({
         )}
       >
         <CalendarDays aria-hidden="true" />
-        {/* The count is mono because it is a figure; the words are not. Rhea splits
-            them so a glance lands on "7/10" rather than on the sentence around it. */}
-        <AccountFootFigure>{data.tradingDays.completed}/{data.tradingDays.required}</AccountFootFigure>
-        days completed
-        <AccountFootRule />
-        <span>Minimum trading days requirement</span>
+        {/* NO REQUIREMENT MEANS NO COUNTER. A firm that sets no minimum made this
+            footer read "7/0 days completed · Minimum trading days requirement" — a
+            fraction over zero, which is not a progress figure at all, sitting under a
+            label naming a rule the account does not have. The trader is left working
+            out whether 7/0 is good. So the footer states the fact instead: there is
+            nothing to complete here. The count still appears the moment a firm asks
+            for one.
+            `> 0` rather than truthiness so a null requirement reads the same way as a
+            zero one — neither is a rule. */}
+        {data.tradingDays.required > 0 ? (
+          <>
+            {/* The count is mono because it is a figure; the words are not. Rhea splits
+                them so a glance lands on "7/10" rather than on the sentence around it. */}
+            <AccountFootFigure>{data.tradingDays.completed}/{data.tradingDays.required}</AccountFootFigure>
+            days completed
+            <AccountFootRule />
+            <span>Minimum trading days requirement</span>
+          </>
+        ) : (
+          <span>No minimum trading days required</span>
+        )}
       </AccountCardFoot>
 
       {targetOpen && acctRecord && (

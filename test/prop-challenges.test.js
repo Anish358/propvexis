@@ -231,12 +231,22 @@ test('status is a word plus a colour, never a colour alone', () => {
     breached: 'Breached',
     upcoming: 'Upcoming',
     skipped: 'Not Part Of This Challenge',
+    // A phase cleared at the firm that this app never held the account for. It is NOT
+    // 'Passed': that word means we have the account and the row that closed it, and one
+    // word for a record and an inference would let the rail overclaim.
+    untracked: 'Passed · Not Tracked',
   });
   // Every stop carries its status word, and every stop's MARK differs by state too,
   // so the rail reads without colour at all.
   assert.match(lifecycle, /\{STAGE_STATUS_LABEL\[s\.status\]\}/);
-  assert.match(lifecycle, /if \(stage\.status === 'complete'\) return '✓'/);
+  assert.match(lifecycle, /stage\.status === 'complete' \|\| stage\.status === 'untracked'\) return '✓'/);
   assert.match(lifecycle, /if \(stage\.status === 'breached'\) return '✕'/);
+  /* UNTRACKED SHARES THE TICK ON PURPOSE — the phase WAS passed, and a different symbol
+   * would say something else happened there. What separates it is carried by the other
+   * two channels this test exists to protect: a muted tone rather than green, and an
+   * outlined, dashed node where a tracked pass is filled solid. */
+  assert.match(lifecycle, /untracked: 'na'/);
+  assert.match(legacyCss, /\.pc-step--untracked \.pc-step-node \{[^}]*dashed/);
   assert.match(card, /const HEALTH_LABEL = \{ good: 'On Track', warn: 'At Risk', bad: 'Critical', na: 'No Data' \}/);
   assert.match(card, /HEALTH_LABEL\[health\]/);
   // The CHALLENGE's own badge is a word too, and it is a different fact from any one

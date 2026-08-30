@@ -59,6 +59,15 @@ export function challengePhases(group) {
   });
 }
 
+/* The index of the furthest phase that has an account, or -1 when the challenge holds
+ * none. Shared by `phaseToAdd` and `groupLifecycle` so the phase offered for adding and
+ * the phases drawn as untracked are always two readings of ONE boundary. */
+function lastFilledIndex(phases) {
+  let last = -1;
+  for (let i = 0; i < phases.length; i += 1) if (phases[i].account) last = i;
+  return last;
+}
+
 /**
  * Which phase may be added to this challenge right now, and if none, why not.
  *
@@ -79,6 +88,21 @@ export function challengePhases(group) {
  * A CHALLENGE WITH NO ACCOUNTS AT ALL is addable at its first phase. That is the
  * group whose only account was deleted — the record survives ON DELETE SET NULL — and
  * offering its Phase 1 is better than orphaning the challenge.
+ *
+ * ── IT READS FROM THE FURTHEST PHASE FILLED, NOT THE FIRST ONE EMPTY. ───────────────
+ * This walked forward and returned at the first stage with no account, so a trader who
+ * recorded ONLY their Phase 2 login — legitimate, and common: people find this app
+ * mid-challenge — was offered "Add Phase 1 account" forever, even after passing Phase 2.
+ * The invitation pointed backwards at a login the firm issued weeks ago and has already
+ * replaced, and the funded account they were actually holding could not be recorded at
+ * all.
+ *
+ * A phase can only be reached by clearing the ones before it — that is what a phase IS —
+ * so an account at Phase 2 is proof Phase 1 was passed, whether or not we hold the row.
+ * The empty stages behind the furthest account are therefore untracked history rather
+ * than work outstanding, and `groupLifecycle` marks them 'untracked' so the rail can say
+ * so without claiming a pass it recorded. The next login to add is the one after the
+ * furthest account, and it is refused on THAT account's verdict.
  */
 export function phaseToAdd(group) {
   if (!group || group.status !== 'active') {
@@ -87,27 +111,22 @@ export function phaseToAdd(group) {
   const phases = challengePhases(group);
   if (!phases.length) return { phase: null, reason: 'This challenge has no phases to add.' };
 
-  for (let i = 0; i < phases.length; i += 1) {
-    const stage = phases[i];
-    if (stage.account) {
-      if (stage.status === 'breached') {
-        return { phase: null, reason: `${stage.label} breached — this challenge is over.` };
-      }
-      // Still running: nothing has been issued, so nothing can be added. Checked
-      // INSIDE the loop rather than after it, so a challenge sitting at Phase 2 is
-      // refused on Phase 2's account rather than on a later empty stage.
-      if (stage.status !== 'passed') {
-        return { phase: null, reason: `${stage.label} is still running.` };
-      }
-      continue;
-    }
-    // The first empty stage. It is addable only if something passed into it — the
-    // first stage of a challenge with no accounts at all is the exception above.
-    const previous = i === 0 ? null : phases[i - 1];
-    if (previous == null || previous.status === 'passed') return { phase: stage.phase, reason: null };
-    return { phase: null, reason: `${previous.label} has not passed yet.` };
+  const last = lastFilledIndex(phases);
+  // No account anywhere — start the challenge at its first phase (see above).
+  if (last === -1) return { phase: phases[0].phase, reason: null };
+
+  const stage = phases[last];
+  if (stage.status === 'breached') {
+    return { phase: null, reason: `${stage.label} breached — this challenge is over.` };
   }
-  return { phase: null, reason: 'Every phase of this challenge already has an account.' };
+  // Still running: the firm has issued nothing, so there is nothing to record. Named
+  // after the account that EXISTS rather than after some later empty stage.
+  if (stage.status !== 'passed') {
+    return { phase: null, reason: `${stage.label} is still running.` };
+  }
+  const next = phases[last + 1];
+  if (!next) return { phase: null, reason: 'Every phase of this challenge already has an account.' };
+  return { phase: next.phase, reason: null };
 }
 
 /** Is this challenge waiting for its next phase's account? The sort key, named. */
@@ -189,10 +208,18 @@ export function joinableChallenges(groups, { firm_id, firm_name } = {}) {
  * state — that is what a PASSED phase looks like now — so `state` is null there and the
  * figures fall back to what the account row itself knows.
  *
- * THE STATUS WORDS ARE THE RAIL'S OWN (complete | active | breached | upcoming), so
- * LifecycleRail draws this with no new branch: a passed phase is ticked, a breached one
- * crossed, the running one lit, and a phase with no account yet is the upcoming stop it
- * has always been.
+ * THE STATUS WORDS ARE THE RAIL'S OWN (complete | active | breached | untracked |
+ * upcoming), so LifecycleRail draws this with no new branch: a passed phase is ticked, a
+ * breached one crossed, the running one lit, and a phase with no account yet is the
+ * upcoming stop it has always been.
+ *
+ * EXCEPT AN EMPTY PHASE BEHIND THE FURTHEST ACCOUNT, which is 'untracked'. A trader who
+ * joined this app at Phase 2 never filed a Phase 1 login, and drawing that stage as
+ * 'upcoming' put the start of the journey in front of them — a challenge apparently
+ * waiting to begin at a phase it had already cleared. It cannot be 'complete' either:
+ * that is the word for a phase we hold the account and the passing row for, and reusing
+ * it would let the rail claim a record it does not have. So it is its own word — the
+ * phase was passed at the firm, and we were not there for it.
  *
  * `selectable` and `addable` are the INTERACTION, and they are deliberately different
  * facts. A stop is selectable when there is something to show — an account of its own,
@@ -204,6 +231,10 @@ export function groupLifecycle(group, { statesByLogin } = {}) {
   const phases = challengePhases(group);
   const { phase: addPhase } = phaseToAdd(group);
   const states = statesByLogin instanceof Map ? statesByLogin : new Map();
+  // Everything before this was cleared at the firm without being recorded here — a
+  // phase is only reachable by passing the ones before it. Same boundary phaseToAdd
+  // reads, so the stage marked untracked and the phase offered can never disagree.
+  const last = lastFilledIndex(phases);
 
   return phases.map((stage, i) => {
     const account = stage.account;
@@ -211,7 +242,7 @@ export function groupLifecycle(group, { statesByLogin } = {}) {
       ? states.get(String(account.mt5_login)) ?? null
       : null;
     const status = account == null
-      ? 'upcoming'
+      ? (i < last ? 'untracked' : 'upcoming')
       : stage.status === 'passed' ? 'complete'
         : stage.status === 'breached' ? 'breached' : 'active';
     const addable = stage.phase === addPhase;

@@ -91,6 +91,88 @@ test('the addable phase is the one after a PASS, and nothing else', () => {
   assert.equal(phaseToAdd(toFunded).phase, 'funded');
 });
 
+/* A TRADER WHO JOINED MID-CHALLENGE. Recording only the Phase 2 login is legitimate and
+ * common — people find this app partway through an evaluation. The derivation used to
+ * return at the first EMPTY stage, so it offered "Add Phase 1 account" forever: an
+ * invitation pointing backwards at a login the firm issued weeks ago and has already
+ * replaced, while the funded account the trader actually held could not be recorded. */
+
+test('a challenge joined at Phase 2 offers the phase AFTER its furthest account, not the empty one behind it', () => {
+  const p2Only = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })] });
+  assert.deepEqual(phaseToAdd(p2Only), { phase: 'funded', reason: null });
+  assert.equal(isAwaitingPhase(p2Only), true);
+});
+
+test('a mid-challenge join still refuses on the account that EXISTS', () => {
+  // Phase 2 is the furthest account, so its verdict is the one that decides — the empty
+  // Phase 1 behind it is history, not work outstanding.
+  const running = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'active' })] });
+  assert.equal(phaseToAdd(running).phase, null);
+  assert.match(phaseToAdd(running).reason, /Phase 2 is still running/);
+
+  const blown = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'breached' })] });
+  assert.equal(phaseToAdd(blown).phase, null);
+  assert.match(phaseToAdd(blown).reason, /breached/);
+});
+
+test('a challenge joined straight at funded has nothing left to add', () => {
+  const funded = group({ accounts: [acct({ id: 3, phase: 'funded', challenge_status: 'active' })] });
+  assert.equal(phaseToAdd(funded).phase, null);
+});
+
+test('the phases behind the furthest account are UNTRACKED, not upcoming and not passed', () => {
+  /* A phase is only reachable by clearing the ones before it, so an account at Phase 2
+   * is proof Phase 1 was passed — but we hold no account and no passing row for it.
+   * 'upcoming' would put the start of the journey in front of a trader who is past it;
+   * 'complete' would claim a record this app does not have. */
+  const stages = groupLifecycle(group({
+    accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })],
+  }));
+  assert.deepEqual(stages.map((s) => s.id), ['p1', 'p2', 'funded']);
+  assert.deepEqual(stages.map((s) => s.status), ['untracked', 'complete', 'upcoming']);
+
+  const p1 = stages[0];
+  assert.equal(p1.account, null, 'there is no account behind it — that is the whole point');
+  assert.equal(p1.selectable, false, 'nothing to open: no account, and not the addable phase');
+  assert.equal(p1.addable, false);
+  assert.equal(stages[2].addable, true, 'funded is the login the firm has issued');
+});
+
+test('untracked applies only BEHIND the furthest account, never ahead of it', () => {
+  // A normal Phase 1 challenge must be unchanged: everything ahead is still upcoming.
+  const normal = groupLifecycle(group());
+  assert.deepEqual(normal.map((s) => s.status), ['active', 'upcoming', 'upcoming']);
+
+  // And a challenge with no accounts at all claims nothing about any phase.
+  const empty = groupLifecycle(group({ accounts: [] }));
+  assert.deepEqual(empty.map((s) => s.status), ['upcoming', 'upcoming', 'upcoming']);
+  assert.deepEqual(phaseToAdd(group({ accounts: [] })), { phase: 'p1', reason: null });
+});
+
+test('a GAP between recorded phases is untracked too', () => {
+  // p1 recorded and passed, p2 never filed, funded issued: the middle stage is history
+  // we do not hold, not a phase waiting to happen.
+  const gapped = group({
+    accounts: [
+      acct({ id: 1, phase: 'p1', challenge_status: 'passed' }),
+      acct({ id: 3, phase: 'funded', challenge_status: 'active' }),
+    ],
+  });
+  assert.deepEqual(groupLifecycle(gapped).map((s) => s.status), ['complete', 'untracked', 'active']);
+});
+
+test('the addable phase and the untracked phases read ONE boundary', () => {
+  // phaseToAdd and groupLifecycle both measure from the furthest filled phase, so the
+  // stage marked addable is always the one after the last non-untracked, non-upcoming
+  // stop — they cannot drift into offering a phase the rail calls history.
+  const g = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })] });
+  const stages = groupLifecycle(g);
+  const addable = stages.filter((s) => s.addable);
+  assert.equal(addable.length, 1, 'exactly one phase is ever offered');
+  assert.equal(addable[0].id, phaseToAdd(g).phase);
+  assert.equal(addable[0].status, 'upcoming', 'the offered phase is ahead, never untracked');
+});
+
 test('nothing can be added to a challenge that is over, or that is complete', () => {
   const breached = group({ accounts: [acct({ challenge_status: 'breached' })] });
   assert.equal(phaseToAdd(breached).phase, null);

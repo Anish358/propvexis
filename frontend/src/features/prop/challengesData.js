@@ -62,6 +62,12 @@ export const STAGE_STATUS_LABEL = {
   breached: 'Breached',
   upcoming: 'Upcoming',
   skipped: 'Not Part Of This Challenge',
+  /* A phase cleared at the firm that this app never held an account for — the trader
+   * joined mid-challenge. It is NOT `complete`, which means "we have the account and the
+   * row that passed it", and the two must not share a word: one is a record, the other
+   * is an inference from the fact that a later phase exists at all. The rail draws it as
+   * passed-but-outlined for the same reason. */
+  untracked: 'Passed · Not Tracked',
 };
 
 /**
