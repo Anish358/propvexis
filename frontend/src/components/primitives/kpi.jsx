@@ -78,15 +78,25 @@ export function KpiCard({ hero = false, className, children, ...rest }) {
       data-slot="kpi-card"
       data-kpi={hero ? 'hero' : undefined}
       className={cn(
-        /* ONE BOX, TWO ARRANGEMENTS. Both are min-h-[118px] with the same inset; the
-           hero stacks (label row over figure, spaced apart) and the rest run label+figure
-           against a gauge. The card was min-h-32 with a 28px top inset when the hero
-           carried a third line; without it that was 14px of nothing under every figure,
-           which is what made the row look taller than the design. */
-        'flex min-h-[118px] min-w-0 gap-3 rounded-[14px] border px-[17px] py-[18px]',
+        /* ONE BOX, TWO ARRANGEMENTS, AND THE INSETS ARE NOT SYMMETRIC — that asymmetry
+           is the alignment.
+           
+           The hero stacks (label row over figure); the rest run label+figure against a
+           gauge, which forces `items-start` and therefore a different top inset. The
+           design reconciles the two by arithmetic: the hero pads 28px from the top, and
+           the non-hero pads 22px with its inner stack adding 6 (see KpiMain). 22 + 6 =
+           28, so the two label rows sit on the same line and the two figures under them
+           do too — across cards whose internal layout is not the same.
+           
+           This shipped as 118px tall with a flat 18px inset on both, plus
+           `justify-center` on the non-hero stack and a spacer shoving the hero's figure
+           to the floor. Those three together are why the Net P&L card's label sat above
+           its neighbours' and its number below theirs. Every value here is the
+           prototype's; none of them is a nudge. */
+        'flex min-h-[128px] min-w-0 rounded-[14px] border px-[17px] pb-[24px]',
         hero
-          ? 'flex-col border-[var(--line-control)] bg-[var(--surface-raised)]'
-          : 'items-center justify-between border-[var(--line)] bg-[var(--surface)]',
+          ? 'flex-col gap-[13px] pt-[28px] border-[var(--line-control)] bg-[var(--surface-raised)]'
+          : 'items-start justify-between gap-3 pt-[22px] border-[var(--line)] bg-[var(--surface)]',
         className,
       )}
       {...rest}
@@ -103,9 +113,16 @@ export function KpiMain({ className, children, ...rest }) {
   return (
     <div
       data-slot="kpi-main"
-      // `justify-center`, not a top pad: the gauge beside it is centred, and a label
-      // stack pinned to the top left the two visibly off-axis at the card's floor.
-      className={cn('flex min-w-0 flex-col justify-center gap-2.5', className)}
+      /* THE 6px TOP PAD IS THE OTHER HALF OF THE HERO ALIGNMENT — see KpiCard. The card
+         pads 22 and this adds 6 to reach the hero's 28, which is the only reason a card
+         laid out as a row lines up with one laid out as a column.
+         
+         It was `justify-center` before, which centred this stack against the gauge
+         beside it and therefore against nothing in particular — the hero has no gauge,
+         so the two cards centred different content and drifted apart. The gauge is
+         centred to the card instead (KpiAside self-stretches), which is what lets this
+         one be positioned from the top. */
+      className={cn('flex min-w-0 flex-col gap-[13px] pt-[6px]', className)}
       {...rest}
     >
       {children}
@@ -177,8 +194,11 @@ export function KpiValue({ tone = 'flat', className, children, ...rest }) {
 export function KpiAside({ className, children, ...rest }) {
   return (
     <div
+      /* `self-stretch` + `justify-center`: the gauge centres against the CARD's full
+         height rather than against the label stack, so it stays put when a figure wraps
+         and it does not drag the label stack off the hero's line. */
       data-slot="kpi-aside"
-      className={cn('flex shrink-0 flex-col items-center justify-center gap-2', className)}
+      className={cn('flex shrink-0 flex-col items-center justify-center gap-[6px] self-stretch', className)}
       {...rest}
     >
       {children}
@@ -327,9 +347,8 @@ export function KpiChip({ tone = 'flat', className, children, ...rest }) {
   );
 }
 
-/* Pushes whatever follows it to the bottom of the card, so cards with different amounts
- * of content still line their numbers up. Kept for the hero, whose label row and figure
- * are the only two children it has. */
-export function KpiSpacer() {
-  return <div data-slot="kpi-spacer" className="flex-1" />;
-}
+/* KpiSpacer is GONE (2026-08-30). It pushed the hero's figure to the bottom of the
+ * card, which is the opposite of what the design does: the hero's figure sits one
+ * 13px gap under its label, exactly like every other card's, and the card's own
+ * min-height provides the room. Pinning the number to the floor is what put it below
+ * the four figures beside it. Its callers dropped it in the same commit. */

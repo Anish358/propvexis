@@ -31,7 +31,7 @@ import {
   AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardHead, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  ActionLink, ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain, KpiSpacer,
+  ActionLink, ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
   LoadingNote, MeterRow,
   PanelBody, PanelCard, PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelTab,
   PanelTabs, SkeletonBlock, SkeletonLine,
@@ -837,11 +837,13 @@ export function DashSkeleton() {
             placeholder lines lay themselves out horizontally — which is exactly how
             this first rendered. A skeleton that reserves a different SHAPE from its
             content is the layout jump it exists to prevent. */}
+        {/* TWO LINES, because the hero has two children — a label row and a figure. It
+            drew three around a spacer, which reserved a third line the card no longer
+            has and pushed the figure to the floor the card no longer puts it on: the
+            skeleton was mirroring a layout that had already changed underneath it. */}
         <KpiCard hero>
           <SkeletonLine w="5rem" />
-          <KpiSpacer />
           <SkeletonLine w="9rem" h="1.75rem" />
-          <SkeletonLine w="5rem" />
         </KpiCard>
         {[1, 2, 3, 4].map((i) => (
           <KpiCard key={i}>
