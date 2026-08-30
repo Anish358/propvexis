@@ -46,6 +46,87 @@ test('synthesizeEquity: baseline then cumulative P&L at each close', () => {
   assert.deepEqual(s.map((p) => p.equity), [25000, 25500, 25300]);
 });
 
+/* THE BASELINE USED TO LAND AFTER THE TRADES, and it cost a trader a phantom breach.
+ *
+ * `challenges.start_date` defaults to now() at insert, so an account added today with
+ * backdated trades got its opening-equity point stamped TODAY — after every trade. The
+ * series came back out of order, and dailyDrawdown(), which walks it in array order and
+ * opens each day's bucket at the first point it sees for that day, then opened TODAY'S
+ * bucket at the full starting balance and took the account's all-time low as today's
+ * low. Reported as "$2,100 of a $1,250 daily limit, 100% used, ACCOUNT BREACH" on a day
+ * the trader had lost $200. */
+
+test('synthesizeEquity: the baseline anchors at the first trade when start_date postdates it', () => {
+  const addedToday = '2026-06-30T14:33:45Z';
+  const s = synthesizeEquity(25000, [trade('02', 500), trade('03', -200)], addedToday);
+  assert.equal(s[0].ts.toISOString(), '2026-06-02T15:00:00.000Z', 'the baseline cannot follow the trades');
+  assert.deepEqual(s.map((p) => p.equity), [25000, 25500, 25300]);
+});
+
+test('synthesizeEquity: the series is always ascending in time', () => {
+  // The invariant every consumer walks on — dailyDrawdown buckets by day in array order
+  // and maxDrawdown tracks a trailing peak forward through it.
+  for (const start of ['2026-06-30T14:33:45Z', '2026-06-01T00:00:00Z', null, 'not-a-date']) {
+    const s = synthesizeEquity(25000, [trade('05', 100), trade('02', -50), trade('09', 20)], start);
+    for (let i = 1; i < s.length; i += 1) {
+      assert.ok(s[i].ts >= s[i - 1].ts, `out of order at ${i} for start=${start}`);
+    }
+  }
+});
+
+test('synthesizeEquity: a start_date that PREDATES the trades is still honoured', () => {
+  // The normal case, and the one the anchor must not break: an account tracked from the
+  // day its phase began carries its baseline at that date, not at its first trade.
+  const s = synthesizeEquity(25000, [trade('02', 500)], '2026-06-01T00:00:00Z');
+  assert.equal(s[0].ts.toISOString(), '2026-06-01T00:00:00.000Z');
+});
+
+test('dailyDrawdown: counts ONLY today\'s loss on an account added after its trades', () => {
+  /* The reported bug, to the dollar. A $25k 2-Step at 5% daily ($1,250) and 10% max
+   * ($2,500), added to PropVexis today, holding a week of backdated trades that leave it
+   * $2,100 down overall and $200 down today. */
+  const ch = { ...EVAL, start_balance: 25000, daily_dd_pct: 5, max_dd_pct: 10,
+    start_date: '2026-06-30T14:33:45Z', first_on_account: true };
+  const trades = [trade('24', 400), trade('25', 200), trade('25', -500), trade('26', -500),
+    trade('27', -400), trade('28', -1000), trade('29', -100), trade('30', -200)];
+  const s = challengeState({ challenge: ch, trades, asOf: new Date('2026-06-30T18:00:00Z') });
+
+  assert.equal(s.dailyDd.usedToday, 200, "today's loss, not the account's whole drawdown");
+  assert.equal(s.dailyDd.roomLeft, 1050);
+  assert.equal(s.dailyDd.breached, false, 'a $200 day cannot breach a $1,250 limit');
+  assert.equal(s.breach.breached, false, 'and the phase must not settle as breached');
+  // The max-DD meter was always right, and stays right — it reads the low, not the day.
+  assert.equal(s.maxDd.roomLeft, 400);
+});
+
+test('dailyDrawdown: each historical day is measured from ITS OWN open, not the baseline', () => {
+  const ch = { ...EVAL, start_balance: 25000, daily_dd_pct: 5, max_dd_pct: 10,
+    start_date: '2026-06-30T14:33:45Z', first_on_account: true };
+  const trades = [trade('24', 400), trade('25', 200), trade('25', -500), trade('26', -500),
+    trade('27', -400), trade('28', -1000), trade('29', -100), trade('30', -200)];
+  // The 28th is the worst day of the week at exactly $1,000 — still inside the $1,250
+  // limit, which is the whole reason the account should not have been marked breached.
+  const on28 = challengeState({ challenge: ch, trades, asOf: new Date('2026-06-28T18:00:00Z') });
+  assert.equal(on28.dailyDd.usedToday, 1000);
+  assert.equal(on28.dailyDd.breached, false);
+  // A day that only made money uses none of the allowance.
+  const on24 = challengeState({ challenge: ch, trades, asOf: new Date('2026-06-24T18:00:00Z') });
+  assert.equal(on24.dailyDd.usedToday, 0);
+});
+
+test('dailyDrawdown: a day that DOES blow the limit is still caught', () => {
+  // The fix must not make the meter quiet — the same shape of account with one bad day.
+  const ch = { ...EVAL, start_balance: 25000, daily_dd_pct: 5, max_dd_pct: 20,
+    start_date: '2026-06-30T14:33:45Z', first_on_account: true };
+  const s = challengeState({
+    challenge: ch,
+    trades: [trade('24', 400), trade('28', -1300)],
+    asOf: new Date('2026-06-30T18:00:00Z'),
+  });
+  assert.equal(s.dailyDd.breached, true, '$1,300 on one day is past a $1,250 limit');
+  assert.equal(s.breach.reason, 'daily_dd');
+});
+
 test('buildEquitySeries: prefers EA snapshots when ≥2 exist, else realized', () => {
   const realized = buildEquitySeries({ startBalance: 25000, trades: [trade('02', 100)] });
   assert.equal(realized.mode, 'realized');
