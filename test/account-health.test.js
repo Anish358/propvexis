@@ -97,8 +97,13 @@ test('the day count is printed once', () => {
   // The COUNT, wherever the words around it land. Rhea splits the sentence so the
   // figure is mono and the qualifier sits after a hairline, so matching the old
   // seven-word string would have pinned the copy rather than the rule.
-  const hits = (card.match(/data\.tradingDays\.completed/g) || []).length;
+  /* THE FIGURE IS `days.count` NOW, from tradingDaysRead — one derivation shared with
+   * Prop OS and the challenge cards, so the cap at the requirement ("3/3", never "4/3")
+   * cannot be applied on one surface and forgotten on another. The rule this test
+   * protects is unchanged: the count is printed ONCE. */
+  const hits = (card.match(/\{days\.count\}/g) || []).length;
   assert.equal(hits, 1, `the trading-day count appears ${hits} times — it must appear once`);
+  assert.equal(/data\.tradingDays\.completed/.test(card), false, 'read through the helper, not raw');
 });
 
 test('the card and its meters reflow inside the 1080-1920 range', () => {

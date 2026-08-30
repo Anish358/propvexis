@@ -23,7 +23,7 @@
 
 import { findFirm, findProduct, phasesFor, UNLISTED_FIRM_ID } from './propFirms.js';
 import {
-  PHASE_LABEL, accountRow, byRisk,
+  PHASE_LABEL, accountRow, byRisk, tradingDaysRead,
 } from './propAccounts.js';
 
 const round2 = (n) => (n == null || Number.isNaN(n) ? null : Math.round(n * 100) / 100);
@@ -361,17 +361,21 @@ export function currentStageMetrics({ state = null, challenge = null } = {}) {
     });
   }
 
-  const d = state.tradingDays;
-  if (d && d.required > 0) {
+  /* THE DAYS METER STOPS AT ITS REQUIREMENT. `frac` was already clamped, so the bar
+   * stopped at full while the figure beside it read "4 / 3" — the two halves of one
+   * meter disagreeing about whether four days out of three is a thing. `tradingDaysRead`
+   * is the same cap the dashboard's footer and the challenge cards apply. */
+  const days = tradingDaysRead(state.tradingDays);
+  if (days.has) {
     out.push({
       key: 'days',
       label: 'Minimum Trading Days',
       kind: 'days',
       rulePct: null,
-      current: d.completed,
-      limit: d.required,
-      frac: clamp01(d.completed / d.required),
-      met: d.completed >= d.required,
+      current: days.done,
+      limit: days.required,
+      frac: clamp01(days.done / days.required),
+      met: days.met,
     });
   }
 

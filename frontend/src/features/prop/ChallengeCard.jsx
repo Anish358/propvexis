@@ -5,6 +5,7 @@ import { Badge, Button, Card } from '@/components/primitives';
 import { settlePhase } from '../../lib/api.js';
 import { fmtMoney } from '../../lib/metrics.js';
 import { healthStatus, roomStatus } from './PropOS.jsx';
+import { tradingDaysRead } from './propAccounts.js';
 import { MiniMeter } from './AccountPortfolioCard.jsx';
 import { LifecycleRail } from './ChallengeLifecycle.jsx';
 
@@ -109,6 +110,7 @@ export default function ChallengeCard({
   const maxPct = state?.maxDd?.limit ? maxUsed / state.maxDd.limit : 0;
   const target = state?.profitTarget ?? null;
   const { capital, pnl } = phaseFigures(stage);
+  const days = tradingDaysRead(state?.tradingDays);
   const badge = GROUP_BADGE[row.status] ?? GROUP_BADGE.active;
 
   /* The override's own state, per card. `err` is rendered rather than swallowed: the one
@@ -160,7 +162,9 @@ export default function ChallengeCard({
           <span className="pc-phase-title">{stage ? stage.label : 'No phase'}</span>
           <span className="pc-phase-meta">
             {stage?.attempts > 1 ? `Attempt ${stage.attempts} · ` : ''}
-            {stage?.account ? stage.account.label : 'Not added yet'}
+            {stage?.account ? stage.account.label
+              : stage?.backfillable ? 'Passed · not tracked here'
+                : 'Not added yet'}
           </span>
         </div>
 
@@ -180,6 +184,33 @@ export default function ChallengeCard({
                 variant="primary"
                 size="sm"
                 render={<Link to={`/accounts/new/account?challenge=${row.id}`} />}
+              >
+                <Plus aria-hidden="true" />
+                <span>{`Add ${stage.label} Account`}</span>
+              </Button>
+            </div>
+          ) : stage?.backfillable ? (
+            /* HISTORY WE INFERRED BUT DO NOT HOLD. This phase was passed — a later phase
+               exists, which is only reachable by clearing it — so the rail already draws
+               it ticked. What it lacks is the LOGIN, and with it every trade, so none of
+               this phase's analytics exist here.
+               The offer is SECONDARY, and deliberately: the primary invitation on this
+               card is the login the firm has just issued, and back-filling old history
+               must not compete with it for the same glance. The sentence says what adding
+               it buys, because "add account" on a phase the app has already called passed
+               reads as busywork otherwise.
+               The link names the PHASE as well as the challenge — the trader picked this
+               stop, and the wizard would otherwise offer the next phase instead. */
+            <div className="pc-phase-add">
+              <p className="pc-phase-add-note">
+                We have taken this phase as passed, because a later phase exists — but no
+                account was ever added for it, so its trades and analytics are missing. Add
+                the login if you still have it.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                render={<Link to={`/accounts/new/account?challenge=${row.id}&phase=${stage.id}`} />}
               >
                 <Plus aria-hidden="true" />
                 <span>{`Add ${stage.label} Account`}</span>
@@ -252,9 +283,11 @@ export default function ChallengeCard({
             </div>
 
             <div className="pa-card-foot">
+              {/* Same read as the dashboard's footer and Prop OS's KPI: the count stops
+                  at the requirement, because a gate is answered rather than tallied. */}
               <span className="pa-card-days">
-                {state?.tradingDays?.required
-                  ? `${state.tradingDays.completed}/${state.tradingDays.required} trading days`
+                {days.has
+                  ? `${days.count} trading days${days.met ? ' · met' : ''}`
                   : 'No day requirement'}
               </span>
               <Button

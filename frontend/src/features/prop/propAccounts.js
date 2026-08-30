@@ -58,6 +58,41 @@ export const PHASE_LABEL = { p1: 'Phase 1', p2: 'Phase 2', p3: 'Phase 3', funded
  * firm, what size, is it a manual account). A card needs both, and neither side
  * should learn the other's fields to provide it.
  */
+/**
+ * How a minimum-trading-days requirement READS, wherever it is printed.
+ *
+ * ── IT STOPS COUNTING AT THE REQUIREMENT. ──────────────────────────────────────────
+ * The card showed "4/3 days completed" — a fraction past its own denominator, which is
+ * not a progress figure at all. Trading days are a GATE, not a tally: the firm asks for
+ * three and the answer at three is yes. A fourth day changes nothing about the rule, so
+ * counting it makes the reader work out whether 4/3 is good, or a bug, or the start of
+ * some second requirement. `met` carries the fact; the count stops where it is decided.
+ *
+ * The RAW figure is untouched — `state.tradingDays.completed` still says how many days
+ * the account has traded, which is a real fact other surfaces want. Only the way it
+ * READS against a requirement is capped, and it is capped in ONE place so the dashboard,
+ * Prop OS and the challenge cards cannot come to three different answers.
+ *
+ * @param {object|null} d  `state.tradingDays` from the engine
+ * @returns {{ has: boolean, met: boolean, required: number, done: number, count: string|null }}
+ *   `has` — is there a requirement to report at all
+ *   `done` — days completed, never past `required`
+ *   `count` — "3/3", already formatted, or null when there is no requirement
+ */
+export function tradingDaysRead(d) {
+  const required = Number(d?.required ?? 0);
+  if (!d || !(required > 0)) {
+    // No requirement is not zero progress toward one — there is nothing to be met, and
+    // `met: true` is what stops a caller drawing an unfinished gate for a rule the
+    // account does not have.
+    return { has: false, met: true, required: 0, done: Number(d?.completed ?? 0), count: null };
+  }
+  const completed = Number(d.completed ?? 0);
+  const met = completed >= required;
+  const done = Math.min(completed, required);
+  return { has: true, met, required, done, count: `${done}/${required}` };
+}
+
 export function accountRow(state, account) {
   return {
     ...state,
