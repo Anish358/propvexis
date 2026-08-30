@@ -32,19 +32,19 @@ const MARKER_GLYPH = { payout: '$', milestone: '✓', breach: '✕' };
 // grid. It is additive on purpose — the Overview reuses this component verbatim
 // rather than forking a second calendar, and the Dashboard passes no markers and
 // renders exactly as before.
-/* `weeks` — whether the 8th, week-summary column is drawn.
+/* ONE CALENDAR, ONE SHAPE — the `weeks` prop is GONE (owner decision, 2026-08-30).
  *
- * THE DASHBOARD TURNS IT OFF, EVERY OTHER SURFACE KEEPS IT, and that is a deliberate
- * split rather than a deletion. Rhea's calendar is a bare 7-column month: it sits in a
- * two-column content grid beside a trade list and a chart, where an eighth column costs
- * ~12% of the widest card on the page to answer a question the month total in the head
- * already half-answers.
+ * It existed so the Dashboard could drop the 8th, week-summary column while Prop OS and
+ * Accounts › Details kept it: Rhea draws a bare 7-column month, and at the time the
+ * Dashboard's calendar shared a 3-column grid where an eighth column was expensive. The
+ * card is 67% of the content width now, which is room enough.
  *
- * On Prop OS › Overview and Accounts › Details the calendar is the WHOLE surface and
- * there is room, so it keeps the column — "how did week three go" is a real question and
- * deleting the answer app-wide to match one page's frame is exactly what §2 forbids.
- * A prop, not a fork. */
-export default function MonthCalendar({ year, month, dayMap, markers, onPrev, onNext, onToday, onSelectDay, unit = 'R', weeks = true }) {
+ * The owner's call is that the app has ONE calendar and every surface gets the same
+ * one. That is worth more than matching a frame on a single page: "how did week three
+ * go" is a real question, and a component that answers it on two pages and not on the
+ * third is a component a reader has to check before trusting. A prop that only ever
+ * takes one value is a fork waiting to happen. */
+export default function MonthCalendar({ year, month, dayMap, markers, onPrev, onNext, onToday, onSelectDay, unit = 'R' }) {
   const { rows, monthTotal, tradingDays } = useMemo(() => {
     const first = new Date(year, month, 1);
     const startPad = first.getDay(); // leading blanks (Sun-start grid)
@@ -116,16 +116,16 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
       {/* `grow`: the day grid takes whatever height the card's 2-row span gives it, so
           a five-week month fills the same box as a six-week one instead of leaving the
           right-hand column hanging below it. */}
-      <CalGrid columns={weeks ? 8 : 7}>
+      <CalGrid>
         {WD.map((d) => <CalDow key={d}>{d}</CalDow>)}
-        {weeks && <CalDow />}
+        <CalDow />
       </CalGrid>
 
-      <CalGrid grow columns={weeks ? 8 : 7}>
+      <CalGrid grow>
         {rows.map((r, ri) => (
           <React.Fragment key={ri}>
             {r.blank ? (
-              Array.from({ length: weeks ? 8 : 7 }, (_, i) => <div key={`blank-${ri}-${i}`} />)
+              Array.from({ length: 8 }, (_, i) => <div key={`blank-${ri}-${i}`} />)
             ) : (
               <>
                 {r.week.map((c, i) => {
@@ -149,7 +149,7 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
                       clickable={clickable}
                       onClick={clickable ? () => onSelectDay(c) : undefined}
                     >
-                      <CalDayNum idle={t === 'idle'}>
+                      <CalDayNum idle={t === 'idle'} weekend={isWeekend}>
                         {c.day}
                         {marks?.length > 0 && (
                           // Title carries the full text: a day can hold several
@@ -178,14 +178,12 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
                     </CalCell>
                   );
                 })}
-                {weeks && (
-                  <CalWeek
+                <CalWeek
                     label={`Week ${ri + 1}`}
                     tone={tone(r.pnl)}
                     value={fmtValShort(r.pnl, unit)}
-                    sub={`${r.days} day${r.days === 1 ? '' : 's'}`}
-                  />
-                )}
+                  sub={`${r.days} day${r.days === 1 ? '' : 's'}`}
+                />
               </>
             )}
           </React.Fragment>

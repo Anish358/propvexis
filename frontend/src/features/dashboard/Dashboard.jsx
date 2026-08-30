@@ -1090,9 +1090,6 @@ export default function Dashboard() {
                 onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
                 onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
                 onSelectDay={(c) => setSelectedDay(c.key)}
-                // See MonthCalendar's `weeks`: this calendar shares a row with two other
-                // cards, so the eighth column costs width the days need. Prop OS keeps it.
-                weeks={false}
               />
               <PanelHint>Click a day to open that session&rsquo;s trades.</PanelHint>
             </PanelCard>

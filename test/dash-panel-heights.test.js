@@ -144,3 +144,12 @@ test('the narrow step keeps the two columns equal', () => {
   // 340 + 16 + 352 = 708, and --dash-cal-h computes it rather than restating it.
   assert.equal(num('dash-trades-h') + 16 + num('dash-chart-h'), 708);
 });
+
+test('the equity curve takes a crosshair pointer', () => {
+  /* A cumulative curve is read by tracking one point along it — "where was I on the
+   * 14th" — and an arrow gives no purchase on that. `crosshair` is the browser's own
+   * plus-shaped pointer and the convention every charting tool a trader already uses
+   * sets, so it costs nothing to learn. On the FILL rather than the card, so the
+   * heading and its chip keep the normal pointer. */
+  assert.match(appCss, /\.dash-equity-fill \{[^}]*cursor: crosshair/);
+});
