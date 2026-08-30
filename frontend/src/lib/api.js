@@ -380,7 +380,7 @@ export async function markNotificationsRead(body) {
 }
 
 // ---- Prop OS (challenge / drawdown / rule state; scoped like account) ----
-// Single account -> its challenge state; god view -> { god:true, accounts:[…] }.
+// Single account -> its challenge state; several -> { multi:true, accounts:[…] }.
 export async function fetchProp(accountId) {
   return getJson(`/api/prop?_=1${acctq(accountId)}`);
 }

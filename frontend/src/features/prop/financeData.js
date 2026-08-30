@@ -46,7 +46,7 @@ export const PAYOUT_CATEGORY = 'Payout';
 const CHALLENGE_LABEL = { eval: 'Evaluation', funded: 'Funded' };
 
 // ---------------------------------------------------------------------------
-// Scope. `accountId` is the global selection: 'all' (god view) or a comma-joined
+// Scope. `accountId` is the global selection: 'all' (every active account) or a comma-joined
 // list of MT5 logins. Payouts and fees arrive already narrowed by the server, but
 // `accounts` is the user's full list, so anything account-derived (funded capital,
 // firm attribution) has to be narrowed here or a single-account view would report

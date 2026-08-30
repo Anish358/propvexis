@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState, fetchMe } from './lib/api.js';
 import { useAuth } from './app/AuthContext.jsx';
-import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './features/filters/filters.js';
+import { scopeKey, readScopeConfig, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './features/filters/filters.js';
 import { sanitizeDashLayout, defaultDashLayout, moveDashIdBefore } from './features/dashboard/dashLayout.js';
 import { sanitizePropLayout, defaultPropLayout } from './features/prop/propLayout.js';
 import { sanitizeBriefPrefs, defaultBriefPrefs } from './features/dashboard/briefPrefs.js';
@@ -82,7 +82,7 @@ function wizardRoutes({ accounts, reloadAccounts, setAccountId, firstRun, onOnbo
   ];
 }
 
-const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login (per-device nav state)
+const ACCT_KEY = 'amey.accountId';   // 'all' or a comma-joined list of mt5 logins (per-device nav state)
 const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
 
 // Legacy localStorage keys (view state now lives server-side). Read once on the
@@ -159,7 +159,7 @@ export default function App() {
         setTradeSettings({ ...defaultTradeSettings(), ...((hasServer ? state.tradeSettings : legacy?.tradeSettings) || {}) });
         // Server-synced selected account wins over this device's cached one.
         // (Ownership is re-validated by the accounts loader, which drops a stale
-        // login back to god view.) Absent on pre-sync blobs → keep the local one.
+        // login back to 'all'.) Absent on pre-sync blobs → keep the local one.
         if (hasServer && state.accountId != null) setAccountId(String(state.accountId));
         if (legacy) clearLegacyViewState();
       })
@@ -186,7 +186,7 @@ export default function App() {
   const sk = scopeKey(accountId);
   // Merge over defaults so configs persisted before a field existed (e.g. the
   // pre-widget Phase A configs) still get sane values.
-  const config = { ...defaultConfig(), ...(viewConfigs[sk] || {}) };
+  const config = { ...defaultConfig(), ...(readScopeConfig(viewConfigs, sk) || {}) };
   // The merge above is shallow, so a config saved before a filter existed brings
   // its own (short) filters object with it — every newer key missing. Rebuilt from
   // the registry on read, which also drops anything malformed.
@@ -198,7 +198,9 @@ export default function App() {
   const unit = viewConfigs.unit || DEFAULT_UNIT;
 
   const mutateConfig = (fn) => setViewConfigs((prev) => {
-    const cur = { ...defaultConfig(), ...(prev[sk] || {}) };
+    // Reads through the legacy-key fallback so the first edit to the all-accounts
+    // scope MIGRATES the old 'god' config forward rather than starting from blank.
+    const cur = { ...defaultConfig(), ...(readScopeConfig(prev, sk) || {}) };
     return { ...prev, [sk]: fn(cur) };
   });
   const setUnit = (u) => setViewConfigs((prev) => ({ ...prev, unit: u }));
@@ -262,7 +264,7 @@ export default function App() {
   // blob is normalized by the first edit instead of being written back short.
   const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...sanitizeFilters(c.filters), ...p } }));
   const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
-  // The Dashboard's selected prop account (god scope), passed as [login].
+  // The Dashboard's selected prop account (all-accounts scope), passed as [login].
   const setPinnedAccounts = (logins) => mutateConfig((c) => ({ ...c, dashboard: { ...c.dashboard, pinnedAccounts: logins } }));
 
   // Precision control snaps near-zero Fixed R to breakeven BEFORE filtering, so
@@ -277,7 +279,7 @@ export default function App() {
   const filterOptions = useMemo(() => availableOptions(trades), [trades]);
 
   // does an incoming socket event belong to the account(s) currently in view?
-  // The selection is 'all' (god) or a comma-joined list of mt5 logins.
+  // The selection is 'all' or a comma-joined list of mt5 logins.
   const inView = (acctId) => {
     const sel = accountIdRef.current;
     return sel === 'all' || String(sel).split(',').includes(String(acctId));
@@ -305,15 +307,26 @@ export default function App() {
   const accountsRef = useRef([]);
   useEffect(() => { accountsRef.current = accounts; }, [accounts]);
 
-  // Load the user's accounts; drop any stale logins from the selection (which may
-  // be 'all' or a comma-joined list). An emptied selection falls back to god view.
+  /* Load the user's accounts; drop any logins the selection can no longer name
+     (which may be 'all' or a comma-joined list). An emptied selection falls back
+     to 'all'.
+
+     ARCHIVED COUNTS AS GONE, and it has to: the server's scope now excludes
+     archived accounts, so keeping one selected would 403 every request on the page
+     — trades, account, payouts, prop — and leave the trader on a broken screen with
+     no control that could fix it (the switcher does not list archived accounts
+     either). Archiving the account you are looking at drops you to 'all', which is
+     the same thing deleting it has always done. */
+  const selectable = (list) => list.filter((a) => a.is_active !== false);
+
   function reloadAccounts() {
     return fetchAccounts()
       .then((list) => {
         setAccounts(list);
         setAccountIdState((cur) => {
           if (cur === 'all') return cur;
-          const kept = String(cur).split(',').filter((l) => list.some((a) => String(a.mt5_login) === l));
+          const live = selectable(list);
+          const kept = String(cur).split(',').filter((l) => live.some((a) => String(a.mt5_login) === l));
           return kept.length ? kept.join(',') : 'all';
         });
         return list;
@@ -404,7 +417,7 @@ export default function App() {
   }
 
   // Load trades + account snapshot + payouts for the selected scope. Waits until
-  // accounts are known before trusting a specific (non-god) selection.
+  // accounts are known before trusting a specific (non-'all') selection.
   useEffect(() => {
     if (!user) {
       setTrades([]); setAccount(null); setPayouts([]); setFees([]);
@@ -413,8 +426,12 @@ export default function App() {
       setTradesLoading(false);
       return;
     }
+    // `selectable`, not `accounts`: an archived login is out of the server's scope,
+    // so firing the loads for one would 403 four times before reloadAccounts resets
+    // the selection. Waiting is the correct move — the reset is one tick away.
+    const live = selectable(accounts);
     const owned = accountId === 'all'
-      || String(accountId).split(',').every((l) => accounts.some((a) => String(a.mt5_login) === l));
+      || String(accountId).split(',').every((l) => live.some((a) => String(a.mt5_login) === l));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
     setTradesLoading(true);
@@ -473,7 +490,7 @@ export default function App() {
     removeLocal(id);
   }
 
-  // Manual strategy trade (god view only): account-less, owned by the user.
+  // Manual trade: owned by the user AND by one of their accounts (required).
   async function addManualTrade(fields) {
     const created = await createManualTrade(fields);
     upsertLocal(created);

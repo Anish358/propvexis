@@ -247,9 +247,14 @@ export default function tradeRoutes(app, ctx) {
 
   // ---------------------------------------------------------------------------
   // Manual trade entry — result is entered directly in R (fixed_r); price-derived
-  // fields are skipped. Owned by the user. Optionally scoped to one of the user's
-  // own accounts via `account_id` (so it shows in that per-account view); omit it
-  // (account_id NULL) for an account-less strategy trade that lives in god view.
+  // fields are skipped. Owned by the user, and ALWAYS scoped to one of the user's
+  // own accounts via `account_id`.
+  //
+  // THAT ACCOUNT IS NOW REQUIRED. Omitting it used to create an account-less trade
+  // visible only in the god view; migration 0028 deleted those rows, made
+  // trades.account_id NOT NULL and put a foreign key on it, so the insert would now
+  // fail at the database with a constraint error instead of a message the trader can
+  // act on. Rejecting it here turns that 500 into a 400 that says what to do.
   // ---------------------------------------------------------------------------
   app.post('/api/trades', { preHandler: app.requireAuth }, async (req, reply) => {
     const b = req.body ?? {};
@@ -262,15 +267,15 @@ export default function tradeRoutes(app, ctx) {
       return reply.code(400).send({ error: 'direction must be buy, sell, or omitted' });
     }
 
-    // Optional account scope: must be one of the requester's own accounts.
-    let account_id = null;
-    if (b.account_id != null && b.account_id !== '') {
-      const login = Number(b.account_id);
-      if (Number.isNaN(login) || !(await ownedAccountByLogin(req.user.uid, login))) {
-        return reply.code(400).send({ error: 'account not found' });
-      }
-      account_id = login;
+    // Account scope: required, and must be one of the requester's own accounts.
+    if (b.account_id == null || b.account_id === '') {
+      return reply.code(400).send({ error: 'account_id is required — every trade belongs to an account' });
     }
+    const login = Number(b.account_id);
+    if (Number.isNaN(login) || !(await ownedAccountByLogin(req.user.uid, login))) {
+      return reply.code(400).send({ error: 'account not found' });
+    }
+    const account_id = login;
 
     const symbol = b.symbol || 'MANUAL';
     const symbol_base = normalizeSymbol(symbol);
@@ -313,7 +318,7 @@ export default function tradeRoutes(app, ctx) {
     // automatic (2026-08-27): only /api/trades/ingest ran it, so a trader who typed in
     // three winning trades met their target, met their trading days, and watched Prop OS
     // go on saying Phase 1 — the engine had simply never been asked.
-    if (account_id != null) await runAlerts(req.user.uid, account_id);
+    await runAlerts(req.user.uid, account_id);
     return reply.code(201).send(trade);
   });
 
@@ -321,8 +326,9 @@ export default function tradeRoutes(app, ctx) {
   // CSV / statement import (Free-tier feature). Body: { csv, dryRun }.
   //  - dryRun=true  -> parse + validate only; returns what WOULD import, which
   //    columns were detected, per-analytic warnings, dupes, and skipped rows.
-  //  - dryRun=false -> also inserts (source='import', account_id NULL, owned by
-  //    the user; shows in god/strategy view like manual trades).
+  //  - dryRun=false -> also inserts (source='import', owned by the user and by the
+  //    account named in `account_id`, which is REQUIRED — see the manual-entry
+  //    route above for why an account-less trade is no longer writable).
   // Dedupe is best-effort on (close_time, symbol_base, fixed_r) among the user's
   // existing imports so re-uploading the same file doesn't double rows.
   // bodyLimit is raised since the CSV text rides in the JSON body.
@@ -333,16 +339,17 @@ export default function tradeRoutes(app, ctx) {
       return reply.code(400).send({ error: 'csv text is required' });
     }
 
-    // Optional account scope: import into one of the requester's own accounts
-    // (so the rows show in that per-account view); omit for account-less imports.
-    let acctLogin = null;
-    if (req.body?.account_id != null && req.body.account_id !== '') {
-      const login = Number(req.body.account_id);
-      if (Number.isNaN(login) || !(await ownedAccountByLogin(req.user.uid, login))) {
-        return reply.code(400).send({ error: 'account not found' });
-      }
-      acctLogin = login;
+    // Account scope: required. An import lands in exactly one of the requester's
+    // own accounts. Checked BEFORE the CSV is parsed so a 12MB upload with no
+    // account named is rejected without doing the work.
+    if (req.body?.account_id == null || req.body.account_id === '') {
+      return reply.code(400).send({ error: 'account_id is required — imported trades belong to an account' });
     }
+    const importLogin = Number(req.body.account_id);
+    if (Number.isNaN(importLogin) || !(await ownedAccountByLogin(req.user.uid, importLogin))) {
+      return reply.code(400).send({ error: 'account not found' });
+    }
+    const acctLogin = importLogin;
 
     const { trades, columns, warnings, skipped, fatal } = buildImportTrades(parseCsv(csv));
     if (fatal) return reply.code(400).send({ error: fatal, columns });
@@ -351,7 +358,7 @@ export default function tradeRoutes(app, ctx) {
     // this file), so importing the same file into two accounts stays allowed.
     const dupKey = (t) => `${t.close_time}|${t.symbol_base}|${t.fixed_r}`;
     const { rows: existing } = await query(
-      "SELECT close_time, symbol_base, fixed_r FROM trades WHERE user_id = $1 AND source = 'import' AND account_id IS NOT DISTINCT FROM $2",
+      "SELECT close_time, symbol_base, fixed_r FROM trades WHERE user_id = $1 AND source = 'import' AND account_id = $2",
       [req.user.uid, acctLogin]
     );
     const seen = new Set(existing.map((r) => `${new Date(r.close_time).toISOString()}|${r.symbol_base}|${r.fixed_r}`));
@@ -401,7 +408,7 @@ export default function tradeRoutes(app, ctx) {
       // arriving at once, and it can carry an account clean through its target. Once
       // per import rather than per row — the engine reads the account's whole history
       // every time it runs, so N calls would compute the same verdict N times.
-      if (acctLogin != null) await runAlerts(req.user.uid, acctLogin);
+      await runAlerts(req.user.uid, acctLogin);
     }
     return { dryRun: false, imported: fresh.length, ...summary };
   });

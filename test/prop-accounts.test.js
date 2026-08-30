@@ -140,8 +140,10 @@ test('single-select replaces the selection and says so semantically', () => {
   assert.match(topbar, /singleSelect \? \(\s*<MenuItem/s);
   // The multi-select path is untouched for every other route.
   assert.match(topbar, /<MenuCheckboxItem[\s\S]*?onCheckedChange=\{\(\) => toggle\(a\.mt5_login\)\}/);
-  // "All accounts" survives in both modes: god view is still a valid scope.
-  assert.match(topbar, /onClick=\{\(\) => setAccountId\(GOD\)\}/);
+  // "All accounts" survives in both modes — it is a selection of every active
+  // account now, not the god view it used to name.
+  assert.match(topbar, /onClick=\{\(\) => setAccountId\(ALL\)\}/);
+  assert.ok(!/\bGOD\b/.test(topbar), 'the god-view constant must be gone');
 });
 
 // ---------------------------------------------------------------------------

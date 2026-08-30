@@ -947,7 +947,7 @@ export default function Dashboard() {
   }, [m.days]);
 
   // Prop OS challenge state for the account-health cards — same call PropOS
-  // itself makes; god scope returns one item per account, single scope one item.
+  // itself makes; a multi-account scope returns one item per account, single one.
   const [propData, setPropData] = useState(null);
   function loadProp() {
     fetchProp(accountId).then((d) => setPropData(d)).catch(() => {});
@@ -955,7 +955,7 @@ export default function Dashboard() {
   useEffect(() => { setPropData(null); loadProp(); /* eslint-disable-next-line */ }, [accountId]);
 
   const candidates = useMemo(() => {
-    const list = (propData?.god ? propData.accounts : propData ? [propData] : []).filter((a) => a.challengeId);
+    const list = (propData?.multi ? propData.accounts : propData ? [propData] : []).filter((a) => a.challengeId);
     return [...list].sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9));
   }, [propData]);
 

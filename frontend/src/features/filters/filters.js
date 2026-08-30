@@ -1,5 +1,5 @@
-// Global, per-scope view filters. A "scope" is the god view ('god') or one MT5
-// account (its login). Each scope owns a ViewConfig: the display unit (R/$) plus
+// Global, per-scope view filters. A "scope" is the all-accounts selection ('all')
+// or one MT5 account (its login). Each scope owns a ViewConfig: the display unit (R/$) plus
 // a set of data filters applied to EVERY component (dashboard, calendar, trade
 // log, analytics). The same filters drive the in-memory pages and the backend
 // stats endpoints, so the two always agree.
@@ -20,7 +20,21 @@ export {
   FILTERS, FILTER_GROUPS, LIVE_FILTERS, FILTER_BY_ID,
 } from './filterDefs.js';
 
-export const scopeKey = (accountId) => (accountId === 'all' || accountId == null ? 'god' : String(accountId));
+/* The key a scope's saved filters live under.
+ *
+ * 'all' USED TO BE STORED AS 'god', and readScopeConfig below still reads that key
+ * when the new one is empty. Renaming without the fallback would have silently reset
+ * the saved filters of every existing user on their most-used scope — the rename is
+ * cosmetic, their filters are not. Nothing writes 'god' any more, so the old entry is
+ * read once and then superseded by the first edit. */
+export const ALL_SCOPE = 'all';
+export const scopeKey = (accountId) => (accountId === 'all' || accountId == null ? ALL_SCOPE : String(accountId));
+
+// Legacy key for ALL_SCOPE — read-only, never written. See scopeKey.
+const LEGACY_ALL_SCOPE = 'god';
+
+export const readScopeConfig = (viewConfigs = {}, key) =>
+  viewConfigs[key] ?? (key === ALL_SCOPE ? viewConfigs[LEGACY_ALL_SCOPE] : undefined);
 
 export const emptyFilters = emptyFilterState;
 // Applied on every read of a persisted config — see sanitizeFilterState.
@@ -29,7 +43,7 @@ export const sanitizeFilters = sanitizeFilterState;
 // The display unit (R/$) is a single global preference, not scoped per
 // account — it only changes when the user clicks the toggle, never as a
 // side effect of switching accounts. `dashboard.pinnedAccounts` holds the
-// god-scope Dashboard's selected account (single-element array, kept as an
+// all-accounts Dashboard's selected account (single-element array, kept as an
 // array for storage-shape compatibility); empty = default to the first
 // prop-challenge account.
 export const DEFAULT_UNIT = 'R';

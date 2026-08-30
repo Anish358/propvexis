@@ -25,7 +25,7 @@ test('toCsv: quotes values with comma/quote/newline, doubles inner quotes', () =
 
 // --- Report → CSV rows: sections present, totals & prop summary correct. ---
 const fixtureReport = () => ({
-  meta: { unit: 'R', year: 2026, god: true },
+  meta: { unit: 'R', year: 2026, multi: true },
   stats: {
     headline: { unit: 'R', totalReturn: 12.5, strikeRate: 55, trades: 20, wins: 11, losses: 8,
       breakeven: 1, avgWin: 2, avgLoss: -1, profitFactor: 2.75, expectancy: 0.63, winStreak: 4, lossStreak: 2 },
@@ -33,7 +33,7 @@ const fixtureReport = () => ({
     byInstrument: [{ key: 'XAUUSD', trades: 20, wins: 11, losses: 8, breakeven: 1, sr: 55, r: 12.5 }],
   },
   prop: {
-    god: true,
+    multi: true,
     accounts: [
       { account_id: 314, label: 'GFT', phase: 'funded', currentEquity: 52000, health: { score: 82 },
         maxDd: { roomLeft: 2500 }, dailyDd: { roomLeft: 1000 }, profitTarget: null,
@@ -78,9 +78,9 @@ test('reportCsvRows: prop status has one row per account WITH a challenge', () =
   assert.ok(!rows.some((r) => r[0] === 'Manual'));
 });
 
-test('reportCsvRows: single-account report (prop not a god shape)', () => {
+test('reportCsvRows: single-account report (prop not a multi-account shape)', () => {
   const r = fixtureReport();
-  r.meta.god = false;
+  r.meta.multi = false;
   r.prop = { account_id: 314, label: 'GFT', phase: 'p1', currentEquity: 51000,
     health: { score: 70 }, maxDd: { roomLeft: 2000 }, dailyDd: { roomLeft: 900 },
     profitTarget: { pctToTarget: 40 }, tradingDays: { completed: 2, required: 5 },

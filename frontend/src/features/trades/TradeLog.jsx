@@ -37,14 +37,35 @@ export default function TradeLog() {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const isGod = accountId === 'all';
   // Manual accounts (no live EA sync) can receive manually-added / imported trades.
   const manualAccounts = useMemo(() => accounts.filter((a) => a.kind === 'manual' && a.is_active !== false), [accounts]);
-  const currentAccount = useMemo(() => accounts.find((a) => String(a.mt5_login) === String(accountId)) || null, [accounts, accountId]);
+  // The selection is 'all' or a comma-joined list of logins. Exactly one login is
+  // the only case with a "current account"; 'all' and a multi-select have none.
+  const selectedLogins = useMemo(
+    () => (accountId === 'all' || accountId == null ? [] : String(accountId).split(',').filter(Boolean)),
+    [accountId],
+  );
+  const currentAccount = useMemo(
+    () => (selectedLogins.length === 1
+      ? accounts.find((a) => String(a.mt5_login) === selectedLogins[0]) || null
+      : null),
+    [accounts, selectedLogins],
+  );
   const currentIsManual = currentAccount?.kind === 'manual';
-  // Add/import is allowed in the god view (account-less) and in a manual account.
-  // A synced (EA) account is fed automatically, so there's nothing to add by hand.
-  const canAddTrades = isGod || currentIsManual;
+  /* ADDING A TRADE NEEDS AN ACCOUNT TO PUT IT IN, and that is new. It used to be
+     allowed in the all-accounts view precisely BECAUSE there was no account —
+     the trade was written account-less and was visible only there. Migration 0028
+     ended that: every trade belongs to an account, and the server rejects one that
+     names none. So the button now requires that a manual account EXISTS to receive
+     the trade, and the modal's Account field (no longer optional) chooses which.
+
+     A single SYNCED account in scope still cannot take one: the EA feeds it, and a
+     hand-typed trade in an EA-synced account is a reconciliation problem, not a
+     journal entry. */
+  const canAddTrades = manualAccounts.length > 0 && (currentIsManual || selectedLogins.length !== 1);
+  // Which account the modals open on: the one in scope when it can take the trade,
+  // else the first manual account — never blank, because blank is no longer valid.
+  const addDefaultAccountId = currentIsManual ? selectedLogins[0] : String(manualAccounts[0]?.mt5_login ?? '');
 
   const untagged = useMemo(() => trades.filter((t) => !t.tagged).length, [trades]);
   const columnOverrides = tradeSettings.columns || {};
@@ -165,19 +186,17 @@ export default function TradeLog() {
             <span className="add-trade-group">
               <button className="add-trade-btn" onClick={() => setImporting(true)}>⬆ Import CSV</button>
               {/* ONE NAME (owner decision 2026-08-27). The split said "strategy trade"
-                  when no manual account was selected, because an account-less trade lives
-                  only in the all-accounts view — but the modal serves both cases and its
-                  Account field is what decides which. Two names for one action, differing
-                  by a field the user has not reached yet, reads as two features. What the
-                  distinction actually needs is explaining, and the Explain beside this
-                  button already does that. */}
+                  when no manual account was selected, because an account-less trade lived
+                  only in the all-accounts view. That case no longer exists — a trade
+                  without an account is unwritable since migration 0028 — so the one name
+                  is now the only name there could be, rather than a choice. */}
               <button className="add-trade-btn" onClick={() => setAdding(true)}>+ Add trade</button>
               <Explain align="right">
                 <b>Manual & CSV trades</b> are journal entries you enter by hand or import — used to
                 log a setup or backtest a strategy in R without a live MT5 position behind it.
                 <br /><br />
-                Assign them to a <b>manual account</b> to get a segregated per-account view, or leave
-                them account-less so they appear only in the <b>god (all-accounts) view</b>. A
+                Every trade belongs to a <b>manual account</b>, chosen in the Account field — that is
+                what scopes it when you filter the top bar to one account or a few. A
                 <b> synced (EA) account</b> is fed automatically by the EA — so there's nothing to add
                 by hand there.
               </Explain>
@@ -260,7 +279,7 @@ export default function TradeLog() {
           onAdd={addManualTrade}
           strategies={strategies}
           manualAccounts={manualAccounts}
-          defaultAccountId={currentIsManual ? String(accountId) : ''}
+          defaultAccountId={addDefaultAccountId}
         />
       )}
       {importing && (
@@ -268,7 +287,7 @@ export default function TradeLog() {
           onClose={() => setImporting(false)}
           onImported={() => reloadTrades?.()}
           manualAccounts={manualAccounts}
-          defaultAccountId={currentIsManual ? String(accountId) : ''}
+          defaultAccountId={addDefaultAccountId}
         />
       )}
       <TradeSettingsModal

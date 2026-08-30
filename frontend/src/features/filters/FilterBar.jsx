@@ -43,12 +43,16 @@ const PHASE_TAG = { p1: 'P1', p2: 'P2', p3: 'P3', funded: 'Funded' };
 // changes when an account is added.
 const PHASE_ORDER = ['P1', 'P2', 'P3', 'Funded'];
 
-const GOD = 'all';
+// 'all' = every ACTIVE account, resolved server-side to that concrete login list.
+// It is a shorthand for a selection, not a privileged scope — the god view it used
+// to name (filtering by owner, and the only place account-less trades appeared) was
+// removed with migration 0028.
+const ALL = 'all';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 
-// Account selector (top-right): "All accounts (God)" + each BOUND account as a
+// Account selector (top-right): "All accounts" + each BOUND account as a
 // multi-select checkbox, plus a "Manage accounts" entry. The selection is 'all'
-// (god) or a comma-joined list of mt5 logins; picking two or more accounts gives
+// or a comma-joined list of mt5 logins; picking two or more accounts gives
 // an aggregate (R-based) view restricted to them. Pending accounts live in the
 // modal. Menu opens downward from the top bar; checkboxes keep it open.
 //
@@ -71,36 +75,36 @@ const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 // exists. Expressed as role="menuitem" rather than a checkbox item that happens to
 // behave differently, so a screen reader is told it is a one-of-many choice rather
 // than being told "checkbox" and then finding the other boxes clear themselves.
-// "All accounts" stays: god view is still a legitimate scope, and it is what the
+// "All accounts" stays: it is a selection of everything active, and it is what the
 // page shows before an account has been picked.
 function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect = false, notifications = [] }) {
   // Bound + active only; archived accounts stay out of the switcher (still in the modal).
   const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
   const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
 
-  const selected = accountId === GOD ? [] : String(accountId).split(',');
+  const selected = accountId === ALL ? [] : String(accountId).split(',');
   const isSel = (login) => selected.includes(String(login));
   const toggle = (login) => {
     const key = String(login);
     const next = isSel(key) ? selected.filter((l) => l !== key) : [...selected, key];
     const sorted = next.map(Number).sort((a, b) => a - b).map(String);
-    setAccountId(sorted.length ? sorted.join(',') : GOD);
+    setAccountId(sorted.length ? sorted.join(',') : ALL);
   };
-  // Single-select REPLACES rather than accumulates, and never empties to god view
+  // Single-select REPLACES rather than accumulates, and never empties the selection
   // by re-clicking the current account — "All accounts" is the row for that.
   const pick = (login) => setAccountId(String(login));
 
-  /* THE LABEL CARRIES ITS COUNT (Rhea: "All accounts · 5"). God view used to read just
+  /* THE LABEL CARRIES ITS COUNT (Rhea: "All accounts · 5"). It used to read just
    * "All accounts", which says the scope is everything without saying how much
    * everything is — and "everything" is 2 accounts for one trader and 11 for another. */
   let current;
-  if (accountId === GOD) current = bound.length ? `All accounts · ${bound.length}` : 'All accounts';
+  if (accountId === ALL) current = bound.length ? `All accounts · ${bound.length}` : 'All accounts';
   else if (selected.length === 1) current = acctLabel(bound.find((a) => String(a.mt5_login) === selected[0]) || {});
   else current = `${selected.length} Accounts`;
 
   /* WHICH accounts, not just how many. Phases rather than logins, because that is what a
    * trader is actually scoping by, and three of them fit where three five-digit numbers
-   * do not. Shown in GOD VIEW TOO as of Rhea — "All accounts · 5" still does not say
+   * do not. Shown for "All accounts" TOO as of Rhea — "All accounts · 5" still does not say
    * whether those five are evaluations or funded, and that changes what every figure on
    * the page means. Deduped and in lifecycle order, so it reads "P1 · P2 · Funded"
    * rather than repeating a phase once per account. */
@@ -116,7 +120,7 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
     : notifications.find((n) => !n.read_at && n.severity === 'warning') ? 'warn' : 'ok';
   const scopeTone = bound.length ? worst : 'none';
 
-  const scopeSummary = accountId === GOD
+  const scopeSummary = accountId === ALL
     ? summaryOf(bound)
     : (selected.length > 1 ? summaryOf(bound.filter((a) => isSel(a.mt5_login))) : null);
 
@@ -145,7 +149,7 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
 
               THE MENU BEHIND IT IS UNCHANGED, deliberately. @coss ships a Combobox and it
               was read first: 15 KB, searchable, chips, its own input and scroll-area. This
-              control is a multi-SELECT with god-view semantics (`all` vs a comma-joined
+              control is a multi-SELECT with all-accounts semantics (`all` vs a comma-joined
               login list), a single-select mode on two routes, and a pending-accounts
               footer — all tested. Swapping it would trade working behaviour for a
               different-looking trigger, which is the half we can just draw. */}
@@ -166,9 +170,9 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
           {/* The `★` and `⚙` literals become lucide icons: a text glyph inherits the
               row's font metrics and lands at a different size in every typeface,
               where an icon is sized by the menu item itself. Same two meanings. */}
-          <MenuItem className={accountId === GOD ? 'acct-opt-sel' : ''} onClick={() => setAccountId(GOD)}>
+          <MenuItem className={accountId === ALL ? 'acct-opt-sel' : ''} onClick={() => setAccountId(ALL)}>
             <Star aria-hidden="true" />
-            All accounts <span className="acct-opt-sub">God view</span>
+            All accounts <span className="acct-opt-sub">Every active account</span>
           </MenuItem>
           {bound.map((a) => {
             /* A ROW THAT SAYS WHAT THE ACCOUNT IS (2026-08-28). It used to read a label

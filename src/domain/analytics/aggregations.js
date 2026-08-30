@@ -218,8 +218,9 @@ async function loadAdherence(scope, unit, filters, beRound) {
   return computeAdherence(list, rulesByName, field, beRound);
 }
 
-// `scope` from resolveScope: god -> user_id = me, an explicit account selection
-// -> account_id = ANY(logins). The predicate is built by scopeCondition (safe).
+// `scope` from resolveScope: always account_id = ANY(logins), whether that list is
+// one account, several, or every active one. The predicate is built by
+// scopeCondition (safe).
 // `filters` are the global data filters — the SQL half of the client's filter
 // registry, built by buildTradeWhere in statsSql.js — applied app-wide.
 /**

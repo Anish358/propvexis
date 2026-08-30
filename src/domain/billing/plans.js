@@ -9,7 +9,7 @@
 //
 // `syncedAccounts` = EA/live-bound accounts (the Pro gate). `manualAccounts` =
 // user-made buckets for manual/CSV trades, so even Free users can SEGREGATE their
-// journal per account (god view vs per-account) without any live sync.
+// journal per account (all-accounts vs per-account) without any live sync.
 // `reports` = the exportable Journal+Prop report (V1). Paid differentiator: Pro+.
 // ---------------------------------------------------------------------------
 // PLAN GATING IS CURRENTLY OFF (owner decision, 2026-08-25).

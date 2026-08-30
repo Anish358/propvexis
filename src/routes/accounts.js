@@ -1,5 +1,6 @@
 import { resolveScope, listAccounts, createAccount, updateAccount, deleteAccount, stripNullProfitTarget, ownedAccountByLogin } from '../domain/accounts/accounts.js';
 import { createChallengeForAccount, syncActiveChallengeRules } from '../domain/prop/challenges.js';
+import { reconcileGroup } from '../domain/prop/challengeGroups.js';
 import { planForUser, syncedAccountCount, manualAccountCount } from '../domain/billing/entitlements.js';
 import { accountLimit, manualAccountLimit } from '../domain/billing/plans.js';
 import { validateProvision, provisionGate, provisionAccount, PROVISION_CONFLICT } from '../domain/accounts/provision.js';
@@ -179,7 +180,8 @@ export default function accountRoutes(app, ctx) {
     }
   });
 
-  // Edit account metadata (label / broker / currency / start_balance).
+  // Edit account metadata (label / broker / currency / start_balance), and the
+  // archive toggle — Settings › Accounts sends `is_active` through this same route.
   app.patch('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
     const body = req.body ?? {};
     const acct = await updateAccount(req.user.uid, Number(req.params.id), stripNullProfitTarget(body));
@@ -187,11 +189,20 @@ export default function accountRoutes(app, ctx) {
     // Mirror any changed rule fields onto the active challenge so Prop OS reflects
     // the correction immediately (ownership already enforced by updateAccount).
     await syncActiveChallengeRules(Number(req.params.id), body);
+    // ARCHIVING AN ACCOUNT CAN ARCHIVE ITS CHALLENGE. A challenge is its phase
+    // accounts and nothing else, so putting the last of them away has to put the
+    // challenge away too — and unarchiving any one of them brings it back. Only on
+    // an is_active edit: every other field leaves the group's state untouched, and
+    // reconciling on a label change would be a write per keystroke-save.
+    if ('is_active' in body) await reconcileGroup(acct.challenge_group_id, req.user.uid);
     if (acct.mt5_login != null) io.to(`acct:${acct.mt5_login}`).emit('prop:updated', { account_id: acct.mt5_login });
     return acct;
   });
 
-  // Delete an account (its trades keep account_id but become unowned).
+  // Delete an account AND every row that was about it — trades, payouts, fees,
+  // equity snapshots, live balance, candle requests, alerts — plus the challenge it
+  // was the last phase of. See domain/accounts/cascade.js for what that covers and
+  // what it deliberately spares.
   app.delete('/api/accounts/:id', { preHandler: app.requireAuth }, async (req, reply) => {
     const ok = await deleteAccount(req.user.uid, Number(req.params.id));
     if (!ok) return reply.code(404).send({ error: 'account not found' });
@@ -199,8 +210,8 @@ export default function accountRoutes(app, ctx) {
   });
 
   // ---------------------------------------------------------------------------
-  // Account — balance/equity for the selected account, or an aggregate for the
-  // god view. Returns null when the user has no accounts in scope.
+  // Account — balance/equity for the selected account, or an aggregate across the
+  // selected ones. Returns null when the user has no accounts in scope.
   // ---------------------------------------------------------------------------
   app.get('/api/account', { preHandler: app.requireAuth }, async (req, reply) => {
     const scope = await resolveScope(req.user.uid, req.query.account_id);
@@ -210,13 +221,15 @@ export default function accountRoutes(app, ctx) {
     if (!inScope.length) return null;
 
     // A single selected account: return its snapshot directly.
-    if (!scope.god && inScope.length === 1) return inScope[0];
+    if (!scope.multi && inScope.length === 1) return inScope[0];
 
-    // God / multi-account: aggregate. Balances summed only if any are live.
+    // Two or more accounts: aggregate. Balances summed only if any are live.
+    // `multi` replaces the old `god` field — same shape, and it now says what it
+    // means: several accounts are being reported as one, not a privileged view.
     const sum = (f) => inScope.reduce((s, a) => s + (Number(a[f]) || 0), 0);
     const anyLive = inScope.some((a) => a.balance != null);
     return {
-      god: true,
+      multi: true,
       accounts: inScope,
       start_balance: sum('start_balance'),
       balance: anyLive ? sum('balance') : null,

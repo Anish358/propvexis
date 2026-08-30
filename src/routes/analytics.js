@@ -19,9 +19,9 @@ import { buildReport, reportCsvRows, toCsv } from '../domain/analytics/reports.j
  */
 export default function analyticsRoutes(app) {
   // ---------------------------------------------------------------------------
-  // Dashboard analytics — scoped to the selected account (or all owned = god).
+  // Dashboard analytics — scoped to the selected accounts (or every active one).
   // ---------------------------------------------------------------------------
-  // god / all-accounts view reports R; a single account reports its currency ($).
+  // Several accounts report R; a single account reports its currency ($).
   // Display unit + global data filters are chosen by the client (per scope), not
   // derived from the account. Unit is normalized to R/USD; filter values are
   // parameterized in buildTradeWhere.
@@ -117,7 +117,7 @@ export default function analyticsRoutes(app) {
       return reply.code(402).send({ error: 'Reports require the Pro plan' });
     }
     const report = await buildReport(scope, reportOpts(req.query));
-    const fname = `report-${scope.god ? 'all' : scope.logins[0]}-${new Date().toISOString().slice(0, 10)}.csv`;
+    const fname = `report-${scope.multi ? 'all' : scope.logins[0] ?? 'none'}-${new Date().toISOString().slice(0, 10)}.csv`;
     reply.header('Content-Type', 'text/csv; charset=utf-8');
     reply.header('Content-Disposition', `attachment; filename="${fname}"`);
     return toCsv(reportCsvRows(report));
