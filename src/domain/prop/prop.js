@@ -41,7 +41,39 @@ export function synthesizeEquity(startBalance, trades, startDate) {
   const sorted = [...trades]
     .filter((t) => t.close_time != null && t.pnl_money != null)
     .sort((a, b) => new Date(a.close_time) - new Date(b.close_time));
-  const series = [{ ts: startDate ? new Date(startDate) : new Date(sorted[0]?.close_time ?? Date.now()), equity: base }];
+
+  /* THE BASELINE MUST SIT AT OR BEFORE THE FIRST TRADE, and it did not.
+   *
+   * `challenges.start_date` DEFAULTS TO now() at insert (migration 0016) and is never
+   * written explicitly, so it records when the account was ADDED TO PROPVEXIS. Stamping
+   * the baseline point with it put the opening equity AFTER every backdated trade, and
+   * the series this function promises to return ascending came back out of order.
+   *
+   * WHAT THAT BROKE, and it is the worst possible thing to get wrong: dailyDrawdown()
+   * walks this series in ARRAY order and opens a day's bucket at the first point it
+   * sees for that day. A baseline stamped today therefore opened TODAY'S bucket at the
+   * full starting balance, and the last trade's equity — the bottom of the account's
+   * whole history — became today's low. A trader who lost $200 today on an account
+   * $2,100 down overall was shown $2,100 of daily drawdown, 100% of a $1,250 limit, and
+   * a breach banner for a limit they had not touched. The engine then settles the
+   * challenge on that flag.
+   *
+   * `maxDrawdown` was misread the same way for a TRAILING account, where the peak is
+   * tracked by walking the series forward; a series that jumps backwards in time tracks
+   * a peak that never existed.
+   *
+   * So the anchor is the EARLIER of the recorded start and the first trade. Same root
+   * defect as the trading-day count (see tradingDaysState) and the same shape of fix:
+   * the recorded start is trusted only where it cannot contradict the account's own
+   * history. */
+  const firstClose = sorted.length ? new Date(sorted[0].close_time) : null;
+  const recorded = startDate ? new Date(startDate) : null;
+  const valid = (d) => d && !Number.isNaN(d.getTime());
+  const anchor = valid(recorded)
+    ? (valid(firstClose) && firstClose < recorded ? firstClose : recorded)
+    : (valid(firstClose) ? firstClose : new Date());
+
+  const series = [{ ts: anchor, equity: base }];
   let eq = base;
   for (const t of sorted) {
     eq += Number(t.pnl_money);
