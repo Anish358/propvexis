@@ -15,7 +15,8 @@ import { eaSourceFile, repoRoot } from '../src/platform/paths.js';
 // the expectation is derived from the same source the assertion reads.
 const ROUTES = [
   ['get', '/health'], ['get', '/metrics'],
-  ['post', '/api/trades/ingest'], ['get', '/api/trades'], ['post', '/api/trades'],
+  ['post', '/api/trades/ingest'], ['post', '/api/trades/ingest/batch'],
+  ['get', '/api/trades'], ['post', '/api/trades'],
   ['post', '/api/trades/import'], ['patch', '/api/trades/:id'], ['delete', '/api/trades/:id'],
   ['post', '/api/equity/ingest'], ['post', '/api/candles/ingest'],
   ['get', '/api/candles/requests'], ['get', '/api/trades/:id/replay'],
@@ -103,7 +104,11 @@ test('the guarded routes kept their guard', () => {
   // pinned below, so a user route cannot be quietly downgraded to worker auth.
   const PUBLIC = new Set([
     'get /health', 'get /metrics', 'get /api/ea/download',
-    'post /api/trades/ingest', 'post /api/equity/ingest', 'post /api/candles/ingest',
+    // /ingest/batch is the same audience and the same auth as /ingest: an
+    // x-ingest-token, checked in the handler. It is listed here because it has
+    // no session preHandler, NOT because it is unauthenticated.
+    'post /api/trades/ingest', 'post /api/trades/ingest/batch',
+    'post /api/equity/ingest', 'post /api/candles/ingest',
     'get /api/candles/requests', 'post /api/payouts/ingest',
     'get /api/billing/config', 'post /api/billing/webhook',
   ]);
