@@ -73,3 +73,19 @@ test('the gauge centres on the card, not on the label stack', () => {
   assert.ok(!/kpi-main[\s\S]{0,200}justify-center/.test(kpi),
     'KpiMain must not centre itself — that is the bug this row already had');
 });
+
+test('the outcome reds are the lighter step (owner call)', () => {
+  /* The prototype writes #22c55e/#ef4444 for the hero figure and the profit-factor
+   * ring. At 25px of mono on a raised card the structural red reads heavy and slightly
+   * muddy, and at ring scale it is the single largest area of colour in the row — the
+   * owner asked for the lighter step in both. That is a legal move rather than a drift:
+   * both are the outcome family §4 reserves for exactly this, and the bright pair is
+   * already what the trade rows one card over use. */
+  const kpiSrc = readSrc('components/primitives/kpi.jsx');
+  assert.match(kpiSrc, /pos: 'var\(--profit-bright\)'/);
+  assert.match(kpiSrc, /neg: 'var\(--loss-bright\)'/);
+  assert.match(kpiSrc, /stroke=\{empty \? 'var\(--chart-grid\)' : 'var\(--loss-bright\)'\}/);
+  // The ring's PROFIT arc keeps the structural green on purpose: it is drawn over the
+  // red base, not on the card, so it is the one place the structural colour carries.
+  assert.match(kpiSrc, /stroke="var\(--profit\)"/);
+});

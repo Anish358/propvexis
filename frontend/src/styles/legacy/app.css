@@ -841,7 +841,13 @@ label.full { margin-bottom: 16px; }
 /* The chart's own box inside a unit-height card. `min-height: 0` is what lets a flex
    child shrink below its content — without it recharts' container refuses to give
    ground and the card grows past the row it was given. */
-.dash-equity-fill { flex: 1; min-height: 0; }
+/* `crosshair`, which is the browser's own plus-shaped pointer. A cumulative curve is
+   read by tracking one point along it — "where was I on the 14th" — and the arrow gives
+   no purchase on that, where the crosshair puts a hairline on the exact x the reader is
+   asking about. It is also the convention every charting tool a trader already uses
+   sets, so it costs nothing to learn. Applied to the fill rather than the card, so the
+   heading and its chip keep the normal pointer. */
+.dash-equity-fill { flex: 1; min-height: 0; cursor: crosshair; }
 
 /* THE RESPONSIVE RANGE (DESIGN-LANGUAGE §22).
    THE TOKEN RE-DECLARATIONS THAT USED TO LIVE HERE HAVE MOVED TO tokens.css, and they
@@ -1055,92 +1061,31 @@ label.full { margin-bottom: 16px; }
 }
 
 /* ---- calendar ---- */
-/* .cal fills .dash-cal-panel's fixed (card-lg) height: .cal-head stays its
-   natural size, .cal-grid-v2 flexes to take the rest and distributes it across
-   its 6 week-rows (see grid-template-rows below) — so the grid's total height
-   is locked to the Large Card size, and every row gets the same slice of it. */
-.cal { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.cal-head { flex: 0 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.cal-nav { display: flex; align-items: center; gap: 12px; }
-/* min-width fits the widest rendered month label ("September 2026", measured
-   at 115.5px) + a small buffer, so the arrows don't shift position as the
-   month name's length changes month to month. */
-.cal-nav h3 { margin: 0; font-size: 15px; font-weight: var(--fw-semibold); min-width: 120px; text-align: center; }
-.cal-nav button { background: transparent; border: 1px solid var(--line); color: var(--muted); width: 28px; height: 26px; border-radius: 6px; cursor: pointer; }
-.cal-nav button:hover { color: var(--neutral-15); }
-/* Only ever rendered while viewing the current real-world month (see
-   MonthCalendar.jsx's isCurrentMonth check), so its text is always white. */
+/* WHAT WAS HERE IS DELETED (2026-08-30) — around 60 rules describing a calendar this
+ * app no longer draws: `.cal`, `.cal-head`, `.cal-nav`, `.cal-grid-v2`, `.cal-cell` and
+ * its win/loss/be variants, `.cal-pnl`, `.cal-tcount`, `.cal-winpct`, the whole
+ * `.cal-week-*` family and the `.cal-stats-*` header pills.
+ *
+ * Every one of them was dead. The calendar was rebuilt on the Cal* primitives, which
+ * carry their geometry as utilities and identify themselves with `data-slot` rather
+ * than a class — so `.cal-cell` in this file had not styled anything since that rebuild,
+ * while still reading as the definition of a cell to anyone who opened the file. That
+ * is the more expensive kind of dead code: not bytes, but a second answer to "what does
+ * a calendar cell look like".
+ *
+ * They also reached for the fenced-off `--tint-*` and `--neutral-*` tokens, which is
+ * exactly the debt those tokens are fenced to contain.
+ *
+ * WHAT SURVIVES is what the rebuilt calendar still wears as a real class: the "This
+ * month" button below, and the marker glyphs — which live further down this file, near
+ * the Prop OS rules that introduced them. Those are addressed by a template literal
+ * (`cal-mark--${kind}`), so no grep for the literal string finds them; check there
+ * before deleting anything that looks like a stray `.cal-mark`. */
 .cal-today-btn {
   background: transparent; border: 1px solid var(--accent-border); color: var(--text);
   border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 400; cursor: pointer;
 }
 .cal-today-btn:hover { background: var(--accent-bg); }
-.cal-head-stats { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.cal-stats-label { font-size: 13px; font-weight: 400; color: var(--text); display: inline-flex; align-items: center; gap: 4px; }
-.cal-stats-pill { font-size: 12px; font-weight: 400; padding: 4px 12px; border-radius: 999px; }
-.cal-stats-pill.win { background: var(--tint-profit-6); color: var(--text); }
-.cal-stats-pill.loss { background: var(--tint-loss-4); color: var(--text); }
-.cal-stats-pill.days { background: var(--accent-bg); color: var(--text); font-weight: 400; }
-
-/* One 8-column grid (7 days + a week-summary column), so each "Week N" card
-   lines up exactly with its row of days instead of living in a separate panel.
-   Always 6 week-rows below the header (MonthCalendar.jsx pads short months
-   with blank trailing rows) so every row — and every cell in it — is the same
-   height in every month, not just within one month's own grid. */
-.cal-grid-v2 {
-  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: auto repeat(6, 1fr);
-  gap: 4px; flex: 1 1 auto; min-height: 0;
-}
-.cal-dow-cell { text-align: center; color: var(--text); font-size: 12px; padding: 4px 4px 12px; border-bottom: 1px solid var(--line-strong); }
-.cal-week-head { border-bottom: 1px solid var(--line-strong); margin-left: 12px; }
-/* Height comes from the grid row's own share of .cal-grid-v2's fixed height
-   (grid's default align-items: stretch fills the row) — no aspect-ratio, since
-   the row height is now fixed by the Large Card size, not derived from width.
-   Every cell in a row is still the same height as every other (day cells and
-   the week card alike), just no longer tied to their shared column width. */
-/* #1a1f2a sits about halfway between --panel (#151922, the calendar widget's
-   own background) and --surface-2 (var(--surface-2), the "elevated" tone) — a step up
-   from the panel so cells read as distinct from it, but subtly, not a full
-   elevated-surface jump. (Previously used var(--bg), which is darker than the
-   panel, so cells read as recessed rather than raised.) */
-.cal-cell { background: var(--surface-tint-1); border: 1px solid var(--line); border-radius: var(--r-md); padding: 4px; overflow: hidden; position: relative; transition: border-color var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
-.cal-cell.cal-empty { background: transparent; border: none; }
-.cal-daynum { font-size: 12px; line-height: 1.15; color: var(--muted); text-align: right; }
-/* .cal-cell has a fixed aspect-ratio height + overflow:hidden (see below) so
-   every cell stays the same size regardless of content — these spacing values
-   are tuned right up against that budget (measured, not guessed) to give the
-   pnl/trades/win% stack a little breathing room without the last line clipping. */
-.cal-cell-body { margin-top: 0px; }
-.cal-pnl { font-size: 14px; font-weight: 400; line-height: 1.15; }
-.cal-tcount { font-size: 10px; line-height: 1.15; color: var(--muted); }
-.cal-winpct { font-size: 10px; line-height: 1.15; color: var(--muted); margin-top: 0px; }
-.cal-cell.win { background: var(--tint-profit-5); border-color: var(--profit-strong); }
-/* White, not --profit/--loss/--accent — the cell's own background already
-   signals win/loss, so the number just needs to read clearly on top of it. */
-.cal-cell.win .cal-pnl { color: var(--text); }
-/* Solid, not the translucent --loss-bg (which reads dull over the near-black
-   background) — calibrated so its perceived brightness is a touch under the
-   win cell's var(--tint-profit-5). Border uses --loss-strong (mirrors .cal-cell.win using
-   --profit-strong) instead of a one-off hex, matched for equivalent intensity
-   once composited over each cell's own fill. */
-.cal-cell.loss { background: var(--tint-loss-5); border-color: var(--loss-strong); }
-.cal-cell.loss .cal-pnl { color: var(--text); }
-.cal-cell.be .cal-pnl { color: var(--text); }
-.cal-cell.clickable { cursor: pointer; }
-.cal-cell.clickable:hover { filter: brightness(1.25); }
-
-/* No margin-left (used to shave 10px off this box's width vs the day cells);
-   same width as a day cell, and — since it shares the same grid row — the same
-   grid-stretched height too (see .cal-cell above). */
-.cal-week-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md);
-  overflow: hidden; padding: 4px; display: flex; flex-direction: column; gap: 4px; justify-content: center;
-}
-.cal-week-label { font-size: 11px; line-height: 1.3; color: var(--text); }
-.cal-week-val { font-size: 14px; line-height: 1.3; font-weight: 400; }
-.cal-week-val.win { color: var(--profit); }
-.cal-week-val.loss { color: var(--loss); }
-.cal-week-days { font-size: 10px; font-weight: 400; color: var(--text); background: var(--accent-bg); border-radius: 999px; padding: 4px 8px; align-self: flex-start; }
 
 /* ============================================================
    App shell + sidebar (step 2)

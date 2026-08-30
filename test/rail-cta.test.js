@@ -40,9 +40,9 @@ test('it collapses to its icon, by RENDERING differently — never `hidden`', ()
   assert.ok(!/hidden/.test(stripComments(cta)), 'a `hidden` class here would do nothing at all');
   // And the name survives as the tooltip, exactly as RailItem does it.
   assert.match(cta, /title=\{collapsed \? String\(children\) : undefined\}/);
-  // A square at 70px, full width when expanded — the sizes themselves are the CTA's
-  // own business and pinned by the geometry test below.
-  assert.match(cta, /collapsed \? 'w-8 self-center px-0' : 'w-full px-3'/);
+  // A square at 70px, full width when expanded, and the ICON steps down with it.
+  assert.match(cta, /collapsed\s*\n?\s*\? 'size-7 self-center px-0 \[&_svg\]:size-\[13px\]'/);
+  assert.match(cta, /: 'h-8 w-full px-3 \[&_svg\]:size-3\.5'/);
 });
 
 test('it is a Link, so it behaves like navigation', () => {
@@ -82,7 +82,12 @@ test('it is smaller than a nav row, and stands in its own air', () => {
    * navigation item that happened to be white. 32px is visibly not a 44px nav row, and
    * `my-2` (on top of the rail's own 6px gap) is what says it belongs to the brand above
    * it rather than to the list below. */
-  assert.match(cta, /'my-2 flex h-8 /);
-  const railItem = readSrc('components/primitives/rail.jsx');
-  assert.match(railItem, /h-11/, 'the nav rows are 44px — the CTA must not match them');
+  assert.match(cta, /'my-2 flex shrink-0 items-center/);
+  assert.match(cta, /h-8 w-full/, 'expanded, it is 32px — visibly not a 44px nav row');
+  /* AND SMALLER AGAIN AT 70px. A 32px white disc in a 42px content column is most of
+   * the rail's width, and a FILLED disc carries more weight than the outlined 18px
+   * glyphs below it at the same box — so matching their size would still have
+   * outweighed them. It sits one step under instead. */
+  assert.match(cta, /size-7 self-center/, 'the collapsed disc must step down from 32px');
+  assert.match(cta, /\[&_svg\]:size-\[13px\]/, 'and its glyph with it');
 });

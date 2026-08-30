@@ -57,8 +57,22 @@ test('the cell is tinted by its outcome, and idle is not an outcome', () => {
   assert.match(month, /const cellTone = \(data\) => \(data \? tone\(data\.pnl\) : 'idle'\)/);
   assert.match(month, /const tone = \(n\) => \(n > 0 \? 'win' : n < 0 \? 'loss' : 'flat'\)/);
   assert.match(calCode, /const CELL = \{/, 'a cell has its own wash + edge per tone');
-  assert.match(calCode, /color-mix\(in srgb, var\(--profit\) 22%, transparent\)/);
-  assert.match(calCode, /color-mix\(in srgb, var\(--loss\) 22%, transparent\)/);
+  /* THE PERCENTAGES ARE DERIVED, NOT CHOSEN (2026-08-30). The prototype writes these as
+   * literals — rgba(20,83,45,.22) / rgba(76,17,17,.22) for the washes, #183a26 /
+   * #3a1b1b / #141417 for the edges — and COLOUR-INVENTORY §6 rules they stay a
+   * color-mix of existing tokens and "become no new tokens". Each mix below was
+   * composited over --surface in a browser and compared against the prototype's own
+   * literal; every one lands within 4/255 per channel, and idle is exact.
+   *
+   * The old values (34% of --profit-deep, and a TRANSLUCENT --profit edge) came out a
+   * third brighter and greener than the design, which is what made the grid read as
+   * decorated rather than as data. */
+  assert.match(calCode, /color-mix\(in srgb, var\(--profit-deep\) 19%, transparent\)/);
+  assert.match(calCode, /color-mix\(in srgb, var\(--loss-deep\) 12%, transparent\)/);
+  // The EDGES are opaque mixes over the card, not translucent outcome colour.
+  assert.match(calCode, /color-mix\(in srgb, var\(--profit\) 24%, var\(--surface\)\)/);
+  assert.match(calCode, /color-mix\(in srgb, var\(--loss\) 19%, var\(--surface\)\)/);
+  assert.match(calCode, /color-mix\(in srgb, var\(--line\) 40%, var\(--surface\)\)/);
   assert.ok(!/CELL = \{[\s\S]*?idle:/.test(calCode), 'idle has no tint entry — it falls back to flat');
   assert.match(calCode, /idle && \(weekend \? 'opacity-55' : 'opacity-80'\)/);
   // TODAY IS AN EDGE, NEVER A FILL: a filled "today" competes with the outcome tints

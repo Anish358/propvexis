@@ -193,14 +193,27 @@ export function RailCta({ render, icon, className, children, ...rest }) {
        item that happened to be white. Smaller separates it from the list; the margins
        (on top of the rail's own 6px gap) are what say it belongs to the brand above it
        rather than to the navigation below. */
-    'my-2 flex h-8 shrink-0 items-center justify-center gap-2 rounded-full',
+    /* 32px, NOT 36, AND IT SITS IN ITS OWN AIR. At 36 it was the same height as the
+       44px nav rows below it without being one of them, so it read as a fourth nav
+       item that happened to be white. Smaller separates it from the list; the margins
+       (on top of the rail's own 6px gap) are what say it belongs to the brand above it
+       rather than to the navigation below. */
+    'my-2 flex shrink-0 items-center justify-center gap-2 rounded-full',
     'bg-[var(--action)] text-[var(--on-action)] no-underline',
     'text-[12.5px] leading-4 font-semibold',
     'transition-colors hover:bg-[var(--action-2)]',
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2',
     'focus-visible:ring-offset-[var(--rail-bg)] focus-visible:outline-none',
-    '[&_svg]:size-3.5 [&_svg]:shrink-0',
-    collapsed ? 'w-8 self-center px-0' : 'w-full px-3',
+    '[&_svg]:shrink-0',
+    /* AT 70px IT SHRINKS AGAIN, to 28px with a 13px glyph. A 32px white disc in a 42px
+       content column is most of the rail's width — it read as a button parked in the
+       nav rather than as one of its icons, and the icons below it are 18px inside a
+       row with no fill at all. A filled disc carries more weight than an outlined
+       glyph at the same size, so matching their box would still have outweighed them;
+       it sits one step under instead. */
+    collapsed
+      ? 'size-7 self-center px-0 [&_svg]:size-[13px]'
+      : 'h-8 w-full px-3 [&_svg]:size-3.5',
     className,
   );
   const body = (

@@ -32,9 +32,14 @@ import { cn } from '@/lib/utils';
 
 // tone -> the CSS colour a figure reads in. `flat` is deliberately null: a breakeven is
 // a result, not a nothing, and painting it green would inflate a losing week.
+/* THE BRIGHT PAIR (owner decision, 2026-08-30). The prototype writes #22c55e/#ef4444
+ * for these figures; at 25px of mono on a raised card the structural red reads heavy
+ * and slightly muddy, and the owner asked for the lighter step. That is a legal move
+ * rather than a drift: both are the outcome family §4 reserves for exactly this, and
+ * the bright pair is what the same red already does one card over in the trade rows. */
 const TONE = {
-  pos: 'var(--profit)',
-  neg: 'var(--loss)',
+  pos: 'var(--profit-bright)',
+  neg: 'var(--loss-bright)',
   flat: null,
 };
 
@@ -290,7 +295,10 @@ export function KpiRing({ share = 0, empty = false, className, ...rest }) {
         cy="50"
         r="40"
         fill="none"
-        stroke={empty ? 'var(--chart-grid)' : 'var(--loss)'}
+        /* --loss-bright, matching the figure beside it (see TONE). A full ring of the
+           structural red is the single largest area of colour in the KPI row, and at
+           #ef4444 it pulled the eye off the four cards either side of it. */
+        stroke={empty ? 'var(--chart-grid)' : 'var(--loss-bright)'}
         strokeWidth="10"
       />
       {!empty && (
