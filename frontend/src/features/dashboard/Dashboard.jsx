@@ -31,23 +31,18 @@ import {
   AccountBanner, AccountBannerAction, AccountCardFoot, AccountCardLink, AccountCardShell,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  ActionLink, ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
+  ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
   LoadingNote, MeterRow,
   PanelBody, PanelCard, PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelTab,
   PanelTabs, SkeletonBlock, SkeletonLine,
   SkeletonRegion, Tabs, EmptyState, Modal,
 } from '@/components/primitives';
-import DashLayoutEditor from './DashLayoutEditor.jsx';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
   filterBriefEvents, fallbackBriefEvents, sampleBriefEvents, briefEmptyReason,
   briefSectionOn, formatBriefTime,
   briefEventsLabel, defaultBriefPrefs, formatBriefDate, formatBriefClock, BRIEF_WINDOWS,
 } from './briefPrefs.js';
-import {
-  defaultDashLayout, visibleDashIds, isDashVisible, visibleSections,
-  widgetSpan, GRID_COLUMNS,
-} from './dashLayout.js';
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
 import { healthStatus } from '../prop/PropOS.jsx';
@@ -321,10 +316,13 @@ export function DailyBanner({
 
 // Dashboard-level actions, sitting in the reserved strip between Today's Brief
 // and the KPI row. Deliberately chrome-free — no panel, border or divider — so
-// it reads as two controls floating in whitespace rather than a third section.
-// Sync Trades is still a placeholder (the timestamp is static copy); Customize
-// opens the layout panel.
-function DashActions({ onCustomize, lastSynced }) {
+// it reads as a control floating in whitespace rather than a third section.
+//
+// ONE CONTROL NOW. "Customize layout" sat at the other end and opened the layout
+// editor; both are gone (2026-08-30) until every page is finalised. The strip stays
+// because Sync Trades and the sync status still belong here, and it is the anchor the
+// page's spacing is built around.
+function DashActions({ lastSynced }) {
   return (
     <ActionStrip
       action={(
@@ -346,19 +344,7 @@ function DashActions({ onCustomize, lastSynced }) {
          a sync happens. That reads correctly the day the feed lands and never has to be
          un-lied about. */
       status={<ActionStatus>Last synced: {lastSynced || 'never'}</ActionStatus>}
-    >
-      {/* A BORDERED PILL, not bare text (Rhea). It sat as a label the same weight as
-          the status text across from it, which made the strip read as two sentences
-          rather than a control at each end. */}
-      <ActionLink
-        type="button"
-        title="Customize layout"
-        onClick={onCustomize}
-      >
-        <SlidersHorizontal aria-hidden="true" />
-        Customize layout
-      </ActionLink>
-    </ActionStrip>
+    />
   );
 }
 
@@ -874,22 +860,32 @@ export function DashSkeleton() {
         </MeterRow>
       </AccountCardShell>
 
-      <div className="dash-grid" style={{ '--dash-grid-cols': GRID_COLUMNS }}>
-        <div className="dash-grid-cell" style={{ gridColumn: 'span 2', gridRow: 'span 2' }}>
+      {/* THE SAME TWO COLUMNS AND THE SAME THREE HEIGHTS as the real page — see
+          DashMain. A skeleton that reserves a different box from its content is the
+          layout jump it exists to prevent (§15), and these boxes are now fixed, so
+          there is no excuse for them to disagree. */}
+      <div className="dash-main-grid">
+        <div className="dash-cal-cell">
           <PanelCard>
             <PanelHead sub={<SkeletonLine w="7rem" />}><SkeletonLine w="9rem" h="1rem" /></PanelHead>
             <SkeletonBlock h="16rem" radius={12} />
           </PanelCard>
         </div>
-        <div className="dash-grid-cell">
-          {/* Content-sized like the card it stands in for — a skeleton that reserves a
-              different box from its content is the layout jump it exists to prevent. */}
-          <PanelCard>
-            <PanelHead><SkeletonLine w="8rem" h="1rem" /></PanelHead>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <PanelRow key={i}><SkeletonLine w={`${60 + i * 8}%`} /></PanelRow>
-            ))}
-          </PanelCard>
+        <div className="dash-side">
+          <div className="dash-trades-cell">
+            <PanelCard>
+              <PanelHead><SkeletonLine w="8rem" h="1rem" /></PanelHead>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <PanelRow key={i}><SkeletonLine w={`${60 + i * 8}%`} /></PanelRow>
+              ))}
+            </PanelCard>
+          </div>
+          <div className="dash-chart-cell">
+            <PanelCard>
+              <PanelHead><SkeletonLine w="8rem" h="1rem" /></PanelHead>
+              <SkeletonBlock h="10rem" radius={12} />
+            </PanelCard>
+          </div>
         </div>
       </div>
     </SkeletonRegion>
@@ -903,12 +899,9 @@ export default function Dashboard() {
     trades = [], tradesLoading = false, accounts = [], accountId = 'all', setAccountId,
     reloadAccounts = () => {},
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
-    dashLayout, setDashVisible, moveDashWidget, resetDashLayout,
     briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, markNotificationRead,
   } = useOutletContext();
-  const layout = dashLayout || defaultDashLayout();
   const brief = briefPrefs || defaultBriefPrefs();
-  const [customizeOpen, setCustomizeOpen] = useState(false);
 
   const beRounding = !!tradeSettings.beRounding;
 
@@ -974,23 +967,10 @@ export default function Dashboard() {
     return found || candidates[0];
   }, [candidates, pinnedAccounts]);
 
-  // ---- layout-driven render ----
-  // Every customizable widget is a thunk keyed by its layout id, so the page's
-  // order is literally the order of the arrays in `layout`, and there is a single
-  // place that knows how to build each widget. The layout editor renders its
-  // wireframe from those same arrays, which is what keeps the two in step.
-  const kpiCard = {
-    netPnl: () => <NetPnlCard m={m} unit={unit} />,
-    tradeWin: () => <TradeWinCard m={m} />,
-    profitFactor: () => <ProfitFactorCard m={m} />,
-    dayWin: () => <DayWinCard days={dayStats} />,
-    avgWinLoss: () => <AvgWinLossCard m={m} unit={unit} />,
-  };
-
-  // Main-grid widgets. Each is placed by CSS Grid's dense auto-flow from its
-  // ordinal position + its catalogue size — no coordinates anywhere.
-  const gridWidget = {
-    account: () => (!selectedAccount ? (
+  /* Account Health, which is the one card with two whole arrangements — an empty state
+   * and the real thing. Named rather than inlined for that reason alone; every other
+   * card on this page is one element at its call site below. */
+  const accountSection = (!selectedAccount ? (
       <AccountCardShell>
         <EmptyState
           title="No prop accounts yet"
@@ -1008,93 +988,27 @@ export default function Dashboard() {
         onChanged={loadProp}
         onLocked={reloadAccounts}
       />
-    )),
-    /* NO `card-lg`. Its fixed height existed for the old calendar, whose six week rows
-       divided the panel to fill it; the rebuilt cells carry their own height, so a
-       forced 2-row-span height is just empty space under a five-week month. The grid is
-       `align-items: start`, so a shorter calendar simply ends where its content does.
-       The RIGHT column keeps its card-md heights — those hold a scrolling list and a
-       chart, which do need a definite box to flex into. */
-    calendar: () => (
-      <PanelCard className="dash-cal-panel">
-        <MonthCalendar
-          year={calYear}
-          month={calMonth}
-          dayMap={dayMap}
-          unit={unit}
-          onPrev={() => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
-          onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
-          onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
-          onSelectDay={(c) => setSelectedDay(c.key)}
-          // See MonthCalendar's `weeks`: this calendar shares a row with two other
-          // cards, so the eighth column costs width the days need. Prop OS keeps it.
-          weeks={false}
-        />
-        <PanelHint>Click a day to open that session&rsquo;s trades.</PanelHint>
-      </PanelCard>
-    ),
-    activity: () => <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />,
-    cumulative: () => <CumulativePnlCard days={m.days} unit={unit} />,
-  };
+    ));
 
-  const visibleKpis = visibleDashIds(layout, 'kpis');
-  const visibleWidgets = visibleDashIds(layout, 'main');
-
-  const sectionNode = {
-    brief: () => (
-      <DailyBanner
-        notifications={notifications}
-        prefs={brief}
-        patchBriefPrefs={patchBriefPrefs}
-        setBriefSection={setBriefSection}
-        resetBriefPrefs={resetBriefPrefs}
-        markNotificationRead={markNotificationRead}
-      />
-    ),
-
-    /* KpiRow re-splits itself, so `--kpi-count` is gone. The row is flex with the hero
-       at a 1.7 ratio (the frame's 392 : 231), which means hiding a card widens the rest
-       instead of leaving a hole — the same guarantee the custom property gave, without a
-       number the row has to be told. */
-    kpis: () => (
-      <KpiRow>
-        {visibleKpis.map((id) => <React.Fragment key={id}>{kpiCard[id]()}</React.Fragment>)}
-      </KpiRow>
-    ),
-
-    // The content grid. GRID_COLUMNS wide with dense packing, and row height is
-    // the existing --dash-card-h-md card unit — so a `large` (2x2) calendar comes
-    // out at exactly the height the old fixed card-lg class produced.
-    main: () => (
-      <div className="dash-grid" style={{ '--dash-grid-cols': GRID_COLUMNS }}>
-        {visibleWidgets.map((id) => {
-          const { cols, rows } = widgetSpan(id);
-          /* HEIGHT FROM THE SPAN, so a 2-row widget is exactly two 1-row widgets plus
-             the gap. A FULL-WIDTH widget (Account Health) is exempt: it has no
-             neighbour to line up with, and pinning it to a unit would leave dead card
-             under its footer — see the note in app.css. */
-          const height = cols === GRID_COLUMNS ? undefined
-            : `var(--dash-card-h-${rows > 1 ? 'lg' : 'md'})`;
-          return (
-            <div
-              key={id}
-              className="dash-grid-cell"
-              style={{ gridColumn: `span ${cols}`, gridRow: `span ${rows}`, height }}
-            >
-              {gridWidget[id]()}
-            </div>
-          );
-        })}
-      </div>
-    ),
-  };
-
-  const sections = visibleSections(layout);
-  // The action strip is fixed chrome, not a customizable widget — it rides
-  // directly under Today's Brief (preserving the designed arrangement even if
-  // the Brief is dragged elsewhere). With the Brief hidden it goes to the top,
-  // so the Customize button is never unreachable.
-  const stripAfter = isDashVisible(layout, 'brief') ? 'brief' : null;
+  /* THE PAGE IS THE DESIGN'S ARRANGEMENT, WRITTEN DOWN (2026-08-30).
+   *
+   * It used to be data: a stored layout of reorderable sections and show/hide widgets,
+   * with each card taking its height from its GRID SPAN via `lg = 2 x md + gap`. That
+   * indirection is what made the design's own heights unreachable — the design draws
+   * the calendar at 780, Recent trades at 374 and the chart at 390, and 374 != 390, so
+   * no single "card unit" can produce them. A configurable grid can only offer equal
+   * cards; the design does not use equal cards.
+   *
+   * Customization is removed until every page is finalised (owner decision), so the
+   * arrangement is plain JSX and the three heights are three tokens. The right column
+   * still sums to the left one — 374 + 16 + 390 = 780 — which is the alignment the
+   * design draws, and app.css derives the calendar from that sum rather than repeating
+   * the number.
+   *
+   * Two columns, 67/33, exactly as the prototype's `minmax(0,67fr) minmax(0,33fr)`. It
+   * was three columns with the calendar spanning two, which is the same ratio reached
+   * the long way round — an artifact of needing arbitrary widget footprints. */
+  const stripAfter = 'brief';
 
   if (tradesLoading) {
     return (
@@ -1114,23 +1028,62 @@ export default function Dashboard() {
         onClose={() => setSelectedDay(null)}
       />
 
-      <DashLayoutEditor
-        open={customizeOpen}
-        onClose={() => setCustomizeOpen(false)}
-        layout={layout}
-        setDashVisible={setDashVisible}
-        moveDashWidget={moveDashWidget}
-        resetDashLayout={resetDashLayout}
-      />
-
       <div className="page-body dash-page-body">
-        {stripAfter === null && <DashActions onCustomize={() => setCustomizeOpen(true)} lastSynced={lastSynced} />}
-        {sections.map((id) => (
-          <React.Fragment key={id}>
-            {sectionNode[id]()}
-            {stripAfter === id && <DashActions onCustomize={() => setCustomizeOpen(true)} lastSynced={lastSynced} />}
-          </React.Fragment>
-        ))}
+        <DailyBanner
+          notifications={notifications}
+          prefs={brief}
+          patchBriefPrefs={patchBriefPrefs}
+          setBriefSection={setBriefSection}
+          resetBriefPrefs={resetBriefPrefs}
+          markNotificationRead={markNotificationRead}
+        />
+
+        <DashActions lastSynced={lastSynced} />
+
+        {/* KpiRow re-splits itself from a content floor, so there is no column count to
+            keep in sync — see the header on kpi.jsx. */}
+        <KpiRow>
+          <NetPnlCard m={m} unit={unit} />
+          <TradeWinCard m={m} />
+          <ProfitFactorCard m={m} />
+          <DayWinCard days={dayStats} />
+          <AvgWinLossCard m={m} unit={unit} />
+        </KpiRow>
+
+        <div className="dash-main-grid">
+          {/* Full width, and sized by its content: Account Health has no neighbour to
+              line up with, and pinning it to a card height leaves dead surface under
+              its footer. */}
+          <div className="dash-account-cell">{accountSection}</div>
+
+          <div className="dash-cal-cell">
+            <PanelCard className="dash-cal-panel">
+              <MonthCalendar
+                year={calYear}
+                month={calMonth}
+                dayMap={dayMap}
+                unit={unit}
+                onPrev={() => { const d = new Date(calYear, calMonth - 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+                onNext={() => { const d = new Date(calYear, calMonth + 1, 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
+                onToday={() => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); }}
+                onSelectDay={(c) => setSelectedDay(c.key)}
+                // See MonthCalendar's `weeks`: this calendar shares a row with two other
+                // cards, so the eighth column costs width the days need. Prop OS keeps it.
+                weeks={false}
+              />
+              <PanelHint>Click a day to open that session&rsquo;s trades.</PanelHint>
+            </PanelCard>
+          </div>
+
+          <div className="dash-side">
+            <div className="dash-trades-cell">
+              <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />
+            </div>
+            <div className="dash-chart-cell">
+              <CumulativePnlCard days={m.days} unit={unit} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

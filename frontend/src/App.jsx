@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState, fetchMe } from './lib/api.js';
 import { useAuth } from './app/AuthContext.jsx';
 import { scopeKey, readScopeConfig, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './features/filters/filters.js';
-import { sanitizeDashLayout, defaultDashLayout, moveDashIdBefore } from './features/dashboard/dashLayout.js';
 import { sanitizePropLayout, defaultPropLayout } from './features/prop/propLayout.js';
 import { sanitizeBriefPrefs, defaultBriefPrefs } from './features/dashboard/briefPrefs.js';
 import { applyBeRounding } from './lib/metrics.js';
@@ -211,30 +210,15 @@ export default function App() {
      user's view state is simply never read; it costs one dead key rather than a
      migration, and it is what a returning light theme would read first. */
 
-  // Dashboard layout — global like `unit`, not per scope, so switching accounts
-  // never rearranges the page. Sanitized on read rather than on hydrate so a
-  // blob saved before a widget existed still resolves to a complete layout.
-  const dashLayout = useMemo(() => sanitizeDashLayout(viewConfigs.dashLayout), [viewConfigs.dashLayout]);
-  const mutateDashLayout = (fn) => setViewConfigs((prev) => ({
-    ...prev,
-    dashLayout: fn(sanitizeDashLayout(prev.dashLayout)),
-  }));
-  const setDashVisible = (id, visible) => mutateDashLayout((l) => {
-    const hidden = { ...l.hidden };
-    if (visible) delete hidden[id]; else hidden[id] = true;
-    return { ...l, hidden };
-  });
-  // Addressed by id, not index: the layout editor reorders live during a drag, so
-  // an index captured at drag start is stale by the next pointermove.
-  const moveDashWidget = (zone, id, targetId) => mutateDashLayout((l) => ({
-    ...l,
-    [zone]: moveDashIdBefore(l[zone], id, targetId),
-  }));
-  const resetDashLayout = () => mutateDashLayout(() => defaultDashLayout());
+  /* NO DASHBOARD LAYOUT STATE (2026-08-30). The dashboard's arrangement is written in
+     its JSX now — customization comes back once every page is finalised. A stored
+     `viewConfigs.dashLayout` from before that is simply never read; it costs one dead
+     key rather than a migration, and it is exactly what a returning layout editor would
+     want to read first. Same treatment as the stored `theme` above. */
 
-  // Prop OS → Overview layout. Stored beside dashLayout and global for the same
-  // reason — and more strongly here, since the Overview spans every account by
-  // design and so has no account scope to vary by at all.
+  // Prop OS → Overview layout — which KPI tiles are shown. Global like `unit`, and more
+  // strongly so here, since the Overview spans every account by design and so has no
+  // account scope to vary by at all.
   const propLayout = useMemo(() => sanitizePropLayout(viewConfigs.propLayout), [viewConfigs.propLayout]);
   const mutatePropLayout = (fn) => setViewConfigs((prev) => ({
     ...prev,
@@ -574,10 +558,6 @@ export default function App() {
                 clearFilters={clearFilters}
                 pinnedAccounts={pinnedAccounts}
                 setPinnedAccounts={setPinnedAccounts}
-                dashLayout={dashLayout}
-                setDashVisible={setDashVisible}
-                moveDashWidget={moveDashWidget}
-                resetDashLayout={resetDashLayout}
                 propLayout={propLayout}
                 setPropVisible={setPropVisible}
                 resetPropLayout={resetPropLayout}

@@ -11,7 +11,6 @@ import {
   defaultPropLayout, sanitizePropLayout, isDefaultPropLayout,
   isPropVisible, visiblePropIds, visiblePropSections, hiddenPropWidgets,
 } from '../frontend/src/features/prop/propLayout.js';
-import { defaultDashLayout, sanitizeDashLayout } from '../frontend/src/features/dashboard/dashLayout.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const prop = read('../frontend/src/features/prop/PropOS.jsx');
@@ -24,25 +23,27 @@ const api = read('../frontend/src/lib/api.js');
 
 // ---- the shared engine -----------------------------------------------------
 
-test('one engine backs both layouts, so persistence logic exists once', () => {
-  // The Dashboard and the Overview need identical machinery over different
-  // catalogues. A second copy would drift the first time either page was touched.
-  const dashSrc = read('../frontend/src/features/dashboard/dashLayout.js');
+/* ONE CONSUMER NOW, NOT TWO. layoutModel.js was extracted so the Dashboard and the
+ * Overview could share the machinery over different catalogues. The Dashboard's half
+ * went with the customize-layout feature (2026-08-30) — its arrangement is written in
+ * its JSX, which is what let the design's unequal card heights be expressed at all —
+ * so the engine now backs the Overview alone.
+ *
+ * The engine is deliberately NOT inlined back into propLayout.js. Customization returns
+ * once every page is finalised, and re-extracting it then is strictly more work than
+ * leaving a tested, working model where it is. */
+test('the Overview builds on the shared engine rather than its own copy', () => {
   const propSrc = read('../frontend/src/features/prop/propLayout.js');
-  for (const [name, src] of [['dashLayout', dashSrc], ['propLayout', propSrc]]) {
-    assert.match(src, /from '[^']*layoutModel\.js'/, `${name} should build on the shared engine`);
-    // The catalogue is all either file should own.
-    assert.ok(!/function sanitize\w*Layout\s*\(/.test(src), `${name} must not re-implement sanitize`);
-  }
+  assert.match(propSrc, /from '[^']*layoutModel\.js'/, 'propLayout should build on the shared engine');
+  // The catalogue is all it should own.
+  assert.ok(!/function sanitize\w*Layout\s*\(/.test(propSrc), 'propLayout must not re-implement sanitize');
 });
 
-test('the dashboard layout is behaviour-identical after the extraction', () => {
-  const d = defaultDashLayout();
-  assert.deepEqual(d.sections, ['brief', 'kpis', 'main']);
-  assert.deepEqual(d.kpis, ['netPnl', 'tradeWin', 'profitFactor', 'dayWin', 'avgWinLoss']);
-  assert.deepEqual(d.main, ['account', 'calendar', 'activity', 'cumulative']);
-  assert.deepEqual(d.hidden, {}, 'the dashboard ships nothing hidden');
-  assert.deepEqual(sanitizeDashLayout(null), d);
+test('the dashboard no longer has a stored layout at all', () => {
+  const app = read('../frontend/src/App.jsx');
+  assert.ok(!/dashLayout:/.test(app), 'App must not write a dashLayout back to view state');
+  assert.ok(!/sanitizeDashLayout|defaultDashLayout|moveDashWidget/.test(app),
+    'the dashboard layout state is gone — see Dashboard.jsx for the arrangement');
 });
 
 test('a model with no defaultHidden behaves exactly as before', () => {

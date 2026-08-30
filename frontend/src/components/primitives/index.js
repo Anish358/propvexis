@@ -133,7 +133,7 @@ export {
 // The dashboard's generic content card, its table vocabulary, the action strip and the
 // skeleton parts — see panel.jsx.
 export {
-  ActionLink, ActionStatus, ActionStrip, LoadingNote, PanelBody, PanelCard, PanelCell,
+  ActionStatus, ActionStrip, LoadingNote, PanelBody, PanelCard, PanelCell,
   PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelRowHead,
   PanelTab, PanelTableCell, PanelTableHead, PanelTableRow, PanelTabs, PanelValue,
   SkeletonBlock, SkeletonLine, SkeletonRegion,

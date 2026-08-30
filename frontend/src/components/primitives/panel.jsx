@@ -367,14 +367,17 @@ export function PanelCell({ width = 'auto', muted = false, className, children, 
 }
 
 /* THE DASHBOARD'S ACTION STRIP — deliberately chrome-free. No panel, border, background
- * or divider: the frame reads it as two controls floating in whitespace between the
- * brief and the KPI row, not as a third section competing with them. That is why it
+ * or divider: the frame reads it as a control floating in whitespace between the brief
+ * and the KPI row, not as a third section competing with them. That is why it
  * lives here as its own component rather than as a PanelCard with the box turned off —
  * a card that has to be told not to look like a card invites someone to turn it back on.
  *
  * `status` sits beside the primary action rather than under it, so the strip stays one
  * line high at every width in the range and the KPI row does not move when a sync
  * finishes. It wraps at the narrow end instead of truncating a timestamp. */
+/* `children` is kept though nothing passes it today: the strip's far end is where a
+ * second control would go, and the slot is one line. Its only caller went with the
+ * layout editor. */
 export function ActionStrip({ action, status, children, className, ...rest }) {
   return (
     <div
@@ -391,28 +394,12 @@ export function ActionStrip({ action, status, children, className, ...rest }) {
   );
 }
 
-/* The strip's quiet right-hand control ("Customize layout"). Not the generated Button's
- * ghost variant: that one carries the preset's own padding and a hover fill, and the
- * frame draws this as a label with an icon — the same weight as the status text it sits
- * across from. */
-export function ActionLink({ className, children, ...rest }) {
-  return (
-    <button
-      type="button"
-      data-slot="action-link"
-      className={cn(
-        'flex shrink-0 items-center gap-2 rounded-[6px] px-2 py-1.5',
-        'text-[13px] leading-5 font-medium text-[var(--muted)] transition-colors',
-        'hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-        '[&_svg]:size-4',
-        className,
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
-}
+/* ActionLink is DELETED (2026-08-30) — it existed for one control, "Customize layout",
+ * which went with the layout editor. Left in place it would be an unused export shaped
+ * exactly like the thing a future strip control should NOT be: the strip's own argument
+ * (see ActionStrip) is that it holds a primary action and a status, and a second quiet
+ * control at the far end is what made it read as two sentences in the first place.
+ * It comes back with customization, from git. */
 
 /* A sync status line. `tone="pos"` gets the profit colour for the success tick, which is
  * the frame's own choice and the one place a non-outcome uses it — a completed sync is
