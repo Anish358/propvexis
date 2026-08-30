@@ -97,9 +97,34 @@ export async function listAccounts(userId) {
             -- the account list on purpose: every client already holds that list, so
             -- grouping accounts into challenges costs no second request.
             a.challenge_group_id,
+            -- WHICH PHASE THIS ACCOUNT IS, for the same reason and by the same argument.
+            --
+            -- The top bar's account switcher has always been written to show it — the
+            -- scope summary reads "P1 · P2 · Funded" and each menu row carries a phase
+            -- badge — but phase was never on this payload, so a.phase was undefined
+            -- everywhere and BOTH silently rendered nothing. The switcher said how many
+            -- accounts were in scope without saying what kind, which is the one thing a
+            -- multi-account trader checks before reading any figure on the page.
+            --
+            -- Sourced here rather than from /api/prop, which is the only other place it
+            -- lives: the switcher is chrome and loads on every route, and a second
+            -- request to fill in three characters of label is a request the top bar
+            -- would be making on pages that need nothing else from the prop engine.
+            ch.phase,
             acc.balance, acc.equity, acc.updated_at AS balance_updated_at
        FROM mt5_accounts a
        LEFT JOIN accounts acc ON acc.account_id = a.mt5_login
+       -- THE LATEST challenge row, not the ACTIVE one, and the distinction is the same
+       -- one challengeGroupsForUser draws: an account whose phase has passed has no
+       -- active row at all, and "Phase 1, passed" is still the phase that account is.
+       -- DISTINCT ON does it in one pass, so this stays a single query.
+       LEFT JOIN LATERAL (
+         SELECT c.phase
+           FROM challenges c
+          WHERE c.mt5_account_id = a.id
+          ORDER BY c.start_date DESC, c.id DESC
+          LIMIT 1
+       ) ch ON TRUE
       WHERE a.user_id = $1
       ORDER BY a.created_at ASC, a.id ASC;`,
     [userId]

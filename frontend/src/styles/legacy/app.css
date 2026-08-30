@@ -1343,6 +1343,15 @@ label.full { margin-bottom: 16px; }
   color: var(--text-3); font-size: 11.5px; white-space: nowrap;
   border-left: 1px solid var(--line-strong); padding-left: 9px; margin-left: 1px;
 }
+/* THE PHASES DROP BEFORE THE SCOPE DOES. The trigger is capped at 200px, so at narrow
+   widths something has to give — and the answer is the detail, not the label: "All
+   accounts · 5" truncated to "All accou…" beside an intact "P1 · P2 · Funded" is §22's
+   "a label truncated to nothing while the badges keep their full width", exactly.
+   The design drops it at 1180; 1200 is the closed set's neighbouring number and the
+   same reorganisation one step earlier. */
+@media (max-width: 1200px) {
+  .acct-switch-sub { display: none; }
+}
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 /* PRESET SKIN (2026-08-05). Surface, border, radius, padding and shadow are the
    generated dropdown-menu's now — DESIGN-LANGUAGE "the preset outranks legacy CSS".
