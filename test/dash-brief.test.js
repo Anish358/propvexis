@@ -236,8 +236,13 @@ test('the settings control is an icon button in the title row, and still has a n
 });
 
 test('a lone column takes the full width', () => {
-  /* `hideEmpty` can switch either section off. A single half-width list beside an empty
-   * half reads as a column that failed to load rather than one the user turned off —
-   * which is exactly what the owner saw in the real shell with no calendar events. */
+  /* Brief settings can switch either SECTION off, and a single half-width list beside
+   * an empty half reads as a column that failed to load rather than one the user turned
+   * off.
+   *
+   * IT IS NO LONGER REACHED BY A COLUMN BEING EMPTY (2026-08-30) — that was the bug: a
+   * trader with no unread alerts lost the alerts column and got the calendar across the
+   * whole card. Both sections now render on their own toggle and show an empty state,
+   * so `:only-child` fires only when the user has genuinely turned one off. */
   assert.match(brief, /\[&>\*:only-child\]:col-span-2/);
 });

@@ -72,7 +72,20 @@ export function PanelHead({ sub, meta, action, className, children, ...rest }) {
 /* A figure in the head — the calendar's month total, tinted by sign. `tone` is the
  * app's outcome vocabulary rather than a colour, so the panel never decides what green
  * means. */
+/* THE STRUCTURAL PAIR — figures drawn on the page: a month total, a KPI value, an
+ * alert glyph. The prototype uses exactly these for both (its GREEN/RED constants). */
 const TONE = { pos: 'var(--profit)', neg: 'var(--loss)' };
+
+/* AND THE BRIGHT PAIR, FOR A TABLE ROW ONLY (2026-08-30).
+ *
+ * §4 splits each outcome hue in two and the split is load-bearing: the structural
+ * colours are drawn AS shapes on the page, the bright ones are drawn where the
+ * structural colour does not carry — and §4 names "a table row" in that second list.
+ * The prototype agrees and is the reason this is a second map rather than a change to
+ * the first: it draws the month total and the Net P&L figure with #22c55e/#ef4444, and
+ * the trade rows with #4ade80/#f87171. Brightening TONE itself would have fixed the
+ * rows and quietly lightened the calendar's month total, which the design does not. */
+const ROW_TONE = { pos: 'var(--profit-bright)', neg: 'var(--loss-bright)' };
 
 export function PanelMeta({ label, tone, className, children, ...rest }) {
   return (
@@ -211,7 +224,7 @@ export function PanelTableCell({
         !head && (strong ? 'font-semibold' : 'font-normal'),
         className,
       )}
-      style={{ color: head ? 'var(--text-2)' : (TONE[tone] || (strong ? 'var(--text)' : 'var(--text-2)')) }}
+      style={{ color: head ? 'var(--text-2)' : (ROW_TONE[tone] || (strong ? 'var(--text)' : 'var(--text-2)')) }}
       {...rest}
     >
       {children}

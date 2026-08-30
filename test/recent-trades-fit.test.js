@@ -98,3 +98,30 @@ test('fitting is opt-in, so the scrolling caller is untouched', () => {
   assert.match(recent, /const shown = fit \? Math\.min\(limit, fits\) : limit/,
     'without `fit` the behaviour must be exactly what it was');
 });
+
+test('a trade result wears the BRIGHT outcome pair, not the structural one', () => {
+  /* §4 splits each outcome hue in two and the split is load-bearing: the structural
+   * colours are drawn AS shapes on the page (a gauge arc, a ring, a KPI figure), the
+   * bright ones where the structural colour does not carry — and §4 names "a table row"
+   * in that second list. The rows were using the structural pair, so every result sat
+   * two steps darker than the design draws it.
+   *
+   * TWO MAPS, NOT ONE CHANGED. The prototype uses #22c55e/#ef4444 for the Net P&L
+   * figure and the calendar's month total, and #4ade80/#f87171 for the trade rows.
+   * Brightening the shared TONE would have fixed the rows and quietly lightened the
+   * month total, which the design does not do. */
+  assert.match(panel, /const ROW_TONE = \{ pos: 'var\(--profit-bright\)', neg: 'var\(--loss-bright\)' \}/);
+  assert.match(panel, /const TONE = \{ pos: 'var\(--profit\)', neg: 'var\(--loss\)' \}/,
+    'the structural pair must survive for the figures that use it');
+  // The table cell reads the row map; everything else keeps the structural one.
+  // Sliced to each function's own body — `\n}` at column zero is where it ends.
+  const bodyOf = (name) => {
+    const from = panel.indexOf(`export function ${name}`);
+    assert.notEqual(from, -1, `${name} is gone`);
+    return panel.slice(from, panel.indexOf('\n}\n', from));
+  };
+  assert.match(bodyOf('PanelTableCell'), /ROW_TONE\[tone\]/, 'the trade row must read the bright pair');
+  const meta = bodyOf('PanelMeta');
+  assert.match(meta, /TONE\[tone\]/);
+  assert.ok(!/ROW_TONE\[tone\]/.test(meta), 'the month total must keep the structural green');
+});

@@ -39,9 +39,9 @@ import {
 } from '@/components/primitives';
 import BriefSettingsPopover from './BriefSettingsPopover.jsx';
 import {
-  filterBriefEvents, fallbackBriefEvents, sampleBriefEvents, briefEmptyReason,
+  filterBriefEvents, briefEmptyReason,
   briefSectionOn, formatBriefTime,
-  briefEventsLabel, defaultBriefPrefs, formatBriefDate, formatBriefClock, BRIEF_WINDOWS,
+  defaultBriefPrefs, formatBriefDate, formatBriefClock, BRIEF_WINDOWS,
 } from './briefPrefs.js';
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
@@ -106,16 +106,6 @@ const EMPTY_EVENT_COPY = {
   'no-events': 'The economic calendar covers the current week only — next week\'s releases appear once it publishes.',
 };
 
-/* WHICH EMPTY SECTIONS `hideEmpty` MAY HIDE.
- *
- * The pref means "do not show me a section my own filter has emptied" — that is what a
- * user is asking for when they set it. It does not mean "hide it when the DATA is not
- * there": that is the app having nothing, and the trader should be told rather than
- * shown a card with a column missing. It matters because the data-gap case is the
- * common one (see above) and hiding it made the fallback and its explanation
- * unreachable — the column simply vanished, which is what the owner reported. */
-const USER_EMPTIED = new Set(['filtered-out', 'no-currencies']);
-
 // The feed's closed impact set (see normalizeImpact in src/platform/calendar.js)
 // rendered as the badge that ends each event row. `low` is spelled out rather than
 // left blank: a row with no badge reads as "unknown", not "unimportant".
@@ -153,7 +143,9 @@ export function DailyBanner({
    * A control named Clear has to clear. The alert is not destroyed — it stays in the
    * notification panel and the Alerts page, which is where a read-but-still-true
    * warning belongs. The brief is a summary of what needs attention NOW. */
-  const alerts = notifications.filter((n) => !n.read_at).slice(0, 4);
+  // NOT CAPPED. The section scrolls (BriefSection, max-h-[153px]), so a cap hides rows
+  // with no affordance at all — the scrollbar is the affordance.
+  const alerts = notifications.filter((n) => !n.read_at);
 
   // The full upcoming feed (global, via /api/calendar) — importance, currency and
   // time-window narrowing all happen here from the user's Brief prefs, so changing a
@@ -174,39 +166,45 @@ export function DailyBanner({
      window it computes only moves by the minute. `now` is still what gets filtered
      against — it is just not what decides whether to filter again.
      eslint-disable-next-line react-hooks/exhaustive-deps */
+  /* WHAT THE WINDOW SAYS IS WHAT THE LIST SHOWS — nothing more, nothing else, no cap.
+   *
+   * THREE THINGS USED TO SIT BETWEEN THE FILTERS AND THE ROWS, and together they made
+   * the column untrustworthy:
+   *
+   *   a `.slice(0, 8)` cap, on a list that already scrolls;
+   *
+   *   a FALLBACK — when the window was empty it silently substituted the next
+   *   high-impact events from the WHOLE feed, ignoring the window entirely. On a
+   *   Sunday with "Today" selected that is what put Tuesday and Wednesday releases
+   *   under a heading that said Today. It was labelled, but a label under a list that
+   *   looks exactly like the real one is not enough: the window control appeared not to
+   *   work, which is worse than an empty column;
+   *
+   *   and DEV-ONLY SAMPLE EVENTS — invented releases, to make the design visible in a
+   *   week with no data left. Production never saw them, but they were one build flag
+   *   from a trader planning a session around a release that does not exist.
+   *
+   * All three are gone. Today means today, Week means the week, and an empty window
+   * says so. */
   const shown = useMemo(
-    () => filterBriefEvents(events || [], prefs, now).slice(0, 8),
+    () => filterBriefEvents(events || [], prefs, now),
     [events, prefs, minute],
   );
-  /* WHAT TO SHOW WHEN THE WINDOW IS QUIET. The user's window is usually a few hours, so
-     on a slow afternoon the list is legitimately empty — and "nothing in the next four
-     hours" only half-answers the question the column exists for. The fallback is the
-     next HIGH-impact events from the whole feed, in the currencies they trade. It is
-     labelled as a fallback rather than blended in, because a substitute list that looks
-     like the real one teaches the trader their window setting does nothing. */
-  const fallback = useMemo(
-    () => (shown.length ? [] : fallbackBriefEvents(events || [], prefs, now)),
-    [shown, events, prefs, minute],
-  );
-  /* SAMPLES, IN DEV BUILDS ONLY, and only when both real lists are empty.
-   *
-   * The provider publishes the current week only, so for a third of every week there is
-   * genuinely nothing to render and the design cannot be looked at. `import.meta.env.DEV`
-   * is statically replaced with `false` when Vite builds for production, so this branch
-   * is dropped from the bundle — invented release times cannot reach a real trader, who
-   * would reasonably plan a session around them. */
-  const samples = useMemo(
-    () => (import.meta.env.DEV && !shown.length && !fallback.length ? sampleBriefEvents(now) : []),
-    [shown, fallback, minute],
-  );
-  const eventRows = shown.length ? shown : (fallback.length ? fallback : samples);
   const emptyReason = events == null ? null : briefEmptyReason(events, prefs, now);
 
-  // A section is rendered when its toggle is on AND either it has content or the
-  // user hasn't asked for empty sections to be hidden.
-  const showEvents = briefSectionOn(prefs, 'events')
-    && (!prefs.hideEmpty || eventRows.length > 0 || (events != null && !USER_EMPTIED.has(emptyReason)));
-  const showAlerts = briefSectionOn(prefs, 'alerts') && (!prefs.hideEmpty || alerts.length > 0);
+  /* A SECTION RENDERS ON ITS TOGGLE ALONE. Emptiness is a state it shows, not a reason
+   * to disappear.
+   *
+   * These used to also require content (unless "Hide empty sections" was off, which it
+   * was not by default), and the result was the bug: with no unread alerts the alerts
+   * column vanished and BriefColumns' `:only-child` rule handed the whole card to the
+   * calendar. A trader with a quiet inbox got a differently-shaped dashboard, and no
+   * way to tell whether the alerts panel was empty or broken.
+   *
+   * An empty column that says "No alerts" answers the question. A missing one does not.
+   * `hideEmpty` is deleted with this — see briefPrefs.js. */
+  const showEvents = briefSectionOn(prefs, 'events');
+  const showAlerts = briefSectionOn(prefs, 'alerts');
   // With everything hidden the brief would collapse to a bare title bar, which reads as
   // broken — say so instead.
   const allQuiet = !showEvents && !showAlerts;
@@ -265,7 +263,15 @@ export function DailyBanner({
         <BriefColumns>
           {showEvents && (
             <BriefSection
-              label={shown.length ? briefEventsLabel(prefs) : (samples.length ? 'Sample events' : 'Next high-impact events')}
+              /* ONE NAME, ALWAYS. §3: a title must not rewrite itself — if a control
+                 elsewhere changes what a card shows, the change goes in a chip beside
+                 the title, not in the title. This read "High-impact events" or "High &
+                 medium events" off the importance setting, and "Next high-impact
+                 events" whenever the fallback was showing, so the column was named
+                 after its filter and changed identity under the user. The filters live
+                 in the note and the range switcher beside it; the column is the
+                 economic calendar whatever is filtered out of it. */
+              label="Economic calendar"
               note={rangeNote}
               action={(
                 <BriefRange
@@ -277,9 +283,9 @@ export function DailyBanner({
             >
               {events == null ? (
                 <BriefNote>Loading economic calendar…</BriefNote>
-              ) : eventRows.length === 0 ? (
+              ) : shown.length === 0 ? (
                 <BriefNote>{EMPTY_EVENT_COPY[emptyReason] || EMPTY_EVENT_COPY['no-events']}</BriefNote>
-              ) : eventRows.map((e, i) => (
+              ) : shown.map((e, i) => (
                 <BriefEvent
                   key={`${e.date}-${e.title}-${i}`}
                   currency={e.country}
@@ -289,12 +295,6 @@ export function DailyBanner({
                   impactLabel={IMPACT_LABEL[e.impact]}
                 />
               ))}
-              {!shown.length && fallback.length > 0 && (
-                <BriefNote>Nothing inside your Brief window — showing the next high-impact releases instead.</BriefNote>
-              )}
-              {samples.length > 0 && (
-                <BriefNote>Sample events — development build only. The live calendar covers the current week, which has no releases left.</BriefNote>
-              )}
             </BriefSection>
           )}
 

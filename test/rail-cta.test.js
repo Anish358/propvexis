@@ -40,8 +40,9 @@ test('it collapses to its icon, by RENDERING differently — never `hidden`', ()
   assert.ok(!/hidden/.test(stripComments(cta)), 'a `hidden` class here would do nothing at all');
   // And the name survives as the tooltip, exactly as RailItem does it.
   assert.match(cta, /title=\{collapsed \? String\(children\) : undefined\}/);
-  // 36px square when collapsed, full width when not.
-  assert.match(cta, /collapsed \? 'w-9 self-center px-0' : 'w-full px-3\.5'/);
+  // A square at 70px, full width when expanded — the sizes themselves are the CTA's
+  // own business and pinned by the geometry test below.
+  assert.match(cta, /collapsed \? 'w-8 self-center px-0' : 'w-full px-3'/);
 });
 
 test('it is a Link, so it behaves like navigation', () => {
@@ -74,4 +75,14 @@ test('no page writes the CTA\'s styling, because it would compile to nothing', (
     'Sidebar.jsx is styling the CTA itself — those utilities emit no CSS');
   // And it must not have needed a legacy class either.
   assert.ok(!/rail-cta/.test(appCss), 'the CTA should need no legacy CSS');
+});
+
+test('it is smaller than a nav row, and stands in its own air', () => {
+  /* At h-9 it matched nothing and sat flush against the nav, so it read as a fourth
+   * navigation item that happened to be white. 32px is visibly not a 44px nav row, and
+   * `my-2` (on top of the rail's own 6px gap) is what says it belongs to the brand above
+   * it rather than to the list below. */
+  assert.match(cta, /'my-2 flex h-8 /);
+  const railItem = readSrc('components/primitives/rail.jsx');
+  assert.match(railItem, /h-11/, 'the nav rows are 44px — the CTA must not match them');
 });

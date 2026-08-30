@@ -120,9 +120,17 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
     : notifications.find((n) => !n.read_at && n.severity === 'warning') ? 'warn' : 'ok';
   const scopeTone = bound.length ? worst : 'none';
 
+  /* THE PHASES ARE SHOWN FOR EVERY SELECTION, including a single account (2026-08-30).
+   *
+   * This returned null below two accounts, on the reasoning that one account's phase is
+   * not a "summary" of anything. But the summary is not there to count — it is there to
+   * say WHAT KIND of account every figure on the page is about, and that question has
+   * an answer, and matters most, when exactly one account is in scope: a P1 evaluation
+   * and a funded account are read completely differently, and the label above says only
+   * which broker. So the rule is now simply "the phases of whatever is in scope". */
   const scopeSummary = accountId === ALL
     ? summaryOf(bound)
-    : (selected.length > 1 ? summaryOf(bound.filter((a) => isSel(a.mt5_login))) : null);
+    : summaryOf(bound.filter((a) => isSel(a.mt5_login)));
 
   return (
     <div className="tb-acct">

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readSrc } from './helpers/src-files.js';
+import { readSrc, stripComments } from './helpers/src-files.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appCss } from './helpers/app-css.js';
@@ -8,8 +8,7 @@ import {
   BRIEF_SECTIONS, BRIEF_IMPORTANCE, BRIEF_CURRENCIES, BRIEF_WINDOWS, BRIEF_TIMEZONES,
   defaultBriefPrefs, sanitizeBriefPrefs, isDefaultBriefPrefs, briefSectionOn,
   impactAllowed, briefWindowRange, filterBriefEvents, briefEmptyReason,
-  formatBriefTime, briefEventsLabel, formatBriefDate, formatBriefClock,
-  fallbackBriefEvents,
+  formatBriefTime, formatBriefDate, formatBriefClock,
 } from '../frontend/src/features/dashboard/briefPrefs.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
@@ -39,7 +38,6 @@ test('defaults match the specified panel state', () => {
   assert.deepEqual(d.currencies, ['USD', 'EUR', 'GBP']);
   assert.equal(d.window, 'today');
   assert.equal(d.timezone, 'local');
-  assert.equal(d.hideEmpty, true);
 });
 
 test('catalogues cover the specified options, and Broker Time is absent', () => {
@@ -62,22 +60,20 @@ test('the three unbuilt sections are flagged, the two live ones are not', () => 
 test('sanitize keeps valid saved values and rejects invalid enums', () => {
   const p = sanitizeBriefPrefs({
     sections: { events: false, alerts: true, ai: true },
-    importance: 'all', currencies: ['JPY', 'USD'], window: 'week', timezone: 'utc', hideEmpty: false,
+    importance: 'all', currencies: ['JPY', 'USD'], window: 'week', timezone: 'utc',
   });
   assert.equal(p.sections.events, false);
   assert.equal(p.sections.ai, true);
   assert.equal(p.importance, 'all');
   assert.equal(p.window, 'week');
   assert.equal(p.timezone, 'utc');
-  assert.equal(p.hideEmpty, false);
   // Stored order is canonicalized to the catalogue order.
   assert.deepEqual(p.currencies, ['USD', 'JPY']);
 
-  const bad = sanitizeBriefPrefs({ importance: 'nope', window: 'fortnight', timezone: 'broker', hideEmpty: 'yes' });
+  const bad = sanitizeBriefPrefs({ importance: 'nope', window: 'fortnight', timezone: 'broker' });
   assert.equal(bad.importance, 'high');
   assert.equal(bad.window, 'today');
   assert.equal(bad.timezone, 'local', 'a saved broker timezone must fall back, not persist');
-  assert.equal(bad.hideEmpty, true);
 });
 
 test('sanitize preserves an empty currency list but drops unknown codes', () => {
@@ -99,7 +95,14 @@ test('isDefaultBriefPrefs detects any deviation', () => {
   assert.equal(isDefaultBriefPrefs(undefined), true);
   assert.equal(isDefaultBriefPrefs({ ...defaultBriefPrefs(), importance: 'all' }), false);
   assert.equal(isDefaultBriefPrefs({ ...defaultBriefPrefs(), currencies: [] }), false);
-  assert.equal(isDefaultBriefPrefs({ ...defaultBriefPrefs(), hideEmpty: false }), false);
+  /* `hideEmpty` used to be one of the fields compared here. It is gone from the prefs
+     entirely (2026-08-30) — both brief columns render on their own toggle now and show
+     an empty state rather than disappearing, so the checkbox had nothing left to do and
+     a control that does nothing is worse than an absent one (§2). A stale `hideEmpty`
+     in a persisted blob is simply ignored, which costs one dead key rather than a
+     migration. */
+  assert.ok(!('hideEmpty' in defaultBriefPrefs()), 'hideEmpty is gone from the prefs shape');
+  assert.ok(!('hideEmpty' in sanitizeBriefPrefs({ hideEmpty: false })), 'and is not revived by a stale blob');
   assert.equal(isDefaultBriefPrefs({ ...defaultBriefPrefs(), timezone: 'utc' }), false);
   const d = defaultBriefPrefs();
   assert.equal(isDefaultBriefPrefs({ ...d, sections: { ...d.sections, ai: true } }), false);
@@ -291,10 +294,21 @@ test('the heading clock is 24-hour with seconds, and marks UTC explicitly', () =
   assert.ok(!local.includes('UTC'), 'local time must not be labelled UTC');
 });
 
-test('the events label tracks the importance setting', () => {
-  assert.equal(briefEventsLabel(sanitizeBriefPrefs({ importance: 'high' })), 'High-impact events');
-  assert.equal(briefEventsLabel(sanitizeBriefPrefs({ importance: 'highMedium' })), 'High & medium events');
-  assert.equal(briefEventsLabel(sanitizeBriefPrefs({ importance: 'all' })), 'Economic events');
+test('the events column has ONE name, whatever is filtered out of it', () => {
+  /* It used to read "High-impact events" / "High & medium events" / "Economic events"
+   * off the importance setting — a title that rewrites itself, which §3 forbids in as
+   * many words: if a control elsewhere changes what a card shows, the change goes in a
+   * chip beside the title, not in the title. The column IS the economic calendar; the
+   * range switcher and the note beside it say what is being shown of it. */
+  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
+  assert.match(dashSrc, /label="Economic calendar"/);
+  assert.ok(!/briefEventsLabel/.test(dashSrc), 'the self-rewriting label is back');
+  // Comments stripped: Dashboard.jsx explains which titles it stopped using, and a
+  // rule that cannot tell prose from code punishes the file for recording that.
+  const code = stripComments(dashSrc);
+  for (const gone of ['High-impact events', 'High & medium events', 'Next high-impact events']) {
+    assert.ok(!code.includes(gone), `"${gone}" is back as a column title`);
+  }
 });
 
 // ---- wiring -----------------------------------------------------------------
@@ -322,17 +336,22 @@ test('popover closes on outside click and Escape', () => {
   assert.match(pop, /removeEventListener\('keydown', onKey\)/);
 });
 
-test('popover renders the seven sections in the specified order', () => {
+test('popover renders its groups in the specified order', () => {
   // Read the rendered group headings in source order rather than substring
   // probing, so a label appearing in an aria-label can't fake a match.
   const labels = [...pop.matchAll(/className="bs-group-label"[^>]*>\s*([A-Za-z][A-Za-z ]*?)\s*[\r\n<]/g)]
     .map((m) => m[1].trim());
-  assert.deepEqual(labels, ['Sections', 'News importance', 'Currencies', 'Time window', 'Timezone', 'Display']);
-  // 7. Reset lives in the pinned footer, below the scrolling body.
+  /* "Display" HELD ONE CHECKBOX, "Hide empty sections", and it is gone with the pref
+     (2026-08-30): both brief columns render on their own toggle now and show an empty
+     state instead of disappearing, so there was nothing left for it to hide. §2 —
+     do not build (or keep) a control the product cannot honour. The Sections group
+     above is still how a column is turned off. */
+  assert.deepEqual(labels, ['Sections', 'News importance', 'Currencies', 'Time window', 'Timezone']);
+  assert.ok(!/Hide empty sections/.test(stripComments(pop)), 'the dead control is back');
+  // Reset lives in the pinned footer, below the scrolling body.
   assert.ok(pop.indexOf('Restore defaults') > pop.lastIndexOf('bs-group-label'));
   assert.match(pop, /Select all/);
   assert.match(pop, /Clear all/);
-  assert.match(pop, /Hide empty sections/);
 });
 
 test('popover is scoped to Today\'s Brief only', () => {
@@ -370,7 +389,6 @@ test('brief prefs are global and persisted, not per account scope', () => {
 test('the banner filters and formats through the prefs', () => {
   assert.match(dash, /filterBriefEvents\(events \|\| \[\], prefs, now\)/);
   assert.match(dash, /formatBriefTime\(e\.date, prefs\.timezone, now\)/);
-  assert.match(dash, /briefEventsLabel\(prefs\)/);
   // The heading date renders through the same timezone pref as the event times.
   assert.match(dash, /formatBriefDate\(now, prefs\.timezone\)/);
   assert.match(dash, /formatBriefClock\(now, prefs\.timezone\)/);
@@ -387,23 +405,15 @@ test('the banner filters and formats through the prefs', () => {
   const briefSrc = readSrc('components/primitives/brief.jsx');
   assert.match(briefSrc, /flex flex-wrap items-center gap-2\.5 px-\[26px\]/);
   assert.ok(!/margin-right: auto|mr-auto/.test(briefSrc), 'spacing is declared, not squeezed from a margin');
-  // Hide-empty gates each section, and the all-hidden case says something.
-  /* `eventRows`, not `shown`, since the fallback landed (2026-08-28). hideEmpty has to
-   * consider what will ACTUALLY be rendered — with a fallback list present the column is
-   * not empty, and hiding it would hide the very events the fallback exists to surface. */
-    /* hideEmpty no longer hides a section the DATA emptied — only one the user's own
-   * filter emptied. The provider publishes the current week only, so from Friday
-   * evening the events column is legitimately empty, and hiding it took the
-   * explanation and the fallback down with it: the column simply vanished. */
-  /* hideEmpty no longer hides a section the DATA emptied — only one the user's own
-   * filter emptied. The provider publishes the current week only (config.js records
-   * the verification), so from Friday evening the events column is legitimately empty,
-   * and hiding it took the explanation AND the high-impact fallback down with it: the
-   * column simply vanished, which is what the owner reported seeing. */
-  assert.match(dash, /!prefs\.hideEmpty \|\| eventRows\.length > 0/);
-  assert.match(dash, /!USER_EMPTIED\.has\(emptyReason\)/);
-  assert.match(dash, /const USER_EMPTIED = new Set\(\['filtered-out', 'no-currencies'\]\)/);
-  assert.match(dash, /briefSectionOn\(prefs, 'alerts'\) && \(!prefs\.hideEmpty \|\| alerts\.length > 0\)/);
+  /* A SECTION RENDERS ON ITS TOGGLE ALONE, and shows an empty state rather than
+   * disappearing. Both used to also require content, and with no unread alerts the
+   * alerts column vanished — BriefColumns' `:only-child` rule then handed the whole
+   * card to the calendar, so a trader with a quiet inbox got a differently-shaped
+   * dashboard and no way to tell "empty" from "broken". */
+  assert.match(dash, /const showEvents = briefSectionOn\(prefs, 'events'\);/);
+  assert.match(dash, /const showAlerts = briefSectionOn\(prefs, 'alerts'\);/);
+  assert.match(dash, /All clear — no active account alerts\./,
+    'the alerts column must say it is empty rather than leave');
   assert.match(dash, /allQuiet \? \(/);
 });
 
@@ -438,82 +448,6 @@ test('the heading clock ticks, and drives the window filter', () => {
 
 // ---- the fallback list -------------------------------------------------------
 
-test('when the window is quiet, the fallback offers the next high-impact events', () => {
-  /* The user's window is usually a few hours, so on a slow afternoon the filtered list
-   * is legitimately empty — and "nothing in the next four hours" only half-answers the
-   * question the column exists for, which is "what is coming that could move this
-   * against me". The fallback ignores the WINDOW and the importance setting, keeps HIGH
-   * only, and still respects the chosen currencies: those are a statement about what the
-   * trader trades, not about when they happen to be looking. */
-  const now = new Date('2026-08-28T09:00:00Z');
-  const hours = (n) => new Date(now.getTime() + n * 3600_000).toISOString();
-  const events = [
-    { date: hours(1), title: 'Minor', country: 'USD', impact: 'low' },
-    { date: hours(30), title: 'NFP', country: 'USD', impact: 'high' },
-    { date: hours(50), title: 'CPI', country: 'EUR', impact: 'high' },
-    { date: hours(40), title: 'BoJ', country: 'JPY', impact: 'high' },
-    { date: hours(-2), title: 'Past', country: 'USD', impact: 'high' },
-  ];
-  const prefs = { ...defaultBriefPrefs(), currencies: ['USD', 'EUR'] };
-  const out = fallbackBriefEvents(events, prefs, now);
-  assert.deepEqual(out.map((e) => e.title), ['NFP', 'CPI'], 'high impact, chosen currencies, in time order');
-});
 
-test('the fallback never reaches past the currencies, and never backwards', () => {
-  const now = new Date('2026-08-28T09:00:00Z');
-  const hours = (n) => new Date(now.getTime() + n * 3600_000).toISOString();
-  // A currency the user does not trade is not "better than nothing" — it is noise on the
-  // one card that exists to say what matters to THEM.
-  const out = fallbackBriefEvents(
-    [{ date: hours(5), title: 'RBA', country: 'AUD', impact: 'high' }],
-    { ...defaultBriefPrefs(), currencies: ['USD'] },
-    now,
-  );
-  assert.deepEqual(out, []);
-  // An empty currency list means the user has switched the column off by other means.
-  assert.deepEqual(fallbackBriefEvents([{ date: hours(5), title: 'X', country: 'USD', impact: 'high' }],
-    { ...defaultBriefPrefs(), currencies: [] }, now), []);
-  // Past events never come back, whatever their impact.
-  assert.deepEqual(fallbackBriefEvents([{ date: hours(-1), title: 'Gone', country: 'USD', impact: 'high' }],
-    { ...defaultBriefPrefs(), currencies: ['USD'] }, now), []);
-});
 
-test('the fallback is labelled as a substitute, not blended into the real list', () => {
-  /* A substitute list that looks like the real one teaches the trader their window
-   * setting does nothing. The column heading changes AND a note under the rows says
-   * what happened. */
-  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
-  assert.match(dashSrc, /shown\.length \? briefEventsLabel\(prefs\) : \(samples\.length \? 'Sample events' : 'Next high-impact events'\)/);
-  assert.match(dashSrc, /Nothing inside your Brief window/);
-  // And it is only computed when the real list is empty — never merged in alongside.
-  assert.match(dashSrc, /shown\.length \? \[\] : fallbackBriefEvents/);
-});
 
-test('sample events exist only behind the dev gate', () => {
-  /* THESE ARE INVENTED ECONOMIC RELEASES. A trader who reads "USD Core CPI 13:30" on a
-   * dashboard plans a session around it — that is what the card is FOR — and being wrong
-   * about when the market moves is not a cosmetic bug. They exist so the design can be
-   * looked at during the third of every week when the provider's feed has no future
-   * events left (config.js records that finding), and they must never reach a real
-   * screen.
-   *
-   * `import.meta.env.DEV` is statically replaced with `false` by Vite in a production
-   * build, so the branch and everything it references are dropped by the bundler —
-   * verified by grepping dist/ after a real build: neither `sampleBriefEvents` nor any
-   * of the invented titles survives.
-   *
-   * What this test protects is the GATE, which is the part a refactor can quietly lose:
-   * the moment the call is not behind it, the samples ship. */
-  const dashSrc = readSrc('features/dashboard/Dashboard.jsx');
-  const calls = [...dashSrc.matchAll(/sampleBriefEvents\(/g)];
-  assert.equal(calls.length, 1, 'exactly one call site, so there is one thing to gate');
-  const line = dashSrc.slice(0, calls[0].index).split('\n').pop()
-    + dashSrc.slice(calls[0].index).split('\n')[0];
-  assert.match(line, /import\.meta\.env\.DEV/,
-    'sampleBriefEvents must be called only behind import.meta.env.DEV');
-  // And the samples must never merge with real data — they stand in for an empty list,
-  // they do not pad a short one.
-  assert.match(dashSrc, /!shown\.length && !fallback\.length \? sampleBriefEvents/);
-  // Labelled in the UI as well as gated, so a dev never mistakes them for the feed.
-  assert.match(dashSrc, /Sample events — development build only/);
-});

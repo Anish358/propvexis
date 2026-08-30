@@ -87,3 +87,25 @@ test('the switcher sits one step above its neighbours, and hovers one more', () 
   assert.ok(!/hover:[^\s']*accent|hover:[^\s']*brand/.test(tinted[1]),
     'hover must not introduce brand colour to a neutral control');
 });
+
+test('the phases show for EVERY selection, a single account included', () => {
+  /* This returned null below two accounts, on the reasoning that one account's phase is
+   * not a "summary" of anything. But the summary is not there to count — it is there to
+   * say WHAT KIND of account every figure on the page is about, and that question has
+   * an answer, and matters most, when exactly one account is in scope: a P1 evaluation
+   * and a funded account are read completely differently, and the label beside it says
+   * only which broker. */
+  assert.match(filterBar, /const scopeSummary = accountId === ALL\s*\n\s*\? summaryOf\(bound\)\s*\n\s*: summaryOf\(bound\.filter\(\(a\) => isSel\(a\.mt5_login\)\)\);/);
+  assert.ok(!/selected\.length > 1 \? summaryOf/.test(filterBar),
+    'the summary is gated on a count again — a single account loses its phase');
+});
+
+test('the switcher gives its three parts room to be three parts', () => {
+  /* The `sm` size ships gap-1 (4px) and the switcher holds a health dot, the scope
+   * label and the phase summary behind its own rule — at 4px they ran together into one
+   * string ("2 Accounts P1"). The design gives this button 10px, and .acct-switch-sub
+   * adds its own 9px after the rule. */
+  const tinted = /const TINTED = \[([\s\S]*?)\]\.join/.exec(button);
+  assert.ok(tinted, 'the tinted surface is gone');
+  assert.match(tinted[1], /gap-2\.5/, 'the switcher must not run its label into its phases');
+});

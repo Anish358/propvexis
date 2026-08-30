@@ -188,14 +188,19 @@ export function RailCta({ render, icon, className, children, ...rest }) {
   const { state, isMobile } = useSidebar();
   const collapsed = state === 'collapsed' && !isMobile;
   const classes = cn(
-    'flex h-9 shrink-0 items-center justify-center gap-2 rounded-full',
+    /* 32px, NOT 36, AND IT SITS IN ITS OWN AIR. At 36 it was the same height as the
+       44px nav rows below it without being one of them, so it read as a fourth nav
+       item that happened to be white. Smaller separates it from the list; the margins
+       (on top of the rail's own 6px gap) are what say it belongs to the brand above it
+       rather than to the navigation below. */
+    'my-2 flex h-8 shrink-0 items-center justify-center gap-2 rounded-full',
     'bg-[var(--action)] text-[var(--on-action)] no-underline',
-    'text-[13px] leading-[18px] font-semibold',
+    'text-[12.5px] leading-4 font-semibold',
     'transition-colors hover:bg-[var(--action-2)]',
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2',
     'focus-visible:ring-offset-[var(--rail-bg)] focus-visible:outline-none',
-    '[&_svg]:size-4 [&_svg]:shrink-0',
-    collapsed ? 'w-9 self-center px-0' : 'w-full px-3.5',
+    '[&_svg]:size-3.5 [&_svg]:shrink-0',
+    collapsed ? 'w-8 self-center px-0' : 'w-full px-3',
     className,
   );
   const body = (
