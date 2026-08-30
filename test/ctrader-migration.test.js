@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { repoRoot } from '../src/platform/paths.js';
 
@@ -42,4 +43,33 @@ test('0029 is re-runnable — every statement guards itself', () => {
   for (const st of statements) {
     assert.match(st, /IF NOT EXISTS/i, `not re-runnable: ${st.slice(0, 60)}`);
   }
+});
+
+test('NO migration names a column after a PostgreSQL system column', () => {
+  /* THE BUG THIS CATCHES SHIPPED, and it reached the dev box rather than a laptop.
+   * 0029 declared `ctid BIGINT` -- the natural name for a cTrader ID -- and every
+   * PostgreSQL table already has a system column called ctid (the physical row
+   * tuple identifier). The CREATE is rejected outright:
+   *
+   *     column name "ctid" conflicts with a system column name
+   *
+   * A migration's SQL is never executed by node:test, so nothing here could have
+   * caught it by running it. This is a text check for exactly that reason, and it
+   * covers EVERY migration rather than only the one that was wrong -- the next
+   * person to reach for `oid` or `xmin` is making the same mistake, not a new one. */
+  const reserved = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid', 'oid'];
+  const dir = path.join(repoRoot, 'db/migrations');
+  const offences = [];
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql'))) {
+    const text = readFileSync(path.join(dir, file), 'utf8')
+      .replace(/--[^\n]*/g, '')          // strip comments; this file names ctid in prose
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const word of reserved) {
+      // A column DECLARATION: the name at the start of a line, followed by a type.
+      const decl = new RegExp(`^\\s*${word}\\s+(BIGINT|INTEGER|INT|TEXT|BOOLEAN|TIMESTAMPTZ|NUMERIC|JSONB|UUID)\\b`, 'im');
+      if (decl.test(text)) offences.push(`${file}: ${word}`);
+    }
+  }
+  assert.deepEqual(offences, [],
+    `these declare a column named after a PostgreSQL system column: ${offences.join(', ')}`);
 });

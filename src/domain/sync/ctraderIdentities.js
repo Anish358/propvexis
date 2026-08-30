@@ -94,12 +94,13 @@ export function rotateTokensQuery(identityId, accessCt, refreshCt, expiresAt) {
   };
 }
 
-/** Record which cTID a grant turned out to belong to, once the account list says. */
-export function setCtidQuery(identityId, ctid) {
+/** Record which cTID a grant belongs to, once the account list says. Column is
+ *  ctid_user_id because `ctid` is a reserved PostgreSQL system column name. */
+export function setCtidQuery(identityId, ctidUserId) {
   return {
-    text: `UPDATE ctrader_identities SET ctid = $2, updated_at = now()
-            WHERE id = $1 RETURNING id, ctid;`,
-    values: [identityId, ctid],
+    text: `UPDATE ctrader_identities SET ctid_user_id = $2, updated_at = now()
+            WHERE id = $1 RETURNING id, ctid_user_id;`,
+    values: [identityId, ctidUserId],
   };
 }
 
@@ -110,7 +111,7 @@ export function setCtidQuery(identityId, ctid) {
  */
 export function identityForUserQuery(userId, identityId) {
   return {
-    text: `SELECT id, user_id, ctid, access_token_ct, refresh_token_ct, expires_at,
+    text: `SELECT id, user_id, ctid_user_id, access_token_ct, refresh_token_ct, expires_at,
                   scope, revoked_at, last_error, updated_at
              FROM ctrader_identities
             WHERE id = $2 AND user_id = $1 AND revoked_at IS NULL;`,
@@ -121,7 +122,7 @@ export function identityForUserQuery(userId, identityId) {
 /** The caller's live identities, WITHOUT ciphertext — what a settings page renders. */
 export function listIdentitiesQuery(userId) {
   return {
-    text: `SELECT id, ctid, scope, expires_at, last_error, created_at, updated_at
+    text: `SELECT id, ctid_user_id, scope, expires_at, last_error, created_at, updated_at
              FROM ctrader_identities
             WHERE user_id = $1 AND revoked_at IS NULL
             ORDER BY id;`,
@@ -205,7 +206,7 @@ export const createIdentity = async (userId, scope, expiresAt) =>
   (await run(createIdentityQuery(userId, scope, expiresAt)))[0] ?? null;
 export const rotateTokens = async (identityId, accessCt, refreshCt, expiresAt) =>
   (await run(rotateTokensQuery(identityId, accessCt, refreshCt, expiresAt)))[0] ?? null;
-export const setCtid = (identityId, ctid) => run(setCtidQuery(identityId, ctid));
+export const setCtid = (identityId, ctidUserId) => run(setCtidQuery(identityId, ctidUserId));
 export const identityForUser = async (userId, identityId) =>
   (await run(identityForUserQuery(userId, identityId)))[0] ?? null;
 export const listIdentities = (userId) => run(listIdentitiesQuery(userId));

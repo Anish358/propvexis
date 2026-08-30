@@ -14,7 +14,10 @@
 CREATE TABLE IF NOT EXISTS ctrader_identities (
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id           BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    ctid              BIGINT,           -- cTID user id, learned at the first account list
+    -- NOT named `ctid`: that is a PostgreSQL SYSTEM column present on every table
+    -- (the physical row tuple id), so `ctid BIGINT` is rejected outright with
+    -- "column name ctid conflicts with a system column name".
+    ctid_user_id      BIGINT,           -- cTID user id, learned at the first account list
     access_token_ct   TEXT NOT NULL,    -- AES-256-GCM, 'v1.<iv>.<tag>.<ct>'
     refresh_token_ct  TEXT NOT NULL,
     expires_at        TIMESTAMPTZ NOT NULL,
@@ -29,7 +32,7 @@ CREATE TABLE IF NOT EXISTS ctrader_identities (
 -- a revoked identity would permanently block the user from reconnecting the same
 -- cTID, which is exactly what they must do after a lost refresh-token rotation.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ctrader_identities_live
-    ON ctrader_identities (user_id, ctid) WHERE revoked_at IS NULL;
+    ON ctrader_identities (user_id, ctid_user_id) WHERE revoked_at IS NULL;
 
 -- What the account picker offers between the OAuth callback and the user's
 -- choice. A CACHE, not an authority -- the authority is whatever cTrader returns
