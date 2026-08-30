@@ -71,7 +71,6 @@ export const defaultBriefPrefs = () => ({
   currencies: ['USD', 'EUR', 'GBP'],
   window: 'today',
   timezone: 'local',
-  hideEmpty: true,
 });
 
 const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
@@ -103,7 +102,6 @@ export function sanitizeBriefPrefs(saved) {
     currencies,
     window: oneOf(saved.window, WINDOW_IDS, base.window),
     timezone: oneOf(saved.timezone, TIMEZONE_IDS, base.timezone),
-    hideEmpty: typeof saved.hideEmpty === 'boolean' ? saved.hideEmpty : base.hideEmpty,
   };
 }
 
@@ -114,7 +112,6 @@ export function isDefaultBriefPrefs(prefs) {
     && p.importance === d.importance
     && p.window === d.window
     && p.timezone === d.timezone
-    && p.hideEmpty === d.hideEmpty
     && p.currencies.length === d.currencies.length
     && p.currencies.every((c, i) => c === d.currencies[i]);
 }
@@ -228,16 +225,12 @@ export function formatBriefClock(now = new Date(), timezone = 'local') {
   return utc ? `${t} UTC` : t;
 }
 
-// The events section's own label tracks the importance setting — leaving it
-// reading "High-impact events" while the list also carries medium/low ones would
-// misdescribe what's on screen.
-export function briefEventsLabel(prefs) {
-  switch (sanitizeBriefPrefs(prefs).importance) {
-    case 'all': return 'Economic events';
-    case 'highMedium': return 'High & medium events';
-    default: return 'High-impact events';
-  }
-}
+/* briefEventsLabel is DELETED. It returned "High-impact events" / "High & medium
+ * events" / "Economic events" off the importance setting, so the column was named after
+ * its own filter and changed identity under the user — which §3 forbids in as many
+ * words: a title must not rewrite itself; the change goes in a chip beside it. The
+ * column is "Economic calendar", and what is filtered out of it is said by the range
+ * switcher and the note next to the title. */
 
 // Event time in the selected timezone. Same-day events show just the time;
 // anything further out is prefixed with its weekday, so a "This Week" list
@@ -263,69 +256,19 @@ export function formatBriefTime(iso, timezone = 'local', now = new Date()) {
   return `${day} ${time}`;
 }
 
-/**
- * THE FALLBACK LIST, for when the user's own filter matches nothing.
+/* THE FALLBACK IS DELETED (2026-08-30), and so are the dev-only SAMPLE EVENTS that
+ * sat behind it.
  *
- * `filterBriefEvents` narrows by importance, currency AND time window, and the window
- * is usually a few hours — so on a quiet afternoon, or at 6pm on a Friday, the column
- * is legitimately empty and the card has nothing to say. That is honest and it is also
- * useless: the question a trader is asking is "what is coming that could move this
- * against me", and "nothing in the next four hours" is only half an answer.
+ * The fallback answered an empty window by showing the next high-impact events from the
+ * WHOLE feed, ignoring the window. On a Sunday with "Today" selected that put Tuesday
+ * and Wednesday releases under a heading that said Today, and the window control looked
+ * broken — which is worse than an empty column, because an empty column is true.
  *
- * So when the narrow list is empty, this returns the next HIGH-IMPACT events from the
- * whole feed, ignoring the window and the importance setting — the ones that would end
- * a session — while still respecting the CURRENCIES the user chose, because those are a
- * statement about what they trade rather than about when they are looking.
+ * The samples were invented releases, gated to dev builds so production never saw them.
+ * A trader plans a session around a release time; a fake one is one build flag from
+ * being read as real, and the card's whole purpose is "what is about to happen".
  *
- * Deliberately not merged into filterBriefEvents: the caller has to know which list it
- * is showing so it can say so. A fallback that silently looks like the real list
- * teaches the trader that their window setting does nothing.
- */
-export function fallbackBriefEvents(events, prefs, now = new Date(), limit = 4) {
-  const p = sanitizeBriefPrefs(prefs);
-  if (!Array.isArray(events) || p.currencies.length === 0) return [];
-  const from = now.getTime();
-  return events
-    .filter((e) => {
-      const t = new Date(e.date).getTime();
-      if (!Number.isFinite(t) || t < from) return false;
-      if (!p.currencies.includes(e.country)) return false;
-      // High only. A fallback that admits medium and low is just a wider window, and
-      // the point of it is "the things that matter, whenever they are".
-      return (e.impact || '').toLowerCase() === 'high';
-    })
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(0, limit);
-}
+ * Both are in git if the argument for them ever comes back. What replaces them is
+ * briefEmptyReason + EMPTY_EVENT_COPY, which say what is actually true. */
 
-/* ---- SAMPLE EVENTS — DEVELOPMENT BUILDS ONLY --------------------------------
- *
- * WHY THIS IS GATED AND NOT JUST SEEDED. These are invented economic releases. A trader
- * who reads "USD Non-Farm Employment Change 13:30" on a dashboard will plan a session
- * around it — that is the entire purpose of the card — and being wrong about when the
- * market moves is not a cosmetic bug. So they exist to make the design visible while
- * building it and must never reach anyone's real screen.
- *
- * The gate is the CALLER's (`import.meta.env.DEV`, which Vite statically replaces with
- * `false` in a production build, so a bundler drops this branch entirely). This function
- * stays pure and dateless — it takes `now` and generates times relative to it, so the
- * list is always plausibly "upcoming" whenever you happen to look, and node:test can
- * assert on it without a clock.
- *
- * Real-looking on purpose: sample data that says "Event One" tells you nothing about
- * whether a title truncates at 380px. The FALLBACK NOTE that renders alongside is what
- * says they are samples.
- */
-export function sampleBriefEvents(now = new Date()) {
-  const at = (hours, minutes = 0) => {
-    const d = new Date(now.getTime() + hours * 3600_000);
-    d.setMinutes(minutes, 0, 0);
-    return d.toISOString();
-  };
-  return [
-    { title: 'Core CPI m/m', country: 'USD', impact: 'high', date: at(2, 30) },
-    { title: 'FOMC Statement', country: 'USD', impact: 'high', date: at(5, 0) },
-    { title: 'ECB President Speaks', country: 'EUR', impact: 'medium', date: at(7, 15) },
-    { title: 'Retail Sales m/m', country: 'GBP', impact: 'medium', date: at(9, 30) },
-  ];
-}
+

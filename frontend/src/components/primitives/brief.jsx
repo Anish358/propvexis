@@ -246,11 +246,23 @@ export function BriefRange({ value, onChange = () => {}, options = [], className
  * a rebrand to recolour the United States. They are drawn here, inline, and
  * design-tokens.test.js exempts this component by name for exactly that reason.
  *
- * ONLY THREE ARE DRAWN because only three are specified. The feed publishes JPY, AUD,
- * CAD, CHF, NZD and CNY too, and inventing six more flags from memory is how a product
- * ships a wrong flag to someone's country. Everything else gets the neutral disc, and
- * the CURRENCY CODE IS ALWAYS RENDERED beside it — so the flag is a scanning aid and
- * never the only thing carrying which market this is. */
+ * ALL NINE ARE DRAWN NOW (2026-08-30) — every currency Brief settings offers. It was
+ * three, on the argument that inventing the rest from memory is how a product ships a
+ * wrong flag to someone's country. That argument was right about the METHOD and wrong
+ * about the conclusion: the answer is to draw them from the actual specifications, not
+ * to leave two thirds of the list as identical grey discs. A row that says AUD beside
+ * the same blank circle as NZD makes the flag column worthless for exactly the traders
+ * who selected those currencies.
+ *
+ * Each is built from its own official geometry — Japan's disc at 3/5 the hoist,
+ * Switzerland's cross at 1/6 arm width, China's four small stars angled at the large
+ * one, the Union Jack reused in the Australian and New Zealand cantons. At 18px inside
+ * a circle these are recognisable rather than precise, and the CURRENCY CODE IS STILL
+ * ALWAYS RENDERED beside it — so the flag remains a scanning aid and is never the only
+ * thing carrying which market a row is about.
+ *
+ * The neutral disc stays as the fallback for anything the feed sends that settings does
+ * not list. */
 function Flag({ code }) {
   const common = { width: 18, height: 18, viewBox: '0 0 20 20', className: 'block shrink-0' };
   const ring = <circle cx="10" cy="10" r="9" fill="none" stroke="#f5f5f5" strokeWidth="1.2" />;
@@ -296,7 +308,116 @@ function Flag({ code }) {
       </svg>
     );
   }
-  // The honest fallback: a disc in the row's own palette. See the header.
+  if (code === 'JPY') {
+    // Nisshoki: white field, crimson disc centred, diameter 3/5 of the hoist.
+    return (
+      <svg {...common} aria-hidden="true">
+        <circle cx="10" cy="10" r="9" fill="#f5f5f5" />
+        <circle cx="10" cy="10" r="5.4" fill="#bc002d" />
+        {ring}
+      </svg>
+    );
+  }
+  if (code === 'CHF') {
+    // A square flag; inside a disc the cross simply centres. Arms are 1/6 the width
+    // and 7/6 as long as they are wide.
+    return (
+      <svg {...common} aria-hidden="true">
+        <circle cx="10" cy="10" r="9" fill="#d52b1e" />
+        <path d="M8.4 4.6h3.2v3.8h3.8v3.2h-3.8v3.8H8.4v-3.8H4.6V8.4h3.8z" fill="#f5f5f5" />
+        {ring}
+      </svg>
+    );
+  }
+  if (code === 'CAD') {
+    // Pale: red / white / red at 1:2:1, with the maple leaf on the white band. The leaf
+    // is a simplified 11-point silhouette — at 18px the detail of the real one is below
+    // a pixel, and a blob would read as a different flag.
+    return (
+      <svg {...common} aria-hidden="true">
+        <defs><clipPath id="pvFlagCA"><circle cx="10" cy="10" r="9" /></clipPath></defs>
+        <g clipPath="url(#pvFlagCA)">
+          <rect width="20" height="20" fill="#f5f5f5" />
+          <rect width="5" height="20" fill="#d52b1e" />
+          <rect x="15" width="5" height="20" fill="#d52b1e" />
+          <path
+            fill="#d52b1e"
+            d="M10 4.4l.72 1.5c.09.17.25.15.41.06l.98-.52-.5 2.5c-.09.44.18.44.33.26l1.28-1.46.35.75c.09.19.24.16.42.12l1.06-.23-.4 1.45c-.08.3-.15.42.06.5l.42.2-2.07 1.7c-.2.16-.15.2-.08.44l.19.6-1.96-.24c-.24-.04-.4-.04-.4.15l.09 2.4h-.4l.09-2.4c0-.19-.15-.19-.4-.15l-1.96.24.19-.6c.07-.24.12-.28-.08-.44L5.85 9.93l.42-.2c.21-.08.14-.2.06-.5l-.4-1.45 1.06.23c.18.04.33.07.42-.12l.35-.75L9.04 8.6c.15.18.42.18.33-.26l-.5-2.5.98.52c.16.09.32.11.41-.06z"
+          />
+        </g>
+        {ring}
+      </svg>
+    );
+  }
+  if (code === 'CNY') {
+    // Red field; one large star at the hoist with four smaller ones arced beside it,
+    // each of the four rotated to point at the large star's centre.
+    return (
+      <svg {...common} aria-hidden="true">
+        <defs>
+          <clipPath id="pvFlagCN"><circle cx="10" cy="10" r="9" /></clipPath>
+          <path id="pvStarCN" d="M0-1L.588.809-.951-.309H.951L-.588.809z" />
+        </defs>
+        <g clipPath="url(#pvFlagCN)">
+          <rect width="20" height="20" fill="#de2910" />
+          <g fill="#ffde00">
+            <use href="#pvStarCN" transform="translate(5.2 7) scale(3)" />
+            <use href="#pvStarCN" transform="translate(10.2 4.2) scale(1)" />
+            <use href="#pvStarCN" transform="translate(11.8 6.2) scale(1)" />
+            <use href="#pvStarCN" transform="translate(11.8 8.6) scale(1)" />
+            <use href="#pvStarCN" transform="translate(10.2 10.4) scale(1)" />
+          </g>
+        </g>
+        {ring}
+      </svg>
+    );
+  }
+  if (code === 'AUD' || code === 'NZD') {
+    /* Both are Blue Ensigns: the Union Jack in the canton on a blue field, and they
+       differ in the stars. Australia carries the seven-pointed Commonwealth Star under
+       the canton plus a five-star Southern Cross in white; New Zealand carries four
+       red, white-fimbriated stars. Drawn from one body because the canton is identical
+       and drawing it twice is how the two drift apart. */
+    const nz = code === 'NZD';
+    const id = nz ? 'pvFlagNZ' : 'pvFlagAU';
+    return (
+      <svg {...common} aria-hidden="true">
+        <defs>
+          <clipPath id={id}><circle cx="10" cy="10" r="9" /></clipPath>
+          <clipPath id={`${id}Canton`}><rect width="10" height="7" /></clipPath>
+        </defs>
+        <g clipPath={`url(#${id})`}>
+          <rect width="20" height="20" fill="#012169" />
+          <g clipPath={`url(#${id}Canton)`}>
+            <path d="M0 0 10 7M10 0 0 7" stroke="#f5f5f5" strokeWidth="1.6" />
+            <path d="M0 0 10 7M10 0 0 7" stroke="#c8102e" strokeWidth="0.8" />
+            <path d="M5 0v7M0 3.5h10" stroke="#f5f5f5" strokeWidth="2.4" />
+            <path d="M5 0v7M0 3.5h10" stroke="#c8102e" strokeWidth="1.3" />
+          </g>
+          {nz ? (
+            <g fill="#c8102e" stroke="#f5f5f5" strokeWidth="0.45">
+              <circle cx="15.6" cy="5.2" r="0.85" />
+              <circle cx="13.6" cy="9.4" r="0.95" />
+              <circle cx="17.2" cy="10.6" r="0.8" />
+              <circle cx="15" cy="14.4" r="0.9" />
+            </g>
+          ) : (
+            <g fill="#f5f5f5">
+              <circle cx="5" cy="12.6" r="1.5" />
+              <circle cx="14.4" cy="4.6" r="0.75" />
+              <circle cx="12.6" cy="9.6" r="0.9" />
+              <circle cx="16.6" cy="10.2" r="0.7" />
+              <circle cx="14.2" cy="14.8" r="0.85" />
+              <circle cx="15.4" cy="11.8" r="0.45" />
+            </g>
+          )}
+        </g>
+        {ring}
+      </svg>
+    );
+  }
+  // The honest fallback: a disc in the row's own palette, for anything the feed sends
+  // that Brief settings does not offer. See the header.
   return (
     <span
       aria-hidden="true"

@@ -168,15 +168,13 @@ export default function BriefSettingsPopover({
         </div>
 
         {/* 6. Display options */}
-        <div className="bs-group">
-          <div className="bs-group-label">Display</div>
-          <CheckRow
-            id="hideEmpty"
-            label="Hide empty sections"
-            checked={prefs.hideEmpty}
-            onChange={(v) => patch({ hideEmpty: v })}
-          />
-        </div>
+        {/* "Hide empty sections" IS GONE (2026-08-30). Both brief columns render on
+            their own toggle now and show an empty state instead of disappearing — a
+            column that vanishes hands the whole card to its neighbour and gives the
+            trader no way to tell "empty" from "broken". With nothing left for the
+            checkbox to do, keeping it would be a control the product cannot honour,
+            which §2 rules out more firmly than it rules out removing one. The section
+            toggles above are still the way to hide a column. */}
       </div>
 
       {/* 7. Reset */}

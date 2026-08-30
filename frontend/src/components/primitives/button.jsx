@@ -151,6 +151,14 @@ const TINTED = [
   // 550, not the preset's 500: this is the one control in the bar whose label is a
   // value rather than a name, and the design sets it a half-step up from its neighbours.
   'text-[13.5px] font-[550]',
+  /* gap-2.5 (10px), against the `sm` size's gap-1 (4px). The switcher holds three
+     things — a health dot, the scope label, and the phase summary behind its own rule —
+     and at 4px they ran together into one string ("2 Accounts P1"). The design gives
+     this button 10px, and the phase summary then adds its own 9px after the rule, which
+     is what makes the two halves read as two facts. Sync Trades wears the same class
+     and the design gives it 8; 2px looser on an icon-and-label pair is invisible, where
+     6px tighter on the switcher was the defect. */
+  'gap-2.5',
   'hover:bg-[var(--surface-hover)]',
 ].join(' ');
 
