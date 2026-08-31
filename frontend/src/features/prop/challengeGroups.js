@@ -129,6 +129,31 @@ export function phaseToAdd(group) {
   return { phase: next.phase, reason: null };
 }
 
+/**
+ * The phases this challenge may still be told about AFTER THE FACT.
+ *
+ * A trader who joined at Phase 2 has a real Phase 1 login sitting at their firm — we
+ * infer it passed, because Phase 2 exists, but we hold none of its trades. If they want
+ * that history in here (and the analytics that come with it) there has to be a way in,
+ * and `phaseToAdd` is not it: that answers "which login has the firm just issued", which
+ * is exactly one phase and the card's primary invitation. Back-filling is the opposite
+ * question — old history, offered quietly, never the thing the card pushes.
+ *
+ * So it is every EMPTY phase behind the furthest account. Empty because a phase that has
+ * an account is already told; behind, because a phase ahead of the furthest account has
+ * not been reached yet and would be an invention rather than a record.
+ *
+ * Works for any ladder length — a 3-Step sitting on Phase 3 can back-fill Phases 1 and 2
+ * — because it reads positions, never phase names.
+ */
+export function backfillablePhases(group) {
+  if (!group || group.status !== 'active') return [];
+  const phases = challengePhases(group);
+  const last = lastFilledIndex(phases);
+  if (last <= 0) return [];
+  return phases.slice(0, last).filter((p) => p.account == null).map((p) => p.phase);
+}
+
 /** Is this challenge waiting for its next phase's account? The sort key, named. */
 export const isAwaitingPhase = (group) => phaseToAdd(group).phase != null;
 
@@ -182,6 +207,10 @@ export function joinableChallenges(groups, { firm_id, firm_name } = {}) {
         name: challengeName(g),
         phases: challengePhases(g),
         addPhase: phase,
+        // The wizard needs these to accept a back-fill deep link: a link naming a phase
+        // is honoured only when the challenge itself agrees the phase is missing, so a
+        // hand-edited URL cannot file a Phase 1 against a challenge that already has one.
+        backfillPhases: backfillablePhases(g),
         blockedReason: reason,
       };
     })
@@ -230,6 +259,7 @@ export function joinableChallenges(groups, { firm_id, firm_name } = {}) {
 export function groupLifecycle(group, { statesByLogin } = {}) {
   const phases = challengePhases(group);
   const { phase: addPhase } = phaseToAdd(group);
+  const backfill = new Set(backfillablePhases(group));
   const states = statesByLogin instanceof Map ? statesByLogin : new Map();
   // Everything before this was cleared at the firm without being recorded here — a
   // phase is only reachable by passing the ones before it. Same boundary phaseToAdd
@@ -246,6 +276,10 @@ export function groupLifecycle(group, { statesByLogin } = {}) {
       : stage.status === 'passed' ? 'complete'
         : stage.status === 'breached' ? 'breached' : 'active';
     const addable = stage.phase === addPhase;
+    // Old history the trader may still hand us. NOT `addable`: that is the one login the
+    // firm has just issued and the one thing the card pushes, and having two stops claim
+    // it would put two primary invitations on one rail.
+    const backfillable = backfill.has(stage.phase);
     return {
       id: stage.phase,
       label: stage.label,
@@ -256,7 +290,11 @@ export function groupLifecycle(group, { statesByLogin } = {}) {
       state,
       status,
       addable,
-      selectable: account != null || addable,
+      backfillable,
+      // A back-fillable stop OPENS — that is the whole fix. It was inert, so a trader who
+      // wanted their Phase 1 history in here had nowhere to click: the rail drew the
+      // phase, called it passed, and offered no way to say "I have that login".
+      selectable: account != null || addable || backfillable,
       // The rail reads `current` to mark the stop it lights. The challenge's current
       // phase is the one being TRADED — not the one waiting to be added, which has no
       // account and no figures to light.

@@ -3,6 +3,7 @@ import { Card } from '@/components/primitives';
 import Explain from '../../components/Explain.jsx';
 import { StatContext } from '../dashboard/DashWidgets.jsx';
 import { fmtMoney } from '../../lib/metrics.js';
+import { tradingDaysRead } from './propAccounts.js';
 
 // The three ACCOUNT-STATE KPI tiles for Prop OS › Accounts › Details.
 //
@@ -79,26 +80,26 @@ export function ProfitTargetCard({ data }) {
 
 export function TradingDaysCard({ data }) {
   const d = data.tradingDays;
-  const required = d?.required ?? 0;
-  const done = d ? d.completed >= required : false;
-  /* NO REQUIREMENT MEANS NO FRACTION. A firm that asks for no minimum made this card
-     read "7/0" over "Requirement: None" — a denominator of zero presented as progress,
-     under a line saying there is nothing to progress against. The same defect the
-     dashboard's account-card footer had, one surface over. The card still earns its
-     place: how many days this account has traded is worth knowing whether or not a firm
-     is counting them, so that figure moves down into the context line. */
+  /* TWO THINGS THIS CARD USED TO GET WRONG, both fixed in `tradingDaysRead` so the
+     dashboard's footer and the challenge cards cannot answer them differently:
+     it printed "7/0" for a firm that asks for no minimum — a denominator of zero
+     presented as progress — and "4/3" once the requirement was met, a fraction past its
+     own denominator. A requirement is a gate, not a tally.
+     The card still earns its place when there is no rule: how many days this account has
+     traded is worth knowing either way, so that figure moves into the context line. */
+  const days = tradingDaysRead(d);
   return (
     <AcctKpi
       label="Minimum Trading Days"
       explain="Days on which this account traded, against the minimum its challenge requires. Evaluation phases will not pass until the requirement is met, however far ahead the profit target is."
-      value={!d ? '—' : required === 0 ? 'None required' : `${d.completed}/${required}`}
+      value={!d ? '—' : days.has ? days.count : 'None required'}
       context={(
         <StatContext
-          label={!d || required === 0 ? 'Days traded' : 'Requirement'}
+          label={days.has ? 'Requirement' : 'Days traded'}
           value={!d ? '—'
-            : required === 0 ? String(d.completed)
-              : done ? 'Met' : `${required - d.completed} to go`}
-          tone={done && required > 0 ? 'pos' : ''}
+            : !days.has ? String(days.done)
+              : days.met ? 'Met' : `${days.required - days.done} to go`}
+          tone={days.has && days.met ? 'pos' : ''}
         />
       )}
     />

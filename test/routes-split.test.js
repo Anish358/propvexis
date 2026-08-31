@@ -15,7 +15,8 @@ import { eaSourceFile, repoRoot } from '../src/platform/paths.js';
 // the expectation is derived from the same source the assertion reads.
 const ROUTES = [
   ['get', '/health'], ['get', '/metrics'],
-  ['post', '/api/trades/ingest'], ['get', '/api/trades'], ['post', '/api/trades'],
+  ['post', '/api/trades/ingest'], ['post', '/api/trades/ingest/batch'],
+  ['get', '/api/trades'], ['post', '/api/trades'],
   ['post', '/api/trades/import'], ['patch', '/api/trades/:id'], ['delete', '/api/trades/:id'],
   ['post', '/api/equity/ingest'], ['post', '/api/candles/ingest'],
   ['get', '/api/candles/requests'], ['get', '/api/trades/:id/replay'],
@@ -24,6 +25,11 @@ const ROUTES = [
   ['get', '/api/accounts/login-available'], ['post', '/api/accounts/provision'],
   ['post', '/api/sync/lease'], ['post', '/api/sync/jobs/:id/result'],
   ['post', '/api/sync/heartbeat'],
+  // cTrader Open API (platform 'ctrader'). The platform is still badged Soon in
+  // both catalogs, so these are reachable only by a client that knows the paths.
+  ['post', '/api/ctrader/authorize'], ['get', '/api/ctrader/callback'],
+  ['get', '/api/ctrader/identities'], ['get', '/api/ctrader/identities/:id/accounts'],
+  ['delete', '/api/ctrader/identities/:id'],
   ['get', '/api/accounts/:id/sync'], ['post', '/api/accounts/:id/sync'],
   ['put', '/api/accounts/:id/credentials'], ['delete', '/api/accounts/:id/credentials'],
   ['patch', '/api/accounts/:id'], ['delete', '/api/accounts/:id'], ['get', '/api/account'],
@@ -103,9 +109,18 @@ test('the guarded routes kept their guard', () => {
   // pinned below, so a user route cannot be quietly downgraded to worker auth.
   const PUBLIC = new Set([
     'get /health', 'get /metrics', 'get /api/ea/download',
-    'post /api/trades/ingest', 'post /api/equity/ingest', 'post /api/candles/ingest',
+    // /ingest/batch is the same audience and the same auth as /ingest: an
+    // x-ingest-token, checked in the handler. It is listed here because it has
+    // no session preHandler, NOT because it is unauthenticated.
+    'post /api/trades/ingest', 'post /api/trades/ingest/batch',
+    'post /api/equity/ingest', 'post /api/candles/ingest',
     'get /api/candles/requests', 'post /api/payouts/ingest',
     'get /api/billing/config', 'post /api/billing/webhook',
+    // The cTrader consent redirect. It carries no session cookie by design — a
+    // cross-site redirect does not reliably send one — so its guard is the
+    // HMAC-signed, expiring, user-bound `state`, checked in the handler. Listed
+    // here because it has no preHandler, NOT because it is unauthenticated.
+    'get /api/ctrader/callback',
   ]);
   // The only routes the sync worker's token may open. Everything else is a session.
   const WORKER = new Set([

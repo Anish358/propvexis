@@ -206,7 +206,10 @@ test('the drawdown/health thresholds are the shared ones, not a second set', () 
   // it just narrowed to "still trading it" when the phase status went automatic, and this
   // module wants "has a challenge": a challenge you broke is still one of your challenges,
   // and the Details tab is where a trader reads what happened to it.
-  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk,\s*\} from '\.\/propAccounts\.js'/);
+  // `tradingDaysRead` joined the same import: the "N of M days" cap is one derivation
+  // shared by this module, the dashboard's footer and Prop OS's KPI, for exactly the
+  // reason the rest of this line exists.
+  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk, tradingDaysRead,\s*\} from '\.\/propAccounts\.js'/);
   assert.equal(typeof byRisk, 'function');
 });
 

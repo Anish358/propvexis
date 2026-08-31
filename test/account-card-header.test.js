@@ -74,23 +74,24 @@ test('no minimum trading days means a sentence, not a fraction over zero', () =>
    * for no minimum — a denominator of zero presented as progress, under a label naming a
    * rule the account does not have. */
   const foot = dash.slice(dash.indexOf('<AccountCardFoot'), dash.indexOf('</AccountCardFoot>'));
-  assert.match(foot, /data\.tradingDays\.required > 0 \?/, 'the fraction is conditional');
+  assert.match(foot, /days\.has \?/, 'the fraction is conditional');
   assert.match(foot, /No minimum trading days required/);
-  // `> 0` rather than truthiness, so a null requirement reads the same as a zero one.
-  assert.equal(/tradingDays\.required \?/.test(foot), false, 'guard on the number, not on truthiness');
 });
 
-test('the count still appears the moment a firm asks for one', () => {
+test('the footer states the VERDICT once the requirement is met', () => {
+  // "Minimum trading days requirement" beside 3/3 names the rule without answering it,
+  // leaving the trader to do the comparison the app has already done.
   const foot = dash.slice(dash.indexOf('<AccountCardFoot'), dash.indexOf('</AccountCardFoot>'));
-  assert.match(foot, /\{data\.tradingDays\.completed\}\/\{data\.tradingDays\.required\}/);
-  assert.match(foot, /Minimum trading days requirement/);
+  assert.match(foot, /\{days\.count\}/);
+  assert.match(foot, /days\.met \? 'Minimum trading days met' : 'Minimum trading days requirement'/);
 });
 
-test("Prop OS's trading-days KPI does not print the same 7/0", () => {
+test("Prop OS's trading-days KPI reads the same helper, not its own arithmetic", () => {
   // The identical defect one surface over, on the card that answers the same question.
   const kpis = stripComments(readSrc('AccountKpiCards.jsx'));
   const card = kpis.slice(kpis.indexOf('export function TradingDaysCard'));
-  assert.match(card, /required === 0 \? 'None required'/);
+  assert.match(card, /tradingDaysRead\(d\)/);
+  assert.match(card, /days\.has \? days\.count : 'None required'/);
   // The days actually traded are still worth knowing, so they move to the context line
   // rather than being dropped.
   assert.match(card, /'Days traded'/);

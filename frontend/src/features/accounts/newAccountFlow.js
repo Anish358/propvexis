@@ -98,6 +98,15 @@ export function emptyDraft({ provisionKey = null, firstRun = false } = {}) {
      * prop path ever asks: a live account has no phases. */
     challenge_mode: null,        // 'new' | 'existing'
     challenge_group_id: null,    // the challenge this account is a phase OF
+    /* BACK-FILLING an earlier phase of that challenge, rather than adding the login the
+     * firm has just issued. Set only by the `&phase=` deep link from a challenge card's
+     * rail, and honoured only when the challenge agrees the phase is genuinely missing.
+     *
+     * A FIELD OF ITS OWN rather than reusing `phase`, which is the trader's own pick on
+     * the NEW-challenge branch: someone who chose Phase 1 there and then switched to an
+     * existing challenge would otherwise have that answer silently reinterpreted as a
+     * back-fill instruction, and be filed at the wrong phase of someone else's ladder. */
+    backfill_phase: null,        // one of PHASES, or null
     product_id: null,
     phase: null,                 // one of PHASES
 
@@ -395,7 +404,9 @@ const RULES_CLEARED = {
  * the id behind is the failure this prevents — a GoatFundedTrader challenge id riding
  * on a payload that now names FTMO, which the server would refuse at the very end of
  * the flow (the group's firm wins over the payload) after nine more questions. */
-const CHALLENGE_CLEARED = { challenge_mode: null, challenge_group_id: null };
+const CHALLENGE_CLEARED = {
+  challenge_mode: null, challenge_group_id: null, backfill_phase: null,
+};
 const FIRM_CLEARED = {
   firm_id: null, firm_name: null, product_id: null, phase: null, ...CHALLENGE_CLEARED,
 };
@@ -443,8 +454,14 @@ export function patchDraft(draft, patch = {}) {
    * and clearing on that would wipe the product, phase and rules of a draft being
    * revived — the page would re-render with its own stored answers gone. */
   if (d.challenge_mode === 'existing' && changed('challenge_mode')) {
-    next = { ...next, challenge_group_id: null, product_id: null, phase: null, ...RULES_CLEARED };
+    next = {
+      ...next, challenge_group_id: null, backfill_phase: null, product_id: null,
+      phase: null, ...RULES_CLEARED,
+    };
   }
+  // A back-fill names a phase of ONE challenge. Changing which challenge makes the
+  // instruction meaningless, so it goes with it rather than being applied to the next.
+  if (changed('challenge_group_id')) next = { ...next, backfill_phase: null };
 
   next = { ...next, ...patch };
 

@@ -7,6 +7,7 @@ import { parseCsv, buildImportTrades } from '../domain/trades/csv.js';
 import { adherenceOf } from '../domain/trades/adherence.js';
 import { enqueueCandleRequest } from '../domain/trades/candles.js';
 import { priceToPips, pipSize, deriveSession, deriveFixedR, deriveMaxR, normalizeSymbol, round2 } from '../domain/trades/derive.js';
+import { BATCH_LIMIT } from '../domain/trades/batch.js';
 
 /**
  * The trade record itself: EA ingest, listing, manual create, CSV import,
@@ -75,37 +76,17 @@ export default function tradeRoutes(app, ctx) {
     },
   };
 
-  app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
-    const b = req.body;
-
-    // Auth: prefer a per-account token (auto-binds the MT5 login on first trade);
-    // fall back to the legacy global token during the cutover (grace period).
-    const token = req.headers['x-ingest-token'];
-    if (!token) return reply.code(401).send({ error: 'missing ingest token' });
-
-    const acct = await accountByToken(token);
-    if (acct) {
-      // Plan gate: EA sync is a Pro+ feature. Free users can't reach here anyway
-      // (account creation is plan-capped, so they hold no per-account token), but
-      // enforce server-side too — covers a Pro→Free downgrade whose token lingers.
-      if (!canUseEA(await planForUser(acct.user_id))) {
-        return reply.code(402).send({ error: 'EA sync requires the Pro plan' });
-      }
-      const result = await bindOrCheckLogin(acct, b.account_id);
-      if (result === 'mismatch') {
-        return reply.code(403).send({ error: 'token does not match this MT5 account' });
-      }
-      if (result === 'conflict') {
-        return reply.code(409).send({ error: 'this MT5 login is already registered to another account' });
-      }
-      if (result === 'bound') {
-        req.log.info({ account: acct.id, login: b.account_id }, 'auto-bound MT5 login to account');
-      }
-    } else if (token !== config.ingestToken) {
-      return reply.code(401).send({ error: 'invalid ingest token' });
-    }
-    // (legacy global token: accepted, no ownership binding — grace period only)
-
+  /**
+   * Everything after auth and login-binding: normalize, derive, upsert, emit,
+   * enqueue the replay window, snapshot balance and fire alerts. Returns the
+   * stored trade.
+   *
+   * EXTRACTED, NOT DUPLICATED. The batched route below needs identical
+   * behaviour, and a second copy of the derivation rules is a second place for
+   * the R math to drift -- the R math being the product. The single-trade
+   * route's contract is unchanged; the EA is compiled software in the field.
+   */
+  async function ingestOne(acct, b, req) {
     // Normalize broker suffixes (EURUSD.r -> EURUSD) so pip math + grouping are correct.
     const symbol_base = normalizeSymbol(b.symbol);
 
@@ -213,7 +194,122 @@ export default function tradeRoutes(app, ctx) {
       await runAlerts(acct.user_id, b.account_id);
     }
 
+    return trade;
+  }
+
+  app.post('/api/trades/ingest', { schema: ingestSchema }, async (req, reply) => {
+    const b = req.body;
+
+    // Auth: prefer a per-account token (auto-binds the MT5 login on first trade);
+    // fall back to the legacy global token during the cutover (grace period).
+    const token = req.headers['x-ingest-token'];
+    if (!token) return reply.code(401).send({ error: 'missing ingest token' });
+
+    const acct = await accountByToken(token);
+    if (acct) {
+      // Plan gate: EA sync is a Pro+ feature. Free users can't reach here anyway
+      // (account creation is plan-capped, so they hold no per-account token), but
+      // enforce server-side too — covers a Pro→Free downgrade whose token lingers.
+      if (!canUseEA(await planForUser(acct.user_id))) {
+        return reply.code(402).send({ error: 'EA sync requires the Pro plan' });
+      }
+      const result = await bindOrCheckLogin(acct, b.account_id);
+      if (result === 'mismatch') {
+        return reply.code(403).send({ error: 'token does not match this MT5 account' });
+      }
+      if (result === 'conflict') {
+        return reply.code(409).send({ error: 'this MT5 login is already registered to another account' });
+      }
+      if (result === 'bound') {
+        req.log.info({ account: acct.id, login: b.account_id }, 'auto-bound MT5 login to account');
+      }
+    } else if (token !== config.ingestToken) {
+      return reply.code(401).send({ error: 'invalid ingest token' });
+    }
+    // (legacy global token: accepted, no ownership binding — grace period only)
+
+    const trade = await ingestOne(acct, b, req);
     return reply.code(201).send(trade);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Batched ingest -- same auth, same validation, same upsert, N trades.
+  // ---------------------------------------------------------------------------
+  //
+  // Exists for backfills. A cTrader account with four years of history is ~20,000
+  // trades, and 20,000 sequential POSTs against our own API on a 1GB box is not a
+  // sync, it is an outage. The MT5 farm's first sync benefits identically.
+  //
+  // TWO DELIBERATE CHOICES:
+  //
+  // 1. ONE BAD ROW FAILS ITSELF, not the batch. A backfill that aborts on row
+  //    9,000 of 20,000 leaves the journal in a state nobody can reason about, and
+  //    the caller cannot fix a broker's malformed row by retrying.
+  // 2. THE LOGIN IS BOUND ONCE, not per trade. Every trade in a batch belongs to
+  //    the token's account by construction, so binding per row would be N writes
+  //    to say the same thing -- and a batch that straddled two logins is a caller
+  //    bug we should reject outright rather than half-apply.
+  const batchIngestSchema = {
+    body: {
+      type: 'object',
+      required: ['trades'],
+      properties: {
+        trades: {
+          type: 'array',
+          minItems: 1,
+          maxItems: BATCH_LIMIT,
+          items: ingestSchema.body,
+        },
+      },
+    },
+  };
+
+  app.post('/api/trades/ingest/batch', {
+    schema: batchIngestSchema,
+    bodyLimit: 12 * 1024 * 1024,
+  }, async (req, reply) => {
+    const token = req.headers['x-ingest-token'];
+    if (!token) return reply.code(401).send({ error: 'missing ingest token' });
+
+    // No legacy global-token fallback here, unlike the single-trade route. That
+    // fallback exists only for EAs deployed before per-account tokens; nothing
+    // that posts a batch predates them, and an unbound global token has no owner
+    // to attribute the trades to.
+    const acct = await accountByToken(token);
+    if (!acct) return reply.code(401).send({ error: 'invalid ingest token' });
+    if (!canUseEA(await planForUser(acct.user_id))) {
+      return reply.code(402).send({ error: 'Auto Sync requires the Pro plan' });
+    }
+
+    const trades = req.body.trades;
+    const logins = new Set(trades.map((t) => Number(t.account_id)));
+    if (logins.size > 1) {
+      return reply.code(400).send({ error: 'a batch must be for a single account' });
+    }
+
+    const bind = await bindOrCheckLogin(acct, trades[0].account_id);
+    if (bind === 'mismatch') {
+      return reply.code(403).send({ error: 'token does not match this account' });
+    }
+    if (bind === 'conflict') {
+      return reply.code(409).send({ error: 'this login is already registered to another account' });
+    }
+    if (bind === 'bound') {
+      req.log.info({ account: acct.id, login: trades[0].account_id }, 'auto-bound login to account');
+    }
+
+    const results = [];
+    for (const b of trades) {
+      try {
+        const trade = await ingestOne(acct, b, req);
+        results.push({ mt5_ticket: b.mt5_ticket, ok: Boolean(trade) });
+      } catch (err) {
+        req.log.error({ ticket: b.mt5_ticket, err: err.message }, 'batch ingest row failed');
+        results.push({ mt5_ticket: b.mt5_ticket, ok: false, error: 'ingest failed' });
+      }
+    }
+    const accepted = results.filter((r) => r.ok).length;
+    return reply.send({ ok: true, accepted, failed: results.length - accepted, results });
   });
 
   // ---------------------------------------------------------------------------

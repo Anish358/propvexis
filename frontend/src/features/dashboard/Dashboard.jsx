@@ -47,6 +47,7 @@ import {
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
 import { healthStatus } from '../prop/PropOS.jsx';
+import { tradingDaysRead } from '../prop/propAccounts.js';
 import AccountAlertBanner from '../prop/AccountAlertBanner.jsx';
 import { accountAlertFor } from '../prop/accountAlert.js';
 import AccountDetails from '../prop/AccountDetails.jsx';
@@ -791,6 +792,7 @@ function AccountCard({
    * cannot drift apart the way the old copy drifted from its trigger. */
   const alert = accountAlertFor(data);
   const critical = alert ? BANNER_CRITICAL.has(alert.tone) : false;
+  const days = tradingDaysRead(data.tradingDays);
 
   return (
     /* NO HEADING. The design opens this card on the account chips, and it is right to:
@@ -848,14 +850,18 @@ function AccountCard({
             for one.
             `> 0` rather than truthiness so a null requirement reads the same way as a
             zero one — neither is a rule. */}
-        {data.tradingDays.required > 0 ? (
+        {days.has ? (
           <>
             {/* The count is mono because it is a figure; the words are not. Rhea splits
-                them so a glance lands on "7/10" rather than on the sentence around it. */}
-            <AccountFootFigure>{data.tradingDays.completed}/{data.tradingDays.required}</AccountFootFigure>
+                them so a glance lands on "7/10" rather than on the sentence around it.
+                It STOPS at the requirement — see tradingDaysRead. */}
+            <AccountFootFigure>{days.count}</AccountFootFigure>
             days completed
             <AccountFootRule />
-            <span>Minimum trading days requirement</span>
+            {/* The trailing line is the VERDICT once there is one. "Minimum trading days
+                requirement" beside 3/3 names the rule without answering it, leaving the
+                trader to do the comparison the app has already done. */}
+            <span>{days.met ? 'Minimum trading days met' : 'Minimum trading days requirement'}</span>
           </>
         ) : (
           <span>No minimum trading days required</span>

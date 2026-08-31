@@ -148,6 +148,14 @@ export default function AccountStep() {
   const chosen = options.find((o) => o.id === groupId) || null;
   const joining = mode === 'existing' && chosen != null;
 
+  /* BACK-FILLING AN EARLIER PHASE, from a challenge card's rail. The draft carries the
+   * phase the trader clicked; the CHALLENGE decides whether it is real, so a stale link
+   * or a hand-edited URL falls back to the ordinary invitation rather than filing an
+   * account at a phase that already has one. */
+  const backfillPhase = joining && chosen.backfillPhases.includes(draft.backfill_phase)
+    ? draft.backfill_phase
+    : null;
+
   /* WHAT THE CHALLENGE DECIDES. Read straight off the chosen challenge on every render
    * rather than copied into state, so the locked fields cannot drift from the row they
    * came from — and so switching challenge needs no reset code. `null` for a value the
@@ -156,7 +164,10 @@ export default function AccountStep() {
     ? {
       product_id: chosen.group.product_id ?? null,
       start_balance: chosen.group.start_balance ?? null,
-      phase: chosen.addPhase,
+      // The back-fill wins over `addPhase`: the trader named a stop by clicking it, and
+      // offering them the far end of the ladder instead would ignore the one instruction
+      // they actually gave.
+      phase: backfillPhase ?? chosen.addPhase,
     }
     : { product_id: null, start_balance: null, phase: null };
 
@@ -322,10 +333,14 @@ export default function AccountStep() {
       // clicking this does. The blocked reason takes its place when there is nothing to
       // add, for the same reason the import step's gate reason replaces its badge: the
       // actionable half of a disabled option is why it is disabled.
-      badge={o.addPhase ? <Badge tone="neutral">{`Add ${PHASE_LABEL[o.addPhase]}`}</Badge> : null}
-      description={o.blockedReason ?? phaseSummary(o)}
+      badge={badgeFor(o)}
+      /* The blocked reason only stands when there is genuinely nothing to do. A challenge
+         mid-evaluation still has old phases to fill in, so refusing it with "Phase 2 is
+         still running" would be answering a question the trader did not ask. */
+      description={(o.addPhase == null && !o.backfillPhases.length ? o.blockedReason : null)
+        ?? phaseSummary(o)}
       selected={groupId === o.id}
-      disabled={o.addPhase == null}
+      disabled={o.addPhase == null && o.backfillPhases.length === 0}
       onClick={() => setGroupId(o.id)}
     />
   );
@@ -537,6 +552,18 @@ export default function AccountStep() {
  * passed" is a fact about an ACCOUNT's challenge row and the group row does not carry
  * it. Only the phases that have an account are named — an empty stage has no state to
  * report, and printing "Phase 2 —" for it would invent one. */
+/* What clicking this challenge DOES, as a badge.
+ *
+ * The login the firm has just issued when there is one — that is the common case and the
+ * one the list is sorted around. Otherwise, when the only thing left is old history, the
+ * badge says so rather than going blank: a selectable card with no badge beside three
+ * that have one reads as a rendering fault. */
+function badgeFor(option) {
+  if (option.addPhase) return <Badge tone="neutral">{`Add ${PHASE_LABEL[option.addPhase]}`}</Badge>;
+  if (option.backfillPhases.length) return <Badge tone="neutral">Add an earlier phase</Badge>;
+  return null;
+}
+
 function phaseSummary(option) {
   const done = option.phases.filter((p) => p.account);
   if (!done.length) return 'No accounts yet.';
