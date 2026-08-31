@@ -105,7 +105,26 @@ processes on a 911 MB box to do the same job for two vendors.
 | Live | `https://live.tradelocker.com/backend-api/` |
 | Demo | `https://demo.tradelocker.com/backend-api/` |
 
-### 4.1 The Developer Program is effectively mandatory
+### 4.1 Two TradeLocker products — do not confuse them
+
+TradeLocker sells two things with two audiences, and only one is ours.
+
+| | Who it is for | How you get it |
+|---|---|---|
+| **Broker / prop-firm integration** (`tradelocker.com/integrate-tradelocker/`, nav → *Business*) | a company that wants to **become** a TradeLocker broker and offer the platform to its own clients — back-office setup for swaps, commissions, spreads, leverage, markups | **Contact Sales**, requirements review, sandbox, production key |
+| **Public API for traders** (`public-api.tradelocker.com`, nav → *Traders*) | software acting **on behalf of an existing trader**, with that trader's own credentials — **this is us** | nothing; authenticate and go |
+
+The Business page's "Obtain API Keys — once we've reviewed your requirements"
+belongs to the first row and **does not apply to PropVexis**. TradeLocker never
+has to vet us, because the trader authorises us with their own login. Their
+getting-started page lists what is actually needed to make requests: credentials,
+an `accountId`/`accNum`, and a JWT from `/auth/jwt/token`. No key.
+
+This is written down because the marketing site makes the first product far more
+visible than the second, and mistaking one for the other turns a non-blocker into
+an imagined approval gate.
+
+### 4.2 The Developer Program — not a gate, but start it early
 
 Rate limits are per-route (a documented example is 2 req/s) and discoverable at
 `/trade/config`. The docs say the Developer Program's `tl-developer-api-key` grants
@@ -114,8 +133,17 @@ a single IP address serving multiple accounts."*
 
 That is a precise description of us: one EC2 box, one egress IP, every user's
 account. **Without the key we would be rate-limited as though we were one trader**,
-and the limit is shared across all our users. Registering is a prerequisite, not an
-optimisation — the P2 equivalent of Spotware's app approval.
+and that limit is shared across all our users.
+
+But it is **not a blocker for development**: the API authenticates and returns
+trades with no key at all, so the whole connector can be built and tested against a
+demo account before anyone is contacted. It is a **pre-launch** item.
+
+Honest limit of what is known: the docs call joining "recommended" for exactly our
+use case, and the official Python client ships the placeholder
+`tl-JOIN_TL_DEV_PROGRAM_TO_GET_ONE`. Whether joining involves a review or just a
+form is **not documented**, so it is treated like Spotware's approval — started
+early and in parallel — rather than assumed to be instant.
 
 ## 5. Data model
 
