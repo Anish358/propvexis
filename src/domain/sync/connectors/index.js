@@ -11,10 +11,20 @@
 // with no re-encryption.
 import { findPlatform } from '../platforms.js';
 import { mt5Connector } from './mt5.js';
+import { tradelockerConnector } from './tradelocker/index.js';
 
-const REGISTRY = {
+/**
+ * Every connector MODULE that exists. Exported so a worker can resolve one by
+ * name and so the wiring is testable, but note what it is NOT: presence here does
+ * not turn Auto Sync on. TradeLocker sits in this map with its platform entry
+ * still `connector: null`, because the module is finished and the platform is not
+ * -- spec §13.2 says derived P&L may not reconcile against /state, and that is
+ * only learnable against a live account.
+ */
+export const CONNECTORS = Object.freeze({
   mt5: mt5Connector,
-};
+  tradelocker: tradelockerConnector,
+});
 
 /**
  * The connector for a platform id, or null when that platform cannot Auto Sync.
@@ -26,5 +36,5 @@ const REGISTRY = {
 export function getConnector(platformId) {
   const platform = findPlatform(platformId);
   if (!platform?.connector) return null;
-  return REGISTRY[platform.connector] ?? null;
+  return CONNECTORS[platform.connector] ?? null;
 }
