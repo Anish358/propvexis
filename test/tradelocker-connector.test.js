@@ -111,3 +111,31 @@ test('TradeLocker stays Soon on BOTH sides until a real account has reconciled',
   assert.equal(findPlatformCard('tradelocker').status, 'soon');
   assert.equal(findPlatform('tradelocker').importMethods.includes('auto_sync'), false);
 });
+
+test('POLICY PIN: flipping the platform on must also teach provision about email', async () => {
+  /* THE BUG THIS CATCHES, BEFORE IT CAN HAPPEN. provision.js reads
+   * `credential.login` to fill mt5_accounts.mt5_login, and saveCredentialQuery
+   * has no login_email parameter. A TradeLocker credential has NO `login` — it
+   * has an email — so the day Task 8 flips `enabled` without touching those two,
+   * the account is provisioned with mt5_login = null (silently "pending") and the
+   * trader's email is dropped on the floor. No error, no failed job, no row
+   * anywhere: exactly the failure mode migration 0030's own comment warns about
+   * for the read_only filter, one layer up.
+   *
+   * This is a source assertion rather than a behaviour test on purpose: the
+   * behaviour cannot be exercised while the platform is disabled, and a test that
+   * can only run after the mistake has shipped is not a guard. It costs nothing
+   * while TradeLocker is Soon and fails loudly the moment it is not. */
+  if (!findPlatform('tradelocker').enabled) return;
+
+  const { readFile } = await import('node:fs/promises');
+  const path = (await import('node:path')).default;
+  const { repoRoot } = await import('../src/platform/paths.js');
+  const provision = await readFile(path.join(repoRoot, 'src/domain/accounts/provision.js'), 'utf8');
+  const credentials = await readFile(path.join(repoRoot, 'src/domain/sync/credentials.js'), 'utf8');
+
+  assert.match(provision, /credential\.email/,
+    'provision.js still reads only credential.login — a TradeLocker account would get mt5_login = null');
+  assert.match(credentials, /login_email/,
+    'saveCredentialQuery still has no login_email column — the trader email is dropped silently');
+});
