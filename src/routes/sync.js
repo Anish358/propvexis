@@ -310,11 +310,16 @@ export default function syncRoutes(app) {
     const cooldown = manualCooldown(previous);
     if (cooldown.blocked) {
       const retryAfter = Math.ceil(cooldown.retryAfterMs / 1000);
+      // The message carries the WAIT, because the client renders `error` verbatim
+      // (see frontend/src/lib/api.js syncCall). "Synced recently" with no number
+      // is the kind of refusal a user retries immediately, which is the behaviour
+      // this endpoint exists to prevent.
+      const mins = Math.ceil(retryAfter / 60);
       return reply
         .code(429)
         .header('Retry-After', retryAfter)
         .send({
-          error: 'this account was synced recently',
+          error: `already synced recently — try again in ${mins} minute${mins === 1 ? '' : 's'}`,
           retry_after_seconds: retryAfter,
           cooldown_seconds: Math.round(MANUAL_COOLDOWN_MS / 1000),
         });

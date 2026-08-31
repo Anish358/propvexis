@@ -156,3 +156,12 @@ test('the read_only refusal on Sync now is scoped to MT5', () => {
   const src = sourceOf('post', '/api/accounts/:id/sync');
   assert.match(src, /acct\.platform === 'mt5' && cred\.read_only === false/);
 });
+
+test('the cooldown refusal tells the user how long to wait, in the message itself', () => {
+  // frontend/src/lib/api.js syncCall renders `body.error` verbatim. A refusal that
+  // says "synced recently" without a number is one a user retries immediately —
+  // the exact behaviour this endpoint exists to prevent.
+  const src = sourceOf('post', '/api/accounts/:id/sync');
+  assert.match(src, /try again in \$\{mins\} minute/);
+  assert.match(src, /retry_after_seconds/);
+});
