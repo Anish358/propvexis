@@ -13,6 +13,7 @@
 //   negative        manual accounts   (ALREADY the case -- migration 0015, mt5_login = -id)
 //   1 .. 1e12       MetaTrader        (natural broker logins, 6-10 digits)
 //   4e12 + id       cTrader
+//   5e12 + id       TradeLocker
 //
 // THIS IS A MAGIC NUMBER AND IT IS WORTH SAYING SO. It assumes no broker ever
 // issues an MT5 login above four trillion; they are 9-10 digits, so the margin is
@@ -26,6 +27,7 @@
 // displays. The banded value is internal and appears only as a join key.
 
 export const CTRADER_LOGIN_BASE = 4_000_000_000_000;
+export const TRADELOCKER_LOGIN_BASE = 5_000_000_000_000;
 
 /** The internal join key for a cTrader account. */
 export const toBandedLogin = (ctidTraderAccountId) =>
@@ -34,11 +36,23 @@ export const toBandedLogin = (ctidTraderAccountId) =>
 /** The cTrader account id back out of a banded login. */
 export const fromBandedLogin = (login) => Number(login) - CTRADER_LOGIN_BASE;
 
+/** The internal join key for a TradeLocker account, from TradeLocker's accountId. */
+export const toTradeLockerLogin = (tlAccountId) =>
+  TRADELOCKER_LOGIN_BASE + Number(tlAccountId);
+
+/** The TradeLocker accountId back out of a banded login. */
+export const fromTradeLockerLogin = (login) => Number(login) - TRADELOCKER_LOGIN_BASE;
+
 /** Which platform's space a stored login sits in. */
 export function platformOfLogin(login) {
   const n = Number(login);
   if (!Number.isFinite(n)) return null;
   if (n < 0) return 'manual';
+  // HIGHEST BAND FIRST. 5e12 >= 4e12, so asking the cTrader question first would
+  // answer 'ctrader' for every TradeLocker account -- silently, with no error and
+  // no empty result, routing the job to the wrong worker fleet. Reversing these
+  // two lines is the whole bug, which is why the band test asserts both.
+  if (n >= TRADELOCKER_LOGIN_BASE) return 'tradelocker';
   if (n >= CTRADER_LOGIN_BASE) return 'ctrader';
   return 'metatrader';
 }
