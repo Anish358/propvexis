@@ -7,6 +7,9 @@ import {
   BACKOFF_SECS,
   MAX_ATTEMPTS,
   SYNC_INTERVAL_MS,
+  PLATFORM_SYNC_INTERVAL_MS,
+  MANUAL_COOLDOWN_MS,
+  manualCooldown,
   nextRunAfter,
   isMarketOpen,
   enqueueQuery,
@@ -81,11 +84,78 @@ test('the scheduler skips accounts we must not or need not log into', () => {
   const { text, values } = dueAccountsQuery(SYNC_INTERVAL_MS);
   assert.match(text, /a\.is_active/);
   assert.match(text, /a\.kind = 'synced'/);
-  // read_only IS NOT FALSE — a master password awaiting deletion is never retried.
-  assert.match(text, /c\.read_only IS NOT FALSE/);
   // Interval is a bound parameter, not string-built SQL.
-  assert.match(text, /make_interval\(secs => \$1\)/);
-  assert.deepEqual(values, [SYNC_INTERVAL_MS / 1000]);
+  assert.match(text, /make_interval\(secs => COALESCE\(i\.secs, \$1\)\)/);
+  assert.equal(values[0], SYNC_INTERVAL_MS / 1000);
+});
+
+test('the read_only rule is scoped to MT5, the only platform it is about', () => {
+  /* THE BUG THIS PREVENTS IS SILENT AND TOTAL. `read_only = FALSE` means "a master
+   * password awaiting deletion, never log in with it again" — on MT5. TradeLocker
+   * offers no read-only credential at all, so EVERY TradeLocker credential is
+   * legitimately read_only = FALSE. An unscoped filter would queue no TradeLocker
+   * account, ever: no error, no failed job, no row anywhere. The account would
+   * simply never sync and nothing would say why. */
+  const { text } = dueAccountsQuery();
+  assert.match(text, /a\.platform <> 'mt5' OR c\.read_only IS NOT FALSE/);
+});
+
+test('the sync cadence is three hours, per platform, as a bound parameter', () => {
+  /* Three hours rather than fifteen minutes is a CAPACITY decision, not taste:
+   * TradeLocker's rate limit is shared across every user from one egress IP, and
+   * the MT5 farm is one serial worker at ~90s a sync. Fifteen minutes does not fit
+   * either at 1000 accounts. Pinned so it cannot drift back quietly. */
+  assert.equal(SYNC_INTERVAL_MS, 3 * 60 * 60 * 1000);
+  for (const [platform, ms] of Object.entries(PLATFORM_SYNC_INTERVAL_MS)) {
+    assert.equal(ms, 3 * 60 * 60 * 1000, `${platform} interval drifted`);
+  }
+  const { text, values } = dueAccountsQuery();
+  assert.match(text, /unnest\(\$2::text\[\], \$3::int\[\]\)/);
+  assert.deepEqual(values[1], Object.keys(PLATFORM_SYNC_INTERVAL_MS));
+  assert.deepEqual(values[2], Object.values(PLATFORM_SYNC_INTERVAL_MS).map((m) => m / 1000));
+});
+
+test('an unknown platform falls back to the default rather than never syncing', () => {
+  // LEFT JOIN + COALESCE. A plain JOIN would drop any account whose platform is
+  // missing from the map — the same silent-never-syncs failure as the read_only bug.
+  const { text } = dueAccountsQuery();
+  assert.match(text, /LEFT JOIN intervals i ON i\.platform = a\.platform/);
+  assert.match(text, /COALESCE\(i\.secs, \$1\)/);
+});
+
+// --- the manual cooldown ----------------------------------------------------
+
+test('a fresh account with no job history is never in cooldown', () => {
+  assert.deepEqual(manualCooldown(null), { blocked: false, retryAfterMs: 0 });
+  assert.deepEqual(manualCooldown({ finished_at: null }), { blocked: false, retryAfterMs: 0 });
+});
+
+test('a sync inside the window is blocked, and says for how long', () => {
+  const now = 1_000_000_000_000;
+  const oneMinuteAgo = new Date(now - 60_000).toISOString();
+  const r = manualCooldown({ finished_at: oneMinuteAgo }, now);
+  assert.equal(r.blocked, true);
+  assert.equal(r.retryAfterMs, MANUAL_COOLDOWN_MS - 60_000);
+});
+
+test('a sync older than the window is allowed', () => {
+  const now = 1_000_000_000_000;
+  const old = new Date(now - MANUAL_COOLDOWN_MS - 1).toISOString();
+  assert.equal(manualCooldown({ finished_at: old }, now).blocked, false);
+});
+
+test('the cooldown applies to a FAILED job too', () => {
+  /* Deliberate. An account that is failing is quite often failing BECAUSE of a
+   * rate limit, and free retries are exactly what must not happen next. The
+   * queue's backoff ladder is what retries a failure; this is what stops a user
+   * from bypassing it by holding down a button. */
+  const now = 1_000_000_000_000;
+  const justFailed = { status: 'failed', error: 'nope', finished_at: new Date(now - 1000).toISOString() };
+  assert.equal(manualCooldown(justFailed, now).blocked, true);
+});
+
+test('the cooldown is 15 minutes', () => {
+  assert.equal(MANUAL_COOLDOWN_MS, 15 * 60 * 1000);
 });
 
 test('leasing uses FOR UPDATE SKIP LOCKED and counts the attempt', () => {

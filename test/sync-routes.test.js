@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { readFileSync } from 'node:fs';
 
-import { routeSources } from './helpers/backend-src.js';
+import { routeSources, sourceOf } from './helpers/backend-src.js';
 import { workerTokenMatches } from '../src/domain/sync/workerAuth.js';
 
 // The sync farm hands a plaintext broker password to a machine outside our VPC,
@@ -130,4 +130,29 @@ test('scheduled syncs pause outside market hours but manual ones do not', () => 
   assert.match(lease, /isMarketOpen\(\) \? await enqueueDue\(\) : \[\]/);
   const manual = handler('post', '/api/accounts/:id/sync');
   assert.ok(!/isMarketOpen/.test(manual), 'a manual sync must work on a Saturday');
+});
+
+// --- the manual sync cooldown -----------------------------------------------
+
+test('Sync now enforces the cooldown SERVER-SIDE, not in the button', () => {
+  /* The partial unique index only stops a pile-up while a job is OPEN — the moment
+   * one finishes, the account is pressable again immediately. That was tolerable
+   * when a platform's rate limit was its own. TradeLocker's limits are per-route
+   * and SHARED across every user, because every request leaves this box from one
+   * egress IP, so one impatient trader holding down Sync now degrades everybody
+   * else's sync. A disabled button is a suggestion; this is the limit. */
+  const src = sourceOf('post', '/api/accounts/:id/sync');
+  const from = src.indexOf("app.post('/api/accounts/:id/sync'");
+  const body = src.slice(from, src.indexOf('\n  app.', from + 10));
+  assert.match(body, /manualCooldown\(/, 'the route must consult the cooldown');
+  assert.match(body, /429/, 'a rate limit answers 429, not 202');
+  assert.match(body, /Retry-After/, 'the client cannot count down without being told how long');
+});
+
+test('the read_only refusal on Sync now is scoped to MT5', () => {
+  /* On MT5, read_only === false is a master password awaiting deletion. On a
+   * platform that offers no read-only credential at all it is simply the normal
+   * state, and refusing it here would make Sync now permanently unusable there. */
+  const src = sourceOf('post', '/api/accounts/:id/sync');
+  assert.match(src, /acct\.platform === 'mt5' && cred\.read_only === false/);
 });

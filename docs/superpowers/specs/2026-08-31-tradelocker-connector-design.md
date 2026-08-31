@@ -249,6 +249,30 @@ parsed, with an empty string meaning null, not zero.
 
 Polling, on the existing 15-minute cadence, through `/api/trades/ingest/batch`.
 
+**Cadence (amended 2026-08-31):** the unattended interval is **3 hours**, not the
+15 minutes the queue originally used, and the manual button carries a **15-minute
+server-side cooldown**.
+
+For TradeLocker this is not a preference, it is the difference between the platform
+working at scale and not. Rate limits are per-route and shared across every user,
+because every request leaves one box from one egress IP. At 1000 accounts and ~3
+requests per sync:
+
+| Cadence | Requests per window | Sustained rate | Fits a low-single-digit per-route limit? |
+|---|---|---|---|
+| 15 min | ~3,000 inside each 15 min | ~3.3 req/s, bursty | **no** |
+| 3 h | ~3,000 spread over 3 h | ~0.3 req/s | yes |
+
+The cooldown matters for the same reason and must be enforced by the endpoint, not
+by a disabled button: the partial unique index only prevents a pile-up while a job
+is *open*, so without it an account is pressable again the instant one finishes.
+One impatient trader would degrade every other customer's sync.
+
+The cost is honest and should be stated in the UI: a trader who closes a position
+and does not press Sync now sees it **up to three hours later**. `queue.js` already
+argues a journal is a historical record rather than a trading signal, and the
+manual button covers the impatient case.
+
 **Backfill:** `ordersHistory` accepts `from`/`to` as Unix ms and returns `hasMore`
 with a per-request row cap read from `/trade/config`. So the same newest-first,
 30-day-window walk the cTrader spec defines applies unchanged, and for the same

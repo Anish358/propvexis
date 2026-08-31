@@ -394,7 +394,28 @@ millisecond and skipping one is silent data loss. Re-reading the boundary is fre
 |---|---|
 | Scheduled | Every **3 hours** |
 | On reconnect | From `cursor_at` minus a 15-minute overlap |
-| Manual "Sync now" | From `cursor_at` minus overlap, immediate |
+| Manual "Sync now" | From `cursor_at` minus overlap, immediate — **15-minute cooldown** |
+
+**Amended 2026-08-31 — the cadence is now platform-wide.** Three hours became the
+unattended interval for *every* platform, and the manual button gained a
+server-side 15-minute cooldown. `PLATFORM_SYNC_INTERVAL_MS` and `manualCooldown()`
+in `domain/sync/queue.js` are the implementation; `POST /api/accounts/:id/sync`
+answers **429 with `Retry-After`** inside the window.
+
+The interval means different things per platform, which is why it is a map rather
+than a constant:
+
+| Platform | What the 3 hours is | Freshness |
+|---|---|---|
+| cTrader | **reconcile only** — push is delivery | seconds |
+| TradeLocker | **delivery** — no stream exists | up to 3h |
+| MT5 | **delivery** | up to 3h |
+
+Worth being explicit that **this does not weaken cTrader.** Push remains the
+delivery path precisely because it is the cheapest thing at scale: two sockets
+serve every account, and events cost nothing until a trade actually happens.
+Polling cTrader on the same cadence instead would be ~8,000 `DealListReq` calls a
+day at 1000 accounts — strictly more load *and* worse freshness.
 
 Three hours matches TradeZella's documented broker re-sync cadence, which is a
 reasonable benchmark for the category and is the interval CLAUDE.md's named

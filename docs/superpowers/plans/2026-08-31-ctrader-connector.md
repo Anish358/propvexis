@@ -880,6 +880,35 @@ EOF
 
 ---
 
+## Task 7b: Sync cadence and the manual cooldown — ✅ DONE 2026-08-31
+
+Shipped alongside the foundation, because it is platform-wide rather than
+cTrader-specific and it unblocks TradeLocker's scaling story.
+
+**Files:** `src/domain/sync/queue.js`, `src/routes/sync.js`, `test/sync-queue.test.js`, `test/sync-routes.test.js`
+
+- [x] `SYNC_INTERVAL_MS` 15 min → **3 hours**, plus `PLATFORM_SYNC_INTERVAL_MS` so
+      each platform's cadence is its own value. `dueAccountsQuery` resolves it via a
+      `unnest($2::text[], $3::int[])` CTE **LEFT JOIN**ed to the account, so an
+      unmapped platform falls back to the default rather than silently never syncing.
+- [x] `manualCooldown()` — pure, 15 minutes, applied **regardless of whether the last
+      job succeeded** (an account that is failing is often failing *because* of a rate
+      limit; the backoff ladder is what retries a failure).
+- [x] `POST /api/accounts/:id/sync` answers **429 + `Retry-After`** inside the window.
+- [x] The `read_only IS NOT FALSE` filter narrowed to `a.platform <> 'mt5' OR ...`,
+      which is TradeLocker plan Task 6 landed early — see the note below.
+- [x] Tests: cadence pinned, fallback pinned, cooldown-on-failure pinned, and the
+      route asserted to answer 429 rather than 202.
+
+> **Why the MT5 interval moved too.** The farm is one serial Windows worker at
+> roughly 90s per sync. Fifteen minutes was never achievable beyond a handful of
+> accounts — 100 accounts already needs 2.5 hours of terminal time per cycle. The
+> old constant was a promise the farm could not keep, so this is a correction rather
+> than a regression. The visible effect is that an MT5 trade can now take up to three
+> hours to appear unattended, where the button previously implied fifteen minutes.
+
+---
+
 ## Task 8: The worker — DEFERRED, gated on Spotware credentials
 
 **Not implementable now, and shipping it unverified would be worse than not shipping it.**

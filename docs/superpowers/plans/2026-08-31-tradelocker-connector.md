@@ -404,7 +404,22 @@ test('the platform states plainly that the credential can trade', () => {
 
 ---
 
-## Task 6: Let TradeLocker accounts actually be scheduled
+## Task 6: Let TradeLocker accounts actually be scheduled — ✅ DONE 2026-08-31
+
+> **Landed early**, in the cTrader branch, because the same commit moved the sync
+> cadence to 3 hours and the two touch the same predicate. `dueAccountsQuery` now
+> reads `AND (a.platform <> 'mt5' OR c.read_only IS NOT FALSE)`, and
+> `POST /api/accounts/:id/sync` scopes its matching refusal the same way, so Sync now
+> is not permanently unusable on a platform with no read-only credential.
+>
+> Pinned by *"the read_only rule is scoped to MT5, the only platform it is about"*
+> in `test/sync-queue.test.js`. **Nothing to do here — verify and move on.**
+>
+> The cadence and the 15-minute manual cooldown this connector's scaling story
+> depends on (spec §8) also shipped in that commit: `PLATFORM_SYNC_INTERVAL_MS`,
+> `manualCooldown()`, and a 429 with `Retry-After`.
+
+### Original task, for reference
 
 Spec landmine 1 — the one most likely to ship broken and silent.
 
