@@ -23,6 +23,21 @@
 // sentence carried and the reason ChoiceCard keeps a disabled card focusable. The field
 // stays in the shape so a card can explain itself where the badge is not enough.
 //
+// WHAT `credentialFields`, `credentialNote` AND `credentialConsent` ARE DOING HERE.
+// ConnectStep renders the credential form from THIS file, because the frontend
+// cannot import src/domain. They are a mirror of the authority's own fields, and
+// test/platform-catalog.test.js asserts they never drift — a form that collects
+// different things from what validateCredential expects refuses the user with a
+// 400 they cannot act on.
+//
+// The note and the gate are a PER-PLATFORM SECURITY CLAIM and that is exactly why
+// they are data rather than copy in the page. MT5 promises a trade-capable
+// password is rejected, because its worker checks trade_allowed and deletes one.
+// TradeLocker offers no read-only credential at all, so it says so and makes the
+// trader affirm it. Printing either sentence above the other platform's password
+// field would be a false security claim, and a page holding one string cannot
+// tell the difference.
+//
 // JSX-free (no React import, no logo components) so the backend's node:test can
 // import it — CI installs backend dependencies only.
 
@@ -33,6 +48,14 @@ export const PLATFORM_CARDS = [
     status: 'live',
     blurb: '',
     importMethods: ['auto_sync', 'ea', 'file', 'manual'],
+    credentialFields: [
+      { name: 'server', label: 'MT5 server', type: 'text', required: true, placeholder: 'GoatFunded-Server' },
+      { name: 'login', label: 'MT5 login', type: 'number', required: true, placeholder: '314943467' },
+      { name: 'password', label: 'Investor password', type: 'password', required: true, secret: true },
+    ],
+    credentialNote:
+      'Use your investor (read-only) password. A password that can place trades is rejected and deleted on the first login.',
+    credentialConsent: null,
   },
   {
     id: 'mt4',
@@ -40,6 +63,9 @@ export const PLATFORM_CARDS = [
     status: 'soon',
     blurb: '',
     importMethods: ['file', 'manual'],
+    credentialFields: [],
+    credentialNote: null,
+    credentialConsent: null,
   },
   {
     id: 'ctrader',
@@ -47,6 +73,9 @@ export const PLATFORM_CARDS = [
     status: 'soon',
     blurb: '',
     importMethods: ['file', 'manual'],
+    credentialFields: [],
+    credentialNote: null,
+    credentialConsent: null,
   },
   {
     id: 'tradelocker',
@@ -54,6 +83,21 @@ export const PLATFORM_CARDS = [
     status: 'soon',
     blurb: '',
     importMethods: ['file', 'manual'],
+    // Collected and mirrored while the card is still Soon: this is the form the
+    // connect step will render, and the copy the consent gate will show, the
+    // moment the platform is switched on. Building it behind the badge is what
+    // lets the switch be one line in two files rather than a feature.
+    credentialFields: [
+      { name: 'email', label: 'TradeLocker email', type: 'email', required: true, placeholder: 'you@example.com' },
+      { name: 'server', label: 'Broker server', type: 'text', required: true, placeholder: 'OSP-DEMO' },
+      { name: 'password', label: 'TradeLocker password', type: 'password', required: true, secret: true },
+    ],
+    credentialNote:
+      'TradeLocker has no read-only password — this is the same password that can place trades on your account. '
+      + 'We store it encrypted, and PropVexis only ever reads your trade history with it. '
+      + 'You can disconnect the account at any time, which deletes the stored password.',
+    credentialConsent:
+      'I understand this password can place trades on my account, and I authorise PropVexis to use it to read my trade history.',
   },
   {
     id: 'other',
@@ -61,6 +105,9 @@ export const PLATFORM_CARDS = [
     status: 'live',
     blurb: '',
     importMethods: ['file', 'manual'],
+    credentialFields: [],
+    credentialNote: null,
+    credentialConsent: null,
   },
 ];
 
