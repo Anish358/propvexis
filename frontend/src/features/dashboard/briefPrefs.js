@@ -71,7 +71,6 @@ export const defaultBriefPrefs = () => ({
   currencies: ['USD', 'EUR', 'GBP'],
   window: 'today',
   timezone: 'local',
-  hideEmpty: true,
 });
 
 const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
@@ -103,7 +102,6 @@ export function sanitizeBriefPrefs(saved) {
     currencies,
     window: oneOf(saved.window, WINDOW_IDS, base.window),
     timezone: oneOf(saved.timezone, TIMEZONE_IDS, base.timezone),
-    hideEmpty: typeof saved.hideEmpty === 'boolean' ? saved.hideEmpty : base.hideEmpty,
   };
 }
 
@@ -114,7 +112,6 @@ export function isDefaultBriefPrefs(prefs) {
     && p.importance === d.importance
     && p.window === d.window
     && p.timezone === d.timezone
-    && p.hideEmpty === d.hideEmpty
     && p.currencies.length === d.currencies.length
     && p.currencies.every((c, i) => c === d.currencies[i]);
 }
@@ -207,29 +204,33 @@ export function formatBriefDate(now = new Date(), timezone = 'local') {
   });
 }
 
-// The wall clock for the banner heading, e.g. "3:42 PM".
-//
-// UTC gets an explicit suffix: with that mode selected every time in the widget
-// is UTC, and the clock is the natural place to say so — otherwise a viewer sees
-// a time that silently disagrees with the one on their taskbar.
+/* The wall clock for the brief's heading, e.g. "14:42:07".
+ *
+ * 24-HOUR WITH SECONDS as of 2026-08-29 (Rhea; was "3:42 PM"). Both halves are the
+ * design's and both are right for this app: every other time on this screen — an event
+ * release, a session, a drawdown reset — is written 24-hour, and a clock in a different
+ * convention beside them is one more conversion to do under pressure. The seconds are
+ * what make it read as a LIVE clock rather than a timestamp of when the page loaded,
+ * which matters on a card whose whole job is "what is about to happen".
+ *
+ * UTC gets an explicit suffix: with that mode selected every time in the widget is UTC,
+ * and the clock is the natural place to say so — otherwise a viewer sees a time that
+ * silently disagrees with the one on their taskbar. */
 export function formatBriefClock(now = new Date(), timezone = 'local') {
   const utc = timezone === 'utc';
   const t = now.toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', ...(utc ? { timeZone: 'UTC' } : {}),
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    ...(utc ? { timeZone: 'UTC' } : {}),
   });
   return utc ? `${t} UTC` : t;
 }
 
-// The events section's own label tracks the importance setting — leaving it
-// reading "High-impact events" while the list also carries medium/low ones would
-// misdescribe what's on screen.
-export function briefEventsLabel(prefs) {
-  switch (sanitizeBriefPrefs(prefs).importance) {
-    case 'all': return 'Economic events';
-    case 'highMedium': return 'High & medium events';
-    default: return 'High-impact events';
-  }
-}
+/* briefEventsLabel is DELETED. It returned "High-impact events" / "High & medium
+ * events" / "Economic events" off the importance setting, so the column was named after
+ * its own filter and changed identity under the user — which §3 forbids in as many
+ * words: a title must not rewrite itself; the change goes in a chip beside it. The
+ * column is "Economic calendar", and what is filtered out of it is said by the range
+ * switcher and the note next to the title. */
 
 // Event time in the selected timezone. Same-day events show just the time;
 // anything further out is prefixed with its weekday, so a "This Week" list
@@ -238,7 +239,14 @@ export function formatBriefTime(iso, timezone = 'local', now = new Date()) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const utc = timezone === 'utc';
-  const opts = { hour: 'numeric', minute: '2-digit', ...(utc ? { timeZone: 'UTC' } : {}) };
+  /* 24-HOUR, MATCHING THE CLOCK ABOVE IT (2026-08-29, Rhea). These sit in the same
+     column as a heading clock written 14:42:07; leaving them at "7:00 PM" put two time
+     conventions four inches apart on a card whose job is to answer "what is about to
+     happen, and how long have I got". That is the conversion this design set out to
+     remove, not to relocate. */
+  const opts = {
+    hour: '2-digit', minute: '2-digit', hour12: false, ...(utc ? { timeZone: 'UTC' } : {}),
+  };
   const time = d.toLocaleTimeString('en-US', opts);
   const sameDay = utc
     ? d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth() && d.getUTCDate() === now.getUTCDate()
@@ -247,3 +255,20 @@ export function formatBriefTime(iso, timezone = 'local', now = new Date()) {
   const day = d.toLocaleDateString('en-US', { weekday: 'short', ...(utc ? { timeZone: 'UTC' } : {}) });
   return `${day} ${time}`;
 }
+
+/* THE FALLBACK IS DELETED (2026-08-30), and so are the dev-only SAMPLE EVENTS that
+ * sat behind it.
+ *
+ * The fallback answered an empty window by showing the next high-impact events from the
+ * WHOLE feed, ignoring the window. On a Sunday with "Today" selected that put Tuesday
+ * and Wednesday releases under a heading that said Today, and the window control looked
+ * broken — which is worse than an empty column, because an empty column is true.
+ *
+ * The samples were invented releases, gated to dev builds so production never saw them.
+ * A trader plans a session around a release time; a fake one is one build flag from
+ * being read as real, and the card's whole purpose is "what is about to happen".
+ *
+ * Both are in git if the argument for them ever comes back. What replaces them is
+ * briefEmptyReason + EMPTY_EVENT_COPY, which say what is actually true. */
+
+

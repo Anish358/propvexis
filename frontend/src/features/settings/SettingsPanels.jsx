@@ -138,35 +138,27 @@ export function SettingsTrades() {
 
 // ---- Appearance ------------------------------------------------------------
 
-// THE TOP BAR KEEPS ITS THEME TOGGLE AND THIS IS NOT A SECOND SOURCE OF TRUTH. Both
-// write App's `theme`, which is persisted with the rest of the view state, so they are
-// two doors onto one value — the same relationship Prop OS > Accounts' Select buttons
-// have with the top bar's account switcher. A settings screen with no appearance
-// section, on the other hand, is a screen a user searches before finding the small
-// icon in the bar.
+/* APPEARANCE, WITH NOTHING LEFT TO SET (2026-08-28).
+ *
+ * This panel's only control was the light/dark toggle, and the app is dark-only now
+ * (tokens.css, "NO LIGHT THEME"). The ROUTE stays: /settings/appearance is in the
+ * settings rail, in the route table and in test/nav.test.js, and a bookmark landing on
+ * a 404 is a worse answer than a screen that says what happened. It says what happened
+ * rather than pretending to be configurable — a toggle with one position is a control
+ * that lies about being one.
+ *
+ * When light returns, the ToggleGroupExclusive comes back here and this note goes. */
 export function SettingsAppearance() {
-  const { theme = 'dark', setTheme } = useOutletContext();
-
   return (
     <Card className="set-card">
       <div className="set-rows">
         <Row label="Theme">
-          {/* ToggleGroupExclusive, not a switch: a switch says on/off and neither theme
-              is the off one. Exclusive selection of two named options is what this is. */}
-          <ToggleGroupExclusive
-            className="set-theme-toggle"
-            value={theme === 'light' ? 'light' : 'dark'}
-            onValueChange={setTheme}
-            aria-label="Theme"
-          >
-            <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
-            <ToggleGroupItem value="light">Light</ToggleGroupItem>
-          </ToggleGroupExclusive>
+          <span className="muted">Dark</span>
         </Row>
       </div>
       <p className="set-note">
-        The theme follows your account, not this browser, so it is the same on every
-        device you sign in on.
+        PropVexis is dark-only while the new design rolls out. A light theme will come
+        back here when it is designed rather than merely generated.
       </p>
     </Card>
   );

@@ -1,10 +1,21 @@
 import React, { useMemo } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  CalCell, CalCellBody, CalDayNum, CalDow, CalGrid, CalNavButton, CalRoot, CalWeek,
+  PanelChip,
+  PanelHead, PanelMeta,
+} from '@/components/primitives';
 import { dayKey, fmtValShort } from '../../lib/metrics.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const round2 = (n) => Math.round(n * 100) / 100;
-const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : '');
+/* A day's tone. 'flat' is a real value and not a fallback: a day that was TRADED and
+ * closed at zero is a result, and drawing it like an untraded day would turn a week of
+ * scratches into a week off. `cellTone` is what distinguishes the two — it is handed
+ * the day's data, not just its number. */
+const tone = (n) => (n > 0 ? 'win' : n < 0 ? 'loss' : 'flat');
+const cellTone = (data) => (data ? tone(data.pnl) : 'idle');
 
 // Marker glyphs for the optional business-event layer. Deliberately shapes, not
 // just colours: a payout, a milestone and a breach must be distinguishable
@@ -21,6 +32,18 @@ const MARKER_GLYPH = { payout: '$', milestone: '✓', breach: '✕' };
 // grid. It is additive on purpose — the Overview reuses this component verbatim
 // rather than forking a second calendar, and the Dashboard passes no markers and
 // renders exactly as before.
+/* ONE CALENDAR, ONE SHAPE — the `weeks` prop is GONE (owner decision, 2026-08-30).
+ *
+ * It existed so the Dashboard could drop the 8th, week-summary column while Prop OS and
+ * Accounts › Details kept it: Rhea draws a bare 7-column month, and at the time the
+ * Dashboard's calendar shared a 3-column grid where an eighth column was expensive. The
+ * card is 67% of the content width now, which is room enough.
+ *
+ * The owner's call is that the app has ONE calendar and every surface gets the same
+ * one. That is worth more than matching a frame on a single page: "how did week three
+ * go" is a real question, and a component that answers it on two pages and not on the
+ * third is a component a reader has to check before trusting. A prop that only ever
+ * takes one value is a fork waiting to happen. */
 export default function MonthCalendar({ year, month, dayMap, markers, onPrev, onNext, onToday, onSelectDay, unit = 'R' }) {
   const { rows, monthTotal, tradingDays } = useMemo(() => {
     const first = new Date(year, month, 1);
@@ -45,58 +68,88 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
       for (const c of week) if (c?.data) { pnl += c.data.pnl; days += 1; }
       rows.push({ week, pnl: round2(pnl), days });
     }
-    // Always 6 week-rows (the max any month needs) so every row gets the same
-    // share of the grid's fixed height — a 4- or 5-row month gets blank
-    // trailing row(s) instead of shorter months growing taller cells.
-    while (rows.length < 6) rows.push({ blank: true });
+    /* NO PADDING TO SIX ROWS ANY MORE (2026-08-28).
+     *
+     * It used to pad every month out to six week-rows, because the card had a FIXED
+     * height (`card-lg`) and six equal rows were how the grid divided it — a 4- or
+     * 5-row month would otherwise have grown taller cells. The rebuilt cells size
+     * themselves (`min-h` on CalCell), so the card can size to its content instead, and
+     * the padding became what it looks like: one or two rows of empty boxes and a
+     * "Week 6 · 0 days · 0R" summary for a week that does not exist in this month.
+     *
+     * A month renders the weeks it has. August 2026 has five. */
     return { rows, monthTotal: round2(monthTotal), tradingDays };
   }, [year, month, dayMap]);
 
   const now = new Date();
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+  const todayKey = dayKey(now);
 
   return (
-    <div className="cal">
-      <div className="cal-head">
-        <div className="cal-nav">
-          <button onClick={onPrev} aria-label="Previous month">‹</button>
-          <h3>{MONTHS[month]} {year}</h3>
-          <button onClick={onNext} aria-label="Next month">›</button>
-        </div>
-        {onToday && isCurrentMonth && (
-          <button type="button" className="cal-today-btn" onClick={onToday}>
-            This month
-          </button>
+    <CalRoot>
+      {/* NO SUBTITLE. It read "Daily performance", which is what a grid of daily P&L
+          figures already says. Rhea's head is the stepper, the month and the month's
+          own totals — every element of which is a fact rather than a label. */}
+      <PanelHead
+        meta={(
+          <>
+            <PanelMeta label="Month total" tone={monthTotal > 0 ? 'pos' : monthTotal < 0 ? 'neg' : undefined}>
+              {fmtValShort(monthTotal, unit)}
+            </PanelMeta>
+            <PanelChip>{tradingDays} day{tradingDays === 1 ? '' : 's'}</PanelChip>
+          </>
         )}
-        <div className="cal-head-stats">
-          <span className="cal-stats-label">Monthly stats:</span>
-          <span className={`cal-stats-pill ${tone(monthTotal)}`}>{fmtValShort(monthTotal, unit)}</span>
-          <span className="cal-stats-pill days">{tradingDays} day{tradingDays === 1 ? '' : 's'}</span>
-        </div>
-      </div>
+      >
+        {/* THE STEPPER LEADS THE TITLE (Rhea, 2026-08-29; it used to trail it on the
+            right, in the head's `action` slot). It CHANGES the title, and reading order
+            is left to right — so the control that rewrites a heading is reached before
+            the heading rather than after it. "This month" only appears once you have
+            left this month, which is the only time it can do anything. */}
+        <CalNavButton onClick={onPrev} aria-label="Previous month"><ChevronLeft aria-hidden="true" /></CalNavButton>
+        <CalNavButton onClick={onNext} aria-label="Next month"><ChevronRight aria-hidden="true" /></CalNavButton>
+        <span>{MONTHS[month]} {year}</span>
+        {onToday && !isCurrentMonth && (
+          <button type="button" className="cal-today-btn" onClick={onToday}>This month</button>
+        )}
+      </PanelHead>
 
-      <div className="cal-grid-v2">
-        {WD.map((d) => <div key={d} className="cal-dow-cell">{d}</div>)}
-        <div className="cal-week-head" />
+      {/* `grow`: the day grid takes whatever height the card's 2-row span gives it, so
+          a five-week month fills the same box as a six-week one instead of leaving the
+          right-hand column hanging below it. */}
+      <CalGrid>
+        {WD.map((d) => <CalDow key={d}>{d}</CalDow>)}
+        <CalDow />
+      </CalGrid>
 
+      <CalGrid grow>
         {rows.map((r, ri) => (
           <React.Fragment key={ri}>
             {r.blank ? (
-              Array.from({ length: 8 }, (_, i) => <div key={`blank-${ri}-${i}`} className="cal-cell cal-empty" />)
+              Array.from({ length: 8 }, (_, i) => <div key={`blank-${ri}-${i}`} />)
             ) : (
               <>
                 {r.week.map((c, i) => {
-                  if (!c) return <div key={`pad-${ri}-${i}`} className="cal-cell cal-empty" />;
-                  const t = !c.data ? '' : tone(c.data.pnl);
-                  const winPct = c.data && (c.data.wins + c.data.losses) > 0 ? Math.round((100 * c.data.wins) / (c.data.wins + c.data.losses)) : null;
+                  if (!c) return <div key={`pad-${ri}-${i}`} />;
+                  const t = cellTone(c.data);
                   const marks = markers?.get(c.key);
+                  const clickable = !!(onSelectDay && c.data);
+                  /* TODAY AND WEEKEND ARE PASSED DOWN, NOT DERIVED IN THE PRIMITIVE.
+                     The cell has no idea what month it is in or which column it sits
+                     in; this component already knows both, and a primitive that
+                     recomputes a date is a primitive that can disagree with the grid
+                     it was handed. */
+                  const isToday = c.key === todayKey;
+                  const isWeekend = i === 0 || i === 6;
                   return (
-                    <div
+                    <CalCell
                       key={c.key}
-                      className={`cal-cell ${t} ${onSelectDay && c.data ? 'clickable' : ''}`}
-                      onClick={() => onSelectDay && c.data && onSelectDay(c)}
+                      tone={t}
+                      today={isToday}
+                      weekend={isWeekend}
+                      clickable={clickable}
+                      onClick={clickable ? () => onSelectDay(c) : undefined}
                     >
-                      <div className="cal-daynum">
+                      <CalDayNum idle={t === 'idle'} weekend={isWeekend}>
                         {c.day}
                         {marks?.length > 0 && (
                           // Title carries the full text: a day can hold several
@@ -109,27 +162,33 @@ export default function MonthCalendar({ year, month, dayMap, markers, onPrev, on
                             ))}
                           </span>
                         )}
-                      </div>
+                      </CalDayNum>
                       {c.data && (
-                        <div className="cal-cell-body">
-                          <div className="cal-pnl">{fmtValShort(c.data.pnl, unit)}</div>
-                          <div className="cal-tcount">{c.data.trades} trade{c.data.trades === 1 ? '' : 's'}</div>
-                          {winPct != null && <div className="cal-winpct">{winPct}%</div>}
-                        </div>
+                        <CalCellBody
+                          tone={t}
+                          value={fmtValShort(c.data.pnl, unit)}
+                          /* THE TRADE COUNT ALONE. The win% was ours and it made a
+                             three-line cell out of an 82px box — "4 trades · 75%" wraps
+                             at the calendar's narrow end and reads as two facts where
+                             the tint already carries the second one. The full breakdown
+                             is one click away in the day modal. */
+                          sub={`${c.data.trades} trade${c.data.trades === 1 ? '' : 's'}`}
+                        />
                       )}
-                    </div>
+                    </CalCell>
                   );
                 })}
-                <div className="cal-week-card">
-                  <div className="cal-week-label">Week {ri + 1}</div>
-                  <div className={`cal-week-val ${tone(r.pnl)}`}>{fmtValShort(r.pnl, unit)}</div>
-                  <span className="cal-week-days">{r.days} day{r.days === 1 ? '' : 's'}</span>
-                </div>
+                <CalWeek
+                    label={`Week ${ri + 1}`}
+                    tone={tone(r.pnl)}
+                    value={fmtValShort(r.pnl, unit)}
+                  sub={`${r.days} day${r.days === 1 ? '' : 's'}`}
+                />
               </>
             )}
           </React.Fragment>
         ))}
-      </div>
-    </div>
+      </CalGrid>
+    </CalRoot>
   );
 }

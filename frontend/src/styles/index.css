@@ -18,18 +18,30 @@
    3. ./bridge.css      Maps layer 2 into layer 1's vocabulary. One-way: tokens
                         flow outward to Tailwind and shadcn, never inward.
 
-   4. ./legacy/app.css  The existing component CSS, verbatim. Being in `legacy/`
-                        states a direction, not a judgement: it is the stylesheet
-                        the app renders from today, and it gets replaced component
-                        by component, never in a sweep.
+   4. ./legacy/app.css  The existing component CSS, verbatim, IN `layer(legacy)` —
+                        the first layer declared in tailwind.css, so it outranks
+                        nothing. It is the stylesheet the app still renders from,
+                        and it gets deleted page by page as the redesign lands.
 
-   WHY TOKENS AND LEGACY STAY UNLAYERED: unlayered declarations beat layered ones
-   in the cascade regardless of source order. Keeping layers 2 and 4 unlayered is
-   what guarantees that nothing Tailwind or shadcn emits can override the existing
-   design system. The library can only ever add; it cannot outrank.
+   WHY LEGACY IS LAYERED AND TOKENS ARE NOT. A layer declared first loses to every
+   layer after it, so nothing in legacy/app.css can override a Tailwind, shadcn or
+   @coss rule — at any specificity, with no !important. tokens.css stays unlayered,
+   because unlayered declarations beat layered ones: values keep exactly one source.
+
+   THIS REVERSES THE ORIGINAL ARRANGEMENT, deliberately (2026-08-28). Layers 2 and 4
+   were both unlayered so the component library could only ever add, never outrank —
+   the property that made the Tailwind install a visual no-op mid-migration. The
+   Figma redesign supersedes that: the new components are the authority now.
+
+   WHAT THAT COSTS, so the next reader knows where to look. "Legacy always wins" was
+   also the backstop against utility/class-name collisions — 862 legacy class names
+   share a global namespace with Tailwind's utilities, and `.grid` is a real <table>
+   in the Trade Log. With the order flipped, the ONLY guards left are tailwind.css's
+   `@source` scoping and test/utility-collisions.test.js. Widening @source without
+   reading that test is how an un-migrated page silently breaks.
    =========================================================================== */
 
 @import "../tailwind.css";
 @import "./tokens.css";
 @import "./bridge.css";
-@import "./legacy/app.css";
+@import "./legacy/app.css" layer(legacy);

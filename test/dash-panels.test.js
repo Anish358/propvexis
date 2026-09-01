@@ -1,0 +1,154 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readSrc, stripComments } from './helpers/src-files.js';
+import { tokensCss } from './helpers/app-css.js';
+
+/* THE CONTENT PANELS — calendar, Recent Activity, cumulative P&L — on the 2026-08-28
+ * Figma frame. */
+
+const panel = readSrc('components/primitives/panel.jsx');
+const cal = readSrc('components/primitives/calendar.jsx');
+const calCode = stripComments(cal);
+const month = readSrc('features/calendar/MonthCalendar.jsx');
+const dash = readSrc('features/dashboard/Dashboard.jsx');
+const recent = readSrc('features/trades/RecentTrades.jsx');
+// Comment-free, because the note in RecentTrades explaining why it is NOT a table
+// necessarily contains the word — the fourth scanner in this suite to learn it.
+const recentCode = stripComments(recent);
+
+test('the three cards are one shell, not three', () => {
+  /* The frame draws the calendar, Recent Activity and the chart as the same box. They
+   * are built as one — three hand-written shells is three places for the radius to
+   * drift, which is exactly what happened to `.dash-cal-panel`, `.dash-activity` and
+   * `.dash-equity` in the CSS this replaces. */
+  // The padding moved onto a `flush` branch with Rhea (a table header band has to span
+  // the card, so the panel that holds one cannot pad its children); the SHELL — one
+  // radius, one border, one surface, declared once — is what this test is about.
+  assert.match(panel, /rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/);
+  assert.match(panel, /flush \? 'overflow-hidden' : 'gap-\[18px\] px-6 pt-\[22px\] pb-6'/);
+  const uses = (dash.match(/<PanelCard/g) || []).length;
+  assert.ok(uses >= 3, `expected all three cards on PanelCard, found ${uses}`);
+  // And none of them kept a bespoke box.
+  for (const dead of ['dash-activity card-md', 'dash-equity card-md', 'panel dash-cal-panel']) {
+    assert.ok(!dash.includes(dead), `${dead} is a second card shell`);
+  }
+});
+
+test('the cell is tinted by its outcome, and idle is not an outcome', () => {
+  /* THIS TEST IS REVERSED (2026-08-29), and the argument it used to carry is worth
+   * keeping because it was not wrong.
+   *
+   * It asserted that the cell does NOT wash itself: "forty-two tinted tiles is a lot of
+   * colour on a page whose OTHER reds and ambers mean 'this account is about to be
+   * closed'. A quiet grid leaves the account meters as the only alarming thing on
+   * screen, which is where alarm belongs."
+   *
+   * Rhea answers that by SEPARATING the two vocabularies rather than suppressing one.
+   * The calendar is green/red at 22% — outcome colours, low saturation. The alarm is
+   * amber-to-red on a stretched ramp, a washed meter, a full-bleed banner and a pulse.
+   * Nothing on the calendar is amber and nothing in the meters is green, so they no
+   * longer compete. And a month is the one view whose question is DISTRIBUTIONAL — "am
+   * I losing on Mondays" — which is answered by pattern, and pattern needs the cells
+   * themselves to carry the sign.
+   *
+   * IDLE IS STILL NOT AN OUTCOME, and that half has never changed: a plain sunken block
+   * at reduced strength, a muted number. A weekend goes quieter again. Present, clearly
+   * part of the month, clearly empty. */
+  assert.match(month, /const cellTone = \(data\) => \(data \? tone\(data\.pnl\) : 'idle'\)/);
+  assert.match(month, /const tone = \(n\) => \(n > 0 \? 'win' : n < 0 \? 'loss' : 'flat'\)/);
+  assert.match(calCode, /const CELL = \{/, 'a cell has its own wash + edge per tone');
+  /* THE PERCENTAGES ARE DERIVED, NOT CHOSEN (2026-08-30). The prototype writes these as
+   * literals — rgba(20,83,45,.22) / rgba(76,17,17,.22) for the washes, #183a26 /
+   * #3a1b1b / #141417 for the edges — and COLOUR-INVENTORY §6 rules they stay a
+   * color-mix of existing tokens and "become no new tokens". Each mix below was
+   * composited over --surface in a browser and compared against the prototype's own
+   * literal; every one lands within 4/255 per channel, and idle is exact.
+   *
+   * The old values (34% of --profit-deep, and a TRANSLUCENT --profit edge) came out a
+   * third brighter and greener than the design, which is what made the grid read as
+   * decorated rather than as data. */
+  assert.match(calCode, /color-mix\(in srgb, var\(--profit-deep\) 19%, transparent\)/);
+  assert.match(calCode, /color-mix\(in srgb, var\(--loss-deep\) 12%, transparent\)/);
+  // The EDGES are opaque mixes over the card, not translucent outcome colour.
+  assert.match(calCode, /color-mix\(in srgb, var\(--profit\) 24%, var\(--surface\)\)/);
+  assert.match(calCode, /color-mix\(in srgb, var\(--loss\) 19%, var\(--surface\)\)/);
+  assert.match(calCode, /color-mix\(in srgb, var\(--line\) 40%, var\(--surface\)\)/);
+  assert.ok(!/CELL = \{[\s\S]*?idle:/.test(calCode), 'idle has no tint entry — it falls back to flat');
+  assert.match(calCode, /idle && \(weekend \? 'opacity-55' : 'opacity-80'\)/);
+  // TODAY IS AN EDGE, NEVER A FILL: a filled "today" competes with the outcome tints
+  // for the same channel and would argue with them on a losing day.
+  assert.match(calCode, /borderColor: today \? 'var\(--text-dim\)' : borderColor/);
+  // The figure still carries the outcome colour — the tint is a second encoding of it,
+  // not a replacement.
+  assert.match(calCode, /color: hue \|\| 'var\(--text\)'/);
+});
+
+test('only the P&L is coloured inside a cell', () => {
+  // The trade count is context. Two coloured lines in an 82px tile make the cell compete
+  // with its own neighbours, and the figure stops being the figure.
+  const body = calCode.slice(calCode.indexOf('export function CalCellBody'));
+  const block = body.slice(0, body.indexOf('export function CalWeek'));
+  assert.match(block, /color: hue \|\| 'var\(--text\)'/);
+  assert.match(block, /text-\[var\(--text-3\)\]/, 'the sub-line stays muted');
+  assert.equal((block.match(/color: hue/g) || []).length, 1, 'exactly one coloured element per cell');
+});
+
+test('the calendar day cell has ONE height floor, read by both the row and the cell', () => {
+  /* A cell's min-height cannot make a grid row GROW — it only stops it shrinking — so
+   * the row needs `minmax(floor, 1fr)` to stretch into a 2-unit card, and the cell needs
+   * the same floor so a one-column layout does not collapse it. Two consumers, one
+   * token: if they drift, a five-week month either overflows its card or leaves 250px of
+   * dead space under the last row. Both have happened. */
+  assert.match(calCode, /gridAutoRows: 'minmax\(var\(--cal-cell-h, 82px\), 1fr\)'/);
+  assert.match(calCode, /min-h-\[var\(--cal-cell-h,82px\)\]/);
+  assert.match(tokensCss, /--cal-cell-h:\s*\d+px/, 'the floor is a token, not a literal in two files');
+});
+
+test('the calendar owns the gap the old header used to supply', () => {
+  /* `.cal-head` carried the spacing in its bottom padding, margin AND border, all three
+   * of which went with the rebuilt header. The PanelCard's own gap cannot help, because
+   * the whole calendar is ONE child of it — so without CalRoot the weekday row crowds
+   * the subtitle. Caught in a headless render, not by reading the numbers. */
+  assert.match(cal, /export function CalRoot/);
+  assert.match(cal, /flex min-h-0 flex-1 flex-col gap-3/);
+  assert.match(month, /<CalRoot>/);
+  assert.ok(!month.includes('className="cal"'), 'the legacy .cal wrapper is gone');
+});
+
+test('a page never writes a column width or an alignment', () => {
+  /* Utilities compile only under components/{ui,primitives}. RecentTrades needs three
+   * column tracks and three alignments, and writing either there emits nothing at all —
+   * silently, with the row collapsing to whatever the content measured. That is the one
+   * failure mode in this repo with no error message.
+   *
+   * WIDENED TO ALIGNMENT (2026-08-29). The first draft of the Rhea table wrote
+   * `className="text-right"` on the Net P&L header, which would have left it
+   * left-aligned above a right-aligned column. Caught by this test, which is what it is
+   * for; `align` and `head` are props on PanelTableCell now.
+   *
+   * The COLUMN TEMPLATE is a prop too, and declared ONCE for the header and the rows
+   * together — a header that computes its tracks separately from its data is a header
+   * that drifts a pixel off it the first time either is touched. */
+  assert.match(panel, /export function PanelTableCell/);
+  assert.match(recent, /const COLS = /, 'one template, shared by the head and the rows');
+  assert.match(recent, /<PanelTableHead cols=\{COLS\}>/);
+  assert.match(recent, /<PanelTableRow key=\{t\.id\} cols=\{COLS\}>/);
+  // Comment-stripped: the note in RecentTrades explaining the trap necessarily quotes
+  // the class it warns about. The seventh scanner in this repo to need this.
+  assert.ok(!/className="[^"]*\b(w-\d|flex-1|min-w-0|shrink-0|tabular-nums|text-(left|right|center))/.test(stripComments(recent)),
+    'RecentTrades writes layout utilities, which do not compile outside the library');
+});
+
+test('the list is a list, and its rows are divided between rather than under', () => {
+  // `last:border-b-0` — a border under the final row reads as a list cut off mid-scroll
+  // that continues below the card, which is the one thing a "recent" list must not imply.
+  assert.match(panel, /py-2 text-\[13px\] leading-5 last:border-b-0/);
+  assert.ok(!recentCode.includes('<table'), 'three single values a row is a list, not a table');
+});
+
+test('the panels stay presentation only', () => {
+  for (const leak of ['useState', 'useEffect', 'fmtVal', 'metrics']) {
+    assert.ok(!stripComments(panel).includes(leak), `panel.jsx must not know about ${leak}`);
+    assert.ok(!calCode.includes(leak), `calendar.jsx must not know about ${leak}`);
+  }
+});

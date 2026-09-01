@@ -206,7 +206,10 @@ test('the drawdown/health thresholds are the shared ones, not a second set', () 
   // it just narrowed to "still trading it" when the phase status went automatic, and this
   // module wants "has a challenge": a challenge you broke is still one of your challenges,
   // and the Details tab is where a trader reads what happened to it.
-  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk,\s*\} from '\.\/propAccounts\.js'/);
+  // `tradingDaysRead` joined the same import: the "N of M days" cap is one derivation
+  // shared by this module, the dashboard's footer and Prop OS's KPI, for exactly the
+  // reason the rest of this line exists.
+  assert.match(readSrc('challengesData.js'), /import \{\s*PHASE_LABEL, accountRow, byRisk, tradingDaysRead,\s*\} from '\.\/propAccounts\.js'/);
   assert.equal(typeof byRisk, 'function');
 });
 
@@ -231,12 +234,22 @@ test('status is a word plus a colour, never a colour alone', () => {
     breached: 'Breached',
     upcoming: 'Upcoming',
     skipped: 'Not Part Of This Challenge',
+    // A phase cleared at the firm that this app never held the account for. It is NOT
+    // 'Passed': that word means we have the account and the row that closed it, and one
+    // word for a record and an inference would let the rail overclaim.
+    untracked: 'Passed · Not Tracked',
   });
   // Every stop carries its status word, and every stop's MARK differs by state too,
   // so the rail reads without colour at all.
   assert.match(lifecycle, /\{STAGE_STATUS_LABEL\[s\.status\]\}/);
-  assert.match(lifecycle, /if \(stage\.status === 'complete'\) return '✓'/);
+  assert.match(lifecycle, /stage\.status === 'complete' \|\| stage\.status === 'untracked'\) return '✓'/);
   assert.match(lifecycle, /if \(stage\.status === 'breached'\) return '✕'/);
+  /* UNTRACKED SHARES THE TICK ON PURPOSE — the phase WAS passed, and a different symbol
+   * would say something else happened there. What separates it is carried by the other
+   * two channels this test exists to protect: a muted tone rather than green, and an
+   * outlined, dashed node where a tracked pass is filled solid. */
+  assert.match(lifecycle, /untracked: 'na'/);
+  assert.match(legacyCss, /\.pc-step--untracked \.pc-step-node \{[^}]*dashed/);
   assert.match(card, /const HEALTH_LABEL = \{ good: 'On Track', warn: 'At Risk', bad: 'Critical', na: 'No Data' \}/);
   assert.match(card, /HEALTH_LABEL\[health\]/);
   // The CHALLENGE's own badge is a word too, and it is a different fact from any one

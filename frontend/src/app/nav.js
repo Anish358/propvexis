@@ -94,7 +94,7 @@ export const LEGACY_REDIRECTS = {
 // Routes on which the top bar's universal account switcher is SINGLE-SELECT.
 //
 // The switcher is multi-select everywhere else on purpose: picking two or three
-// accounts gives an aggregate (R-based) view across them, which is what god view
+// accounts gives an aggregate (R-based) view across them, which is what "All accounts"
 // is for. Prop OS > Accounts > Details is a single-account workspace — its
 // drawdown meters, profit target and equity curve all belong to one account's
 // challenge, and there is no such thing as the aggregate max drawdown of three

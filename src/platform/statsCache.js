@@ -34,11 +34,16 @@ const stable = (v) => {
 };
 
 // The cache key must include EVERY input that changes the numbers. Scope is
-// reduced to its identity (god + which logins), not the whole object, so two
-// equivalent scopes share an entry.
+// reduced to its identity — WHICH LOGINS, and nothing else — so two equivalent
+// scopes share an entry.
+//
+// `god`/`col` used to be part of this and are gone with the scoping mode they
+// described. That is a widening, not a loss: the logins alone now determine the
+// rows, so 'all' and an explicit list naming the same accounts are the same query
+// and correctly share a cache entry, where before they were keyed apart.
 export function cacheKey(kind, scope, unit, filters, beRound, year = null) {
   const scopeId = scope
-    ? { god: !!scope.god, col: scope.filterCol, logins: [...(scope.logins ?? [])].sort() }
+    ? { logins: [...(scope.logins ?? [])].sort() }
     : null;
   return JSON.stringify([kind, scopeId, unit, stable(filters ?? {}), !!beRound, year]);
 }

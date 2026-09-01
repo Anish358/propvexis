@@ -12,7 +12,7 @@ import {
   DRAFT_KEY, FLOW_VERSION, canVisit, emptyDraft, firstIncomplete, isCommitted, isSpentDraft,
   nextStep, patchDraft, prevStep, progress, reviveDraft, toProvisionPayload,
 } from './newAccountFlow.js';
-import { phaseToAdd } from '../prop/challengeGroups.js';
+import { backfillablePhases, phaseToAdd } from '../prop/challengeGroups.js';
 
 /* The Add Account wizard's shell — eleven routed steps, one draft, one guard.
  *
@@ -145,6 +145,11 @@ export default function NewAccountFlow({
    * — and of a second copy of it to disagree with the group row. So the seed waits for
    * GET /api/prop/challenges, and the guard holds the step open until it lands. */
   const wantedGroup = Number(new URLSearchParams(location.search).get('challenge')) || null;
+  /* `&phase=<id>` — the BACK-FILL link, from a rail stop the app has already taken as
+   * passed. Without it the wizard would offer the phase the firm has just issued, which
+   * is the opposite end of the ladder from the one the trader clicked. Validated against
+   * the group below, never trusted on its own. */
+  const wantedPhase = new URLSearchParams(location.search).get('phase') || null;
   const [seedTried, setSeedTried] = useState(false);
 
   useEffect(() => {
@@ -197,17 +202,30 @@ export default function NewAccountFlow({
   useEffect(() => {
     if (wantedGroup == null || seedTried || challenges == null) return;
     const group = challenges.find((g) => g.id === wantedGroup) ?? null;
-    if (group && phaseToAdd(group).phase != null && !isCommitted(draft)) {
+    /* THE GROUP DECIDES WHETHER THE PHASE IS REAL, not the URL. A link may only name a
+     * phase this challenge actually has a hole at — so a hand-edited `&phase=` cannot
+     * file a second Phase 1 against a challenge that already has one, and a link that
+     * has gone stale (the phase was added from another tab) simply falls back to the
+     * normal invitation instead of seeding an impossible draft. */
+    const backfill = group && wantedPhase && backfillablePhases(group).includes(wantedPhase)
+      ? wantedPhase
+      : null;
+    // Seedable when there is a login to add: the one the firm just issued, OR the old
+    // phase this link names. A back-fill is valid even when nothing new is issuable —
+    // that is the case where the trader is filling in history mid-evaluation.
+    const seedable = group && (phaseToAdd(group).phase != null || backfill != null);
+    if (seedable && !isCommitted(draft)) {
       patch({
         capital_kind: 'prop',
         firm_id: group.firm_id,
         firm_name: group.firm_name,
         challenge_mode: 'existing',
         challenge_group_id: group.id,
+        backfill_phase: backfill,
       });
     }
     setSeedTried(true);
-  }, [wantedGroup, seedTried, challenges, draft, patch]);
+  }, [wantedGroup, wantedPhase, seedTried, challenges, draft, patch]);
 
   /* `draftOverride` for the same reason commit() takes one: a step that patches and
    * leaves in ONE handler has not re-rendered yet, so `draft` here is still the answer

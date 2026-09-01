@@ -21,6 +21,10 @@ function shapeGroup(r) {
     product_id: r.product_id ?? null,
     start_balance: num(r.start_balance),
     status: r.status,
+    // Archival state (migration 0028), which is NOT `status`: status says what the
+    // challenge did, this says whether the trader still wants to see it.
+    is_active: r.group_is_active,
+    archived_at: r.group_archived_at ?? null,
     created_at: r.created_at,
     passed_at: r.passed_at ?? null,
     failed_at: r.failed_at ?? null,
@@ -42,6 +46,11 @@ function shapeGroup(r) {
  * whole feature exists for. DISTINCT ON does that in one pass; the ORDER BY inside it
  * is what picks which row wins, so it is not decoration.
  *
+ * ARCHIVED CHALLENGES ARE NOT HERE. A group goes is_active = false once every account
+ * in it is archived (see reconcileGroup), and both callers want it gone: the wizard
+ * must not offer a challenge whose phases the trader has put away, and Prop OS must
+ * not draw one. Unarchiving any phase brings the whole challenge back.
+ *
  * WHAT IS **NOT** HERE: the live figures. Drawdown room, target progress and health
  * come from the engine via GET /api/prop/portfolio, which every prop surface already
  * loads. Recomputing them here would be a second answer to the same question.
@@ -58,6 +67,11 @@ export async function challengeGroupsForUser(userId) {
         ORDER BY c.mt5_account_id, c.start_date DESC, c.id DESC
      )
      SELECT g.id, g.firm_id, g.firm_name, g.product_id, g.start_balance, g.status,
+            -- ALIASED, and it must stay aliased: the account half of this SELECT
+            -- also has an is_active, and pg hands back one object per row — two
+            -- columns of the same name means the second silently wins, so the
+            -- group would report the ARCHIVE STATE OF ITS LAST ACCOUNT.
+            g.is_active AS group_is_active, g.archived_at AS group_archived_at,
             g.created_at, g.passed_at, g.failed_at,
             a.id AS account_id, a.mt5_login, a.label, a.account_type, a.kind,
             a.is_active, a.start_balance AS account_balance, a.created_at AS account_created_at,
@@ -66,7 +80,7 @@ export async function challengeGroupsForUser(userId) {
        FROM challenge_groups g
        LEFT JOIN mt5_accounts a ON a.challenge_group_id = g.id
        LEFT JOIN latest l ON l.mt5_account_id = a.id
-      WHERE g.user_id = $1
+      WHERE g.user_id = $1 AND g.is_active
       ORDER BY g.created_at DESC, g.id DESC, l.start_date ASC NULLS LAST, a.id ASC`,
     [userId],
   );
@@ -74,10 +88,11 @@ export async function challengeGroupsForUser(userId) {
   const groups = new Map();
   for (const r of rows) {
     if (!groups.has(r.id)) groups.set(r.id, { ...shapeGroup(r), accounts: [] });
-    // A LEFT JOIN, so a group whose only account was deleted still comes back — with
-    // no accounts rather than with a row of nulls. It is not dead data: the wizard
-    // must not offer it (nothing to continue), and Prop OS shows it as an empty
-    // challenge rather than losing the record silently.
+    // The LEFT JOIN survives migration 0028's reconciler, which deletes a group as
+    // its last account goes: the two can still cross in a race (an account deleted
+    // between this query planning and reading), and a row of nulls must not become
+    // an account named `null` in the phase list. So the group comes back empty
+    // rather than corrupt, and the next reconcile removes it.
     if (r.account_id == null) continue;
     groups.get(r.id).accounts.push({
       id: Number(r.account_id),
@@ -115,7 +130,9 @@ export async function insertGroup(client, userId, v) {
   const { rows } = await client.query(
     `INSERT INTO challenge_groups (user_id, firm_id, firm_name, product_id, start_balance)
      VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, firm_id, firm_name, product_id, start_balance, status, created_at, passed_at, failed_at`,
+     RETURNING id, firm_id, firm_name, product_id, start_balance, status,
+               is_active AS group_is_active, archived_at AS group_archived_at,
+               created_at, passed_at, failed_at`,
     [userId, v.firm_id ?? null, v.firm_name ?? null, v.product_id ?? null, v.start_balance ?? null],
   );
   return shapeGroup(rows[0]);
@@ -132,6 +149,11 @@ export async function insertGroup(client, userId, v) {
  * return as a 400 rather than trying to distinguish "not yours" from "does not exist",
  * which would confirm the existence of someone else's row.
  *
+ * NEITHER CAN AN ARCHIVED ONE (`AND is_active`): every account in it has been put
+ * away, so adding a phase would resurrect the challenge through a side door instead
+ * of through unarchiving one of its accounts. The route reports it the same way it
+ * reports the other two refusals — one message, no distinction.
+ *
  * A FAILED CHALLENGE CANNOT BE JOINED. status must still be 'active': the firm has
  * taken a breached challenge back, so adding a phase to it would be recording a login
  * that cannot exist. FOR UPDATE because the check and the attach must not straddle
@@ -139,9 +161,11 @@ export async function insertGroup(client, userId, v) {
  */
 export async function lockJoinableGroup(client, groupId, userId) {
   const { rows } = await client.query(
-    `SELECT id, firm_id, firm_name, product_id, start_balance, status, created_at, passed_at, failed_at
+    `SELECT id, firm_id, firm_name, product_id, start_balance, status,
+            is_active AS group_is_active, archived_at AS group_archived_at,
+            created_at, passed_at, failed_at
        FROM challenge_groups
-      WHERE id = $1 AND user_id = $2 AND status = 'active'
+      WHERE id = $1 AND user_id = $2 AND status = 'active' AND is_active
       FOR UPDATE`,
     [groupId, userId],
   );
@@ -263,4 +287,83 @@ export async function reopenChallenge(accountId) {
   } finally {
     client.release();
   }
+}
+
+/**
+ * A CHALLENGE FOLLOWS ITS ACCOUNTS.
+ *
+ * A challenge is not a thing a trader owns separately from the logins in it — it IS
+ * those logins, grouped. So archiving every phase of a challenge has to archive the
+ * challenge, and deleting every phase has to remove it. Before this, neither
+ * happened: Prop OS went on drawing a challenge whose accounts had all been
+ * archived, and the Add Account wizard went on offering a challenge with no accounts
+ * left to continue from.
+ *
+ * THREE OUTCOMES, DECIDED BY THE ACCOUNTS AND NOTHING ELSE:
+ *   no accounts left        -> the group is deleted
+ *   every account archived  -> is_active = false, archived_at stamped
+ *   any account active      -> is_active = true, archived_at cleared
+ *
+ * The last line is what makes this a reconciler rather than an archive function: it
+ * runs after archive, unarchive AND delete, always computes the answer from the
+ * current accounts, and is therefore idempotent. Unarchiving one phase of a
+ * four-phase challenge brings the challenge back without anyone having to remember
+ * that it had been archived.
+ *
+ * STATUS IS NOT TOUCHED. 'passed' / 'failed' / 'active' record what the challenge
+ * DID; is_active records whether the trader wants to see it. A passed challenge is
+ * precisely the kind that gets archived, and folding archival into status would
+ * destroy the record of the pass.
+ *
+ * ARCHIVED_AT IS COALESCEd, not overwritten: re-running this on an
+ * already-archived group must not keep moving the date the trader archived it.
+ *
+ * Takes an optional client so it can run inside the delete transaction; falls back
+ * to the pool for the archive path, which has no transaction of its own.
+ */
+export const RECONCILE_DELETE_EMPTY_SQL = `
+  DELETE FROM challenge_groups g
+   WHERE g.id = $1 AND g.user_id = $2
+     AND NOT EXISTS (SELECT 1 FROM mt5_accounts a WHERE a.challenge_group_id = g.id)
+   RETURNING g.id;`;
+
+export const RECONCILE_ARCHIVE_SQL = `
+  UPDATE challenge_groups g
+     SET is_active   = act.any_active,
+         archived_at = CASE WHEN act.any_active THEN NULL ELSE COALESCE(g.archived_at, now()) END
+    FROM (SELECT bool_or(a.is_active) AS any_active
+            FROM mt5_accounts a
+           WHERE a.challenge_group_id = $1) act
+   WHERE g.id = $1 AND g.user_id = $2
+     AND act.any_active IS NOT NULL
+     AND g.is_active IS DISTINCT FROM act.any_active
+   RETURNING g.id, g.is_active;`;
+
+export async function reconcileGroup(groupId, userId, client = null) {
+  if (groupId == null) return null;
+  const run = client ? (t, v) => client.query(t, v) : (t, v) => query(t, v);
+  // Empty first: a group whose last account just went has nothing for the archive
+  // statement to compute over (bool_or of no rows is NULL, which its own guard
+  // would then skip), so deleting it here is what keeps the two mutually exclusive.
+  const gone = await run(RECONCILE_DELETE_EMPTY_SQL, [groupId, userId]);
+  if (gone.rows.length) return { id: Number(groupId), deleted: true };
+  const { rows } = await run(RECONCILE_ARCHIVE_SQL, [groupId, userId]);
+  if (!rows.length) return null; // already in the right state — nothing changed
+  return { id: Number(rows[0].id), deleted: false, is_active: rows[0].is_active };
+}
+
+/**
+ * The groups an account archive/unarchive/delete could have changed.
+ *
+ * One account only ever sits in one group, but the caller does not always know
+ * which: PATCH /api/accounts/:id gets an id and a partial body, and the delete path
+ * needs the group read BEFORE the row goes. Both ask here.
+ */
+export async function groupIdForAccount(accountId, userId, client = null) {
+  const run = client ? (t, v) => client.query(t, v) : (t, v) => query(t, v);
+  const { rows } = await run(
+    'SELECT challenge_group_id FROM mt5_accounts WHERE id = $1 AND user_id = $2',
+    [accountId, userId],
+  );
+  return rows.length && rows[0].challenge_group_id != null ? Number(rows[0].challenge_group_id) : null;
 }

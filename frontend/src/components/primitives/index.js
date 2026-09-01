@@ -52,7 +52,7 @@
 export { Alert, AlertAction, AlertDescription, AlertTitle } from './alert.jsx';
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
 export { Badge } from './badge.jsx';
-export { Button, buttonVariants } from './button.jsx';
+export { Button, ButtonDot, ButtonLabel, buttonVariants } from './button.jsx';
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.jsx';
 // A count, not a status — see count-badge.jsx for why this is separate from Badge.
 export { CountBadge } from './count-badge.jsx';
@@ -100,3 +100,51 @@ export {
   WizardHeading, WizardNote, WizardPage, WizardPillars, WizardProgress, WizardRow,
   WizardSearch, WizardSectionTitle,
 } from './wizard.jsx';
+
+// The navigation rail. App-specific like the wizard above, and here for the same two
+// reasons: application code imports from this directory, and this is one of only two
+// places a Tailwind utility compiles at all.
+// `RailProvider` and `useRail` are the generated SidebarProvider/useSidebar, re-exported
+// under our names so app code keeps ONE import path and never reaches into
+// components/ui directly (ui-primitives.test.js asserts that).
+export {
+  Rail, RailAction, RailAvatar, RailBrand, RailCta, RailDot, RailFooter, RailItem, RailNav,
+  RailNudge, RailProvider, RailSoon, RailSub, RailSubItem, RailUser, useRail,
+} from './rail.jsx';
+
+// Today's Brief — the dashboard's top card. Here for the same reason as the rail.
+export {
+  BriefAction, BriefAlert, BriefCard, BriefClock, BriefColumns, BriefEvent, BriefHeader,
+  BriefNote, BriefRange, BriefSection,
+} from './brief.jsx';
+
+// The KPI row. Here for the same reason as the rail and the brief.
+export {
+  KpiAside, KpiCard, KpiChip, KpiChips, KpiGauge, KpiLabel, KpiMain, KpiPill,
+  KpiRing, KpiRow, KpiValue,
+} from './kpi.jsx';
+
+// Account Health — the full-width rule-meter card. Same reasoning as the rail.
+export {
+  AccountBanner, AccountBannerAction, BANNER_CRITICAL, AccountCardFoot, AccountCardLink,
+  AccountCardShell, AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore,
+  AccountTabs, Meter, MeterRow,
+} from './account.jsx';
+
+// The dashboard's generic content card, its table vocabulary, the action strip and the
+// skeleton parts — see panel.jsx.
+export {
+  ActionStatus, ActionStrip, LoadingNote, PanelBody, PanelCard, PanelCell, PanelFill,
+  PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelRowHead,
+  PanelTab, PanelTableCell, PanelTableHead, PanelTableRow, PanelTabs, PanelValue,
+  SkeletonBlock, SkeletonLine, SkeletonRegion,
+} from './panel.jsx';
+
+// The P&L calendar's cells.
+export {
+  CalCell, CalCellBody, CalDayNum, CalDow, CalGrid, CalNavButton, CalRoot, CalWeek,
+} from './calendar.jsx';
+
+// The top bar's shell and title. Its controls keep their current skin — topbar.jsx
+// says why.
+export { TopBar, TopBarActions, TopBarTitle } from './topbar.jsx';

@@ -162,6 +162,10 @@ export function buildImportTrades(rows) {
 
     trades.push({
       mt5_ticket: null,
+      // A PLACEHOLDER, not a value. This parser is pure — it never sees the request
+      // — and the import route overwrites this column with the account the upload
+      // named, which migration 0028 made mandatory. Left in the shape so the column
+      // list the insert builds from is complete.
       account_id: null,
       source: 'import',
       symbol,

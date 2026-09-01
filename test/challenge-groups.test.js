@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   challengeGroupRows, challengeName, challengePhases, defaultStage, groupChallengesByFirm,
-  groupLifecycle, isAwaitingPhase, inheritedFields, joinableChallenges, phaseToAdd,
+  backfillablePhases, groupLifecycle, isAwaitingPhase, inheritedFields, joinableChallenges,
+  phaseToAdd,
 } from '../frontend/src/features/prop/challengeGroups.js';
 import { patchDraft, emptyDraft, isStepComplete, toProvisionPayload } from '../frontend/src/features/accounts/newAccountFlow.js';
 import { validateProvision } from '../src/domain/accounts/provision.js';
@@ -89,6 +90,205 @@ test('the addable phase is the one after a PASS, and nothing else', () => {
     ],
   });
   assert.equal(phaseToAdd(toFunded).phase, 'funded');
+});
+
+/* A TRADER WHO JOINED MID-CHALLENGE. Recording only the Phase 2 login is legitimate and
+ * common — people find this app partway through an evaluation. The derivation used to
+ * return at the first EMPTY stage, so it offered "Add Phase 1 account" forever: an
+ * invitation pointing backwards at a login the firm issued weeks ago and has already
+ * replaced, while the funded account the trader actually held could not be recorded. */
+
+test('a challenge joined at Phase 2 offers the phase AFTER its furthest account, not the empty one behind it', () => {
+  const p2Only = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })] });
+  assert.deepEqual(phaseToAdd(p2Only), { phase: 'funded', reason: null });
+  assert.equal(isAwaitingPhase(p2Only), true);
+});
+
+test('a mid-challenge join still refuses on the account that EXISTS', () => {
+  // Phase 2 is the furthest account, so its verdict is the one that decides — the empty
+  // Phase 1 behind it is history, not work outstanding.
+  const running = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'active' })] });
+  assert.equal(phaseToAdd(running).phase, null);
+  assert.match(phaseToAdd(running).reason, /Phase 2 is still running/);
+
+  const blown = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'breached' })] });
+  assert.equal(phaseToAdd(blown).phase, null);
+  assert.match(phaseToAdd(blown).reason, /breached/);
+});
+
+test('a challenge joined straight at funded has nothing left to add', () => {
+  const funded = group({ accounts: [acct({ id: 3, phase: 'funded', challenge_status: 'active' })] });
+  assert.equal(phaseToAdd(funded).phase, null);
+});
+
+test('the phases behind the furthest account are UNTRACKED, not upcoming and not passed', () => {
+  /* A phase is only reachable by clearing the ones before it, so an account at Phase 2
+   * is proof Phase 1 was passed — but we hold no account and no passing row for it.
+   * 'upcoming' would put the start of the journey in front of a trader who is past it;
+   * 'complete' would claim a record this app does not have. */
+  const stages = groupLifecycle(group({
+    accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })],
+  }));
+  assert.deepEqual(stages.map((s) => s.id), ['p1', 'p2', 'funded']);
+  assert.deepEqual(stages.map((s) => s.status), ['untracked', 'complete', 'upcoming']);
+
+  const p1 = stages[0];
+  assert.equal(p1.account, null, 'there is no account behind it — that is the whole point');
+  assert.equal(p1.addable, false, 'it is not the login the firm has just issued');
+  // BUT IT OPENS. The stop was inert, so a trader who still had their Phase 1 login had
+  // nowhere to click: the rail drew the phase, called it passed, and offered no way in.
+  assert.equal(p1.backfillable, true);
+  assert.equal(p1.selectable, true);
+  assert.equal(stages[2].addable, true, 'funded is the login the firm has issued');
+  assert.equal(stages[2].backfillable, false, 'a phase not yet reached is not history');
+});
+
+test('untracked applies only BEHIND the furthest account, never ahead of it', () => {
+  // A normal Phase 1 challenge must be unchanged: everything ahead is still upcoming.
+  const normal = groupLifecycle(group());
+  assert.deepEqual(normal.map((s) => s.status), ['active', 'upcoming', 'upcoming']);
+
+  // And a challenge with no accounts at all claims nothing about any phase.
+  const empty = groupLifecycle(group({ accounts: [] }));
+  assert.deepEqual(empty.map((s) => s.status), ['upcoming', 'upcoming', 'upcoming']);
+  assert.deepEqual(phaseToAdd(group({ accounts: [] })), { phase: 'p1', reason: null });
+});
+
+test('a GAP between recorded phases is untracked too', () => {
+  // p1 recorded and passed, p2 never filed, funded issued: the middle stage is history
+  // we do not hold, not a phase waiting to happen.
+  const gapped = group({
+    accounts: [
+      acct({ id: 1, phase: 'p1', challenge_status: 'passed' }),
+      acct({ id: 3, phase: 'funded', challenge_status: 'active' }),
+    ],
+  });
+  assert.deepEqual(groupLifecycle(gapped).map((s) => s.status), ['complete', 'untracked', 'active']);
+});
+
+test('the addable phase and the untracked phases read ONE boundary', () => {
+  // phaseToAdd and groupLifecycle both measure from the furthest filled phase, so the
+  // stage marked addable is always the one after the last non-untracked, non-upcoming
+  // stop — they cannot drift into offering a phase the rail calls history.
+  const g = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })] });
+  const stages = groupLifecycle(g);
+  const addable = stages.filter((s) => s.addable);
+  assert.equal(addable.length, 1, 'exactly one phase is ever offered');
+  assert.equal(addable[0].id, phaseToAdd(g).phase);
+  assert.equal(addable[0].status, 'upcoming', 'the offered phase is ahead, never untracked');
+});
+
+/* BACK-FILLING. The phase is taken as passed — that is settled — but the trader may
+ * still have the login, and with it every trade and every analytic that phase would
+ * contribute. There has to be a way to hand it over after the fact. */
+
+test('backfillablePhases: the empty phases BEHIND the furthest account, and only those', () => {
+  const joinedAtP2 = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })] });
+  assert.deepEqual(backfillablePhases(joinedAtP2), ['p1']);
+
+  // A phase that HAS an account is already told; one ahead has not been reached.
+  const normal = group();
+  assert.deepEqual(backfillablePhases(normal), []);
+  assert.deepEqual(backfillablePhases(group({ accounts: [] })), []);
+});
+
+test('backfillablePhases: reads positions, so a 3-Step ladder works the same way', () => {
+  // Joined at Phase 3 of a 3-Step: Phases 1 AND 2 are history we do not hold. Nothing
+  // here knows what "p3" means — it is the third position, not a named case.
+  const threeStep = group({
+    product_id: '3step',
+    accounts: [acct({ id: 3, phase: 'p3', challenge_status: 'passed' })],
+  });
+  assert.deepEqual(backfillablePhases(threeStep), ['p1', 'p2']);
+  assert.equal(phaseToAdd(threeStep).phase, 'funded', 'and the next login is still the funded one');
+
+  const stages = groupLifecycle(threeStep);
+  assert.deepEqual(stages.map((s) => s.status), ['untracked', 'untracked', 'complete', 'upcoming']);
+  assert.deepEqual(stages.map((s) => s.selectable), [true, true, true, true]);
+});
+
+test('backfillablePhases: a GAP mid-ladder is offered too', () => {
+  const gapped = group({
+    accounts: [
+      acct({ id: 1, phase: 'p1', challenge_status: 'passed' }),
+      acct({ id: 3, phase: 'funded', challenge_status: 'active' }),
+    ],
+  });
+  assert.deepEqual(backfillablePhases(gapped), ['p2']);
+});
+
+test('back-filling is available even when nothing new can be added', () => {
+  // Mid-evaluation: the firm has issued nothing, so `phaseToAdd` refuses — but the old
+  // Phase 1 login is still missing, and that is exactly when a trader fills history in.
+  const midEval = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'active' })] });
+  assert.equal(phaseToAdd(midEval).phase, null);
+  assert.deepEqual(backfillablePhases(midEval), ['p1']);
+  assert.equal(groupLifecycle(midEval)[0].selectable, true);
+});
+
+test('a settled challenge offers no back-fill', () => {
+  // Nothing can be added to a challenge that is over — history included. The record is
+  // closed, and reopening it through the add flow would be a second, undeclared way in.
+  assert.deepEqual(backfillablePhases(group({ status: 'failed' })), []);
+  assert.deepEqual(backfillablePhases(group({ status: 'passed' })), []);
+  assert.deepEqual(backfillablePhases(null), []);
+});
+
+test('joinableChallenges carries the back-fillable phases, so the wizard can check a link', () => {
+  // A `&phase=` deep link is honoured only when the CHALLENGE agrees the phase is
+  // missing — a hand-edited URL must not file a second Phase 1 against a challenge that
+  // already has one.
+  const g = group({ accounts: [acct({ id: 2, phase: 'p2', challenge_status: 'passed' })] });
+  const [opt] = joinableChallenges([g], { firm_id: 'gft' });
+  assert.deepEqual(opt.backfillPhases, ['p1']);
+  assert.equal(opt.addPhase, 'funded');
+  assert.equal(opt.backfillPhases.includes('funded'), false, 'the next login is not a back-fill');
+  assert.equal(opt.backfillPhases.includes('p2'), false, 'a phase with an account is already told');
+});
+
+/* THE WIZARD SIDE OF A BACK-FILL. The link names a phase; nothing downstream may take
+ * that on trust, and the phase must survive all the way to the submitted payload or the
+ * account lands at the wrong rung of someone's ladder. */
+
+test('the back-fill phase is a draft field of its OWN, not the trader\'s phase pick', () => {
+  // Reusing `phase` would silently reinterpret an answer given on the NEW-challenge
+  // branch as a back-fill instruction the moment the trader switched to an existing one.
+  const d = emptyDraft();
+  assert.equal('backfill_phase' in d, true);
+  assert.equal(d.backfill_phase, null);
+  assert.notEqual('backfill_phase', 'phase');
+});
+
+test('the back-fill instruction dies with the challenge it named', () => {
+  const base = patchDraft(emptyDraft(), {
+    capital_kind: 'prop', firm_id: 'gft', firm_name: 'GoatFundedTrader',
+    challenge_mode: 'existing', challenge_group_id: 7, backfill_phase: 'p1',
+  });
+  assert.equal(base.backfill_phase, 'p1');
+
+  // A different challenge has a different ladder — "p1" against it means something else.
+  assert.equal(patchDraft(base, { challenge_group_id: 9 }).backfill_phase, null);
+  // Leaving the existing-challenge branch drops it with everything else that challenge
+  // dictated.
+  assert.equal(patchDraft(base, { challenge_mode: 'new' }).backfill_phase, null);
+  // And a different firm invalidates the whole chain.
+  assert.equal(patchDraft(base, { firm_id: 'ftmo' }).backfill_phase, null);
+});
+
+test('a back-filled phase reaches the provision payload, and the server accepts it', () => {
+  // The phase is what the whole flow is for; a draft that carried it to the last page and
+  // then submitted the challenge's next phase would file the account at the wrong rung.
+  const draft = patchDraft(emptyDraft({ provisionKey: 'k' }), {
+    capital_kind: 'prop', firm_id: 'gft', firm_name: 'GoatFundedTrader',
+    challenge_mode: 'existing', challenge_group_id: 7, backfill_phase: 'p1',
+    product_id: '2step', phase: 'p1', start_balance: 25000, label: 'GFT 25K P1',
+    daily_dd_pct: 5, max_dd_pct: 10, profit_target_pct: 8, min_trading_days: 3,
+    platform: 'mt5', import_method: 'manual', mt5_login: null,
+  });
+  const payload = toProvisionPayload(draft);
+  assert.equal(payload.phase, 'p1');
+  assert.equal(payload.challenge_group_id, 7);
+  assert.equal(validateProvision(payload).ok, true);
 });
 
 test('nothing can be added to a challenge that is over, or that is complete', () => {

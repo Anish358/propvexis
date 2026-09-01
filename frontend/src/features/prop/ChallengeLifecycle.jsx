@@ -39,17 +39,31 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'nume
 // A stage's tone follows its state. The ACTIVE stage is the exception: its colour is
 // the live health of the challenge running there, which only the engine knows, so it
 // is handed in.
-const STAGE_TONE = { complete: 'good', breached: 'bad', upcoming: 'na', skipped: 'na' };
+/* `untracked` is muted rather than green: the phase WAS passed, but at the firm and
+ * without us, and a full-strength tick would make an inference look like a record. */
+const STAGE_TONE = {
+  complete: 'good', breached: 'bad', upcoming: 'na', skipped: 'na', untracked: 'na',
+};
 const toneOf = (stage, activeTone) => (stage.status === 'active' ? activeTone : STAGE_TONE[stage.status] || 'na');
 
 // The mark inside a stop. Deliberately different SHAPES per state, not one shape in
 // different colours — see the header.
 const markOf = (stage) => {
-  if (stage.status === 'complete') return '✓';
+  // An untracked phase keeps the TICK, because it was passed and the trader should read
+  // it that way at a glance. What separates it from a tracked pass is the outlined,
+  // dashed node it sits in and the status word beneath — not a different symbol, which
+  // would say "something else happened here".
+  if (stage.status === 'complete' || stage.status === 'untracked') return '✓';
   if (stage.status === 'breached') return '✕';
   if (stage.status === 'skipped') return '–';
   return String(stage.step);
 };
+
+/* A leg of the rail is travelled once the stage behind it is CLEARED — which includes an
+ * untracked phase: the journey went that way, we simply were not holding the account.
+ * Drawing those legs as untravelled left the rail broken in front of a challenge that
+ * had visibly progressed past them. */
+const isCleared = (status) => status === 'complete' || status === 'untracked';
 
 /**
  * The rail itself, shared by the Details lifecycle and the challenge cards.
@@ -83,17 +97,21 @@ export function LifecycleRail({
   return (
     <ol className={cx('pc-rail', compact && 'pc-rail--compact')}>
       {stages.map((s, i) => {
-        // A leg of the rail is "travelled" once the stage behind it is cleared. A
-        // skipped stage is not travelled through — the journey never went that way.
-        const inDone = i > 0 && stages[i - 1].status === 'complete';
-        const outDone = s.status === 'complete';
+        // A skipped stage is still not travelled through — the journey never went that
+        // way, which is a different fact from having gone through it unrecorded.
+        const inDone = i > 0 && isCleared(stages[i - 1].status);
+        const outDone = isCleared(s.status);
+        // Travelled, but on the firm's record rather than ours — drawn dashed, so the
+        // rail is continuous without the unrecorded stretch passing for a tracked one.
+        const inSoft = i > 0 && stages[i - 1].status === 'untracked';
+        const outSoft = s.status === 'untracked';
         const clickable = Boolean(onSelect) && s.selectable === true;
         const body = (
           <>
             <span className="pc-step-track" aria-hidden="true">
-              <span className={cx('pc-step-line', i === 0 && 'is-end', inDone && 'is-travelled')} />
+              <span className={cx('pc-step-line', i === 0 && 'is-end', inDone && 'is-travelled', inSoft && 'is-untracked')} />
               <span className="pc-step-node">{markOf(s)}</span>
-              <span className={cx('pc-step-line', i === last && 'is-end', outDone && 'is-travelled')} />
+              <span className={cx('pc-step-line', i === last && 'is-end', outDone && 'is-travelled', outSoft && 'is-untracked')} />
             </span>
             <span className="pc-step-text">
               <span className="pc-step-label">{s.label}</span>

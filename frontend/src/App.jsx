@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState, fetchMe } from './lib/api.js';
 import { useAuth } from './app/AuthContext.jsx';
-import { scopeKey, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './features/filters/filters.js';
-import { sanitizeDashLayout, defaultDashLayout, moveDashIdBefore } from './features/dashboard/dashLayout.js';
+import { scopeKey, readScopeConfig, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './features/filters/filters.js';
 import { sanitizePropLayout, defaultPropLayout } from './features/prop/propLayout.js';
 import { sanitizeBriefPrefs, defaultBriefPrefs } from './features/dashboard/briefPrefs.js';
 import { applyBeRounding } from './lib/metrics.js';
@@ -82,7 +81,7 @@ function wizardRoutes({ accounts, reloadAccounts, setAccountId, firstRun, onOnbo
   ];
 }
 
-const ACCT_KEY = 'amey.accountId';   // 'all' (god) or a specific mt5_login (per-device nav state)
+const ACCT_KEY = 'amey.accountId';   // 'all' or a comma-joined list of mt5 logins (per-device nav state)
 const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
 
 // Legacy localStorage keys (view state now lives server-side). Read once on the
@@ -103,6 +102,12 @@ function clearLegacyViewState() {
 export default function App() {
   const { user, loading, setUser } = useAuth();
   const [trades, setTrades] = useState([]);
+  /* "STILL LOADING" AND "NOTHING TO SHOW" WERE THE SAME STATE, and they are not the
+     same story. `trades` starts as [] and fills in, so a trader whose data is three
+     seconds away saw exactly what a brand-new account with no trades sees: an empty
+     dashboard telling them they have never traded. Starts true because the first fetch
+     is already on its way by the time anything renders. */
+  const [tradesLoading, setTradesLoading] = useState(true);
   const [account, setAccount] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [payouts, setPayouts] = useState([]);
@@ -153,7 +158,7 @@ export default function App() {
         setTradeSettings({ ...defaultTradeSettings(), ...((hasServer ? state.tradeSettings : legacy?.tradeSettings) || {}) });
         // Server-synced selected account wins over this device's cached one.
         // (Ownership is re-validated by the accounts loader, which drops a stale
-        // login back to god view.) Absent on pre-sync blobs → keep the local one.
+        // login back to 'all'.) Absent on pre-sync blobs → keep the local one.
         if (hasServer && state.accountId != null) setAccountId(String(state.accountId));
         if (legacy) clearLegacyViewState();
       })
@@ -180,7 +185,7 @@ export default function App() {
   const sk = scopeKey(accountId);
   // Merge over defaults so configs persisted before a field existed (e.g. the
   // pre-widget Phase A configs) still get sane values.
-  const config = { ...defaultConfig(), ...(viewConfigs[sk] || {}) };
+  const config = { ...defaultConfig(), ...(readScopeConfig(viewConfigs, sk) || {}) };
   // The merge above is shallow, so a config saved before a filter existed brings
   // its own (short) filters object with it — every newer key missing. Rebuilt from
   // the registry on read, which also drops anything malformed.
@@ -192,46 +197,28 @@ export default function App() {
   const unit = viewConfigs.unit || DEFAULT_UNIT;
 
   const mutateConfig = (fn) => setViewConfigs((prev) => {
-    const cur = { ...defaultConfig(), ...(prev[sk] || {}) };
+    // Reads through the legacy-key fallback so the first edit to the all-accounts
+    // scope MIGRATES the old 'god' config forward rather than starting from blank.
+    const cur = { ...defaultConfig(), ...(readScopeConfig(prev, sk) || {}) };
     return { ...prev, [sk]: fn(cur) };
   });
   const setUnit = (u) => setViewConfigs((prev) => ({ ...prev, unit: u }));
 
-  // Colour theme — global like `unit`, and server-synced so it follows the user
-  // across devices. Dark is the default, and :root already holds the dark values,
-  // so the attribute is only set when the theme is light.
-  const theme = viewConfigs.theme === 'light' ? 'light' : 'dark';
-  const setTheme = (t) => setViewConfigs((prev) => ({ ...prev, theme: t === 'light' ? 'light' : 'dark' }));
-  useEffect(() => {
-    const el = document.documentElement;
-    if (theme === 'light') el.dataset.theme = 'light';
-    else delete el.dataset.theme;
-  }, [theme]);
+  /* NO THEME STATE. The app is dark-only as of 2026-08-28 (tokens.css, "NO LIGHT
+     THEME"), so there is nothing to hold, nothing to persist and no `data-theme`
+     attribute to write — :root IS the theme. A stored `theme: 'light'` left over in a
+     user's view state is simply never read; it costs one dead key rather than a
+     migration, and it is what a returning light theme would read first. */
 
-  // Dashboard layout — global like `unit`, not per scope, so switching accounts
-  // never rearranges the page. Sanitized on read rather than on hydrate so a
-  // blob saved before a widget existed still resolves to a complete layout.
-  const dashLayout = useMemo(() => sanitizeDashLayout(viewConfigs.dashLayout), [viewConfigs.dashLayout]);
-  const mutateDashLayout = (fn) => setViewConfigs((prev) => ({
-    ...prev,
-    dashLayout: fn(sanitizeDashLayout(prev.dashLayout)),
-  }));
-  const setDashVisible = (id, visible) => mutateDashLayout((l) => {
-    const hidden = { ...l.hidden };
-    if (visible) delete hidden[id]; else hidden[id] = true;
-    return { ...l, hidden };
-  });
-  // Addressed by id, not index: the layout editor reorders live during a drag, so
-  // an index captured at drag start is stale by the next pointermove.
-  const moveDashWidget = (zone, id, targetId) => mutateDashLayout((l) => ({
-    ...l,
-    [zone]: moveDashIdBefore(l[zone], id, targetId),
-  }));
-  const resetDashLayout = () => mutateDashLayout(() => defaultDashLayout());
+  /* NO DASHBOARD LAYOUT STATE (2026-08-30). The dashboard's arrangement is written in
+     its JSX now — customization comes back once every page is finalised. A stored
+     `viewConfigs.dashLayout` from before that is simply never read; it costs one dead
+     key rather than a migration, and it is exactly what a returning layout editor would
+     want to read first. Same treatment as the stored `theme` above. */
 
-  // Prop OS → Overview layout. Stored beside dashLayout and global for the same
-  // reason — and more strongly here, since the Overview spans every account by
-  // design and so has no account scope to vary by at all.
+  // Prop OS → Overview layout — which KPI tiles are shown. Global like `unit`, and more
+  // strongly so here, since the Overview spans every account by design and so has no
+  // account scope to vary by at all.
   const propLayout = useMemo(() => sanitizePropLayout(viewConfigs.propLayout), [viewConfigs.propLayout]);
   const mutatePropLayout = (fn) => setViewConfigs((prev) => ({
     ...prev,
@@ -261,7 +248,7 @@ export default function App() {
   // blob is normalized by the first edit instead of being written back short.
   const patchFilters = (p) => mutateConfig((c) => ({ ...c, filters: { ...sanitizeFilters(c.filters), ...p } }));
   const clearFilters = () => mutateConfig((c) => ({ ...c, filters: emptyFilters() }));
-  // The Dashboard's selected prop account (god scope), passed as [login].
+  // The Dashboard's selected prop account (all-accounts scope), passed as [login].
   const setPinnedAccounts = (logins) => mutateConfig((c) => ({ ...c, dashboard: { ...c.dashboard, pinnedAccounts: logins } }));
 
   // Precision control snaps near-zero Fixed R to breakeven BEFORE filtering, so
@@ -276,7 +263,7 @@ export default function App() {
   const filterOptions = useMemo(() => availableOptions(trades), [trades]);
 
   // does an incoming socket event belong to the account(s) currently in view?
-  // The selection is 'all' (god) or a comma-joined list of mt5 logins.
+  // The selection is 'all' or a comma-joined list of mt5 logins.
   const inView = (acctId) => {
     const sel = accountIdRef.current;
     return sel === 'all' || String(sel).split(',').includes(String(acctId));
@@ -304,15 +291,26 @@ export default function App() {
   const accountsRef = useRef([]);
   useEffect(() => { accountsRef.current = accounts; }, [accounts]);
 
-  // Load the user's accounts; drop any stale logins from the selection (which may
-  // be 'all' or a comma-joined list). An emptied selection falls back to god view.
+  /* Load the user's accounts; drop any logins the selection can no longer name
+     (which may be 'all' or a comma-joined list). An emptied selection falls back
+     to 'all'.
+
+     ARCHIVED COUNTS AS GONE, and it has to: the server's scope now excludes
+     archived accounts, so keeping one selected would 403 every request on the page
+     — trades, account, payouts, prop — and leave the trader on a broken screen with
+     no control that could fix it (the switcher does not list archived accounts
+     either). Archiving the account you are looking at drops you to 'all', which is
+     the same thing deleting it has always done. */
+  const selectable = (list) => list.filter((a) => a.is_active !== false);
+
   function reloadAccounts() {
     return fetchAccounts()
       .then((list) => {
         setAccounts(list);
         setAccountIdState((cur) => {
           if (cur === 'all') return cur;
-          const kept = String(cur).split(',').filter((l) => list.some((a) => String(a.mt5_login) === l));
+          const live = selectable(list);
+          const kept = String(cur).split(',').filter((l) => live.some((a) => String(a.mt5_login) === l));
           return kept.length ? kept.join(',') : 'all';
         });
         return list;
@@ -364,6 +362,28 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
+  /* DISMISS ONE, for Today's Brief's Clear button (2026-08-29, Rhea).
+   *
+   * The route has always taken `{ ids: [...] }` — only `{ all: true }` was ever called.
+   * The prototype clears an alert into local component state, which would mean a
+   * dismissal that comes back on the next reload and an unread count that disagrees
+   * with the list beside it. Marking it read is the same act the notification panel
+   * already performs, so one alert cannot be "cleared" here and unread there.
+   *
+   * OPTIMISTIC, THEN RECONCILED: the row goes immediately (dismissing a warning should
+   * not wait on a round trip) and the server's own unread count replaces the local
+   * guess when it lands. A failure leaves the alert visible, which is the safe
+   * direction for a message about a drawdown. */
+  async function markNotificationRead(id) {
+    const now = new Date().toISOString();
+    setNotifications((prev) => prev.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: now } : n)));
+    setUnread((u) => Math.max(0, u - 1));
+    try {
+      const { unread: u } = await markNotificationsRead({ ids: [id] });
+      setUnread(u);
+    } catch { /* the row is already gone; the next fetch reconciles */ }
+  }
+
   // Reload payouts for the active scope (funded-account withdrawals).
   function reloadPayouts() {
     return fetchPayouts(accountIdRef.current).then(setPayouts).catch(() => {});
@@ -381,14 +401,30 @@ export default function App() {
   }
 
   // Load trades + account snapshot + payouts for the selected scope. Waits until
-  // accounts are known before trusting a specific (non-god) selection.
+  // accounts are known before trusting a specific (non-'all') selection.
   useEffect(() => {
-    if (!user) { setTrades([]); setAccount(null); setPayouts([]); setFees([]); return; }
+    if (!user) {
+      setTrades([]); setAccount(null); setPayouts([]); setFees([]);
+      // Not logged in is not "loading" — it is an answer, and the router is about to
+      // send them to the login screen anyway.
+      setTradesLoading(false);
+      return;
+    }
+    // `selectable`, not `accounts`: an archived login is out of the server's scope,
+    // so firing the loads for one would 403 four times before reloadAccounts resets
+    // the selection. Waiting is the correct move — the reset is one tick away.
+    const live = selectable(accounts);
     const owned = accountId === 'all'
-      || String(accountId).split(',').every((l) => accounts.some((a) => String(a.mt5_login) === l));
+      || String(accountId).split(',').every((l) => live.some((a) => String(a.mt5_login) === l));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
-    fetchTrades(accountId).then(setTrades).catch((e) => setLoadError(e.message));
+    setTradesLoading(true);
+    // finally, not then: a failed load must stop claiming to be loading, or the page
+    // shows a skeleton for ever with the error banner sitting above it.
+    fetchTrades(accountId)
+      .then(setTrades)
+      .catch((e) => setLoadError(e.message))
+      .finally(() => setTradesLoading(false));
     fetchAccount(accountId).then(setAccount).catch(() => {});
     fetchPayouts(accountId).then(setPayouts).catch(() => {});
     fetchFees(accountId).then(setFees).catch(() => {});
@@ -438,7 +474,7 @@ export default function App() {
     removeLocal(id);
   }
 
-  // Manual strategy trade (god view only): account-less, owned by the user.
+  // Manual trade: owned by the user AND by one of their accounts (required).
   async function addManualTrade(fields) {
     const created = await createManualTrade(fields);
     upsertLocal(created);
@@ -490,6 +526,7 @@ export default function App() {
               element={
               <Layout
                 trades={filteredTrades}
+                tradesLoading={tradesLoading}
                 account={account}
                 accounts={accounts}
                 payouts={payouts}
@@ -505,6 +542,7 @@ export default function App() {
                 notifications={notifications}
                 unread={unread}
                 markAllNotificationsRead={markAllNotificationsRead}
+                markNotificationRead={markNotificationRead}
                 toasts={toasts}
                 dismissToast={dismissToast}
                 connected={connected}
@@ -520,15 +558,9 @@ export default function App() {
                 clearFilters={clearFilters}
                 pinnedAccounts={pinnedAccounts}
                 setPinnedAccounts={setPinnedAccounts}
-                dashLayout={dashLayout}
-                setDashVisible={setDashVisible}
-                moveDashWidget={moveDashWidget}
-                resetDashLayout={resetDashLayout}
                 propLayout={propLayout}
                 setPropVisible={setPropVisible}
                 resetPropLayout={resetPropLayout}
-                theme={theme}
-                setTheme={setTheme}
                 briefPrefs={briefPrefs}
                 patchBriefPrefs={patchBriefPrefs}
                 setBriefSection={setBriefSection}

@@ -8,6 +8,12 @@
 // from this list must still have a way through the flow. mt4/ctrader/tradelocker
 // are the reverse of neither: listed, not yet selectable, badged "Soon" in the UI.
 //
+// A THIRD STATE EXISTS AND TRADELOCKER IS IN IT: credential fields and a note but
+// `connector: null`. The connector module is built and registered; the PLATFORM
+// is the switch, and it stays off until a live account proves the derived P&L
+// reconciles. `enabled` and `connector` are still the only two things any caller
+// reads, so nothing downstream has to know about the distinction.
+//
 // WHY THIS FILE IS NOT THE ONE THE UI READS. The backend cannot import
 // frontend/src — deploy rsyncs `src db scripts ea` plus `frontend/dist`, so such
 // an import works locally and crashes on the box. The UI therefore has its own
@@ -70,12 +76,36 @@ export const PLATFORMS = [
   {
     id: 'tradelocker',
     label: 'TradeLocker',
-    connector: null,        // P2 — REST; see the spec's read-only caveat before shipping
+    // The connector MODULE is built (domain/sync/connectors/tradelocker/) and
+    // registered. This stays null — and the platform stays disabled — until a
+    // real account has synced AND its computed P&L has reconciled against
+    // /trade/accounts/{id}/state. TradeLocker gives us no realized-P&L field, so
+    // every money figure is derived by us; spec §13.2 names that as the largest
+    // technical risk in the connector, and it is only checkable against a live
+    // account. Flipping this early would offer Auto Sync we cannot stand behind.
+    connector: null,        // P2 — see the spec before flipping
     enabled: false,
     importMethods: ['file', 'manual'],
     assetTypes: ['forex', 'cfd'],
-    credentialFields: [],
-    credentialNote: null,
+    // Collected now though Auto Sync is off: the fields are what the wizard's
+    // ConnectStep renders from, and they are the shape the credential validation
+    // and the consent copy are written against.
+    credentialFields: [
+      { name: 'email', label: 'TradeLocker email', type: 'email', required: true, placeholder: 'you@example.com' },
+      { name: 'server', label: 'Broker server', type: 'text', required: true, placeholder: 'OSP-DEMO' },
+      { name: 'password', label: 'TradeLocker password', type: 'password', required: true, secret: true },
+    ],
+    // THIS COPY IS NOT MT5'S, AND MUST NEVER BECOME IT. MT5 promises a
+    // trade-capable password is rejected and deleted, because the worker checks
+    // trade_allowed and that is a checked fact. TradeLocker offers no investor
+    // password, no OAuth and no scope — the only credential it has can place
+    // trades. Saying anything softer here would be a false security claim on a
+    // funded account, which is why the note lives on the descriptor rather than
+    // in a shared page where MT5's promise could be inherited by accident.
+    credentialNote:
+      'TradeLocker has no read-only password — this is the same password that can place trades on your account. '
+      + 'We store it encrypted, and PropVexis only ever reads your trade history with it. '
+      + 'You can disconnect the account at any time, which deletes the stored password.',
   },
   {
     // The escape hatch. Without it, a trader on a platform we have never heard of

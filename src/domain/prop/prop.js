@@ -41,7 +41,39 @@ export function synthesizeEquity(startBalance, trades, startDate) {
   const sorted = [...trades]
     .filter((t) => t.close_time != null && t.pnl_money != null)
     .sort((a, b) => new Date(a.close_time) - new Date(b.close_time));
-  const series = [{ ts: startDate ? new Date(startDate) : new Date(sorted[0]?.close_time ?? Date.now()), equity: base }];
+
+  /* THE BASELINE MUST SIT AT OR BEFORE THE FIRST TRADE, and it did not.
+   *
+   * `challenges.start_date` DEFAULTS TO now() at insert (migration 0016) and is never
+   * written explicitly, so it records when the account was ADDED TO PROPVEXIS. Stamping
+   * the baseline point with it put the opening equity AFTER every backdated trade, and
+   * the series this function promises to return ascending came back out of order.
+   *
+   * WHAT THAT BROKE, and it is the worst possible thing to get wrong: dailyDrawdown()
+   * walks this series in ARRAY order and opens a day's bucket at the first point it
+   * sees for that day. A baseline stamped today therefore opened TODAY'S bucket at the
+   * full starting balance, and the last trade's equity — the bottom of the account's
+   * whole history — became today's low. A trader who lost $200 today on an account
+   * $2,100 down overall was shown $2,100 of daily drawdown, 100% of a $1,250 limit, and
+   * a breach banner for a limit they had not touched. The engine then settles the
+   * challenge on that flag.
+   *
+   * `maxDrawdown` was misread the same way for a TRAILING account, where the peak is
+   * tracked by walking the series forward; a series that jumps backwards in time tracks
+   * a peak that never existed.
+   *
+   * So the anchor is the EARLIER of the recorded start and the first trade. Same root
+   * defect as the trading-day count (see tradingDaysState) and the same shape of fix:
+   * the recorded start is trusted only where it cannot contradict the account's own
+   * history. */
+  const firstClose = sorted.length ? new Date(sorted[0].close_time) : null;
+  const recorded = startDate ? new Date(startDate) : null;
+  const valid = (d) => d && !Number.isNaN(d.getTime());
+  const anchor = valid(recorded)
+    ? (valid(firstClose) && firstClose < recorded ? firstClose : recorded)
+    : (valid(firstClose) ? firstClose : new Date());
+
+  const series = [{ ts: anchor, equity: base }];
   let eq = base;
   for (const t of sorted) {
     eq += Number(t.pnl_money);
@@ -151,37 +183,71 @@ export function dailyDrawdown(challenge, series, asOf, offsetMin = 0) {
 // ---------------------------------------------------------------------------
 // Trading days. Distinct days that have ≥1 trade within the current CYCLE. For
 // funded accounts with min_days_reset_on_payout, the cycle restarts at the last
-// payout, so the counter resets after every withdrawal; otherwise it runs from the
-// challenge/phase start (eval phases naturally reset on phase advance = new row).
+// payout, so the counter resets after every withdrawal.
+//
+// THE CYCLE IS BOUNDED IN DAYS, AND ONLY BY A REAL BOUNDARY. Two bugs lived in the
+// instant-precise `start_date` bound this replaces, and both silently under-counted
+// the one figure a firm uses to decide whether a trader may be paid.
+//
+//   1. `challenges.start_date` DEFAULTS TO now() AT INSERT (migration 0016) and is
+//      never written explicitly — so it records when the account was ADDED TO
+//      PROPVEXIS, not when the phase began at the firm. A trader who has been
+//      trading for a week before signing up had that whole week dropped. Worse, a
+//      trade closed EARLIER ON THE SAME DAY the account was added was dropped too,
+//      so the count could read 0 on a day the trader had visibly traded.
+//
+//      So the recorded start bounds the cycle only when it is the account's SECOND
+//      or later challenge (`first_on_account === false`) — i.e. a genuine phase
+//      boundary written by /api/prop/advance. For the account's first challenge
+//      there is nothing before it to separate from, and the whole of that account's
+//      history is the cycle. That also puts this in step with the drawdown math,
+//      which has always counted EVERY trade on the account: a trade that can breach
+//      the account but cannot count as a trading day is the engine contradicting
+//      itself about which trades belong to this challenge.
+//
+//   2. A boundary is compared BY DAY, through the same dayKey() clock the count
+//      itself uses. A cycle measured in days cannot be opened halfway through one:
+//      the day a phase starts, or a payout lands, is a trading day if it was traded.
+//
+// `cycleStart` still reports the cycle's anchor for consumers that schedule from it
+// (upcomingPayouts anchors a funded payout cycle on it); `countFrom` is the bound
+// actually applied here, and is null when the whole history counts.
 // ---------------------------------------------------------------------------
 export function tradingDaysState(challenge, trades, payouts, asOf, offsetMin = 0) {
   const required = challenge.min_trading_days ?? 0;
-  const start = challenge.start_date ? new Date(challenge.start_date) : null;
+  const start = challenge.first_on_account === false && challenge.start_date
+    ? new Date(challenge.start_date)
+    : null;
 
-  let cycleStart = start;
+  let countFrom = start && !Number.isNaN(start.getTime()) ? start : null;
   if (challenge.min_days_reset_on_payout && payouts?.length) {
     const last = payouts
       .map((p) => new Date(p.payout_date))
       .filter((d) => !Number.isNaN(d.getTime()) && d <= new Date(asOf))
       .sort((a, b) => b - a)[0];
-    if (last && (!cycleStart || last > cycleStart)) cycleStart = last;
+    if (last && (!countFrom || last > countFrom)) countFrom = last;
   }
+  const fromDay = countFrom ? dayKey(countFrom, offsetMin) : null;
+  const asOfDay = dayKey(asOf, offsetMin);
 
   const seen = new Set();
   for (const t of trades) {
     if (t.close_time == null) continue;
-    const ct = new Date(t.close_time);
-    if (cycleStart && ct < cycleStart) continue;
-    if (ct > new Date(asOf)) continue;
-    seen.add(dayKey(ct, offsetMin));
+    const day = dayKey(t.close_time, offsetMin);
+    if (day == null) continue;
+    if (fromDay && day < fromDay) continue;
+    if (asOfDay && day > asOfDay) continue;
+    seen.add(day);
   }
   const completed = seen.size;
+  const anchor = countFrom ?? (challenge.start_date ? new Date(challenge.start_date) : null);
   return {
     required,
     completed,
     remaining: Math.max(0, required - completed),
     met: completed >= required,
-    cycleStart: cycleStart ? cycleStart.toISOString() : null,
+    countFrom: countFrom ? countFrom.toISOString() : null,
+    cycleStart: anchor && !Number.isNaN(anchor.getTime()) ? anchor.toISOString() : null,
   };
 }
 

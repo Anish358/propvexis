@@ -13,7 +13,11 @@ import {
 // how many rows will import / duplicate / skip → confirm to save.
 export default function ImportTradesModal({ onClose, onImported, manualAccounts = [], defaultAccountId = '' }) {
   const [state, dispatch] = useReducer(importReducer, undefined, initialImportState);
-  const [accountId, setAccountId] = useState(defaultAccountId || '');
+  // Never '': an import with no account is rejected by the route (migration 0028
+  // made trades.account_id NOT NULL), so the select opens on a real account.
+  const [accountId, setAccountId] = useState(
+    defaultAccountId || String(manualAccounts[0]?.mt5_login ?? ''),
+  );
   const { fileName, csv, preview, done, error, busy } = state;
   const counts = previewSummary(preview);
 
@@ -88,8 +92,7 @@ export default function ImportTradesModal({ onClose, onImported, manualAccounts 
               {manualAccounts.length > 0 && (
                 <label className="import-account">
                   <span>Import into</span>
-                  <select value={accountId} onChange={onAccountChange}>
-                    <option value="">No account (all-accounts view)</option>
+                  <select value={accountId} onChange={onAccountChange} required>
                     {manualAccounts.map((a) => (
                       <option key={a.id} value={String(a.mt5_login)}>{a.label}</option>
                     ))}

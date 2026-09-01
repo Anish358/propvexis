@@ -25,6 +25,13 @@ function shapeChallenge(r) {
     min_trading_days: r.min_trading_days ?? 0,
     min_days_reset_on_payout: r.min_days_reset_on_payout,
     start_date: r.start_date,
+    /* Is this the account's FIRST challenge row? The engine needs it to know whether
+     * `start_date` is a real phase boundary or just the moment the account was added
+     * to PropVexis — see tradingDaysState in prop.js, which under-counted trading
+     * days for every account added with history behind it. Absent from a hand-built
+     * row (tests, fixtures) reads as undefined, which is neither true nor false, and
+     * tradingDaysState only bounds on an explicit `false`. */
+    first_on_account: r.first_on_account ?? null,
     passed_at: r.passed_at ?? null,
     breached_at: r.breached_at ?? null,
     breach_reason: r.breach_reason ?? null,
@@ -33,8 +40,20 @@ function shapeChallenge(r) {
   };
 }
 
+/* An account's challenges are ordered by (start_date, id) everywhere in this file, so
+ * "first" is the row with nothing before it under that same order. NOT EXISTS rather
+ * than a window function because this rides on queries that already filter to a handful
+ * of accounts, and it keeps the shape of every one of them unchanged. */
+const FIRST_ON_ACCOUNT = `
+  NOT EXISTS (
+    SELECT 1 FROM challenges c0
+     WHERE c0.mt5_account_id = c.mt5_account_id
+       AND (c0.start_date, c0.id) < (c.start_date, c.id)
+  ) AS first_on_account`;
+
 const CH_SELECT = `
-  SELECT c.*, a.mt5_login, a.label, a.currency, a.firm_id, a.firm_name
+  SELECT c.*, a.mt5_login, a.label, a.currency, a.firm_id, a.firm_name,
+         ${FIRST_ON_ACCOUNT}
     FROM challenges c
     JOIN mt5_accounts a ON a.id = c.mt5_account_id`;
 
@@ -78,7 +97,8 @@ export async function activeChallengesByLogin(logins) {
 export async function currentChallengesByLogin(logins) {
   if (!logins?.length) return new Map();
   const { rows } = await query(
-    `SELECT DISTINCT ON (a.mt5_login) c.*, a.mt5_login, a.label, a.currency, a.firm_id, a.firm_name
+    `SELECT DISTINCT ON (a.mt5_login) c.*, a.mt5_login, a.label, a.currency, a.firm_id, a.firm_name,
+            ${FIRST_ON_ACCOUNT}
        FROM challenges c
        JOIN mt5_accounts a ON a.id = c.mt5_account_id
       WHERE a.mt5_login = ANY($1::bigint[])

@@ -7,9 +7,8 @@ import { Modal } from '@/components/primitives';
 const SESSIONS = ['', 'ASIA', 'LDN', 'NY'];
 
 // Manual trade entry. Result is entered directly in R; SL/MFE pips are optional
-// (used to derive Max R). Optionally scoped to a manual account for a segregated
-// per-account view, else account-less (god view only). Strategy options come from
-// the user's live catalog.
+// (used to derive Max R). ALWAYS scoped to a manual account — see the Account
+// field below. Strategy options come from the user's live catalog.
 //
 // IT IS "ADD TRADE", NOT "ADD STRATEGY TRADE" (owner decision 2026-08-27). The old name
 // described the account-less case — a trade with no account exists only in the
@@ -25,14 +24,18 @@ const SESSIONS = ['', 'ASIA', 'LDN', 'NY'];
 // P&L IS COLLECTED TOO, and the server has always accepted it — POST /api/trades reads
 // `pnl_money` and stores it nullable, so this field is the client half of a column that
 // existed with nothing to fill it. It matters because the two units are not derivable
-// from each other: the journal is R-based in the god view (`fixed_r`) and DOLLAR-based
-// per account (`pnl_money`), and a manual trade with no money figure showed as $0 on
+// from each other: the journal is R-based across several accounts (`fixed_r`) and
+// DOLLAR-based per account (`pnl_money`), and a manual trade with no money figure showed as $0 on
 // every single-account surface. R stays REQUIRED — it is what every R-based aggregate is
 // computed from, and the route rejects a trade without it.
 export default function AddTradeModal({ onClose, onAdd, strategies = [], manualAccounts = [], defaultAccountId = '' }) {
   const setupOptions = ['', ...strategies.map((s) => s.name)];
   const today = new Date().toISOString().slice(0, 10);
-  const [accountId, setAccountId] = useState(defaultAccountId || '');
+  // Falls back to the first manual account rather than to '': the server rejects a
+  // trade with no account, so an empty select would be a form that cannot submit.
+  const [accountId, setAccountId] = useState(
+    defaultAccountId || String(manualAccounts[0]?.mt5_login ?? ''),
+  );
   const [f, setF] = useState({
     close_date: today, symbol: '', direction: '', fixed_r: '', pnl_money: '',
     sl_size_pips: '', mfe_pips: '', setup: '', session: '', comments: '',
@@ -44,11 +47,15 @@ export default function AddTradeModal({ onClose, onAdd, strategies = [], manualA
   async function submit(e) {
     e.preventDefault();
     if (f.fixed_r === '' || Number.isNaN(Number(f.fixed_r))) { setErr('Enter the result in R (e.g. 2 or -1).'); return; }
+    // Checked here so the trader reads it beside the field, not as a 400 from the
+    // route. Only reachable with no manual accounts at all, which the Trade Log's
+    // button already guards — this is the second lock on the same door.
+    if (accountId === '') { setErr('Pick the account this trade belongs to.'); return; }
     setBusy(true);
     setErr(null);
     try {
       await onAdd({
-        account_id: accountId === '' ? null : Number(accountId),
+        account_id: Number(accountId),
         close_time: `${f.close_date}T12:00:00Z`,
         open_time: `${f.close_date}T12:00:00Z`,
         symbol: f.symbol.trim() || 'MANUAL',
@@ -80,10 +87,12 @@ export default function AddTradeModal({ onClose, onAdd, strategies = [], manualA
         </div>
 
         <form className="at-form" onSubmit={submit}>
+          {/* NO "No account" OPTION any more. It was the control for a state the data
+              model no longer has, and leaving it would offer a choice whose only
+              outcome is a rejected save. */}
           {manualAccounts.length > 0 && (
             <label>Account
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                <option value="">No account (all-accounts view)</option>
+              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
                 {manualAccounts.map((a) => (
                   <option key={a.id} value={String(a.mt5_login)}>{a.label}</option>
                 ))}

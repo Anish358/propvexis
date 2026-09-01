@@ -13,10 +13,17 @@ import { round2 } from '../trades/derive.js';
 
 // The Prop OS state for a scope — extracted verbatim from the /api/prop route so
 // the report and the live Prop OS page share ONE composition. Single account →
-// one state object; god → { god:true, accounts:[...] }; empty → matches /api/prop.
+// one state object; several → { multi:true, accounts:[...] }; empty → matches
+// /api/prop.
+//
+// `scope.multi` is what picks the shape, and the portfolio routes SET IT BY HAND
+// (`{ userId, logins, multi: true }`) rather than deriving it: Prop OS › Accounts
+// draws one card per account and must keep doing so for a trader who owns exactly
+// one, where a derived `multi` would be false and the card would arrive as a bare
+// state object the grid cannot render.
 export async function propStatesForScope(scope, asOf = new Date()) {
   const logins = scope.logins;
-  if (!logins.length) return scope.god ? { god: true, accounts: [] } : null;
+  if (!logins.length) return scope.multi ? { multi: true, accounts: [] } : null;
 
   const [challenges, trades, snaps, payouts, accts] = await Promise.all([
     currentChallengesByLogin(logins),
@@ -52,8 +59,8 @@ export async function propStatesForScope(scope, asOf = new Date()) {
     return { ...meta, challengeId: challenge.id, ...state };
   };
 
-  if (!scope.god) return build(logins[0]);
-  return { god: true, accounts: logins.map(build) };
+  if (!scope.multi) return build(logins[0]);
+  return { multi: true, accounts: logins.map(build) };
 }
 
 // Assemble the full report for a scope. Reuses computeStats/computeYearly (Journal),
@@ -74,7 +81,7 @@ export async function buildReport(scope, { unit = 'R', filters = {}, beRound = f
   const inScope = accounts.filter((a) => scope.logins.includes(a.mt5_login));
   const finance = financeSummary({ payouts: payoutRows, fees: feeRows, accounts: inScope });
   return {
-    meta: { unit, filters, year: yr, god: scope.god },
+    meta: { unit, filters, year: yr, multi: scope.multi },
     stats,
     yearly,
     prop,
@@ -99,7 +106,7 @@ export function toCsv(rows) {
 export function reportCsvRows(report) {
   const rows = [];
   const { meta, stats, prop, payouts } = report;
-  rows.push(['Report', `unit=${meta.unit}`, `year=${meta.year}`, meta.god ? 'god view' : 'single account']);
+  rows.push(['Report', `unit=${meta.unit}`, `year=${meta.year}`, meta.multi ? 'multiple accounts' : 'single account']);
   rows.push([]);
 
   const h = stats?.headline ?? {};
@@ -121,8 +128,8 @@ export function reportCsvRows(report) {
   breakdown('By setup', stats?.bySetup);
   breakdown('By instrument', stats?.byInstrument);
 
-  // Prop summary — one row per account (god) or the single account.
-  const accts = prop?.god ? prop.accounts : (prop ? [prop] : []);
+  // Prop summary — one row per account when several are in scope, else the one.
+  const accts = prop?.multi ? prop.accounts : (prop ? [prop] : []);
   const withChallenge = accts.filter((a) => a && a.phase);
   if (withChallenge.length) {
     rows.push(['Prop status']);

@@ -48,7 +48,7 @@ const code = (s) => s
 
 // Every dialog in the app, and the surface each one renders on. Thirteen, not the
 // eleven the original audit counted: SetTargetModal is declared inline inside
-// Dashboard.jsx, and DashLayoutEditor uses `.dle-*` classes, so neither turned up in a
+// Dashboard.jsx, and the (now removed) layout editor used `.dle-*` classes, so neither turned up in a
 // grep for `*Modal.jsx` or `.modal-backdrop`.
 const DIALOGS = [
   // Was `AccountsModal.jsx`. The manage-everything modal split into AccountEditModal
@@ -68,7 +68,9 @@ const DIALOGS = [
   ['TradeSettingsModal.jsx', 'modal'],
   ['Dashboard.jsx', 'modal'],          // SetTargetModal, inline
   ['ReplayModal.jsx', 'rp-modal'],     // its own 960x640 chart frame
-  ['DashLayoutEditor.jsx', 'dle-panel'], // its own light-scrim editor panel
+  // DashLayoutEditor.jsx was here with its own `.dle-panel` surface. It went with the
+  // customize-layout feature (2026-08-30); ReplayModal is now the only dialog that
+  // keeps a surface of its own.
 ];
 
 test('every dialog is on the shared shell', () => {
@@ -103,7 +105,7 @@ test('the hand-written role="dialog" attributes are gone, because the primitive 
 });
 
 test('no dialog keeps a keydown listener for Escape — the shell owns it', () => {
-  // Three did: the day journal, ReplayModal and DashLayoutEditor. Two listeners racing
+  // Three did: the day journal, ReplayModal and the old layout editor. Two listeners racing
   // to close the same dialog is not additive, it is a bug waiting for one of them to
   // grow a guard the other does not have. The day journal is the live example — its
   // `!saving` guard now sits on the shell's onClose, covering Escape and outside-click
@@ -174,10 +176,11 @@ test('Replay and the layout editor keep their OWN surface, and that is not cosme
   // the base class is a prop with a default rather than a constant:
   //
   //   .rp-modal   declares no padding   -> would gain .modal's 24px, shrinking the chart
-  //   .dle-panel  declares no max-width -> would gain .modal's 560px cap, and it is 620px
+  //
+  // `.dle-panel` was the second example (no max-width, and it was 620px against the
+  // .modal cap of 560). Its editor is gone; the rule it illustrates is not, so
+  // ReplayModal carries the argument alone now.
   assert.match(code(src('ReplayModal.jsx')), /surface="rp-modal" backdrop="rp-backdrop"/);
-  assert.match(code(src('DashLayoutEditor.jsx')), /surface="dle-panel"/);
-  assert.match(code(src('DashLayoutEditor.jsx')), /backdrop="dle-backdrop"/);
   const body = (sel) => {
     const start = css.indexOf(`${sel} {`);
     assert.ok(start !== -1, `rule ${sel} exists`);

@@ -27,7 +27,7 @@ export default function propRoutes(app, ctx) {
 
   // ---------------------------------------------------------------------------
   // Prop OS — challenge / drawdown / rule state for the selected account, or a
-  // portfolio (one card per account) for the god view. Computed by src/domain/prop/prop.js over
+  // portfolio (one card per account) when several are selected. Computed by src/domain/prop/prop.js over
   // the account's active challenge + trades + payouts + EA equity snapshots. All in
   // account currency ($). Scoped like /api/account.
   // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ export default function propRoutes(app, ctx) {
   // everything to this user.
   app.get('/api/prop/overview', { preHandler: app.requireAuth }, async (req) => {
     const logins = await ownedLogins(req.user.uid);
-    const scope = { god: true, userId: req.user.uid, logins, filterCol: 'user_id' };
+    const scope = { userId: req.user.uid, logins, multi: true };
     const asOf = new Date();
 
     const [propStates, allAccounts, payouts, fees, challenges, lastTrade, days] = await Promise.all([
@@ -82,8 +82,8 @@ export default function propRoutes(app, ctx) {
     // Filtered here, at the destructuring, so nothing downstream can see a live
     // account: propOverview.js computes over whatever list it is handed.
     const accounts = propAccountsOnly(allAccounts);
-    // propStatesForScope returns { god: true, accounts: [...] } for a god scope, and
-    // null when the user owns nothing at all.
+    // propStatesForScope returns { multi: true, accounts: [...] } for a multi scope,
+    // and null when the user owns nothing at all.
     const states = propStates?.accounts ?? [];
 
     return {
@@ -118,7 +118,7 @@ export default function propRoutes(app, ctx) {
   // would be a second copy that can go stale against the first.
   app.get('/api/prop/portfolio', { preHandler: app.requireAuth }, async (req) => {
     const logins = await ownedLogins(req.user.uid);
-    const scope = { god: true, userId: req.user.uid, logins, filterCol: 'user_id' };
+    const scope = { userId: req.user.uid, logins, multi: true };
 
     const [propStates, allAccounts, challenges] = await Promise.all([
       propStatesForScope(scope),

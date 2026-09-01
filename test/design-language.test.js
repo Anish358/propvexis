@@ -43,13 +43,15 @@ test('§7 — no component writes an elevation shadow; only the ladder does', ()
     'these cast a shadow without using --sh-1/2/3 — see DESIGN-LANGUAGE §7');
 });
 
-test('§7 — the ladder is three levels, themed for both modes', () => {
+test('§7 — the ladder is three levels, defined once', () => {
+  /* ONCE, NOT TWICE, SINCE 2026-08-28. This asserted each shadow was declared twice —
+   * on :root and again under [data-theme="light"] — because a level defined only for
+   * dark would fall back to a dark shadow on a white surface. There is no light theme
+   * any more (tokens.css, "NO LIGHT THEME"), so a second declaration would be a value
+   * nothing reads. The ladder itself is unchanged: three levels, all present. */
   for (const t of ['--sh-1', '--sh-2', '--sh-3']) {
-    // Twice: once on :root (dark) and once under [data-theme="light"]. A level defined
-    // only for dark would silently fall back to the dark shadow on a white surface,
-    // which is the failure mode §7's dark/light CONTEXT note warns about.
     const hits = (tokensCss.match(new RegExp(`${t}:`, 'g')) || []).length;
-    assert.equal(hits, 2, `${t} must be defined for both themes, found ${hits}`);
+    assert.equal(hits, 1, `${t} must be defined exactly once, found ${hits}`);
   }
 });
 
@@ -110,10 +112,22 @@ test('§6 — every floating overlay takes the card radius', () => {
   }
 });
 
-test('§6 — the assignment rule is documented where it is enforced', () => {
-  // It lived only as a comment beside the values for months. A rule nobody can find is
-  // a rule nobody follows, which is why ~110 literal radii accumulated against it.
-  assert.match(tokensCss, /Cards -> --r-2xl/, 'tokens.css keeps the short form');
+test('§6 — the assignment rule is documented where it is enforced, on the Rhea scale', () => {
+  /* WHAT THIS USED TO PIN: the string "Cards -> --r-2xl" in tokens.css, because the
+   * assignment-by-surface rule had lived only as a comment beside the values and a rule
+   * nobody can find is a rule nobody follows (~110 literal radii accumulated against it).
+   *
+   * The rule is unchanged; the SCALE moved (§6/§22, 2026-08-29 — the preset's rem steps
+   * became Rhea's 5/6/10/12/14/99px). So this now pins the two things that would
+   * actually break a page rather than one comment's wording: that every step of the
+   * scale is declared, and that the card step is documented as belonging to cards. */
+  assert.match(tokensCss, /CARDS and floating overlays/,
+    'tokens.css must still say which surface --r-2xl is for');
+  const RHEA = { '--r-sm': '5px', '--r-md': '6px', '--r-lg': '10px', '--r-input': '10px', '--r-xl': '12px', '--r-2xl': '14px', '--r-full': '99px' };
+  for (const [name, value] of Object.entries(RHEA)) {
+    assert.match(tokensCss, new RegExp(`(?<![\\w-])${name}\\s*:\\s*${value}\\b`),
+      `${name} must be ${value} on the Rhea scale — see DESIGN-LANGUAGE §6`);
+  }
 });
 
 // ── §14 Hover ────────────────────────────────────────────────────────────────

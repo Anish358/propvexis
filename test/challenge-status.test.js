@@ -308,11 +308,23 @@ test('EVERY trade write re-evaluates its account, not just the EA ingest', () =>
   const trades = readBackend('routes/trades.js');
   const WRITES = [
     ["app.post('/api/trades/ingest'", 'the EA ingest'],
+    ["app.post('/api/trades/ingest/batch'", 'a batched backfill'],
     ["app.post('/api/trades'", 'a hand-entered trade'],
     ["app.post('/api/trades/import'", 'a CSV import'],
     ["app.patch('/api/trades/:id'", 'an edit (an SL change rescales fixed_r)'],
     ["app.delete('/api/trades/:id'", 'a delete (it gives drawdown room back)'],
   ];
+  /* DELEGATION COUNTS, BUT ONLY TO A HELPER THAT ACTUALLY DOES IT. The ingest
+   * routes share `ingestOne` so the derivation rules are not duplicated, which
+   * moved runAlerts out of their handler bodies. Accepting the delegation without
+   * the second assertion below would turn this guard into "mentions a function
+   * name" -- so ingestOne is checked directly, and the guarantee is unchanged:
+   * every trade write still re-evaluates its account. */
+  assert.match(
+    trades.slice(trades.indexOf('async function ingestOne'), trades.indexOf("\n  app.post('/api/trades/ingest'")),
+    /runAlerts\(/,
+    'ingestOne is what the ingest routes delegate to — it must re-evaluate the account'
+  );
   for (const [anchor, what] of WRITES) {
     const from = trades.indexOf(anchor);
     assert.ok(from > -1, `${anchor} not found`);
@@ -322,7 +334,7 @@ test('EVERY trade write re-evaluates its account, not just the EA ingest', () =>
      * failed on a handler that was correct. */
     const next = trades.indexOf('\n  app.', from + anchor.length);
     const body = trades.slice(from, next === -1 ? undefined : next);
-    assert.match(body, /runAlerts\(/, `${what} does not re-evaluate its account`);
+    assert.match(body, /runAlerts\(|ingestOne\(/, `${what} does not re-evaluate its account`);
   }
   // The equity feed too: floating drawdown is what breaches an account intraday.
   assert.match(readBackend('routes/candles.js'), /runAlerts\(/);

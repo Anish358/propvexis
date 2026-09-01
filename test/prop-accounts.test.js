@@ -140,8 +140,10 @@ test('single-select replaces the selection and says so semantically', () => {
   assert.match(topbar, /singleSelect \? \(\s*<MenuItem/s);
   // The multi-select path is untouched for every other route.
   assert.match(topbar, /<MenuCheckboxItem[\s\S]*?onCheckedChange=\{\(\) => toggle\(a\.mt5_login\)\}/);
-  // "All accounts" survives in both modes: god view is still a valid scope.
-  assert.match(topbar, /onClick=\{\(\) => setAccountId\(GOD\)\}/);
+  // "All accounts" survives in both modes — it is a selection of every active
+  // account now, not the god view it used to name.
+  assert.match(topbar, /onClick=\{\(\) => setAccountId\(ALL\)\}/);
+  assert.ok(!/\bGOD\b/.test(topbar), 'the god-view constant must be gone');
 });
 
 // ---------------------------------------------------------------------------
@@ -176,7 +178,14 @@ test('Recent Trades is the Dashboard\'s table, moved rather than copied', () => 
   assert.match(dash, /import RecentTrades from '[^']*RecentTrades\.jsx'/);
   assert.match(workspace, /import RecentTrades from '[^']*RecentTrades\.jsx'/);
   assert.ok(!dash.includes('function RecentTrades'), 'the Dashboard must not keep a copy');
-  assert.match(recent, /className="jo-recent-table"/, 'same markup, same classes');
+  /* WAS `className="jo-recent-table"`. The list is Panel* primitives since the
+   * 2026-08-28 rebuild, so the class is gone — but what this test protects is that
+   * BOTH surfaces render the same component, not which class it wears. Pinned on the
+   * shared row primitive instead, which is the thing that would actually have to be
+   * duplicated for the two to drift. */
+  // PanelTableRow since the Rhea rebuild (was PanelRow) — same point: the shared row
+  // primitive is the thing that would have to be duplicated for the two to drift.
+  assert.match(recent, /<PanelTableRow key=\{t\.id\} cols=\{COLS\}>/, 'one list component, two surfaces');
   // The only difference between the two call sites is a row count, not a design.
   assert.match(recent, /limit = 6/);
   assert.match(workspace, /limit=\{14\}/);

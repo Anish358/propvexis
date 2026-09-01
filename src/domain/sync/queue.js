@@ -9,10 +9,67 @@ import { PLATFORM_IDS } from './platforms.js';
 // keeps every query assertable in CI without a database, which is the only
 // reason the parameterization here is testable at all.
 
-// A journal is a historical record, not a trading signal, so "recent" is minutes
-// rather than seconds. 15 minutes in market hours reads as near-live to a trader
-// checking mid-session while keeping one serial worker far inside its capacity.
-export const SYNC_INTERVAL_MS = 15 * 60 * 1000;
+// HOW OFTEN AN ACCOUNT IS SYNCED WITHOUT BEING ASKED.
+//
+// Three hours, not the fifteen minutes this started at. The change is about
+// capacity, and the arithmetic is not close:
+//
+//   TradeLocker's rate limits are per-route and SHARED across every user,
+//   because every request leaves one box with one egress IP. At 1000 accounts and
+//   ~3 requests per sync, a 15-minute cadence needs ~3,000 requests to land inside
+//   every 15-minute window -- ~3.3 req/s sustained and bursty, against a documented
+//   per-route limit in the low single digits. It does not fit. At three hours the
+//   same work spreads to ~0.3 req/s and does.
+//
+//   MT5 is worse and always was: one serial worker at roughly 90s per sync cannot
+//   complete even 100 accounts inside 15 minutes, let alone 1000. The old interval
+//   was a promise the farm could not keep once it had more than a handful of
+//   accounts.
+//
+// A journal is a historical record, not a trading signal -- three hours is a
+// defensible floor for the unattended case, and "Sync now" covers the impatient
+// one. cTrader is the exception that proves it: it PUSHES, so its trades arrive in
+// seconds and this interval is only its reconciliation pass.
+//
+// Per platform, because the platforms differ in what the interval is FOR. They are
+// equal today; the shape is what matters, so changing one cannot silently change
+// the others.
+export const SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000;
+
+export const PLATFORM_SYNC_INTERVAL_MS = {
+  mt5: 3 * 60 * 60 * 1000,          // delivery; bounded by one serial Windows worker
+  ctrader: 3 * 60 * 60 * 1000,      // RECONCILE only -- push is the delivery path
+  tradelocker: 3 * 60 * 60 * 1000,  // delivery; bounded by a shared per-IP rate limit
+};
+
+/**
+ * How long a user must wait between manual "Sync now" presses.
+ *
+ * ENFORCED SERVER-SIDE, and that is the whole point. A greyed-out button is a
+ * suggestion; this is the rate limit. It matters most for TradeLocker, whose limit
+ * is shared across all users from our single egress IP -- there, one impatient
+ * trader hammering sync degrades every other customer's sync.
+ */
+export const MANUAL_COOLDOWN_MS = 15 * 60 * 1000;
+
+/**
+ * Is a manual sync still in cooldown, and for how much longer?
+ *
+ * Pure, so the rule is testable without a database or a clock.
+ *
+ * APPLIES REGARDLESS OF WHETHER THE LAST JOB SUCCEEDED. Letting a failed account
+ * be retried freely inverts the purpose: an account that is failing is quite often
+ * failing BECAUSE of a rate limit, and unlimited retries are exactly what must not
+ * happen next. The queue's own backoff ladder is what retries a failure.
+ */
+export function manualCooldown(lastJob, now = Date.now(), cooldownMs = MANUAL_COOLDOWN_MS) {
+  const finished = lastJob?.finished_at;
+  if (!finished) return { blocked: false, retryAfterMs: 0 };
+  const remaining = cooldownMs - (now - new Date(finished).getTime());
+  return remaining > 0
+    ? { blocked: true, retryAfterMs: remaining }
+    : { blocked: false, retryAfterMs: 0 };
+}
 
 // How long a lease is good for. Generous relative to a normal sync (~90s) because
 // the cost of expiring a live lease is a duplicated run, while the cost of too
@@ -80,21 +137,38 @@ export function enqueueQuery(accountId, reason = 'manual') {
  * with more than one API worker, the read and the write would race and both
  * would queue the same account.
  *
- * Excluded: inactive accounts, manual (non-MT5) accounts, and credentials whose
- * last login reported trade_allowed — those are master passwords awaiting
- * deletion, and we do not log in with them again.
+ * Excluded: inactive accounts, manual (non-synced) accounts, anything synced
+ * recently enough for its platform, and — ON MT5 ONLY — credentials whose last
+ * login reported trade_allowed, which are master passwords awaiting deletion.
  */
-export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS) {
+export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS, perPlatform = PLATFORM_SYNC_INTERVAL_MS) {
+  const platforms = Object.keys(perPlatform);
+  const seconds = platforms.map((p) => Math.round(perPlatform[p] / 1000));
   return {
-    text: `INSERT INTO sync_jobs (account_id, reason, platform)
+    // The per-platform interval arrives as two parallel arrays unnested into a
+    // CTE rather than as string-built SQL, so the cadence stays a bound parameter.
+    // LEFT JOIN, not JOIN: a platform absent from the map must fall back to the
+    // default, never vanish from the scheduler.
+    text: `WITH intervals(platform, secs) AS (
+             SELECT * FROM unnest($2::text[], $3::int[])
+           )
+           INSERT INTO sync_jobs (account_id, reason, platform)
            SELECT a.id,
                   CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule' END,
                   a.platform
              FROM mt5_accounts a
              JOIN mt5_credentials c ON c.account_id = a.id
+             LEFT JOIN intervals i ON i.platform = a.platform
             WHERE a.is_active
               AND a.kind = 'synced'
-              AND c.read_only IS NOT FALSE
+              -- read_only = FALSE means DIFFERENT THINGS PER PLATFORM, so this
+              -- rule is scoped to the one it is about. On MT5 it is a master
+              -- password awaiting deletion and must never be retried. On
+              -- TradeLocker EVERY credential is legitimately read_only = FALSE,
+              -- because the platform offers no read-only alternative at all --
+              -- left unscoped, this single line would silently queue no
+              -- TradeLocker account ever, with no error anywhere.
+              AND (a.platform <> 'mt5' OR c.read_only IS NOT FALSE)
               AND NOT EXISTS (
                     SELECT 1 FROM sync_jobs j
                      WHERE j.account_id = a.id AND j.status IN ('queued', 'leased'))
@@ -102,10 +176,10 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS) {
                     (SELECT max(d.finished_at) FROM sync_jobs d
                       WHERE d.account_id = a.id AND d.status = 'done'),
                     'epoch'::timestamptz
-                  ) < now() - make_interval(secs => $1)
+                  ) < now() - make_interval(secs => COALESCE(i.secs, $1))
            ON CONFLICT (account_id) WHERE status IN ('queued', 'leased') DO NOTHING
            RETURNING id, account_id, reason, platform;`,
-    values: [Math.round(intervalMs / 1000)],
+    values: [Math.round(intervalMs / 1000), platforms, seconds],
   };
 }
 

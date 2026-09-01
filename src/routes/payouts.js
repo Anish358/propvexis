@@ -20,7 +20,7 @@ export default function payoutRoutes(app, ctx) {
 
   // ---------------------------------------------------------------------------
   // Payouts — profit withdrawals on FUNDED accounts. Scoped like trades/account:
-  // a specific account returns its payouts, the god view returns all owned ones.
+  // a specific account returns its payouts, 'all' returns every active account's.
   // ---------------------------------------------------------------------------
   app.get('/api/payouts', { preHandler: app.requireAuth }, async (req, reply) => {
     const scope = await resolveScope(req.user.uid, req.query.account_id);

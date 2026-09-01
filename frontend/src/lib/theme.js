@@ -5,19 +5,26 @@
 export const BRAND = 'PropVexis';
 
 const FALLBACKS = {
-  // Foundation values from preset b2qKmlY80. Last resort for non-DOM contexts
-  // (tests) only -- live values always come from tokens.css.
+  // Last resort for non-DOM contexts (tests) only -- live values always come from
+  // tokens.css, and design-tokens.test.js resolves both sides and compares them.
+  // Outcome hues are the 2026-08-28 Figma values; the blues predate it and are unchanged.
   '--accent': '#193cb8',              // brand FILL
   '--accent-on-surface': '#2b7fff',   // brand as a stroke/link (5.26:1 on --bg)
+  '--chart-line': '#e4e4e7',          // a neutral single-series line — see chartPalette
   '--accent-bg': 'rgba(43,127,255,0.14)',
-  '--profit': '#22c55e',   // trade profit (green)
-  '--loss': '#ef4444',     // trade loss (red)
+  // Rhea outcome hues (2026-08-29), reverted from the #00d492/#ff6467 Figma pass.
+  // TWO GREENS AND TWO REDS: the structural hue is drawn on the page, the bright one
+  // ON A TINT — a chart line over its own tinted area needs the bright one to carry.
+  '--profit': '#22c55e',        // trade profit — structural
+  '--profit-bright': '#4ade80', // trade profit — on a tint
+  '--loss': '#ef4444',          // trade loss — structural
+  '--loss-bright': '#f87171',   // trade loss — on a tint
   '--ai': '#8b5cf6',       // AI / insight accent (purple)
   '--payout': '#38bdf8',   // funded-account payout highlight (cyan)
   '--status-bad': '#ef4444',
   '--red': '#ef4444',
-  '--muted': '#a1a1a1',
-  '--neutral-7': '#23232a',  // gauge/ring track (DashWidgets)
+  '--muted': '#a1a1aa',
+  '--chart-grid': '#1e1e23',  // gauge/ring track and chart gridlines
 };
 
 export function token(name) {
@@ -49,9 +56,17 @@ export function chartPalette() {
   paletteCache = {
     profit: token('--profit'),
     loss: token('--loss'),
-    // The brand step meant to be READ, not filled: --accent is the preset's fill
-    // value and measures 2.24:1 on --bg, which is invisible as a 2px stroke.
-    accent: token('--accent-on-surface'),
+    /* THE SERIES LINE, AND IT IS NO LONGER THE BRAND. This read --accent-on-surface
+     * (blue) on the reasoning that --accent itself measures 2.24:1 on --bg and vanishes
+     * as a 2px stroke. Both are true and both are beside the point after the
+     * 2026-08-28 redesign, which has no blue on the dashboard: a single-series line is
+     * the figures drawn as a shape, so it takes the neutral --chart-line. Colour on a
+     * chart is for series that mean something — profit, loss, payout — and those keys
+     * are below, untouched.
+     *
+     * The KEY is still `accent` because three charts read it by that name; what it
+     * points at is the change. */
+    accent: token('--chart-line'),
     // Two more domain hues, for the places one series is not enough: a categorical
     // breakdown (Finance's spend ring) needs more than profit/loss/brand before it
     // starts repeating, and both of these already exist as tokens with a settled
@@ -63,7 +78,7 @@ export function chartPalette() {
     gridStrong: token('--line-strong'),
     axis: token('--text-3'),
     label: token('--text-2'),
-    track: token('--neutral-7'),
+    track: token('--chart-grid'),
     tip: {
       background: token('--surface-2'),
       border: `1px solid ${token('--line')}`,

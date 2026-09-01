@@ -39,11 +39,19 @@ const TONES = {
   // that grayscale — never a brand tint. (Legacy `.tb-badge` set `--accent` and was
   // then overridden to neutral 300 lines further down; this is that override, kept.)
   neutral: 'bg-muted text-foreground',
-  // Unread alerts report a CONDITION, so this one stays semantic. `--color-destructive`
-  // bridges to `--loss` and `--color-destructive-foreground` to `--on-accent`, which is
-  // the point of using the token names: `--on-accent` does not invert under the light
-  // theme, so white-on-red stays white where `--text` would have flipped to near-black.
-  alert: 'bg-destructive text-destructive-foreground',
+  /* UNREAD ALERTS ARE NO LONGER RED (2026-08-29, Rhea).
+   *
+   * This tone was `bg-destructive`, argued as "an unread count reports a CONDITION, so
+   * §4's neutral-selection lock does not reach it". The argument was about the wrong
+   * half of §4. The rule it runs into is the other one — "green and red are trade
+   * outcomes ONLY. Never status, never chrome" — and a red dot in the top bar of a
+   * trading app is precisely the collision that rule exists to prevent: the one place a
+   * trader's eye is trained to read red as MONEY LOST, spent on "you have mail".
+   *
+   * Rhea draws it as a light dot, and light is what this design uses for "attend to
+   * this" (§4: primary actions are light, not brand). The ring below separates it from
+   * the glyph underneath either way. */
+  alert: 'bg-[var(--action-2)] text-[var(--on-action)]',
 };
 
 /* `corner` is the bell's case: the pill hangs off the top-right of the control it

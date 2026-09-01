@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { NAV, LEGACY_REDIRECTS, navRoutes, navTitle, OFF_NAV_TITLES } from '../frontend/src/app/nav.js';
 
 import { appCss } from './helpers/app-css.js';
+import { readSrc } from './helpers/src-files.js';
 // The IA config (frontend/src/app/nav.js) is deliberately JSX-free so we can guard
 // its invariants here: the Sidebar and the route table both render from it, so
 // a malformed entry breaks navigation app-wide.
@@ -125,22 +126,32 @@ test('navTitle: every real route in the app has a name', () => {
 // ---- rail stays put ---------------------------------------------------------
 
 test('the nav list scrolls inside the rail, not the rail with the page', () => {
-  const css = appCss;
-  const rail = css.slice(css.indexOf('.sidebar {'), css.indexOf('}', css.indexOf('.sidebar {')));
-  // The rail is a fixed-height sticky column...
-  assert.match(rail, /position: sticky; top: 0/);
-  assert.match(rail, /height: 100vh/);
-  // ...so the nav inside it MUST be bounded. Otherwise an expanded nav overflows
-  // the 100vh box, that overflow becomes page height, and the sticky rail (whose
-  // containing block is only 100vh when the main column is short) has no room to
-  // travel and scrolls off the top with the page.
-  const nav = css.slice(css.indexOf('.sb-nav {'), css.indexOf('}', css.indexOf('.sb-nav {')));
-  assert.match(nav, /overflow-y: auto/);
-  // min-height:0 is what actually lets it shrink — a flex item's default
-  // min-height:auto refuses to go below its content and keeps the overflow.
-  assert.match(nav, /min-height: 0/);
-  assert.match(nav, /flex: 1 1 auto/);
-  assert.match(nav, /overscroll-behavior: contain/);
+  /* READS THE PRIMITIVE, NOT legacy/app.css, SINCE 2026-08-28. The rail was rebuilt on
+   * the Figma redesign and its geometry moved into components/primitives/rail.jsx. The
+   * `.sidebar` / `.sb-nav` rules this used to slice are still in the legacy stylesheet
+   * but nothing wears those class names any more — so the old assertions would have gone
+   * on passing against dead CSS while the live rail did whatever it liked. That is not a
+   * hypothetical: the first draft of the primitive scrolled the whole aside, and this
+   * test was green throughout.
+   *
+   * The invariant is unchanged, which is why the test is worth keeping at all. */
+  /* AND IT READS BOTH LAYERS SINCE 2026-08-29, because the invariant is now split
+   * across them. The rail is @shadcn/sidebar; the fixed-height column is the generated
+   * component's (`fixed inset-y-0 h-svh`), and the scrolling nav inside it is ours.
+   * Asserting only our half would leave the more important one unwatched — and
+   * asserting only theirs would go red on a dependency bump for no reason. */
+  const rail = readSrc('components/primitives/rail.jsx');
+  const ui = readSrc('components/ui/sidebar.jsx');
+  // The rail is a fixed-height column that does NOT scroll as a whole...
+  assert.match(ui, /fixed inset-y-0 z-10 hidden h-svh/);
+  // ...so the nav inside it MUST be the scroller. Otherwise an expanded nav overflows
+  // the viewport-height box, that overflow becomes page height, and the rail has no
+  // room to travel and scrolls off the top with the page — taking the footer's identity
+  // row with it. `min-h-0` is the load-bearing half: a flex child's default
+  // min-height:auto refuses to shrink below its content, which keeps the overflow
+  // instead of scrolling it.
+  assert.match(ui, /flex min-h-0 flex-1 flex-col gap-2 overflow-auto/);
+  assert.match(rail, /overflow-x-hidden/, 'a label mid-transition must not scroll the rail sideways');
 });
 
 test('a page with nothing to scroll to does not scroll', () => {

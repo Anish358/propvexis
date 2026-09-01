@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { titleCase } from '../frontend/src/lib/constants.js';
 
 import { appCss } from './helpers/app-css.js';
-import { appJsx, readSrc } from './helpers/src-files.js';
+import { appJsx, libraryFiles, readSrc, stripComments } from './helpers/src-files.js';
 // TYPOGRAPHY RULE: this app writes in Title Case. Never SHOUTED — not via
 // `text-transform: uppercase` in CSS, not by `.toUpperCase()` on display text, and
 // not by typing a label in caps in the markup.
@@ -21,6 +21,42 @@ const jsxFiles = appJsx();
 // The ONE documented exception. A wordmark is a logo, not UI text: its letterforms
 // and tracking are the brand's, and title-casing it would be redrawing the mark.
 const CAPS_EXCEPTIONS = ['.auth-mark'];
+
+/* THE RULE NOW COVERS THE COMPONENT LIBRARY TOO (2026-08-28), and it had to: it only
+ * ever scanned legacy CSS, so the redesign could have introduced `uppercase` in a
+ * primitive and never been asked about it. That is not hypothetical — Today's Brief
+ * needed exactly one, and this is where it had to come and argue for itself.
+ *
+ * The exception is the brief's column eyebrows ("HIGH & MEDIUM EVENTS", "ACCOUNT
+ * ALERTS"): 12px, medium weight, muted, letterspaced, naming a column rather than
+ * saying anything. That is the one register where small caps reads as structure instead
+ * of emphasis, and the Figma frame draws them that way. Anything larger, darker, or in
+ * a sentence is shouting and belongs in title case. */
+const UPPERCASE_EXCEPTIONS = [
+  { file: 'components/primitives/brief.jsx', what: "the brief's column eyebrows" },
+  /* THE RAIL'S "SOON" BADGE (added 2026-08-29, Rhea). 10px, letterspaced, muted, on a
+   * quiet fill beside a nav item it qualifies. That is the same register the brief's
+   * eyebrows occupy and the one §3 exempts: a small muted caps run naming a STATE
+   * rather than saying anything reads as structure, not emphasis. The design draws it
+   * that way, and at title case ("Soon") it competed with the label it is subordinate
+   * to. Anything larger, darker, or in a sentence is still shouting. */
+  { file: 'components/primitives/rail.jsx', what: "the rail's Soon state badge" },
+  /* THE ACCOUNT CARD'S TWO (added 2026-08-29, Rhea): a meter's rule name ("DAILY
+   * DRAWDOWN") and the stop-trading banner's label. Both are 11-12.5px, letterspaced,
+   * and name a thing rather than say one — the same eyebrow register §3 exempts.
+   *
+   * The banner is the one caps run in this app that is NOT muted, and it argues for
+   * itself: it is the single most urgent string the product can show, it appears only
+   * when an account is inside its stop-trading zone, and it is the redundant encoding
+   * that keeps severity legible without colour. Caps as structure, and once. */
+  { file: 'components/primitives/account.jsx', what: "meter eyebrows and the stop-trading label" },
+  /* THE CALENDAR'S WEEKDAY HEADS (added 2026-08-29, Rhea) — "SUN MON TUE". 11px,
+   * letterspaced, at the faintest readable tier, naming seven columns. That is the
+   * eyebrow register exactly, and it is the case that lets seven three-letter labels
+   * read as a header row rather than as seven more words in a grid already full of
+   * them. */
+  { file: 'components/primitives/calendar.jsx', what: "the calendar's weekday column heads" },
+];
 
 test('no uppercase text-transform outside the brand wordmark', () => {
   const offenders = [];
@@ -46,9 +82,20 @@ test('display text is not uppercased in JS', () => {
   // `.toUpperCase()` on a VALUE being shown to a person is the same rule broken in
   // a different place. Normalizing stored DATA is fine (a symbol is EURUSD), as is
   // taking a single initial for an avatar.
+  /* COMMENTS ARE BLANKED FIRST, not stripped, and the difference matters: replacing a
+   * comment with an empty line keeps every later line at its real number, so an offender
+   * is still reported at the line you can go and look at.
+   *
+   * Why at all — a rule about `.toUpperCase()` cannot be explained in a file it scans
+   * without the explanation tripping it. That is not hypothetical: the note above
+   * `initials()` in Sidebar.jsx names the method it is justifying, and this test failed
+   * on the prose while the code beneath it was exactly what the rule permits. Third
+   * scanner in this suite to learn it (see utility-collisions.test.js). */
   const offenders = [];
   for (const f of jsxFiles) {
-    readSrc(f).split('\n').forEach((line, i) => {
+    // stripComments preserves newlines in both comment forms, so indices still line up
+    // with the real file and a reported line number is one you can open.
+    stripComments(readSrc(f)).split('\n').forEach((line, i) => {
       if (!line.includes('.toUpperCase()')) return;
       if (/charAt\(0\)|\.trim\(\)\.charAt|symbols|slug/.test(line)) return;   // initials / data
       if (/titleCase/.test(line)) return;
@@ -96,4 +143,55 @@ test('caps tracking went with the caps', () => {
     const tracking = rule.match(/letter-spacing:\s*(-?[.0-9]+)/);
     assert.ok(!tracking || Number(tracking[1]) === 0, `${sel} still carries caps tracking`);
   }
+});
+
+test('no `uppercase` utility outside the one place it is argued for', () => {
+  // Utilities compile only under components/{ui,primitives}, so that is the whole
+  // surface. A page cannot introduce one — its class would emit nothing at all.
+  const offenders = [];
+  for (const f of libraryFiles()) {
+    if (UPPERCASE_EXCEPTIONS.some((e) => f.endsWith(e.file))) continue;
+    if (/\buppercase\b/.test(stripComments(readSrc(f)))) offenders.push(f);
+  }
+  assert.deepEqual(offenders, [], `these SHOUT — use title case:\n${offenders.join('\n')}`);
+});
+
+test('each uppercase exception is still real', () => {
+  // If an exempted file stops using it, the exemption is dead weight that would let the
+  // next one in unnoticed — the same reason the .auth-mark exception is asserted above.
+  for (const { file, what } of UPPERCASE_EXCEPTIONS) {
+    assert.match(stripComments(readSrc(file)), /\buppercase\b/,
+      `${file} no longer uppercases anything (${what}) — drop it from UPPERCASE_EXCEPTIONS`);
+  }
+});
+
+test('form controls inherit the font family, because Preflight does not supply it', () => {
+  /* THE WHOLE APP'S CHROME RENDERED IN ARIAL, and nothing said so.
+   *
+   * The UA stylesheet gives every <button>, <input>, <select> and <textarea> its own
+   * `font: 400 13.333px Arial` — form controls do NOT inherit font-family. Tailwind's
+   * Preflight normally repairs that with `button { font: inherit }`, and this project
+   * deliberately does not import Preflight (it would restyle every legacy page).
+   *
+   * So every control in the top bar, every filter pill, every unit toggle and every
+   * modal input sat in the UA default while the prose beside it was Geist. Caught by
+   * measuring getComputedStyle in a headless render, after the owner noticed the top
+   * bar "looked like a different font" — which it was.
+   *
+   * TWO HALVES, AND THE SECOND IS THE ONE THAT WILL TEMPT SOMEONE:
+   *
+   *   1. the reset must exist and cover all four control types;
+   *   2. it must set font-family ALONE, never the `font` shorthand. This rule lives in
+   *      `base`, a layer ABOVE `legacy`, so `font: inherit` would silently strip the
+   *      font-size off every legacy button and input in the app. The family is the
+   *      broken property; nothing else here is. */
+  const tw = read('../frontend/src/tailwind.css');
+  const block = tw.slice(tw.indexOf('@layer base'));
+  assert.ok(tw.includes('@layer base {'), 'the base layer must carry the reset');
+  for (const el of ['button', 'input', 'select', 'textarea']) {
+    assert.match(block, new RegExp(`(^|[\\s,])${el}[\\s,]`, 'm'), `${el} must inherit its font family`);
+  }
+  assert.match(block, /font-family:\s*inherit/);
+  assert.doesNotMatch(block, /\bfont:\s*inherit/,
+    'the `font` shorthand would strip font-size off every legacy control — family only');
 });

@@ -4,14 +4,24 @@ import { BrowserRouter } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import App from './App.jsx';
 import { AuthProvider } from './app/AuthContext.jsx';
-// Self-hosted fonts (bundled by Vite — no third-party request, no FOUT).
-// Geist = UI/body & headings; Geist Mono = prices / R / P&L (tabular) — Geist
-// used throughout, per the brand's "one typeface" rule. Inter/JetBrains Mono
-// are fallbacks only (kept loaded so the stack degrades gracefully).
+/* SELF-HOSTED, NEVER THE CDN. The Rhea prototype links Geist from
+   fonts.googleapis.com; we bundle it through Vite instead — offline-safe, no
+   third-party request, no CSP exception. DESIGN-LANGUAGE §3 makes that explicit
+   because the prototype is the thing people will copy from.
+
+   TWO FAMILIES, AND THE SECOND ONE IS DATA. Geist is the UI face; Geist Mono is
+   every figure — P&L, R multiples, drawdown, times, the clock. Tabular figures
+   align digits but do not give a number the distinct texture that separates data
+   from prose, and this app is mostly numbers.
+
+   THESE TWO IMPORTS ARE THE ONLY FONTS THE BUNDLE MAY CONTAIN. Inter was the sole
+   family for one day (2026-08-28, on an intermediate Figma pass) and lingered as a
+   --font-sans fallback and an installed package until 2026-08-30; both are gone.
+   font-geist.test.js fails if a third family is imported here or named in a token,
+   because a webfont nobody reviewed is one slow load away from being what the
+   product looks like. */
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
 // Single CSS entry. Import order and the four-layer architecture live in
 // styles/index.css - see that file.
 import './styles/index.css';

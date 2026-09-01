@@ -210,31 +210,34 @@ test('a chosen card is announced, not only drawn', () => {
     'a card with nothing to hold must not report aria-pressed="false"');
 });
 
-test('the wizard grids do not write the `grid` utility, which legacy CSS owns', () => {
-  // THIS SHIPPED. legacy/app.css declares `.grid { display: table; min-width:
-  // calc(var(--grid-cols, 11) * 92px); table-layout: fixed }` for the Trade Log, and it
-  // is UNLAYERED — index.css's whole cascade argument is that unlayered rules beat
-  // anything Tailwind emits ("the library can only ever add; it cannot outrank"). The
-  // legacy rule's own comment says it declares `display` deliberately to win exactly
-  // this collision. So every ChoiceGrid rendered as a 1012px-wide TABLE: the cards
-  // stacked in one column, each sized to its own text, overflowing the step, with no
-  // gutter because `gap` does nothing on a table.
-  //
-  // `[display:grid]` is the same declaration under a class name no legacy selector can
-  // claim. The editor's Tailwind plugin actively suggests rewriting it back to `grid`,
-  // which is why this is a test and not a comment.
+test('the wizard grids are grids, and the name they avoided is now free', () => {
+  /* WHAT THIS GUARDED, AND WHY IT CHANGED ON 2026-08-28.
+   *
+   * legacy/app.css used to declare `.grid { display: table; ... }` for the Trade Log,
+   * unlayered — and index.css's whole cascade argument was that unlayered rules beat
+   * anything Tailwind emits. So a ChoiceCard grid written as the bare `grid` utility
+   * rendered as a 1012px-wide TABLE: cards stacked in one column, each sized to its own
+   * text, overflowing the step, no gutter because `gap` does nothing on a table. That
+   * shipped. `[display:grid]` was the same declaration under a class name no legacy
+   * selector could claim, and this test kept the editor's Tailwind plugin from helpfully
+   * rewriting it back.
+   *
+   * THE COLLISION IS GONE AT THE SOURCE NOW. The redesign put legacy in `layer(legacy)`,
+   * which would have INVERTED the old mitigation (the utility would win), so the table
+   * was renamed to `.log-grid` — a name Tailwind will never emit. Nothing squats `grid`
+   * any more, so both spellings are safe and `[display:grid]` is history rather than a
+   * requirement.
+   *
+   * The last assertion is the tripwire that made this rewrite happen instead of a
+   * cargo-cult: it fired the moment the rename landed. It now watches the rename. */
   const wizard = readSrc('components/primitives/wizard.jsx');
-  for (const m of wizard.matchAll(/cn\('([^']*)'/g)) {
-    assert.equal(m[1].split(/\s+/).includes('grid'), false,
-      `wizard.jsx writes the bare \`grid\` utility in cn('${m[1]}') — legacy .grid makes it a table`);
-  }
-  assert.match(wizard, /\[display:grid\]/, 'the grids must still be grids');
+  assert.match(wizard, /\[display:grid\]|\bgrid\b/, 'the wizard grids must still be grids');
 
-  // And the reason has to still be true: if the legacy rule is ever renamed, this
-  // workaround should be revisited rather than cargo-culted.
   const legacy = readSrc('styles/legacy/app.css');
-  assert.match(legacy, /^\.grid\s*\{[^}]*display:\s*table/m,
-    'legacy .grid no longer claims the name — re-check whether [display:grid] is still needed');
+  assert.doesNotMatch(legacy, /^\.grid(?![-\w])/m,
+    'legacy CSS is squatting `grid` again — the wizard grids would render as tables');
+  assert.match(legacy, /^\.log-grid\s*\{[^}]*display:\s*table/m,
+    'the Trade Log table rule has moved — re-check the collision');
 });
 
 test('hovering a chosen card does not undo the choice', () => {

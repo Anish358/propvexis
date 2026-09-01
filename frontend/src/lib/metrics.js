@@ -1,5 +1,5 @@
 // Client-side dashboard metrics. The P&L unit is selectable:
-//   'R'   (god / all-accounts view)  -> uses fixed_r   (risk multiples)
+//   'R'   (several accounts in scope) -> uses fixed_r   (risk multiples)
 //   'USD' (single-account view)      -> uses pnl_money (account currency)
 // Win/loss classification follows the chosen value's sign. Reward (Avg RR / Max
 // R) is always a ratio in R regardless of unit.

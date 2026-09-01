@@ -27,43 +27,51 @@ https://journal.anishdevlops.xyz still served during migration).
 - Frontend build: `cd frontend && npm run build`
 
 ## Visual design system (governs ALL UI work)
-- **Source of truth:** `docs/design-system/DESIGN-LANGUAGE.md` (tracked as of
-  2026-08-23). Every UI decision — human or AI — must trace to a rule in it.
-  *"It looks better"* is not a justification. It holds RULES only; values live in
-  `frontend/src/styles/tokens.css`.
-- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qKmlY80`** —
-  🔒 LOCKED 2026-08-04. Applied with
-  `pnpm dlx shadcn@latest apply --preset b2qKmlY80` (Existing Project → Full
-  preset: components + theme + fonts).
-- The preset owns the **global** layer: typography, font sizing, spacing, radius,
-  density, shadows, borders, colours, default component styling. **Never fall
-  back to stock shadcn styling; never invent a new visual style.** On any
-  conflict with shadcn defaults, the preset + DESIGN-LANGUAGE.md win.
-- DESIGN-LANGUAGE.md **extends** the foundation with PropVexis-specific rules
-  (trading semantics, KPI/chart conventions, prohibitions). It does not restate
-  foundation values — a missing value there is deliberate.
-- **Structure is a locked invariant:** layouts, information hierarchy, user
-  flows, interactions, responsive behaviour and business logic do NOT change for
-  visual work. Only the visual implementation follows the design language.
-- Changing a foundation value requires owner approval + a new preset ID +
-  a matching DESIGN-LANGUAGE.md amendment, committed together.
-- **Components before CSS, registries before components.** Build UI in this
-  order and stop at the first that works: (1) an existing
-  `@/components/primitives`; (2) a component from the **`@coss`** registry
-  (`frontend/components.json`), then `@shadcn` — search/view them with the
-  **shadcn MCP** (`.mcp.json`, pointed at `frontend`); (3) a composition of those;
-  (4) hand-written, last. Writing a component from scratch when a registry ships
-  one is off-foundation by construction, because the preset's styling arrives
-  THROUGH those components.
+- **Source of truth:** `docs/design/DESIGN-LANGUAGE.md` — 🔒 LOCKED 2026-08-29, rewritten
+  from the shipped dashboard. Every UI decision — human or AI — must trace to a rule in
+  it. *"It looks better"* is not a justification. It holds RULES only; values live in
+  `frontend/src/styles/tokens.css`, and the colour derivation in
+  `docs/design/dashboard/COLOUR-INVENTORY.md`.
+- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qKmlY80`**, style
+  **Base Rhea** — 🔒 LOCKED. The preset owns the global layer: typography, sizing,
+  spacing, radius, density, shadows, borders, colours, default component styling.
+  **Never fall back to stock shadcn styling; never invent a new visual style.**
+- **shadcn is the DEFAULT component system.** Before building any UI, check whether the
+  registry ships it and install rather than recreate — Button, Card, Dialog, Dropdown,
+  Select, Tabs, Tooltip, Sheet, Command, Table, Badge, Input, Sidebar. Search with the
+  shadcn MCP (`.mcp.json`, pointed at `frontend`). **Install under `style: base-rhea`**:
+  the registry serves a different implementation per style, and this project is Base UI,
+  not Radix (the default manifest's `radix-ui` dependency is not what you get).
+  Customise the generated component's STYLING in a wrapper; never fork it.
+- **Build order** (DESIGN-LANGUAGE §1): existing `@/components/primitives` → registry →
+  a composition of those → hand-written last, with an argument in the file.
 - Generated components land in `components/ui/` and are **not edited in place** —
   differences go in a thin wrapper under `components/primitives/`, which is what
   application code imports.
+- **Structure is a locked invariant** (§2): layouts, hierarchy, flows, interactions,
+  responsive behaviour and business logic do NOT change for visual work — and a feature
+  the design omits is not deleted. Equally, do not build a control the product cannot
+  honour.
+- **The dashboard is BUILT** and is the reference implementation for every other page.
+  Read `features/dashboard/` and `components/primitives/{rail,topbar,brief,kpi,account,
+  panel,calendar}.jsx` before starting a new surface; most "new" surfaces are a
+  `PanelCard` with different children. The prototype it was built from is in
+  `docs/design/dashboard/`. Everything except the dashboard still runs on the old look.
 - **Tailwind utilities compile ONLY under `components/{ui,primitives}`**
   (`tailwind.css` `@source`). A utility class written in a page emits nothing,
-  silently — so pages are built by composing components, not by writing utilities.
-- Migration sequencing: `docs/architecture/UI-MIGRATION-PLAN.md` (untracked).
-  It numbers its own sections: a `§9`/`§19`/`§22` citation in
-  `components/primitives/` refers to THAT file, not to DESIGN-LANGUAGE.md.
+  **silently** — so a caller-supplied dimension, alignment or column template is a
+  PROP, not a class. This has cost real debugging time five times; §1 lists them.
+  `hidden` also does nothing against an author `display` — conditionally render.
+- **Legacy CSS is the LOWEST cascade layer** (`layer(legacy)`), so it outranks nothing.
+  `tokens.css` stays unlayered and still wins. It cannot be deleted yet: ~800 of its
+  1,025 classes are still live, mostly Prop OS, the Trade Log and the Calendar page.
+  Its `--neutral-*` / `--tint-*` tokens are fenced off at the bottom of `tokens.css` —
+  **do not reach for one in new work.**
+- Changing a foundation value requires owner approval + a new preset ID + a matching
+  DESIGN-LANGUAGE amendment, committed together.
+- Migration sequencing: `docs/architecture/UI-MIGRATION-PLAN.md` (untracked). It numbers
+  its own sections: a `§9`/`§19`/`§22` citation in `components/primitives/` may refer to
+  THAT file — DESIGN-LANGUAGE §20 is the citation index that disambiguates.
 
 ## Workflow rules (important)
 - Work on **`dev`**; ship via **PR `dev` → `main`**. Merge to `main` auto-deploys (GitHub Actions → EC2).

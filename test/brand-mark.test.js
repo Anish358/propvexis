@@ -35,15 +35,33 @@ test('the old pre-rebrand favicon is gone', () => {
 });
 
 test('in-app the mark is token-driven, so it follows the theme', () => {
-  assert.match(logo, /stroke="var\(--accent\)"/);
-  assert.match(logo, /fill="var\(--profit\)"/);
+  /* THE TOKENS CHANGED WITH THE 2026-08-28 REDESIGN, THE RULE DID NOT. The mark was an
+   * accent-tinted tile with a blue chevron and a green profit dot; the Figma draws a
+   * light tile with the chevron stroked in the surface colour, and no dot. What this
+   * test exists to catch is a raw hex creeping into the one component both this app and
+   * the marketing site draw their identity from — so it now names the tokens the mark
+   * actually uses, and still refuses any literal. */
+  assert.match(logo, /fill="var\(--brand-mark-bg\)"/);
+  assert.match(logo, /stroke="var\(--brand-mark-ink\)"/);
   assert.ok(!/#[0-9a-f]{3,8}\b/i.test(logo), 'no raw hex in Logo.jsx');
   assert.match(css, /\.pv-logo \{ display: inline-flex/);
 });
 
 test('the sidebar brand uses the shared Logo and routes in-app', () => {
+  /* THE ASSERTION FOLLOWED THE MARKUP, NOT THE OTHER WAY ROUND (2026-08-28). The rail
+   * was rebuilt on the Figma redesign, so the exact `className="sb-brand"` string this
+   * pinned is gone. What it was actually protecting is unchanged and is what is pinned
+   * now: the rail renders the SHARED Logo rather than drawing a mark of its own, and
+   * the mark is an in-app Link rather than an href (an href would leave whichever
+   * origin the app is served from).
+   *
+   * THE SIZE IS NO LONGER A CONSTANT (2026-08-29, Rhea). It pinned `size={32}`; the
+   * rail now collapses to a 70px icon strip where, minus padding, 42px of content width
+   * has to hold the mark AND the control that expands the rail again — so the mark
+   * comes down to 28 there and sits at Rhea's 33 when expanded. What the test protects
+   * is unchanged: one shared Logo, reached by a Link. */
   assert.match(sidebar, /import Logo from '[^']*Logo\.jsx'/);
-  assert.match(sidebar, /<Link to="\/" className="sb-brand"><Logo size=\{24\} \/>\{BRAND\}<\/Link>/);
+  assert.match(sidebar, /<Link to="\/" aria-label=\{`\$\{BRAND\} home`\}>\s*\n\s*<Logo size=\{collapsed \? 28 : 33\} \/>/);
   // The CSS-gradient square it replaced must not linger.
   assert.ok(!css.includes('.sb-brand::before'), 'the old gradient tile is removed');
 });

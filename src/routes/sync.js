@@ -15,6 +15,8 @@ import {
   jobForWorker,
   isMarketOpen,
   requestedPlatforms,
+  manualCooldown,
+  MANUAL_COOLDOWN_MS,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
 import {
@@ -282,15 +284,47 @@ export default function syncRoutes(app) {
    * Manual "Sync now". Returns 202 with `queued: false` when a job is already
    * open for the account — the partial unique index makes that a no-op rather
    * than a backlog, so pressing the button twice is harmless.
+   *
+   * A 15-MINUTE COOLDOWN IS ENFORCED HERE, not in the button.
+   *
+   * The unique index only stops a pile-up while a job is OPEN; the moment one
+   * finishes, the account is pressable again immediately. That was tolerable when
+   * a platform's rate limit was its own, and is not now: TradeLocker's limits are
+   * per-route and SHARED across every user, because every request leaves this box
+   * from one egress IP. One impatient trader holding down Sync now degrades every
+   * other customer's sync. A disabled button is a suggestion — this is the limit.
    */
   app.post('/api/accounts/:id/sync', { preHandler: app.requireAuth }, async (req, reply) => {
     const acct = await ownedSyncAccount(req, reply);
     if (!acct) return reply;
     const cred = await credentialStatus(req.user.uid, acct.id);
     if (!cred) return reply.code(409).send({ error: 'no credential stored for this account' });
-    if (cred.read_only === false) {
+    // MT5 only: read_only === false is a master password awaiting deletion. On a
+    // platform with no read-only credential at all it is simply the normal state,
+    // and refusing it here would make Sync now permanently unusable there.
+    if (acct.platform === 'mt5' && cred.read_only === false) {
       return reply.code(409).send({ error: 'stored credential can trade — enter the investor password' });
     }
+
+    const previous = await lastJob(acct.id);
+    const cooldown = manualCooldown(previous);
+    if (cooldown.blocked) {
+      const retryAfter = Math.ceil(cooldown.retryAfterMs / 1000);
+      // The message carries the WAIT, because the client renders `error` verbatim
+      // (see frontend/src/lib/api.js syncCall). "Synced recently" with no number
+      // is the kind of refusal a user retries immediately, which is the behaviour
+      // this endpoint exists to prevent.
+      const mins = Math.ceil(retryAfter / 60);
+      return reply
+        .code(429)
+        .header('Retry-After', retryAfter)
+        .send({
+          error: `already synced recently — try again in ${mins} minute${mins === 1 ? '' : 's'}`,
+          retry_after_seconds: retryAfter,
+          cooldown_seconds: Math.round(MANUAL_COOLDOWN_MS / 1000),
+        });
+    }
+
     const job = await enqueue(acct.id, 'manual');
     return reply.code(202).send({ queued: Boolean(job), job });
   });

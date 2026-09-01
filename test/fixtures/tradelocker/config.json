@@ -1,0 +1,118 @@
+{
+  "_note": "GET /trade/config. Shape follows TradeLocker's documented response; the column ORDER here is deliberately NOT alphabetical and NOT the order any code assumes, because the point of this fixture is that order is TradeLocker's to change. Replace with a live capture once a demo account exists (spec 11).",
+  "s": "ok",
+  "d": {
+    "accountDetailsConfig": {
+      "columns": [
+        { "id": "balance", "type": "decimal" },
+        { "id": "projectedBalance", "type": "decimal" },
+        { "id": "availableFunds", "type": "decimal" },
+        { "id": "blockedBalance", "type": "decimal" },
+        { "id": "cashBalance", "type": "decimal" },
+        { "id": "unsettledCash", "type": "decimal" },
+        { "id": "withdrawalAvailable", "type": "decimal" },
+        { "id": "stocksValue", "type": "decimal" },
+        { "id": "optionValue", "type": "decimal" },
+        { "id": "initialMarginReq", "type": "decimal" },
+        { "id": "maintMarginReq", "type": "decimal" },
+        { "id": "marginWarningLevel", "type": "decimal" },
+        { "id": "blockedForStocks", "type": "decimal" },
+        { "id": "stockOrdersReq", "type": "decimal" },
+        { "id": "stopOutLevel", "type": "decimal" },
+        { "id": "warningMarginReq", "type": "decimal" },
+        { "id": "marginBeforeWarning", "type": "decimal" },
+        { "id": "todayGross", "type": "decimal" },
+        { "id": "todayNet", "type": "decimal" },
+        { "id": "todayFees", "type": "decimal" },
+        { "id": "todayVolume", "type": "decimal" },
+        { "id": "todayTradesCount", "type": "int" },
+        { "id": "openGrossPnL", "type": "decimal" },
+        { "id": "openNetPnL", "type": "decimal" },
+        { "id": "positionsCount", "type": "int" },
+        { "id": "ordersCount", "type": "int" }
+      ]
+    },
+    "positionsConfig": {
+      "columns": [
+        { "id": "id", "type": "string" },
+        { "id": "tradableInstrumentId", "type": "int" },
+        { "id": "routeId", "type": "int" },
+        { "id": "side", "type": "string" },
+        { "id": "qty", "type": "decimal" },
+        { "id": "avgPrice", "type": "decimal" },
+        { "id": "stopLossId", "type": "string" },
+        { "id": "takeProfitId", "type": "string" },
+        { "id": "openDate", "type": "timestamp" },
+        { "id": "unrealizedPl", "type": "decimal" }
+      ]
+    },
+    "ordersConfig": {
+      "columns": [
+        { "id": "id", "type": "string" },
+        { "id": "tradableInstrumentId", "type": "int" },
+        { "id": "routeId", "type": "int" },
+        { "id": "qty", "type": "decimal" },
+        { "id": "side", "type": "string" },
+        { "id": "type", "type": "string" },
+        { "id": "status", "type": "string" },
+        { "id": "filledQty", "type": "decimal" },
+        { "id": "avgPrice", "type": "decimal" },
+        { "id": "price", "type": "decimal" },
+        { "id": "stopPrice", "type": "decimal" },
+        { "id": "validity", "type": "string" },
+        { "id": "expireDate", "type": "timestamp" },
+        { "id": "createdDate", "type": "timestamp" },
+        { "id": "lastModified", "type": "timestamp" },
+        { "id": "isOpen", "type": "bool" },
+        { "id": "positionId", "type": "string" },
+        { "id": "stopLoss", "type": "decimal" },
+        { "id": "stopLossType", "type": "string" },
+        { "id": "takeProfit", "type": "decimal" },
+        { "id": "takeProfitType", "type": "string" },
+        { "id": "strategyId", "type": "string" }
+      ]
+    },
+    "ordersHistoryConfig": {
+      "columns": [
+        { "id": "id", "type": "string" },
+        { "id": "tradableInstrumentId", "type": "int" },
+        { "id": "routeId", "type": "int" },
+        { "id": "qty", "type": "decimal" },
+        { "id": "side", "type": "string" },
+        { "id": "type", "type": "string" },
+        { "id": "status", "type": "string" },
+        { "id": "filledQty", "type": "decimal" },
+        { "id": "avgPrice", "type": "decimal" },
+        { "id": "price", "type": "decimal" },
+        { "id": "stopPrice", "type": "decimal" },
+        { "id": "validity", "type": "string" },
+        { "id": "expireDate", "type": "timestamp" },
+        { "id": "createdDate", "type": "timestamp" },
+        { "id": "lastModified", "type": "timestamp" },
+        { "id": "isOpen", "type": "bool" },
+        { "id": "positionId", "type": "string" },
+        { "id": "commission", "type": "decimal" },
+        { "id": "swap", "type": "decimal" },
+        { "id": "strategyId", "type": "string" }
+      ]
+    },
+    "filledOrdersConfig": {
+      "columns": [
+        { "id": "id", "type": "string" },
+        { "id": "positionId", "type": "string" },
+        { "id": "tradableInstrumentId", "type": "int" },
+        { "id": "qty", "type": "decimal" },
+        { "id": "side", "type": "string" },
+        { "id": "avgPrice", "type": "decimal" },
+        { "id": "createdDate", "type": "timestamp" }
+      ]
+    },
+    "rateLimits": [
+      { "rateLimitType": "REQUEST_WEIGHT", "measure": "SECOND", "intervalNum": 1, "limit": 2, "endpoint": "/trade/accounts/{accountId}/ordersHistory" },
+      { "rateLimitType": "REQUEST_WEIGHT", "measure": "SECOND", "intervalNum": 1, "limit": 2, "endpoint": "/trade/accounts/{accountId}/state" }
+    ],
+    "limits": [
+      { "limitType": "ORDERS_HISTORY", "limit": 1000 }
+    ]
+  }
+}

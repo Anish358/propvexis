@@ -35,7 +35,17 @@
    Tailwind produces. That property is what makes this install a no-op.
 --------------------------------------------------------------------------- */
 
-@layer theme, base, components, utilities;
+/* `legacy` IS FIRST, AND THAT IS THE WHOLE POINT. A layer declared earlier loses to
+   every layer after it, so legacy/app.css can no longer outrank anything Tailwind,
+   shadcn or @coss emits — regardless of selector specificity and with no !important
+   anywhere. This REVERSES the original install's guarantee (see index.css): the old
+   order existed to make the library a visual no-op during a gradual migration, and the
+   2026-08-28 Figma redesign supersedes it — the new components are now the authority
+   and legacy is what gets deleted page by page.
+
+   tokens.css stays UNLAYERED, so token values still beat everything. That is the one
+   piece of the original arrangement worth keeping: values have exactly one source. */
+@layer legacy, theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
@@ -60,5 +70,71 @@
    will NOT compile until that path is added here. Pages migrate by composing
    primitives, not by writing utilities in place; when a page genuinely needs its
    own utilities, widening this scope is a deliberate, reviewable change. */
+/* ---------------------------------------------------------------------------
+   BREAKPOINTS — the app's real range is 1080 to 1920, fluid, with no max-width.
+
+   Tailwind's defaults (sm 640 / md 768 / lg 1024 / xl 1280) are written for pages that
+   start at a phone. This is a fixed-rail data app: a trader on a 1920 monitor wants the
+   calendar and the trade table to use it, not to stare at a 1440 column in the middle
+   of the screen. The Figma frames are drawn at 1440, which is one point inside the
+   range rather than the design's own width.
+
+   The rail is 248 wide and the page pads 24 a side, so the content column is roughly
+   (viewport - 300):
+
+     1920  ->  ~1620   everything at full width, five KPI cards across
+     1440  ->  ~1140   still five across; the frame's own layout
+     1280  ->  ~980    five across at ~196 each, the floor for a 26px figure + label
+     1080  ->  ~780    paired columns stop working; the KPI row wraps to 3 + 2
+
+   THREE NUMBERS, AND THEY ARE NOT INTERCHANGEABLE:
+
+     1200   paired columns (brief, content grid) become one column
+     1080   the KPI row stops fitting on one line
+      900   the rail leaves the flow and becomes an off-canvas drawer
+
+   These are written as arbitrary variants (`max-[1200px]:grid-cols-1`) rather than
+   `@theme` screens, because v4 screens generate MIN-width variants and every one of
+   these is a max: the app narrows out of a desktop layout rather than building up from
+   a phone. utility-collisions.test.js asserts no fourth number appears — a stray
+   `max-[1024px]:` is how two sections come to reorganise at widths 24px apart.
+--------------------------------------------------------------------------- */
+
 @source "./components/ui";
 @source "./components/primitives";
+
+/* ---------------------------------------------------------------------------
+   THE ONE BASE RULE, and it is here because Preflight is not.
+
+   Form controls do NOT inherit `font-family` — the UA stylesheet gives every
+   <button>, <input>, <select> and <textarea> its own `font: 400 13.333px Arial`.
+   Tailwind's Preflight normally repairs that with `button { font: inherit }`, and
+   this project deliberately does not import Preflight (see the top of this file:
+   it would restyle every legacy page).
+
+   THE CONSEQUENCE WAS THE WHOLE APP'S CHROME IN ARIAL. Every button in the top
+   bar, every filter pill, every unit toggle, every input in every modal — all of
+   it rendered in the UA default while the prose around it rendered in Geist.
+   Measured, not guessed: getComputedStyle on the top bar's controls returned
+   "Arial" for all of them and "Geist Variable" for the paragraph beside them.
+   The Rhea prototype writes `font-family:inherit` on every one of its buttons by
+   hand for exactly this reason — which is the tell we missed.
+
+   FAMILY ONLY, NOT THE `font` SHORTHAND. `font: inherit` would also reset size
+   and weight, and this rule sits in `base` — a layer ABOVE `legacy` — so it would
+   silently strip the font-size off every legacy button and input in the app. The
+   family is the broken property; nothing else here is.
+
+   Verified safe: the 29 legacy rules that set a non-inherit font-family all set
+   `var(--font-mono)` on data SPANS, never on a form control, so none of them is
+   in this selector's way.
+--------------------------------------------------------------------------- */
+@layer base {
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
+    font-family: inherit;
+  }
+}

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { appCss, tokensCss, bridgeCss, legacyCss } from './helpers/app-css.js';
+import { readSrc } from './helpers/src-files.js';
 
 // Phase 4b — the top bar's four overlays: user menu, account switcher, notification feed,
 // filter builder. They were migrated in TWO passes, and this file now pins both.
@@ -42,14 +43,20 @@ test('the overlays are on the primitives, not on hand-rolled state', () => {
       `${name} still hand-rolls an outside-click listener`);
     assert.match(src, /from '@\/components\/primitives'/, `${name} must import the primitives`);
   }
-  assert.match(bar, /<MenuContent className="tb-user-menu">/, 'the user menu is a Menu');
+  /* THE USER MENU IS GONE (2026-08-28, owner call) — the rail's footer already carried
+   * the same person's name, plan and avatar, so the bar's copy was the second one. Its
+   * contents each have a verified home: Trade settings is mounted by TradeLog with its
+   * own trigger, Manage plan is a Settings route, and Sign out is Settings > Session,
+   * which the rail's identity row links to. Asserted as ABSENT so it cannot quietly
+   * return alongside the rail's row. */
+  assert.ok(!bar.includes('tb-user-menu'), 'the top bar must not carry a second identity menu');
   assert.match(bar, /<MenuContent className="acct-menu">/, 'the account switcher is a Menu');
   assert.match(notif, /<PopoverContent className="notif-panel"/, 'the notification feed is a Popover');
   // UPDATED 2026-08-05 (Phase 4c). This used to read ``<PopoverTrigger className={`tb-btn``
   // — it pinned the trigger's LEGACY CLASS as proof the popover existed, which is why it
   // broke the moment the trigger became a component. What it means to assert is that the
   // trigger renders a real Button, so that is what it asserts now.
-  assert.match(bar, /<PopoverTrigger render=\{<Button variant="chrome"/,
+  assert.match(bar, /<PopoverTrigger render=\{\(\s*\n\s*<Button\s*\n\s*variant="chrome"/,
     'the filter builder is a Popover whose trigger is a generated Button');
 });
 
@@ -73,7 +80,14 @@ test('the top bar\'s CONTROLS are generated components, not just its overlays', 
   // And each control is the component that replaced it.
   assert.match(bar, /<ToggleGroupExclusive value=\{unit\}/, 'the unit switch is a ToggleGroup');
   assert.match(bar, /render=\{<Button variant="tinted"/, 'the account switcher trigger is a Button');
-  assert.match(bar, /<Avatar size="sm">/, 'the user menu trigger holds a generated Avatar');
+  /* THE AVATAR LEFT THE BAR (2026-08-28) — see the note on tb-user-menu above. The rail
+   * footer's identity row holds it now, and that one is a RailAvatar (a photo when the
+   * account has one, two-letter initials when it does not). Asserted there instead, so
+   * the guarantee this line carried — the identity mark is a component, not a
+   * hand-rolled circle — still has somewhere to live. */
+  const rail = readSrc('components/primitives/rail.jsx');
+  assert.match(rail, /export function RailAvatar/, 'the identity mark is a primitive');
+  assert.ok(!bar.includes('<Avatar'), 'the top bar no longer draws an avatar');
   assert.match(notif, /render=\{<Button variant="chrome"/, 'the bell is a Button');
   for (const [name, src] of [['FilterBar', bar], ['Notifications', notif]]) {
     assert.match(src, /<CountBadge/, `${name} counts use the CountBadge primitive`);

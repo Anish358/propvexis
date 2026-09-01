@@ -59,14 +59,21 @@ body {
    eleven columns fit any normal desktop while a full twenty-one still stay
    legible (and scroll) instead of being crushed. --grid-cols is set inline by
    TradesTable from the number of visible columns. */
-/* `display: table` is the UA default for <table>, so it changes nothing visually.
-   It is declared explicitly to win a real collision: Tailwind's `grid` utility --
-   used by the generated Card -- emits `.grid{display:grid}`, and utility rules live
-   in a cascade layer while this rule does not. Unlayered wins, but ONLY for the
-   properties it declares. Without `display` here, `display:grid` would apply and
-   the Trade Log would stop being a table. Guarded by utility-collisions.test.js. */
-.grid { display: table; border-collapse: collapse; width: 100%; min-width: calc(var(--grid-cols, 11) * 92px); table-layout: fixed; }
-.grid th {
+/* RENAMED FROM `.grid` ON 2026-08-28, and the rename is the fix rather than a tidy-up.
+   Tailwind's `grid` utility -- used by the generated dialog -- emits
+   `.grid{display:grid}`, so this table and that utility were one class name. It used
+   to survive on cascade position: legacy CSS was unlayered, utilities are layered, and
+   unlayered wins, so the explicit `display: table` below beat `display: grid`.
+
+   THE REDESIGN INVERTED THAT. legacy/app.css now sits in `layer(legacy)`, the lowest
+   layer (see styles/index.css), so the utility would have won and the Trade Log would
+   have stopped being a table. Not squatting a utility name is the fix that holds in
+   either cascade -- `log-grid` is a name Tailwind will never emit.
+
+   `display: table` stays declared: it is the UA default for <table> and changes
+   nothing visually, but it keeps the rule honest about what it is. */
+.log-grid { display: table; border-collapse: collapse; width: 100%; min-width: calc(var(--grid-cols, 11) * 92px); table-layout: fixed; }
+.log-grid th {
   /* Sticks to the bottom edge of the top bar as the PAGE scrolls — the table has
      no scroll box of its own (see .log-panel). --topbar-h is measured and
      published by FilterBar; the value here is only the pre-measurement fallback.
@@ -81,23 +88,23 @@ body {
 }
 /* Fixed layout means over-long content overflows instead of widening its column,
    so every cell has to be able to end in an ellipsis. */
-.grid td {
+.log-grid td {
   padding: 8px 12px; border-bottom: 1px solid var(--line);
   text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.grid tbody tr { cursor: pointer; }
-.grid tbody tr:hover { background: var(--surface-hover); }
+.log-grid tbody tr { cursor: pointer; }
+.log-grid tbody tr:hover { background: var(--surface-hover); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 /* Every column in this table is centered, header and body alike — .num is shared
    with other tables, so its right alignment is overridden here rather than dropped.
    The tabular figures it brings are still wanted. */
-.grid td.num { text-align: center; }
+.log-grid td.num { text-align: center; }
 
 /* Row selection. Narrow by design — it holds a 14px box, so giving it an equal
    share of the width would leave a gap the size of a data column. table-layout:
    fixed honours this and splits the remainder between the real columns. */
-.grid th.col-select, .grid td.col-select { width: 44px; padding-left: 0; padding-right: 0; }
+.log-grid th.col-select, .log-grid td.col-select { width: 44px; padding-left: 0; padding-right: 0; }
 .row-check {
   width: 14px; height: 14px; margin: 0; vertical-align: middle;
   accent-color: var(--accent-on-surface); cursor: pointer;
@@ -106,11 +113,11 @@ body {
      hiding it would hide the selection itself. */
   opacity: 0; transition: opacity var(--dur-fast) var(--ease);
 }
-.grid tbody tr:hover .row-check, .row-check.is-on, .row-check:focus-visible { opacity: 1; }
+.log-grid tbody tr:hover .row-check, .row-check.is-on, .row-check:focus-visible { opacity: 1; }
 /* The header box is the select-all, and it stays visible — it's the control for the
    column, not a per-row affordance. */
-.grid thead .row-check { opacity: 1; }
-.grid tbody tr.row-selected { background: var(--sel-bg); }
+.log-grid thead .row-check { opacity: 1; }
+.log-grid tbody tr.row-selected { background: var(--sel-bg); }
 .max-r { color: var(--profit); font-weight: 400; }
 .cell-win { background: var(--win-bg); color: var(--profit); font-weight: 400; }
 .cell-loss { background: var(--loss-bg); color: var(--loss); font-weight: 400; }
@@ -124,9 +131,9 @@ body {
 .pill.out-be { background: var(--be-bg); color: var(--be); }
 /* Notes: an icon, centered, standing in for prose that would otherwise set this
    column's width. The full text is the title attribute; the row opens it. */
-/* (Notes needs no alignment rule of its own — .grid td centers every column.) */
+/* (Notes needs no alignment rule of its own — .log-grid td centers every column.) */
 .cell-note { display: inline-flex; color: var(--text-2); vertical-align: middle; }
-.grid tbody tr:hover .cell-note { color: var(--text); }
+.log-grid tbody tr:hover .cell-note { color: var(--text); }
 .empty, td.empty { text-align: center; color: var(--muted); padding: 40px; }
 .muted { color: var(--muted); }
 .cell-dt { white-space: nowrap; line-height: 1.35; }
@@ -147,6 +154,10 @@ body {
 .pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 400; }
 .pill-empty { color: var(--muted); background: transparent; padding: 0; }
 
+/* The light-theme overrides for this palette (19 rules) were DELETED 2026-08-28 with
+   the light theme itself — they were the one place component CSS was theme-aware, and
+   the token layer's whole promise is that there is no other. See tokens.css,
+   "NO LIGHT THEME". */
 /* ---- data-category palette (START) ----
    One distinct hue per data category (currency pair, session, setup, probability,
    multi-timeframe grade) as `dark tint + light text`. Deliberately NOT tokenized:
@@ -182,25 +193,6 @@ body {
    overrides for the reason given at the top of this section, so the light
    variant has to be spelled out the same way. Same inversion as the token
    scales: dark tint -> pale tint, light text -> contrast-solved dark text. */
-[data-theme="light"] .pair-eurusd { background: #e2e8f8; color: #345cdb; }
-[data-theme="light"] .pair-gbpusd { background: var(--profit-bg); color: #227d43; }
-[data-theme="light"] .pair-xauusd { background: #f8f2e2; color: #856917; }
-[data-theme="light"] .session-ny { background: #e7e7f3; color: #5b5bc1; }
-[data-theme="light"] .session-ldn { background: #e7edf3; color: #286cb1; }
-[data-theme="light"] .session-asia { background: #efe7f3; color: #9738cc; }
-[data-theme="light"] .setup-smc { background: #e9e6f4; color: #7347df; }
-[data-theme="light"] .setup-continue { background: #e4ebf6; color: #2563d3; }
-[data-theme="light"] .setup-liqrun { background: #e3f7ee; color: #1b7d42; }
-[data-theme="light"] .setup-fractal { background: #f7ece3; color: #9d5a1c; }
-[data-theme="light"] .prob-high { background: #e3f7ee; color: #167e3d; }
-[data-theme="light"] .prob-med { background: #f8f3e2; color: #876a18; }
-[data-theme="light"] .prob-low { background: #f6e6e5; color: #c62b23; }
-[data-theme="light"] .mtf-a { background: #e6f4ea; color: #2b7b44; }
-[data-theme="light"] .mtf-a2 { background: #eaf4e6; color: #52772a; }
-[data-theme="light"] .mtf-b { background: #e4ebf6; color: #2563d3; }
-[data-theme="light"] .mtf-c { background: #e7f1f3; color: #1e748c; }
-[data-theme="light"] .mtf-d { background: #f7f1e3; color: #886718; }
-[data-theme="light"] .mtf-range { background: #efe7f3; color: #9738cc; }
 /* ---- data-category palette (END) ---- */
 
 /* ---- modal ---- */
@@ -379,49 +371,67 @@ label.full { margin-bottom: 16px; }
 
 /* ---- Dashboard V1 ---- */
 .dash-banner {
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap;
   /* Column gap stays the original 24px for the news/alerts pair; row gap is the
      16px the rest of the dashboard puts between a card head and its body (cf.
      .dash-equity-head's margin-bottom), now that .dash-banner-head takes its
      own flex line above them. */
-  column-gap: 24px; row-gap: 16px;
+  column-gap: 24px; row-gap: 14px;
   /* 14px to match the rest of the dashboard's cards/widgets (not var(--r-lg),
      which is the app-wide button radius, not a card one). */
   background: var(--panel); border-radius: 14px;
+  /* A hairline as well as the shadow: the two columns are now made of bordered
+     rows, and without an outer edge the card reads as rows floating on the page
+     rather than as one surface holding them. */
+  border: 1px solid var(--line);
   /* Vertical padding explicit (not var(--s-4)) — this is the height lever for this
-     box specifically. Asymmetric on purpose: the 24px top was set when the
-     banner opened straight onto content, but .dash-banner-head's title now sits
-     there and reads better tucked closer to the edge, so top drops to 16px
-     while the bottom keeps 24px under the events/alerts row. */
-  padding: 16px 24px 24px; box-shadow: var(--sh-1);
+     box specifically, and the whole band is deliberately tighter than the
+     reference it copies: two stacks of bordered rows carry their own visual
+     weight, so the container gives back what they take. */
+  padding: 14px 18px 16px; box-shadow: var(--sh-1);
 }
-/* Banner head — title left, settings affordance right. Takes a full flex line
-   (flex-basis 100%) so the news/alerts pair wraps beneath it and keeps its own
-   space-between behaviour untouched. */
-.dash-banner-head { flex: 0 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Banner head — mark + title + timestamp on the left, the settings affordance
+   pinned to the right end. Takes a full flex line (flex-basis 100%) so the
+   news/alerts pair wraps beneath it. */
+.dash-banner-head { flex: 0 0 100%; display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+/* The daypart mark. A circle rather than a rounded square: it is the only round
+   thing in the card, which is what lets a 24px glyph read as an identity for the
+   section instead of another control. Warm tints because it is a sun — the one
+   place in this card where colour is decoration, so it stays at the quietest
+   step of the ladder. */
+.dash-banner-mark {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: var(--r-full);
+  background: var(--tint-warn-2); border: 1px solid var(--tint-warn-6); color: var(--tint-warn-8);
+}
+.dash-banner-mark svg { width: 14px; height: 14px; }
 .dash-banner-head h3 { margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold); }
 /* Today's day + date, sitting with the title rather than centred between it and
-   the gear: margin-right:auto absorbs the head's free space, which would
-   otherwise be split either side of this by the row's justify-content. The
-   leading dot ties it to the title as a subtitle instead of a third element. */
+   the gear: margin-right:auto absorbs the head's free space, which is also what
+   pins the settings control to the far right end of the row. */
 .dash-banner-date {
   flex: none; margin-right: auto; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 10px;
   font-size: 12px; color: var(--text-2);
 }
-.dash-banner-date::before { content: '·'; margin-right: 8px; color: var(--text-3); }
-/* Clock — same dot separator as above, and tabular figures so the minute ticking
-   over doesn't shift the text either side of it. */
-.dash-banner-clock { font-variant-numeric: tabular-nums; }
-.dash-banner-clock::before { content: '·'; margin: 0 8px; color: var(--text-3); }
-/* Quiet at rest so the gear doesn't compete with the title — it only picks up
+/* Clock — a glyph instead of the dot separator this pair used to share, and
+   tabular figures so the minute ticking over doesn't shift the text beside it. */
+.dash-banner-clock {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-variant-numeric: tabular-nums; color: var(--text-3);
+}
+.dash-banner-clock svg { width: 12px; height: 12px; }
+/* Quiet at rest so the control doesn't compete with the title — it only picks up
    a surface and border on hover. --r-md (8px), not the --r-lg button radius:
-   this is a small square icon target, not a labelled button. */
+   this is a small square icon target, not a labelled button. Icon-only by
+   design; its accessible name comes from aria-label, never a visible caption. */
 .dash-banner-settings {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  padding: 6px; border-radius: var(--r-md);
+  padding: 5px; border-radius: var(--r-md);
   background: transparent; border: 1px solid transparent; color: var(--text-3); cursor: pointer;
   transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
+.dash-banner-settings svg { width: 15px; height: 15px; }
 .dash-banner-settings:hover, .dash-banner-settings.is-open { color: var(--text); background: var(--surface-hover); border-color: var(--line); }
 
 /* ---- Today's Brief settings popover ----
@@ -510,28 +520,89 @@ label.full { margin-bottom: 16px; }
   .bs-pop { width: min(300px, calc(100vw - 32px)); }
   .bs-ccy-grid { grid-template-columns: 1fr; }
 }
-.dash-banner-label { font-size: 11px; font-weight: 400; color: var(--muted); margin-bottom: 4px; }
-.dash-banner-empty { font-size: 13px; }
-/* High-impact economic events — compact list on the banner's left side. */
-.dash-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.dash-event { display: flex; align-items: baseline; gap: 8px; font-size: 13px; line-height: 1.3; }
+/* Column eyebrows. Small and quiet rather than larger: they name the stack under
+   them and must not compete with the row titles they sit above.
+   NOT UPPERCASE, and that is the one place this card departs from the reference it
+   copies — the app writes in Title Case, enforced by typography.test.js, with the
+   brand wordmark as the only exception. Caps tracking went with the caps: opening
+   up letters that are no longer capitals just reads as loose setting. */
+.dash-banner-label {
+  font-size: 11px; letter-spacing: 0;
+  color: var(--text-3); margin-bottom: 8px;
+}
+.dash-banner-empty { font-size: 12.5px; }
+/* Equal halves. `min-width: 0` is load-bearing on both — without it the event
+   titles' ellipsis never engages and a long headline widens the column instead. */
+.dash-banner-news, .dash-banner-alerts { flex: 1 1 0; min-width: 0; }
+
+/* ---- upcoming economic events (left column) ----
+   Each event is its own bordered row rather than a line of text: the row carries
+   four facts (currency, headline, time, impact) and a flat list makes the reader
+   re-find the columns on every line. */
+.dash-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dash-event {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; font-size: 12.5px; line-height: 1.3;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-xl);
+}
+/* Impact as a dot AND a badge at the other end of the row. The dot is scan-speed
+   (four rows read as a shape), the badge is the actual word — colour is never the
+   only carrier of the signal. */
+.dash-event-dot { flex: none; width: 6px; height: 6px; border-radius: var(--r-full); background: var(--text-3); }
+.dash-event.impact-high .dash-event-dot { background: var(--status-bad); }
+.dash-event.impact-medium .dash-event-dot { background: var(--status-warn); }
+.dash-event.impact-holiday .dash-event-dot { background: var(--status-info); }
+/* Plain text, not the pill it used to be: with a badge already ending the row, a
+   second pill at the start made every event read as two tags around a title. */
 .dash-event-ccy {
-  flex: none; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
-  padding: 1px 6px; border-radius: 999px;
-  background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2);
+  flex: none; font-size: 10.5px; font-weight: var(--fw-medium); letter-spacing: 0.04em;
+  color: var(--text-3);
 }
 .dash-event-title {
-  color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch;
+  flex: 1 1 auto; min-width: 0;
+  color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.dash-event-time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
-.dash-banner-alerts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.dash-event-time { flex: none; color: var(--text-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.dash-event-impact {
+  flex: none; font-size: 10.5px; padding: 1px 7px; border-radius: var(--r-full);
+  background: var(--surface-hover); border: 1px solid var(--line); color: var(--text-3);
+}
+.dash-event.impact-high .dash-event-impact {
+  background: var(--tint-loss-3); border-color: var(--tint-loss-8); color: var(--tint-loss-13);
+}
+.dash-event.impact-medium .dash-event-impact {
+  background: var(--tint-warn-3); border-color: var(--tint-warn-6); color: var(--tint-warn-9);
+}
+.dash-event.impact-holiday .dash-event-impact {
+  background: var(--tint-payout-3); border-color: var(--tint-payout-5); color: var(--tint-payout-6);
+}
+
+/* ---- account alerts (right column) ----
+   Full tinted rows, because an alert is a state and not a tag: the tint is what
+   makes "within 1.2% of daily drawdown" scannable next to a milestone. Each row
+   pairs the tint with a glyph, so the severity survives greyscale.
+   ONE DEBATABLE MAPPING, recorded rather than buried: `info` takes the PROFIT
+   tints. Every info-severity notification this app raises is a milestone (target
+   hit, payout eligible), so green is the outcome it reports — but green is the
+   money colour, and an info alert that is not about money would read wrong here.
+   Revisit with §17 if a neutral info alert ever ships. */
+.dash-alert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .dash-banner-alert {
-  font-size: 12px; font-weight: 400; padding: 4px 12px; border-radius: 999px;
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 12.5px; line-height: 1.35; padding: 8px 10px; border-radius: var(--r-xl);
   background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
 }
-.dash-banner-alert.warn { border-color: var(--status-warn); color: var(--status-warn); }
-.dash-banner-alert.crit { border-color: var(--status-bad); color: var(--status-bad); }
-.dash-banner-alert.info { border-color: var(--status-info); color: var(--status-info); }
+.dash-banner-alert svg { flex: none; width: 14px; height: 14px; margin-top: 1px; }
+.dash-banner-alert-title { min-width: 0; }
+.dash-banner-alert.crit {
+  background: var(--tint-loss-2); border-color: var(--tint-loss-8); color: var(--tint-loss-13);
+}
+.dash-banner-alert.warn {
+  background: var(--tint-warn-2); border-color: var(--tint-warn-6); color: var(--tint-warn-9);
+}
+.dash-banner-alert.info {
+  background: var(--tint-profit-2); border-color: var(--tint-profit-7); color: var(--tint-profit-11);
+}
 /* ---- dashboard action strip ----
    Occupies the band reserved below Today's Brief. No background, border,
    divider or card — the controls sit directly in the whitespace, so the strip
@@ -712,6 +783,9 @@ label.full { margin-bottom: 16px; }
        content-sized grid row can't provide. card-lg supplies it.
    So: a widget's height class must match its declared row span. A test pins that
    pairing for the current catalogue. */
+/* THE GENERIC N-COLUMN GRID, still worn by Prop OS and AccountWorkspace, which set
+   --dash-grid-cols and span their cells by hand. Untouched: those pages are on the old
+   look and are not this pass's business. */
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(var(--dash-grid-cols, 3), minmax(0, 1fr));
@@ -720,6 +794,79 @@ label.full { margin-bottom: 16px; }
   align-items: start;
 }
 .dash-grid-cell { min-width: 0; }
+.dash-grid-cell > * { height: 100%; }
+
+/* THE DASHBOARD'S OWN CONTENT GRID — two columns, 67/33, exactly the prototype's
+   `minmax(0,67fr) minmax(0,33fr)`.
+
+   It used to borrow `.dash-grid` above: three equal columns with the calendar spanning
+   two, dense auto-flow, and a per-cell height computed from its span. All of that
+   existed so a trader could rearrange the page, and all of it went with the layout
+   editor (2026-08-30). What is left is what the design actually draws — a full-width
+   banner, then a tall card beside a stacked pair — and it is a SEPARATE class because
+   Prop OS still needs the generic one.
+
+   Account Health keeps sizing to its CONTENT. It has no neighbour to line up with, and
+   pinning it to a card height leaves dead surface under its footer — that was true
+   under the old system too, and it is the one thing worth carrying across. */
+.dash-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 67fr) minmax(0, 33fr);
+  gap: var(--dash-card-gap);
+  align-items: start;
+}
+.dash-account-cell { grid-column: 1 / -1; min-width: 0; }
+.dash-cal-cell     { min-width: 0; height: var(--dash-cal-h); }
+/* The right column: two cards whose heights plus the gap equal the calendar's, which
+   is where --dash-cal-h comes from. A flex column rather than two grid rows, so the
+   two heights are stated once each instead of being reverse-engineered from tracks. */
+.dash-side {
+  display: flex; flex-direction: column; gap: var(--dash-card-gap); min-width: 0;
+}
+.dash-trades-cell { height: var(--dash-trades-h); min-height: 0; }
+.dash-chart-cell  { height: var(--dash-chart-h);  min-height: 0; }
+/* Every cell's card fills it — the heights are on the cells so the cards stay unaware
+   of where they have been placed. */
+.dash-cal-cell > *, .dash-trades-cell > *, .dash-chart-cell > * { height: 100%; min-height: 0; }
+/* The meter footer's optional "Edit payout target" control. It is a THIRD item in a row
+   built for two (a percentage on the left, a note on the right), so it wraps onto its
+   own line rather than colliding with the note — which is what it did at every width
+   narrower than a 1920 monitor. */
+.dash-usage-settarget {
+  display: block; width: 100%; margin-top: 2px; padding: 0;
+  background: none; border: 0; text-align: left; cursor: pointer;
+  font: inherit; font-size: 11.5px; color: var(--text-link);
+}
+.dash-usage-settarget:hover { color: var(--text); }
+/* The chart's own box inside a unit-height card. `min-height: 0` is what lets a flex
+   child shrink below its content — without it recharts' container refuses to give
+   ground and the card grows past the row it was given. */
+/* `crosshair`, which is the browser's own plus-shaped pointer. A cumulative curve is
+   read by tracking one point along it — "where was I on the 14th" — and the arrow gives
+   no purchase on that, where the crosshair puts a hairline on the exact x the reader is
+   asking about. It is also the convention every charting tool a trader already uses
+   sets, so it costs nothing to learn. Applied to the fill rather than the card, so the
+   heading and its chip keep the normal pointer. */
+.dash-equity-fill { flex: 1; min-height: 0; cursor: crosshair; }
+
+/* THE RESPONSIVE RANGE (DESIGN-LANGUAGE §22).
+   THE TOKEN RE-DECLARATIONS THAT USED TO LIVE HERE HAVE MOVED TO tokens.css, and they
+   had to: this file is `layer(legacy)` and tokens.css is UNLAYERED, so an unlayered
+   declaration beats a layered one no matter the specificity or the media query. Every
+   `:root { --token: … }` written here was dead on arrival — see the note in tokens.css
+   for what that silently cost. What stays below is ordinary rules on this file's own
+   classes, which nothing competes with.
+
+   The design goes to one column at 1180 and drops its fixed heights there; our closed
+   breakpoint set has 1200, which is the same reorganisation one step earlier. */
+@media (max-width: 1200px) {
+  /* One column, so there is no second column for the calendar to match and nothing to
+     align to — a fixed 780px calendar stacked above the two cards is most of a laptop
+     viewport spent on one month. Cards size to their content again here. */
+  .dash-main-grid { grid-template-columns: minmax(0, 1fr); }
+  .dash-cal-cell, .dash-trades-cell, .dash-chart-cell { height: auto; }
+  .dash-cal-cell > *, .dash-trades-cell > *, .dash-chart-cell > * { height: auto; }
+}
 
 /* Card-size system (see --dash-card-h-md/-lg above): a flex column so each card's
    own content (tabs, chart, calendar grid) can flex to fill it. min-height: 0
@@ -832,7 +979,24 @@ label.full { margin-bottom: 16px; }
   color: var(--text-2); font-size: 13px; font-weight: var(--fw-medium); padding: 4px 0; cursor: pointer;
 }
 .dash-acct-more-btn:hover { color: var(--text); }
-.dash-acct-more-menu { top: calc(100% + 4px); left: 0; right: auto; min-width: 200px; }
+/* THE ACCOUNT OVERFLOW MENU. It used to carry `top`/`left`/`right` overrides on top of
+   `.wcz-menu`'s `position: absolute`; the panel is a portaled `Menu` now and Base UI
+   owns where it goes, so all that is left here is how WIDE it may be. A width, because
+   the primitive cancels its anchor width to size to content and an account label can be
+   long enough to wrap into three lines without a ceiling. */
+.dash-acct-more-menu { min-width: 240px; max-width: 320px; }
+/* One row: the account chip's three facts at menu size — health, name, phase. */
+.dash-acct-menu-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
+.dash-acct-menu-dot {
+  flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--status);
+}
+.dash-acct-menu-name {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The phase is the row's secondary fact and is pushed to the far edge, so a column of
+   them lines up and the eye can read the journey down the list rather than hunting for
+   it after each name. */
+.dash-acct-menu-phase { flex: none; font-size: var(--fs-label); color: var(--muted); }
 
 @media (max-width: 760px) {
   .dash-acct-tabs { overflow-x: auto; max-width: 100%; scrollbar-width: thin; }
@@ -914,92 +1078,31 @@ label.full { margin-bottom: 16px; }
 }
 
 /* ---- calendar ---- */
-/* .cal fills .dash-cal-panel's fixed (card-lg) height: .cal-head stays its
-   natural size, .cal-grid-v2 flexes to take the rest and distributes it across
-   its 6 week-rows (see grid-template-rows below) — so the grid's total height
-   is locked to the Large Card size, and every row gets the same slice of it. */
-.cal { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.cal-head { flex: 0 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.cal-nav { display: flex; align-items: center; gap: 12px; }
-/* min-width fits the widest rendered month label ("September 2026", measured
-   at 115.5px) + a small buffer, so the arrows don't shift position as the
-   month name's length changes month to month. */
-.cal-nav h3 { margin: 0; font-size: 15px; font-weight: var(--fw-semibold); min-width: 120px; text-align: center; }
-.cal-nav button { background: transparent; border: 1px solid var(--line); color: var(--muted); width: 28px; height: 26px; border-radius: 6px; cursor: pointer; }
-.cal-nav button:hover { color: var(--neutral-15); }
-/* Only ever rendered while viewing the current real-world month (see
-   MonthCalendar.jsx's isCurrentMonth check), so its text is always white. */
+/* WHAT WAS HERE IS DELETED (2026-08-30) — around 60 rules describing a calendar this
+ * app no longer draws: `.cal`, `.cal-head`, `.cal-nav`, `.cal-grid-v2`, `.cal-cell` and
+ * its win/loss/be variants, `.cal-pnl`, `.cal-tcount`, `.cal-winpct`, the whole
+ * `.cal-week-*` family and the `.cal-stats-*` header pills.
+ *
+ * Every one of them was dead. The calendar was rebuilt on the Cal* primitives, which
+ * carry their geometry as utilities and identify themselves with `data-slot` rather
+ * than a class — so `.cal-cell` in this file had not styled anything since that rebuild,
+ * while still reading as the definition of a cell to anyone who opened the file. That
+ * is the more expensive kind of dead code: not bytes, but a second answer to "what does
+ * a calendar cell look like".
+ *
+ * They also reached for the fenced-off `--tint-*` and `--neutral-*` tokens, which is
+ * exactly the debt those tokens are fenced to contain.
+ *
+ * WHAT SURVIVES is what the rebuilt calendar still wears as a real class: the "This
+ * month" button below, and the marker glyphs — which live further down this file, near
+ * the Prop OS rules that introduced them. Those are addressed by a template literal
+ * (`cal-mark--${kind}`), so no grep for the literal string finds them; check there
+ * before deleting anything that looks like a stray `.cal-mark`. */
 .cal-today-btn {
   background: transparent; border: 1px solid var(--accent-border); color: var(--text);
   border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 400; cursor: pointer;
 }
 .cal-today-btn:hover { background: var(--accent-bg); }
-.cal-head-stats { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.cal-stats-label { font-size: 13px; font-weight: 400; color: var(--text); display: inline-flex; align-items: center; gap: 4px; }
-.cal-stats-pill { font-size: 12px; font-weight: 400; padding: 4px 12px; border-radius: 999px; }
-.cal-stats-pill.win { background: var(--tint-profit-6); color: var(--text); }
-.cal-stats-pill.loss { background: var(--tint-loss-4); color: var(--text); }
-.cal-stats-pill.days { background: var(--accent-bg); color: var(--text); font-weight: 400; }
-
-/* One 8-column grid (7 days + a week-summary column), so each "Week N" card
-   lines up exactly with its row of days instead of living in a separate panel.
-   Always 6 week-rows below the header (MonthCalendar.jsx pads short months
-   with blank trailing rows) so every row — and every cell in it — is the same
-   height in every month, not just within one month's own grid. */
-.cal-grid-v2 {
-  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: auto repeat(6, 1fr);
-  gap: 4px; flex: 1 1 auto; min-height: 0;
-}
-.cal-dow-cell { text-align: center; color: var(--text); font-size: 12px; padding: 4px 4px 12px; border-bottom: 1px solid var(--line-strong); }
-.cal-week-head { border-bottom: 1px solid var(--line-strong); margin-left: 12px; }
-/* Height comes from the grid row's own share of .cal-grid-v2's fixed height
-   (grid's default align-items: stretch fills the row) — no aspect-ratio, since
-   the row height is now fixed by the Large Card size, not derived from width.
-   Every cell in a row is still the same height as every other (day cells and
-   the week card alike), just no longer tied to their shared column width. */
-/* #1a1f2a sits about halfway between --panel (#151922, the calendar widget's
-   own background) and --surface-2 (var(--surface-2), the "elevated" tone) — a step up
-   from the panel so cells read as distinct from it, but subtly, not a full
-   elevated-surface jump. (Previously used var(--bg), which is darker than the
-   panel, so cells read as recessed rather than raised.) */
-.cal-cell { background: var(--surface-tint-1); border: 1px solid var(--line); border-radius: var(--r-md); padding: 4px; overflow: hidden; position: relative; transition: border-color var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
-.cal-cell.cal-empty { background: transparent; border: none; }
-.cal-daynum { font-size: 12px; line-height: 1.15; color: var(--muted); text-align: right; }
-/* .cal-cell has a fixed aspect-ratio height + overflow:hidden (see below) so
-   every cell stays the same size regardless of content — these spacing values
-   are tuned right up against that budget (measured, not guessed) to give the
-   pnl/trades/win% stack a little breathing room without the last line clipping. */
-.cal-cell-body { margin-top: 0px; }
-.cal-pnl { font-size: 14px; font-weight: 400; line-height: 1.15; }
-.cal-tcount { font-size: 10px; line-height: 1.15; color: var(--muted); }
-.cal-winpct { font-size: 10px; line-height: 1.15; color: var(--muted); margin-top: 0px; }
-.cal-cell.win { background: var(--tint-profit-5); border-color: var(--profit-strong); }
-/* White, not --profit/--loss/--accent — the cell's own background already
-   signals win/loss, so the number just needs to read clearly on top of it. */
-.cal-cell.win .cal-pnl { color: var(--text); }
-/* Solid, not the translucent --loss-bg (which reads dull over the near-black
-   background) — calibrated so its perceived brightness is a touch under the
-   win cell's var(--tint-profit-5). Border uses --loss-strong (mirrors .cal-cell.win using
-   --profit-strong) instead of a one-off hex, matched for equivalent intensity
-   once composited over each cell's own fill. */
-.cal-cell.loss { background: var(--tint-loss-5); border-color: var(--loss-strong); }
-.cal-cell.loss .cal-pnl { color: var(--text); }
-.cal-cell.be .cal-pnl { color: var(--text); }
-.cal-cell.clickable { cursor: pointer; }
-.cal-cell.clickable:hover { filter: brightness(1.25); }
-
-/* No margin-left (used to shave 10px off this box's width vs the day cells);
-   same width as a day cell, and — since it shares the same grid row — the same
-   grid-stretched height too (see .cal-cell above). */
-.cal-week-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md);
-  overflow: hidden; padding: 4px; display: flex; flex-direction: column; gap: 4px; justify-content: center;
-}
-.cal-week-label { font-size: 11px; line-height: 1.3; color: var(--text); }
-.cal-week-val { font-size: 14px; line-height: 1.3; font-weight: 400; }
-.cal-week-val.win { color: var(--profit); }
-.cal-week-val.loss { color: var(--loss); }
-.cal-week-days { font-size: 10px; font-weight: 400; color: var(--text); background: var(--accent-bg); border-radius: 999px; padding: 4px 8px; align-self: flex-start; }
 
 /* ============================================================
    App shell + sidebar (step 2)
@@ -1189,6 +1292,28 @@ label.full { margin-bottom: 16px; }
    `.acct-switch`'s own two declarations went with them — its `position: relative`
    dated from the hand-rolled dropdown, and Base UI's Positioner has not needed a
    positioned ancestor since Phase 4b. */
+
+/* The scope summary beside the account count — "P1 · P2 · Funded" (2026-08-28). Muted
+   and a step down, so the trigger reads "3 Accounts" first and the detail second. A
+   legacy rule rather than a utility because it is written in a page, where Tailwind
+   compiles nothing at all (tailwind.css @source). */
+/* A RULE, NOT A SPACE (2026-08-29, Rhea). The phase summary sat flush against the
+   scope label — "All accounts · 5 P1 · P2 · Funded" — where the design divides them,
+   because they are two different facts: how much scope, and which phases are in it.
+   Without the rule the two sets of `·` separators merge into one list. */
+.acct-switch-sub {
+  color: var(--text-3); font-size: 11.5px; white-space: nowrap;
+  border-left: 1px solid var(--line-strong); padding-left: 9px; margin-left: 1px;
+}
+/* THE PHASES DROP BEFORE THE SCOPE DOES. The trigger is capped at 200px, so at narrow
+   widths something has to give — and the answer is the detail, not the label: "All
+   accounts · 5" truncated to "All accou…" beside an intact "P1 · P2 · Funded" is §22's
+   "a label truncated to nothing while the badges keep their full width", exactly.
+   The design drops it at 1180; 1200 is the closed set's neighbouring number and the
+   same reorganisation one step earlier. */
+@media (max-width: 1200px) {
+  .acct-switch-sub { display: none; }
+}
 /* Appearance only — the Positioner places it (see .tb-user-menu above). */
 /* PRESET SKIN (2026-08-05). Surface, border, radius, padding and shadow are the
    generated dropdown-menu's now — DESIGN-LANGUAGE "the preset outranks legacy CSS".
@@ -1521,7 +1646,7 @@ label.full { margin-bottom: 16px; }
 .day-table { width: 100%; border-collapse: collapse; }
 .day-table th { text-align: left; color: var(--muted); font-size: 11px; padding: 8px 8px; border-bottom: 1px solid var(--line); }
 .day-table td { padding: 8px; border-bottom: 1px solid var(--neutral-5); }
-.grid .num.win { color: var(--profit); } .grid .num.loss { color: var(--loss); }
+.log-grid .num.win { color: var(--profit); } .log-grid .num.loss { color: var(--loss); }
 
 /* ---- trade log (step 3) ---- */
 .log-toolbar { display: flex; align-items: center; gap: 16px; }
@@ -1611,11 +1736,11 @@ label.full { margin-bottom: 16px; }
 .log-panel .grid-wrap { overflow: visible; }
 /* Rounding moves onto the outer cells, since the panel no longer clips to its
    own radius. */
-.log-panel .grid thead th:first-child { border-top-left-radius: var(--r-2xl); }
-.log-panel .grid thead th:last-child { border-top-right-radius: var(--r-2xl); }
-.log-panel .grid tbody tr:last-child td { border-bottom: none; }
-.log-panel .grid tbody tr:last-child td:first-child { border-bottom-left-radius: var(--r-2xl); }
-.log-panel .grid tbody tr:last-child td:last-child { border-bottom-right-radius: var(--r-2xl); }
+.log-panel .log-grid thead th:first-child { border-top-left-radius: var(--r-2xl); }
+.log-panel .log-grid thead th:last-child { border-top-right-radius: var(--r-2xl); }
+.log-panel .log-grid tbody tr:last-child td { border-bottom: none; }
+.log-panel .log-grid tbody tr:last-child td:first-child { border-bottom-left-radius: var(--r-2xl); }
+.log-panel .log-grid tbody tr:last-child td:last-child { border-bottom-right-radius: var(--r-2xl); }
 
 /* No margin of its own: .page-body is a flex column with `gap: 16px`, which is the
    app-wide spacing between major card sections. Adding a margin here stacked on
@@ -2305,12 +2430,40 @@ label.full { margin-bottom: 16px; }
    fixed head — `overflow: hidden` here is what clips the rows to the rounded corners. */
 .notif-panel { width: 340px; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; }
 .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 400; }
-.notif-markall { background: transparent; border: none; color: var(--status-info); font-size: 12px; cursor: pointer; }
+/* NEUTRAL, NOT BLUE (2026-08-28). It drew in --status-info and was the last blue left
+   in the chrome after the chart line and the tab indicator went neutral — one saturated
+   link in a panel of red, amber and green, where those three all MEAN something and it
+   does not. It is an action on the panel, so it reads like one: muted until hovered. */
+.notif-markall {
+  background: transparent; border: none; color: var(--text-2); font-size: 12px;
+  cursor: pointer; border-radius: var(--r-md); padding: 2px 6px;
+  transition: color var(--dur-fast) var(--ease);
+}
+.notif-markall:hover { color: var(--text); }
 .notif-list { overflow-y: auto; }
 .notif-empty { padding: 32px 16px; text-align: center; color: var(--muted); font-size: 13px; }
 .notif-item { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .notif-item.unread { background: var(--surface-hover); }
 .notif-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 8px; background: var(--muted); }
+
+/* The severity glyph, replacing `.notif-dot` (2026-08-28). Sized and coloured like the
+   dot it replaces — the hue still comes from the row's `.crit` / `.warn` / `.info`
+   class — but it is a SHAPE now, matching the marks Today's Brief uses for the same
+   three severities. Colour was the only encoding before. */
+.notif-glyph { display: inline-flex; flex: none; margin-top: 2px; }
+.notif-glyph svg { width: 15px; height: 15px; }
+.notif-item.crit .notif-glyph { color: var(--loss); }
+.notif-item.warn .notif-glyph { color: var(--warning); }
+.notif-item.info .notif-glyph { color: var(--profit); }
+
+/* The panel's footer link out to the full Alerts page. The feed here is capped, so
+   without it the older alerts were unreachable from the place people look for them. */
+.notif-foot {
+  border-top: 1px solid var(--line); padding: 10px 14px;
+  display: flex; justify-content: center;
+}
+.notif-foot a { color: var(--text-2); font-size: 12px; text-decoration: none; }
+.notif-foot a:hover { color: var(--text); }
 .notif-item.warn .notif-dot { background: var(--status-warn); }
 .notif-item.crit .notif-dot { background: var(--status-bad); }
 .notif-item.info .notif-dot { background: var(--status-info); }
@@ -2507,7 +2660,12 @@ label.full { margin-bottom: 16px; }
 }
 .u-tab::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-  border-radius: 2px; background: var(--accent); transform-origin: center;
+  /* THE INDICATOR IS NEUTRAL, NOT BRAND (2026-08-28). It drew in --accent, a blue, and
+     was the last blue left on the dashboard after the chart line went neutral — one
+     saturated 1px rule under "Recent Trades" with nothing else on the page to relate
+     it to. A selected tab is a position, not a brand moment; --text says "you are
+     here" without claiming to mean anything more. */
+  border-radius: 2px; background: var(--text); transform-origin: center;
   transform: scaleX(0); opacity: 0;
   transition: transform 220ms var(--ease), opacity 220ms var(--ease), height 180ms var(--ease);
 }
@@ -3121,6 +3279,11 @@ label.full { margin-bottom: 16px; }
   background: var(--surface-2); border: 1px solid var(--line-strong);
   border-radius: var(--r-2xl); box-shadow: var(--sh-2);
 }
+/* The empty state of the stack: the picker is the only panel, so the wrapper keeps its
+   place in the cascade's positioning but draws nothing of its own. See the note in
+   FilterPanel.jsx — two panels, one of them empty, is what this replaces. */
+.fp--bare { background: none; border: none; box-shadow: none; min-height: 0; }
+.fp-stack--bare .fp-cascade { margin-top: 0; }
 .fp-head {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-2);
   padding: 10px 12px; border-bottom: 1px solid var(--line);
@@ -3128,9 +3291,14 @@ label.full { margin-bottom: 16px; }
 .fp-head-title { font-size: 12px; font-weight: var(--fw-semibold); color: var(--text); }
 .fp-head-clear {
   background: transparent; border: none; padding: 0; cursor: pointer;
-  font-size: 11px; color: var(--accent-on-surface);
+  /* NEUTRAL (2026-08-28), with the rest of the chrome. It drew in --accent-on-surface,
+     which after the chart line, the tab indicator and "Mark all read" went neutral was
+     one of the last blues in the app. Blue still means brand and link; a destructive-ish
+     action inside a panel is not either. */
+  font-size: 11px; color: var(--text-2);
+  transition: color var(--dur-fast) var(--ease);
 }
-.fp-head-clear:hover { text-decoration: underline; }
+.fp-head-clear:hover { color: var(--text); text-decoration: underline; }
 
 /* Active filters. Each chip is two buttons: the body re-opens that filter's value
    column (editing beats remove-and-re-add), the ✕ removes only that one. */
@@ -3472,18 +3640,21 @@ label.full { margin-bottom: 16px; }
 .kpi-label, .wcz-head, .dash-banner-label, .dash-usage-label, .billing-card-name,
 .ph-payout-label, .po-total-label, .tp-field-label, .tp-section-title,
 .strat-stat-l, .strat-arch-label, .strat-adh-sum-tag, .jo-kpi-label, .dv-stat-label,
-.grid th, .summary-table th, .day-table th, .jo-recent-table th, .prop-insight-dim h4 {
+.log-grid th, .summary-table th, .day-table th, .jo-recent-table th, .prop-insight-dim h4 {
   font-weight: var(--fw-medium);
 }
 
 /* ---- Bespoke badges/pills/chips (pre-dating .u-badge) → Semibold, matching
    .u-badge's own weight so every status pill in the app reads consistently ----
    PHASE 4c (2026-08-05) — `.notif-badge`, `.tb-badge` and `.tb-avatar-fallback` came
-   off this list; those three classes no longer exist. The two top-bar count pills set
+   off this list; those three classes no longer exist. `.dash-banner-alert` came off
+   it too (2026-08-28): it is a full sentence in a tinted ROW now, not a pill, and
+   semibold body copy reads as shouting. `.dash-event-impact`, the badge that
+   replaced it in Today's Brief, took its place on the list. The two top-bar count pills set
    their own weight (`font-normal`) at the call site, per DESIGN-LANGUAGE §3 weight
    discipline: a two-character number in a 16px pill does not need emphasis to be
    read. */
-.pill, .chip, .cal-stats-pill, .cal-week-days, .dash-banner-alert, .dash-stat-count,
+.pill, .chip, .cal-stats-pill, .cal-week-days, .dash-event-impact, .dash-stat-count,
 .import-stat, .log-untagged, .tp-badge, .rp-dir, .prop-phase, .prop-mode,
 .conn, .auto-hint, .po-src, .sb-soon,
 .cs-badge, .precision-chip, .rule-chip, .prop-reason-chip {
@@ -3510,7 +3681,9 @@ label.full { margin-bottom: 16px; }
      to name is gone, and the container is the more honest target anyway: hiding the
      wrapper hides the trigger AND anything it opens. */
   .sidebar, .filterbar, .pagehead, .pagehead-actions, .notif, .toasts, .no-print { display: none !important; }
-  :root { --bg: #fff; --panel: #fff; --text: #111; --muted: #555; --line: #ccc; }
+  /* THE PALETTE FLIP MOVED TO tokens.css (2026-08-30). It was a `:root` block here, and
+     this file is layered while tokens.css is not — so it never applied and every
+     Save-as-PDF came out on the dark palette. See the note beside it there. */
   body, .shell, .shell-main, .page { background: #fff !important; color: #111 !important; display: block !important; }
   .shell-main { margin: 0 !important; padding: 0 !important; }
   .page { padding: 0 !important; }
@@ -4080,6 +4253,23 @@ label.full { margin-bottom: 16px; }
 }
 /* A phase this challenge never ran is not a phase it has yet to reach. */
 .pc-step--skipped .pc-step-node { border-style: dashed; }
+/* A phase cleared AT THE FIRM that this app never held the account for — the trader
+   joined mid-challenge. It keeps the tick, because it was passed and should read that
+   way at a glance, but the node stays OUTLINED and dashed where a tracked pass is
+   filled solid: a filled node is this app saying "we have the account and the row that
+   closed it", and an inference must not borrow that. */
+.pc-step--untracked .pc-step-node { border-style: dashed; border-color: var(--status); }
+.pc-step--untracked .pc-step-label { color: var(--text-2); }
+/* Its legs are travelled — the journey went that way — but dashed and dimmed for the
+   same reason the node is. Drawing them untravelled left the rail visibly broken in
+   front of a challenge that had plainly progressed past them. */
+.pc-step-line.is-travelled.is-untracked {
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--status-good) 55%, transparent) 0 5px,
+    transparent 5px 10px
+  );
+}
 .pc-step-text { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; text-align: center; }
 .pc-step-label { font-size: var(--fs-body); color: var(--text); }
 .pc-step--upcoming .pc-step-label, .pc-step--skipped .pc-step-label { color: var(--text-2); }
@@ -4197,6 +4387,14 @@ label.full { margin-bottom: 16px; }
   .pc-step { flex-direction: row; align-items: center; gap: 14px; min-height: 52px; }
   .pc-step-track { flex-direction: column; width: auto; align-self: stretch; }
   .pc-step-line { width: 2px; height: auto; min-height: 10px; }
+  /* The legs run top-to-bottom here, so the dashes have to as well. */
+  .pc-step-line.is-travelled.is-untracked {
+    background: repeating-linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--status-good) 55%, transparent) 0 5px,
+      transparent 5px 10px
+    );
+  }
   .pc-step-text { align-items: flex-start; text-align: left; }
   .pc-current-head { margin-bottom: 12px; }
 }
@@ -4457,12 +4655,12 @@ label.full { margin-bottom: 16px; }
      being sticky at this width. On a phone a persistent header costs more
      vertical space than it returns. */
   .log-panel .grid-wrap { overflow-x: auto; overscroll-behavior-x: contain; }
-  .log-panel .grid thead th { position: static; }
+  .log-panel .log-grid thead th { position: static; }
   .grid-wrap { -webkit-overflow-scrolling: touch; }
   /* A fixed table layout divides the viewport between every column, so at phone
      widths each one collapses to a few characters. Let content set the width and
      scroll instead. */
-  .log-panel .grid { table-layout: auto; min-width: 720px; }
+  .log-panel .log-grid { table-layout: auto; min-width: 720px; }
 }
 
 /* The drawer slides; users who ask for less motion just get it. */
