@@ -221,9 +221,19 @@ test('the resets Preflight would have provided are present, and only remove UA d
     `every rule in the scoped reset must be wrapped in :where() — ${blocks} rule(s), ${wheres} :where()`);
 });
 
-test('the entry imports the four layers in order', () => {
+test('the entry imports the layers in order, legacy last', () => {
   const order = [...strip(entry).matchAll(/@import\s+"([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(order, ['../tailwind.css', './tokens.css', './bridge.css', './legacy/app.css']);
+  assert.deepEqual(order, [
+    '../tailwind.css', './tokens.css', './bridge.css', './scrollbars.css', './legacy/app.css',
+  ]);
+  // scrollbars.css joined the list on 2026-09-01 and is UNLAYERED on purpose: its whole
+  // job is to outrank legacy/app.css's `*::-webkit-scrollbar { display: none }` for the
+  // boxes that opt in with `data-scroll`. Importing it into layer(legacy) — or anywhere
+  // before tokens.css — would make it a silent no-op, which is the failure mode this
+  // assertion exists to catch. Legacy stays last in the list and first in layer order.
+  assert.equal(order.at(-1), './legacy/app.css', 'legacy/app.css must be imported last');
+  assert.ok(!/@import\s+"\.\/scrollbars\.css"\s+layer/.test(strip(entry)),
+    'scrollbars.css must stay unlayered or it cannot beat the global scrollbar hide');
 });
 
 test('the split is clean: tokens hold no rules, legacy holds no tokens', () => {

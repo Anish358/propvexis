@@ -162,10 +162,41 @@ const TINTED = [
   'hover:bg-[var(--surface-hover)]',
 ].join(' ');
 
+/* THE HOVER HAD TO BE SAID THREE TIMES, AND EACH ONE IS LOAD-BEARING (2026-09-02).
+ *
+ * The bar's two chrome pills — Filters and the bell — are `chrome` + `pill`, and
+ * `chrome` maps to the generated `ghost`, whose own class string carries
+ * `dark:hover:bg-muted/50` and `aria-expanded:bg-muted` alongside the plain
+ * `hover:bg-muted` this list replaces. tailwind-merge only drops a class when the
+ * MODIFIER SETS match, so `hover:` deletes `hover:` and leaves the other two standing —
+ * and both then beat this line in the cascade: `dark:hover:` is emitted later inside the
+ * same `@media (hover:hover)` block, and `aria-expanded:` outranks nothing but applies
+ * when nothing else does.
+ *
+ * WHAT THAT LOOKED LIKE, measured in the built CSS rather than reasoned about: hovering
+ * either control resolved to `color-mix(in oklab, var(--sel-bg) 50%, transparent)` — a
+ * HALF-TRANSPARENT fill, so it composited against the translucent top bar behind it and
+ * landed within a hex step of --control-bg. The pill's hover was invisible; only the
+ * label brightened. The design draws #1a1a1e against #131316, which is --surface-hover
+ * against --control-bg — the tokens were already right and never reached the element.
+ *
+ * So each stray class is answered in its own modifier set, where tailwind-merge can
+ * actually delete it, instead of a fourth rule racing it on source order:
+ *   hover:              the design's own step
+ *   dark:hover:         the same, because `dark` is `&` here (bridge §THEMING) and the
+ *                       generated dark hover is a mix this app never wanted
+ *   aria-expanded:      one step further to --sel-bg while the popover is open, so the
+ *                       control says so with the pointer elsewhere
+ *   aria-expanded:hover: HOLDS that step. Without it an open control DIMS under the
+ *                       pointer — hover would take it back down to --surface-hover,
+ *                       which is §14 backwards. It wins on specificity (class + attr +
+ *                       pseudo-class), not on order. */
 const PILL = [
   'h-9 rounded-full border border-[var(--line-control)] bg-[var(--control-bg)]',
   'text-[13.5px] font-medium text-[var(--text-2)]',
   'hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
+  'dark:hover:bg-[var(--surface-hover)]',
+  'aria-expanded:bg-[var(--sel-bg)] aria-expanded:hover:bg-[var(--sel-bg)]',
 ].join(' ');
 const PILL_ICON = 'w-9';
 

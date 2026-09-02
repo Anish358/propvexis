@@ -482,11 +482,29 @@ export function AccountCardFoot({ action, className, children, ...rest }) {
  * every other mono figure on the card. That is the one failure in this repo with no
  * error message. Rhea sets the count in mono so a glance lands on "7/10" rather than on
  * the sentence around it. */
-export function AccountFootFigure({ className, children, ...rest }) {
+/* `tone="warn"` is for a figure that is over a limit the trader can still fix by
+ * trading — the consistency rule's share-of-profit, which gates a payout without ever
+ * breaching the account. Amber and NOT --loss on purpose: §17's red is a failure or a
+ * losing trade, and this is neither. A page cannot write either class (utilities
+ * compile only under components/{ui,primitives}), which is why the choice is a PROP.
+ *
+ * RESOLVED OUTSIDE cn(), not as a ternary inside it. utility-collisions.test.js reads
+ * every string literal inside a cn(...) call as a class name the library ships, so the
+ * comparison string 'warn' was reported as a collision with legacy CSS's real `.warn`
+ * rule — a false positive, but the test is blunt on purpose and the fix is to keep
+ * non-class literals out of the call. A ternary rather than two colour classes either
+ * way, because tailwind-merge would keep both. */
+const FOOT_TONE = {
+  default: 'text-[var(--text-body)]',
+  warn: 'text-[var(--warning-bright)]',
+};
+
+export function AccountFootFigure({ tone = 'default', className, children, ...rest }) {
+  const toneClass = FOOT_TONE[tone] ?? FOOT_TONE.default;
   return (
     <span
       data-slot="account-foot-figure"
-      className={cn('font-mono font-semibold tabular-nums text-[var(--text-body)]', className)}
+      className={cn('font-mono font-semibold tabular-nums', toneClass, className)}
       {...rest}
     >
       {children}

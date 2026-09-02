@@ -44,4 +44,7 @@
 @import "../tailwind.css";
 @import "./tokens.css";
 @import "./bridge.css";
+/* Unlayered on purpose — it has to outrank legacy/app.css's global scrollbar hide.
+   See the file header. */
+@import "./scrollbars.css";
 @import "./legacy/app.css" layer(legacy);

@@ -198,3 +198,63 @@ test('provisionGate still routes by kind, so restoring a cap needs no rewiring',
   assert.equal(provisionGate({ plan: 'free', kind: 'nonsense', syncedCount: 0, manualCount: 0 }).ok, true);
   assert.equal(provisionGate({ plan: 'free', kind: undefined, syncedCount: 0, manualCount: 0 }).ok, true);
 });
+
+// ── THE CHALLENGE COST (0031, owner spec 2026-09-02) ─────────────────────────
+
+test('the challenge cost is optional, and a number when given', () => {
+  // "An option of adding" — an absent cost is a complete prop payload, which is also
+  // the shape of every account created before the field existed.
+  assert.equal(validateProvision(propBody()).value.challenge_fee, null);
+  assert.equal(validateProvision({ ...propBody(), challenge_fee: '' }).value.challenge_fee, null);
+  assert.equal(validateProvision({ ...propBody(), challenge_fee: 49.5 }).value.challenge_fee, 49.5);
+  // A form sends strings. A cost that arrived as '49.5' and was stored as a string
+  // would be summed by financeSummary's `Number(f.amount)` anyway, but the COLUMN is
+  // NUMERIC and the deferred EA path reads it back — so it is coerced here, once.
+  assert.equal(validateProvision({ ...propBody(), challenge_fee: '49.5' }).value.challenge_fee, 49.5);
+});
+
+test('a zero challenge cost is a real answer; a negative one is refused', () => {
+  // Free and comped challenges exist, and 0 must survive `numOrNull` rather than
+  // becoming null — the trader answered. It posts no fee row (nothing moved), which
+  // is fees.js's job, not the validator's.
+  assert.equal(validateProvision({ ...propBody(), challenge_fee: 0 }).value.challenge_fee, 0);
+  // A negative cost is not a discount, it is a payout typed into the wrong field, and
+  // it would ADD to the ROI it should reduce — spend is summed unsigned.
+  const neg = validateProvision({ ...propBody(), challenge_fee: -49 });
+  assert.equal(neg.ok, false);
+  assert.match(neg.error, /negative/i);
+  const nan = validateProvision({ ...propBody(), challenge_fee: 'free' });
+  assert.equal(nan.ok, false);
+  assert.match(nan.error, /number/i);
+});
+
+test('a phase of an EXISTING challenge may not carry a cost', () => {
+  /* The owner's rule: the fee was recorded when the challenge was created, and the
+   * Phase 2 login a firm issues for passing Phase 1 is not a second purchase. Accepting
+   * both would double the spend of every challenge that got past its first phase — and
+   * silently, because each row looks reasonable on its own in the ledger.
+   *
+   * Refused rather than ignored, which is this module's standing rule for a
+   * contradiction (see the live-path case below): the wizard nulls the value on that
+   * branch, so reaching this error means a client is wrong about what it is sending. */
+  const r = validateProvision({ ...propBody(), challenge_group_id: 12, challenge_fee: 49 });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /existing challenge/i);
+  // Either alone is fine — it is only the pair that is a contradiction.
+  assert.equal(validateProvision({ ...propBody(), challenge_group_id: 12 }).ok, true);
+  assert.equal(validateProvision({ ...propBody(), challenge_fee: 49 }).ok, true);
+});
+
+test('a live account may not carry a challenge cost either', () => {
+  // Same category error as a live account naming a firm: there is no firm it bought
+  // anything from, and the fee would show up as prop spend in an ROI the account has no
+  // part in. Kept in the same refusal as firm/product/phase/challenge so the set cannot
+  // drift apart.
+  const live = {
+    capital_kind: 'live', label: 'IC Live', platform: 'mt5', import_method: 'manual',
+  };
+  const r = validateProvision({ ...live, challenge_fee: 49 });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /challenge cost/i);
+  assert.equal(validateProvision(live).ok, true, 'and the live account itself still validates');
+});

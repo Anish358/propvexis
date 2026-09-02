@@ -93,6 +93,50 @@ export function tradingDaysRead(d) {
   return { has: true, met, required, done, count: `${done}/${required}` };
 }
 
+/* THE CONSISTENCY RULE, READ FOR A CARD. Mirrors tradingDaysRead exactly: one place
+ * decides how this rule READS so that every surface showing it says the same thing,
+ * while the rule itself is still decided server-side (consistencyState in
+ * src/domain/prop/prop.js) and arrives whole.
+ *
+ * `has: false` for the accounts with no consistency rule — most of them — and a caller
+ * draws nothing at all rather than an empty gate. Same contract as the day count.
+ *
+ * `pct: null` WITH `has: true` IS A REAL STATE, and the reason this returns two fields
+ * rather than one string: the account carries a cap but has no profit yet, so there is
+ * a rule to name and no ratio to name it against. A card shows the cap and waits. A 0%
+ * would be a lie in the other direction — it reads as perfect compliance when what is
+ * true is that nothing has been measured.
+ *
+ * NOTHING HERE RECOMPUTES THE RULE. `withinCap` is the engine's verdict, defaulted to
+ * true only for a state that predates the field — never derived from pct vs cap here,
+ * which is how this file and the engine would start disagreeing about a boundary case
+ * (exactly 30.0% of profit on a 30% cap is COMPLIANT; <= is the industry's operator). */
+export function consistencyRead(c) {
+  const cap = Number(c?.cap);
+  if (!c || !(cap > 0)) return { has: false, cap: null, pct: null, withinCap: true };
+  const pct = c.pct == null ? null : Number(c.pct);
+  return {
+    has: true,
+    cap,
+    pct: pct == null || Number.isNaN(pct) ? null : pct,
+    withinCap: c.withinCap !== false,
+    bestDay: c.bestDay == null ? null : Number(c.bestDay),
+    // How much more total profit brings the current best day inside the cap. The
+    // engine sends it only when the account is over, which is the only time it means
+    // anything.
+    profitNeeded: c.profitNeeded == null ? null : Number(c.profitNeeded),
+  };
+}
+
+/* A percentage as a card writes it: at most one decimal, and none when it is whole.
+ * "42%" and "42.5%", never "42.0%" or "42.37%" — a share of profit is a figure a
+ * trader compares to a round cap, and the second decimal is noise that makes the two
+ * harder to compare at a glance. */
+export function pctText(n) {
+  if (n == null || Number.isNaN(Number(n))) return null;
+  return `${String(Math.round(Number(n) * 10) / 10)}%`;
+}
+
 export function accountRow(state, account) {
   return {
     ...state,

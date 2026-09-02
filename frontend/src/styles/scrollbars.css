@@ -1,0 +1,74 @@
+/* ===========================================================================
+   SCROLLBARS — opt-in, on the prototype's numbers.
+   ===========================================================================
+
+   legacy/app.css:13-21 hides native scrollbar chrome on `*` ("standard in this class
+   of app — Linear, Notion"), and for the page body and the modals that is still the
+   right call. It is the wrong call for a SHORT list inside a card: Today's Brief caps
+   its two columns at 153px, so a fifth economic event and a third account alert were
+   present, scrollable, and completely unannounced. There is no other affordance in
+   that card — no fade, no chevron, no "+2 more" — which is exactly why the prototype
+   styles a scrollbar instead of hiding one.
+
+   So this file does not un-hide anything globally. A box asks for a scrollbar by
+   carrying `data-scroll="y"`, and gets these values and no others.
+
+   UNLAYERED, AND THAT IS WHAT MAKES IT WORK. legacy/app.css is imported into
+   layer(legacy), the first layer declared, so it loses to every unlayered rule
+   regardless of specificity — `*::-webkit-scrollbar { display: none }` included. The
+   `display: block` below is not redundant: width alone cannot revive a pseudo-element
+   that another rule has set to `display: none`.
+
+   THE VALUES ARE THE PROTOTYPE'S, TOKENISED. It writes the global rule as
+
+     * { scrollbar-width: thin; scrollbar-color: #2a2a30 transparent }
+     ::-webkit-scrollbar { width: 8px; height: 8px }
+     ::-webkit-scrollbar-thumb { border-radius: 99px; border: 2.5px solid transparent;
+                                 background-clip: padding-box }
+
+   #2a2a30 is --line-chip. The 8px track with a 2.5px transparent border is how the
+   thumb ends up 3px wide while keeping an 8px hit target — the bar is hairline-thin to
+   look at and still grabbable, which a flat 3px track is not.
+
+   ALWAYS VISIBLE, NOT HOVER-ONLY. The prototype's webkit thumb is transparent until
+   `:hover`; its Firefox rule (`scrollbar-color`) is not, so the two engines disagree
+   and the design screenshots are the Firefox behaviour. A hover-only affordance also
+   fails the thing it is here for — you cannot discover that a list scrolls by hovering
+   a list you do not know scrolls. Hover then INTENSIFIES what is already there (§7),
+   rather than conjuring it.
+   =========================================================================== */
+
+[data-scroll='y'] {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;                                /* Firefox */
+  scrollbar-color: var(--line-chip) transparent;
+  -ms-overflow-style: auto;
+}
+
+[data-scroll='y']::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+  height: 8px;
+}
+
+[data-scroll='y']::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-scroll='y']::-webkit-scrollbar-thumb {
+  background: var(--line-chip);
+  background-clip: padding-box;
+  border: 2.5px solid transparent;
+  border-radius: 99px;
+  /* A thumb that fills its whole track says "scrollable" while being unable to move,
+     which is worse than no thumb at all. Chrome shrinks it out of the way on its own;
+     Firefox does not, so the floor stops a barely-overflowing list from rendering a
+     full-height bar. */
+  min-height: 24px;
+}
+
+[data-scroll='y']:hover::-webkit-scrollbar-thumb {
+  background: var(--line-hover);
+  background-clip: padding-box;
+}

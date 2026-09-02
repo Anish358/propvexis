@@ -64,18 +64,58 @@ test('the dead legacy calendar CSS is gone', () => {
 });
 
 test('the week cell is shaped like a day and coloured like a summary', () => {
-  const week = cal.slice(cal.indexOf('export function CalWeek'));
+  // STRIPPED, because the source documents the `mt-auto` it removed and a raw scan
+  // would match the explanation instead of the code.
+  const calCode = stripComments(cal);
+  const week = calCode.slice(calCode.indexOf('export function CalWeek'));
   // Same box as a day cell: the two sit in one grid row and must agree.
   assert.match(week, /min-h-\[var\(--cal-cell-h,82px\)\]/);
   assert.match(week, /rounded-\[10px\]/);
   assert.match(week, /px-2\.5 py-\[9px\]/);
-  // Same INTERNAL arrangement — eyebrow at the top, figure pushed to the bottom — so
-  // the week's total lands on the same baseline as the seven figures it totals.
-  assert.match(week, /mt-auto flex flex-col/);
+  /* Same INTERNAL arrangement as a day cell, so the week's total lands on the same
+   * baseline as the seven figures it totals. That arrangement CHANGED SIDES on
+   * 2026-09-01: the day cells were pinned to the cell floor with `mt-auto` and moved to
+   * the top inset to match the prototype, so this one moved with them. The invariant is
+   * "the same edge as a day", not "the bottom" — holding this at the bottom would have
+   * broken the very alignment the `mt-auto` was there to create. */
+  assert.match(week, /<div className="flex flex-col gap-1">/);
+  assert.ok(!/mt-auto/.test(week),
+    'the week figure must sit where the day figures do, and they are top-aligned now');
   // But NOT the days' outcome wash: it is a total OF the row, not an eighth day.
   assert.ok(!/CELL\[/.test(week), 'the week cell must not take a day cell tint');
   assert.match(week, /bg-\[var\(--surface-sunken\)\]/);
   assert.match(week, /border-\[var\(--line-inset\)\]/, 'the quietest line in the ramp');
+});
+
+test('a day cell is ONE top-aligned stack, and the slack falls beneath it', () => {
+  /* The prototype draws the cell as three SIBLING spans in a `column` box at `gap:4px`
+   * (project/PropVexis Dashboard.dc.html, the `days` loop): the number, the figure and
+   * the trade count read as one block against the top inset, and whatever height a
+   * stretched row gains opens up below them.
+   *
+   * Ours nested the figure and the count in an `mt-auto` wrapper, which pinned the pair
+   * to the cell FLOOR. On a 2-unit calendar that is ~40px of hole in the middle of every
+   * traded cell — the thing that made our grid read as a different calendar from the
+   * design even though every colour and radius already matched.
+   *
+   * The wrapper stays (the caller renders it conditionally on `c.data`), so `gap-1` has
+   * to be declared TWICE — once on the cell between the number and this block, once
+   * inside it between the figure and the count. Two nested flexes, one 4px rhythm. */
+  assert.match(cal, /'flex min-h-\[var\(--cal-cell-h,82px\)\] flex-col items-stretch gap-1/,
+    "the cell's own 4px gap");
+  const code = stripComments(cal);
+  const body = code.slice(code.indexOf('export function CalCellBody'));
+  // Cut at the next export rather than a newline-brace: this file is read as raw
+  // source and a literal escape in the needle is one more thing to get wrong.
+  const decl = body.slice(0, body.indexOf('export function', 10));
+  assert.match(decl, /data-slot="cal-cell-body" className=\{cn\('flex flex-col gap-1'/);
+  assert.ok(!/mt-auto/.test(decl),
+    'mt-auto pins the figures to the cell floor — the prototype top-aligns them');
+  /* And the two line-heights are EXPLICIT. The prototype leaves them at `normal`, which
+   * resolves off whatever font actually loads; a 2px drift per line is invisible once
+   * and obvious across forty-two cells, so 15px/12px get their metrics written down. */
+  assert.match(decl, /text-\[15px\] leading-\[18px\]/);
+  assert.match(decl, /text-\[12px\] leading-\[15px\]/);
 });
 
 test('a quiet weekend number is a step below a quiet weekday', () => {
@@ -83,4 +123,31 @@ test('a quiet weekend number is a step below a quiet weekday', () => {
   // quiet weekend one below that. The cell opacity was carrying this alone.
   assert.match(cal, /weekend \? 'text-\[var\(--line-hover\)\]' : 'text-\[var\(--text-dim\)\]'/);
   assert.match(month, /<CalDayNum idle=\{t === 'idle'\} weekend=\{isWeekend\}>/);
+});
+
+test('every day answers the pointer, and the hover edge can actually reach the cell', () => {
+  /* The prototype hangs `style-hover="border-color:#3f3f46"` on the day cell itself
+   * (project/PropVexis Dashboard.dc.html, the `days` loop) with no condition on whether
+   * that day traded. Ours gated the hover on `clickable`, so a month with one traded day
+   * had forty-one cells that went silent under the cursor.
+   *
+   * And the gate was not even the reason nothing moved: `borderColor` was written onto
+   * the element's own `style`, and an inline declaration beats every class — so the
+   * hover utility sat in the stylesheet doing nothing on ALL forty-two. The resting edge
+   * therefore travels as a custom property, which leaves both halves as classes. */
+  const code = stripComments(cal);
+  const cell = code.slice(code.indexOf('export function CalCell('));
+  const decl = cell.slice(0, cell.indexOf('export function', 10));
+
+  assert.ok(!/borderColor:/.test(decl),
+    'an inline borderColor outranks the hover class and kills it silently');
+  assert.match(decl, /'--cal-cell-line': today \? 'var\(--text-dim\)' : borderColor/);
+  assert.match(decl, /border-\[var\(--cal-cell-line\)\] transition-colors/);
+
+  // Un-gated by `clickable` — a quiet Tuesday lights up like a traded one.
+  assert.match(decl, /!today && 'hover:border-\[var\(--line-hover\)\]'/);
+  assert.ok(!/clickable && '[^']*hover:border/.test(decl),
+    'the hover edge must not be conditional on the day having trades');
+  // --line-hover IS the prototype's #3f3f46, so this is the design's value.
+  assert.match(appCss, /--line-hover:\s*var\(--zinc-700\)/);
 });

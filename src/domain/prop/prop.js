@@ -213,8 +213,19 @@ export function dailyDrawdown(challenge, series, asOf, offsetMin = 0) {
 // (upcomingPayouts anchors a funded payout cycle on it); `countFrom` is the bound
 // actually applied here, and is null when the whole history counts.
 // ---------------------------------------------------------------------------
-export function tradingDaysState(challenge, trades, payouts, asOf, offsetMin = 0) {
-  const required = challenge.min_trading_days ?? 0;
+// WHERE THIS CHALLENGE'S CYCLE STARTS — the one answer, shared. Two rules are
+// measured over it (trading days below, the consistency rule further down), and an
+// engine that computed the window twice would eventually be asked why a trader's
+// best day counts toward consistency on a day that does not count as a trading day.
+// Returns null when the whole of the account's history is the cycle.
+//
+// THE PAYOUT RESET APPLIES TO BOTH, off the same `min_days_reset_on_payout` flag
+// despite its name. What that flag actually records is that the FIRM'S CYCLE closes
+// at a payout, and a withdrawal is exactly what makes the profit before it no longer
+// the profit being gated: consistency asks what share of the money now waiting to be
+// paid out came from one day. Honouring the reset for the day count and ignoring it
+// for the profit window would give one engine two definitions of "this cycle".
+export function cycleBound(challenge, payouts, asOf) {
   const start = challenge.first_on_account === false && challenge.start_date
     ? new Date(challenge.start_date)
     : null;
@@ -227,6 +238,12 @@ export function tradingDaysState(challenge, trades, payouts, asOf, offsetMin = 0
       .sort((a, b) => b - a)[0];
     if (last && (!countFrom || last > countFrom)) countFrom = last;
   }
+  return countFrom;
+}
+
+export function tradingDaysState(challenge, trades, payouts, asOf, offsetMin = 0) {
+  const required = challenge.min_trading_days ?? 0;
+  const countFrom = cycleBound(challenge, payouts, asOf);
   const fromDay = countFrom ? dayKey(countFrom, offsetMin) : null;
   const asOfDay = dayKey(asOf, offsetMin);
 
@@ -248,6 +265,95 @@ export function tradingDaysState(challenge, trades, payouts, asOf, offsetMin = 0
     met: completed >= required,
     countFrom: countFrom ? countFrom.toISOString() : null,
     cycleStart: anchor && !Number.isNaN(anchor.getTime()) ? anchor.toISOString() : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// THE CONSISTENCY RULE — how much of the trader's total profit came from their
+// single best day, against the cap the firm allows. Null when the account carries
+// no such rule, which is the majority of accounts (challenge.consistency_pct is
+// NULL by default; see migration 0032).
+//
+// THE FORMULA IS THE INDUSTRY'S, and there is only one: best day / total profit
+// <= cap. A 30% rule with $3,000 accumulated means no day may hold more than $900
+// of it. Caps run 15%-50% in the wild.
+//
+// IT GATES A PAYOUT, IT DOES NOT BREACH AN ACCOUNT. That is why this returns a
+// state and never touches `breach` or healthScore: every firm we surveyed treats
+// an oversized day as a DELAY — the payout waits while further trading dilutes that
+// day's share, and nothing is lost. A trader whose best day is 60% of profit is
+// early, not out, and an engine that scored them as failing would be lying about
+// the one number they can still fix by trading normally.
+//
+// WHY IT CANNOT BE ANSWERED BY DIVIDING TWO NUMBERS THE CARD ALREADY HAS: the
+// equity series is a running total, and this rule needs profit BUCKETED BY DAY
+// through the same dayKey() clock the daily drawdown and the trading-day count use.
+// One clock, or a trader's best day lands in a different day here than it does in
+// the meter above it.
+//
+// REALIZED P&L, from closed trades — not the equity series. The series can be
+// floating (EA snapshots), and a firm computes this off closed daily P&L; an
+// unrealized spike on a still-open position is not a day's profit to anyone.
+//
+// A LOSING OR FLAT ACCOUNT HAS NO RATIO, and gets `pct: null` with
+// `withinCap: true` rather than a 0% or a division by zero. There is no profit to
+// distribute and therefore no payout to gate — the same reasoning tradingDaysRead
+// applies to an account with no minimum: nothing to be met is not a failure.
+// Deliberately also true when total profit is positive but every DAY is a loss on
+// net (possible with payouts excluded and a single winning trade split across
+// days) — with no positive day there is no "best day" to be oversized.
+// ---------------------------------------------------------------------------
+export function consistencyState(challenge, trades, payouts, asOf, offsetMin = 0) {
+  const cap = num(challenge.consistency_pct);
+  if (cap == null || !(cap > 0)) return null;
+
+  const countFrom = cycleBound(challenge, payouts, asOf);
+  const fromDay = countFrom ? dayKey(countFrom, offsetMin) : null;
+  const asOfDay = dayKey(asOf, offsetMin);
+
+  const byDay = new Map();
+  for (const t of trades) {
+    if (t.close_time == null || t.pnl_money == null) continue;
+    const day = dayKey(t.close_time, offsetMin);
+    if (day == null) continue;
+    if (fromDay && day < fromDay) continue;
+    if (asOfDay && day > asOfDay) continue;
+    byDay.set(day, (byDay.get(day) ?? 0) + Number(t.pnl_money));
+  }
+
+  let total = 0;
+  let best = null;
+  let bestOn = null;
+  for (const [day, pnl] of byDay) {
+    total += pnl;
+    // Ties keep the EARLIER day, because Map iterates in insertion order and this
+    // only replaces on a strict >. Which day is named matters to a trader reading
+    // "your best day was the 14th", and the first one to reach the figure is the
+    // one that has been sitting on the account longest.
+    if (pnl > 0 && (best == null || pnl > best)) { best = pnl; bestOn = day; }
+  }
+  const totalProfit = round2(total);
+  const bestDay = round2(best);
+
+  const gated = totalProfit > 0 && bestDay != null;
+  const frac = gated ? bestDay / totalProfit : null;
+  const withinCap = !gated || frac <= cap / 100;
+  return {
+    cap,
+    bestDay,
+    bestDayOn: bestOn,
+    totalProfit,
+    days: byDay.size,
+    // The share of profit sitting in the best day, as a percentage — the figure the
+    // rule is written in, so it is the figure the card shows.
+    pct: frac == null ? null : round2(frac * 100),
+    // The most that day is ALLOWED to hold at today's total. Under the cap this is
+    // headroom; over it, the amount the day would have to shrink to.
+    limit: gated ? round2((totalProfit * cap) / 100) : null,
+    withinCap,
+    // How much MORE total profit makes the current best day comply, which is the
+    // only action available to a trader who is over: total >= bestDay / cap.
+    profitNeeded: withinCap ? null : round2((bestDay * 100) / cap - totalProfit),
   };
 }
 
@@ -303,6 +409,7 @@ export function challengeState({ challenge, trades = [], payouts = [], snapshots
   const dailyDd = dailyDrawdown(challenge, series, asOf, offsetMin);
   const profitTarget = profitTargetState(challenge, currentEquity);
   const tradingDays = tradingDaysState(challenge, trades, payouts, asOf, offsetMin);
+  const consistency = consistencyState(challenge, trades, payouts, asOf, offsetMin);
 
   const breached = Boolean(maxDd?.breached || dailyDd?.breached);
   const breachReason = maxDd?.breached ? 'max_dd' : dailyDd?.breached ? 'daily_dd' : null;
@@ -331,6 +438,10 @@ export function challengeState({ challenge, trades = [], payouts = [], snapshots
     dailyDd,
     profitTarget, // null for funded
     tradingDays,
+    /* null when the account has no consistency rule, which is most of them.
+       DELIBERATELY ABSENT from `breach` and from healthScore below — it is a payout
+       gate, not a failure; see consistencyState. */
+    consistency,
     breach: { breached, reason: breachReason },
     health,
   };

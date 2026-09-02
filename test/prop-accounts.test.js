@@ -56,8 +56,10 @@ test('both tab rows are the app\'s one switcher primitive, not a new tab style',
   assert.match(page, /import \{[^}]*\bTabs\b[^}]*\} from '@\/components\/primitives'/s);
   assert.match(page, /<Tabs className="pa-tabs" tabs=\{ACCOUNT_TABS\}/);
   assert.match(page, /<Tabs className="pa-slices" tabs=\{sliceTabs\}/);
-  // Switching is local state, so no reload and no route churn.
-  assert.match(page, /const \[tab, setTab\] = useState\('portfolio'\)/);
+  // Switching stays on the one route — no reload, no second page. The open tab
+  // lives in the query string rather than in state so a link can name it; see
+  // 'the open tab is addressable' below.
+  assert.match(page, /const tab = params\.get\('tab'\) === 'details' \? 'details' : 'portfolio'/);
   assert.match(page, /const \[slice, setSlice\] = useState\('evaluation'\)/);
 });
 
@@ -112,6 +114,38 @@ test('selecting a card writes to the app-wide selection, then flips to Details',
   assert.equal((card.match(/>Select</g) || []).length, 2, 'every card kind has a Select action');
   // No local selected-account state anywhere — that would be the second source.
   assert.ok(!/useState\([^)]*selectedAccount/i.test(page));
+});
+
+test('the open tab is addressable, and Portfolio stays the bare URL', () => {
+  // The tab is URL state, not component state: ?tab=details opens Details, and
+  // anything else — including no param at all — opens Portfolio. That is what
+  // makes /prop/accounts?tab=details a link another page can point at.
+  assert.match(page, /import \{ useOutletContext, useSearchParams \} from 'react-router-dom'/);
+  assert.match(page, /const \[params, setParams\] = useSearchParams\(\)/);
+  // Portfolio DELETES the param rather than writing ?tab=portfolio, so the default
+  // view keeps the clean URL and there is only one spelling of it.
+  assert.match(page, /if \(value === 'details'\) next\.set\('tab', 'details'\);\s*else next\.delete\('tab'\);/);
+  // Flipping tabs replaces the history entry: Back returns to the page the trader
+  // came from, not to the other tab of the page they are on.
+  assert.match(page, /\}, \{ replace: true \}\)/);
+  // Still one route — the param must not have become a path segment.
+  assert.ok(!navRoutes().some((r) => r.startsWith('/prop/accounts/')));
+});
+
+test('the dashboard View account link opens THIS page on Details', () => {
+  // The link used to only set the app-wide scope and leave the trader on the
+  // dashboard — it named a destination and did not go there.
+  assert.match(dash, /import \{ Link, useNavigate, useOutletContext \} from 'react-router-dom'/);
+  assert.match(dash, /const navigate = useNavigate\(\)/);
+  assert.match(
+    dash,
+    /onOpen=\{\(\) => \{\s*setAccountId\(String\(selectedAccount\.account_id\)\);\s*navigate\('\/prop\/accounts\?tab=details'\);\s*\}\}/,
+    'View account must select the account AND navigate to Accounts > Details',
+  );
+  // It carries the account the same way a Portfolio card does — through the
+  // app-wide selection — so there is still one source of truth for it.
+  assert.match(dash, /<AccountCardLink onClick=\{onOpen\}>\s*View account/);
+  assert.ok(navRoutes().includes('/prop/accounts'), 'the destination is a real route');
 });
 
 test('the switcher is single-select on this route, and the IA is where that is declared', () => {

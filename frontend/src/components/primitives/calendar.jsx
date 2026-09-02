@@ -155,7 +155,22 @@ export function CalCell({
         // The floor is the same token the grid's `minmax()` reads — see CalGrid. Two
         // places, one value, or a row and its cell disagree about how short is too short.
         'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-[10px] border px-2.5 py-[9px] text-left',
-        clickable && 'cursor-pointer transition-colors hover:border-[var(--line-hover)]',
+        // THE EDGE IS READ FROM A VARIABLE, NOT SET INLINE (2026-09-02) — see the
+        // `style` block below for why. The two halves have to live in the same layer,
+        // or the hover half never lands.
+        'border-[var(--cal-cell-line)] transition-colors',
+        // EVERY DAY LIGHTS UP, NOT ONLY THE ONES THAT OPEN. The prototype hangs
+        // `border-color:#3f3f46` on the day cell itself, with no condition on whether
+        // that day traded — the grid answers the pointer everywhere, and a quiet
+        // Tuesday going silent under the cursor is what made ours feel dead. --line-hover
+        // IS #3f3f46, so this is the design's value and not a near miss.
+        //
+        // TODAY IS THE ONE EXCEPTION. Its edge is already --text-dim, a step BRIGHTER
+        // than the hover edge, so taking the prototype literally here would dim the
+        // cell you are pointing at — against DESIGN-LANGUAGE §14, where hover
+        // intensifies what is already there. Today holds its edge instead.
+        !today && 'hover:border-[var(--line-hover)]',
+        clickable && 'cursor-pointer',
         clickable && 'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         // A quiet weekday is dim; a quiet WEEKEND is dimmer, because a Saturday with no
         // trades is not the same absence as a Tuesday with none.
@@ -166,7 +181,13 @@ export function CalCell({
         background: idle && weekend ? 'var(--rail-bg)' : background,
         // TODAY IS AN EDGE, NEVER A FILL. A filled "today" competes with the outcome
         // tints for the same channel, and on a losing day it would argue with them.
-        borderColor: today ? 'var(--text-dim)' : borderColor,
+        //
+        // THE COLOUR TRAVELS AS A CUSTOM PROPERTY, and it must. `borderColor` was
+        // written straight onto this element's `style`, and an inline declaration beats
+        // every class — so `hover:border-[…]` sat in the stylesheet doing NOTHING on all
+        // forty-two cells. Feeding the variable instead leaves both the resting edge and
+        // the hover edge as classes, which resolve in Tailwind's own order.
+        '--cal-cell-line': today ? 'var(--text-dim)' : borderColor,
       }}
       {...rest}
     >
@@ -199,18 +220,37 @@ export function CalDayNum({ idle = false, weekend = false, className, children, 
 
 /* A day's figures. The P&L is the only coloured thing in the cell — the trade count and
  * win rate are context and stay muted, or a cell with three coloured lines competes
- * with its own neighbours. */
+ * with its own neighbours.
+ *
+ * THE STACK RUNS FROM THE TOP, AND THE SLACK FALLS AT THE BOTTOM (2026-09-01).
+ *
+ * This was `mt-auto`, which pinned the pair to the cell floor and left a growing hole
+ * under the day number as the row stretched. The prototype does not do that: its cell is
+ * three SIBLING spans in one `column` box at `gap:4px`, so the number, the figure and
+ * the count read as a single block against the top inset and whatever height the row
+ * gains opens up beneath them. On a 2-unit calendar the difference is ~40px of gap in
+ * the middle of every traded cell, which is what made ours look like a different
+ * calendar from the design.
+ *
+ * `gap-1` here is the SAME 4px the cell itself uses between the number and this block —
+ * two nested flexes, one rhythm, because the prototype's three spans are siblings and
+ * ours are not. Keeping the wrapper (rather than flattening to `display:contents`) is
+ * what lets the caller render the pair conditionally on `c.data`. */
 export function CalCellBody({ tone, value, sub, className, ...rest }) {
   const hue = TONE[tone] || null;
   return (
-    <div data-slot="cal-cell-body" className={cn('mt-auto flex flex-col', className)} {...rest}>
+    <div data-slot="cal-cell-body" className={cn('flex flex-col gap-1', className)} {...rest}>
       <span
-        className="truncate font-mono text-[15px] leading-5 font-semibold tracking-[-0.4px] tabular-nums"
+        /* leading-[18px] / leading-[15px] below are the prototype's `normal` line-heights
+           at 15px and 12px made explicit. Left implicit they drift with the font that
+           actually loads, and a 2px drift per line is visible when it happens in
+           forty-two cells at once. */
+        className="truncate font-mono text-[15px] leading-[18px] font-semibold tracking-[-0.4px] tabular-nums"
         style={{ color: hue || 'var(--text)' }}
       >
         {value}
       </span>
-      {sub && <span className="truncate text-[12px] leading-4 text-[var(--text-3)]">{sub}</span>}
+      {sub && <span className="truncate text-[12px] leading-[15px] text-[var(--text-3)]">{sub}</span>}
     </div>
   );
 }
@@ -250,14 +290,20 @@ export function CalWeek({ tone, label, value, sub, className, ...rest }) {
       <span className="text-[10px] leading-4 font-semibold tracking-[0.07em] text-[var(--text-5)] uppercase">
         {label}
       </span>
-      <div className="mt-auto flex flex-col">
+      {/* TOP-ALIGNED, BECAUSE THE DAY CELLS NOW ARE (2026-09-01). This block was
+          `mt-auto` for a stated reason — the week's total had to sit on the same
+          baseline as the seven figures it totals, which were themselves pinned to the
+          cell floor. Those moved to the top inset to match the prototype, so holding
+          this one at the bottom would BREAK the alignment the `mt-auto` existed to
+          create. Same invariant, opposite edge. */}
+      <div className="flex flex-col gap-1">
         <span
-          className="truncate font-mono text-[15px] leading-5 font-semibold tracking-[-0.4px] tabular-nums"
+          className="truncate font-mono text-[15px] leading-[18px] font-semibold tracking-[-0.4px] tabular-nums"
           style={{ color: hue || 'var(--text)' }}
         >
           {value}
         </span>
-        {sub && <span className="truncate text-[12px] leading-4 text-[var(--text-3)]">{sub}</span>}
+        {sub && <span className="truncate text-[12px] leading-[15px] text-[var(--text-3)]">{sub}</span>}
       </div>
     </div>
   );

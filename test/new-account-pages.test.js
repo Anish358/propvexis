@@ -590,10 +590,10 @@ test('the duplicate-name error is visible, in the colour the app uses for errors
 });
 
 test('page 3 lays its controls out in the owner\'s sketch', () => {
-  // Type · Size, then Phase · Name, then an "Account Details" label over the four rule
-  // fields and the drawdown toggle. TWO field grids with the section title between them,
-  // which is what makes the label belong to the fields under it rather than floating
-  // between two rows of one grid.
+  // Type · Size, then Phase · Name, then the challenge cost, then an "Account Details"
+  // label over the rules. TWO field grids with the section title between them, which is
+  // what makes the label belong to the fields under it rather than floating between two
+  // rows of one grid.
   const src = readCode('AccountStep.jsx');
   assert.equal((src.match(/<WizardFields>/g) || []).length, 2, 'two field grids');
   assert.match(src, /<WizardSectionTitle>Account Details<\/WizardSectionTitle>/);
@@ -603,10 +603,29 @@ test('page 3 lays its controls out in the owner\'s sketch', () => {
   const labels = [...src.matchAll(/<FieldLabel[^>]*>([^<]+)<\/FieldLabel>/g)].map((m) => m[1].trim());
   assert.deepEqual(labels, [
     'Account Name',
-    'Account Type', 'Account Size', 'Select Phase',
+    /* THE COST CLOSES THE FIRST GROUP, above the heading — moved there by the owner
+       2026-09-02, having first shipped as the last field of Account Details. The split
+       between the two groups is what the answer is ABOUT: this group is what the trader
+       bought (type, size, phase, name, price), and Account Details is the rules the prop
+       engine scores them against. Alone on row 3, which is what a fifth field costs in
+       a two-column grid; 48rem of body less 6rem of padding cannot fit a third column,
+       so that is its position at every width the page has. */
+    'Account Type', 'Account Size', 'Select Phase', 'Challenge Cost ($)',
     'Daily Drawdown (%)', 'Max Drawdown (%)', 'Payout Split (%)', 'Profit Target (%)',
     'Minimum Trading Days', 'Drawdown Type',
   ]);
+  /* AND THE CONSISTENCY RULE IS LAST, checked separately because the sequence above
+   * CANNOT see it: its FieldLabel holds the toggle as a child element, so
+   * `<FieldLabel...>([^<]+)</FieldLabel>` stops at the `<Switch`. Worth knowing — a
+   * field whose label contains anything but text is invisible to that assertion, and it
+   * was silently absent from the sketch for one commit before this line existed. It
+   * takes the cell beside Drawdown Type, which is the one this grid used to leave
+   * empty. */
+  assert.match(
+    src,
+    /Drawdown Type<\/FieldLabel>[\s\S]*?<FieldLabel htmlFor="naf-consistency">[\s\S]*?Consistency Rule \(%\)/,
+    'the consistency rule closes Account Details, beside Drawdown Type',
+  );
   // And the body is `wide`, because two columns of fields need room for two labels and
   // two values.
   assert.match(readCode('NewAccountFlow.jsx'), /const BODY_SIZE = \{[^}]*account: 'wide'/);

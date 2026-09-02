@@ -86,6 +86,9 @@ export {
 export { Separator } from './separator.js';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
+// The @coss switch, with its OFF state made visible in our dark theme — the preset
+// draws a dark thumb on a near-black track. See switch.jsx.
+export { Switch } from './switch.jsx';
 export { Tabs } from './tabs.jsx';
 export { Textarea } from './textarea.js';
 export {

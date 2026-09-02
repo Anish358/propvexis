@@ -184,6 +184,12 @@ export function BriefSection({ label, note, action, scroll = true, className, ch
         {action}
       </div>
       <div
+        /* THE SCROLLBAR IS THE ONLY "there is more" AFFORDANCE THIS COLUMN HAS — no
+           fade, no chevron, no count. legacy/app.css hides native scrollbar chrome on
+           `*`, which left both lists silently truncated at 153px: the fifth event and
+           the third alert existed and nothing on screen said so. `data-scroll="y"` opts
+           this box back in, styled to the prototype in styles/scrollbars.css. */
+        data-scroll={scroll ? 'y' : undefined}
         className={cn(
           'flex min-h-0 flex-1 flex-col gap-[7px]',
           // 153px is Rhea's: four-and-a-bit event rows, two-and-a-bit alert rows —

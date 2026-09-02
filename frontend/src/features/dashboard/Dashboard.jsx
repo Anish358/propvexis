@@ -1,10 +1,10 @@
 import React, {
   useEffect, useId, useMemo, useRef, useState,
 } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
-  Loader2, RefreshCw, SlidersHorizontal, Sparkles,
+  Loader2, RefreshCw, Scale, SlidersHorizontal, Sparkles,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
@@ -47,7 +47,7 @@ import {
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
 import { healthStatus } from '../prop/PropOS.jsx';
-import { tradingDaysRead } from '../prop/propAccounts.js';
+import { consistencyRead, pctText, tradingDaysRead } from '../prop/propAccounts.js';
 import AccountAlertBanner from '../prop/AccountAlertBanner.jsx';
 import { accountAlertFor } from '../prop/accountAlert.js';
 import AccountDetails from '../prop/AccountDetails.jsx';
@@ -520,8 +520,16 @@ function CumulativePnlCard({ days, unit }) {
                 axisLine={false}
               />
               {/* Break-even, drawn once and solid, so the two fills have a stated edge
-                  to meet at rather than only a colour change. */}
-              <ReferenceLine y={0} stroke={chartPalette().axis} strokeWidth={1} />
+                  to meet at rather than only a colour change.
+                  
+                  `gridStrong`, NOT `axis` (2026-09-01). `axis` is --text-3 #8a8a93 — a
+                  TEXT colour, correct for the tick labels it also feeds and far too loud
+                  for a rule: at full width it drew a near-white line straight across the
+                  card and read as a series in its own right. --line-strong is one step
+                  above the dashed CartesianGrid, which is the whole job — break-even has
+                  to outrank the other gridlines without outranking the curve. Same value
+                  Analytics already gives its own zero line. */}
+              <ReferenceLine y={0} stroke={chartPalette().gridStrong} strokeWidth={1} />
               <Tooltip contentStyle={chartPalette().tip} formatter={(v) => fmtVal(v, unit)} labelStyle={{ color: chartPalette().label }} />
               {/* NO ENTER ANIMATION. recharts wipes the series in from zero width on
                   every mount, which means the equity curve is briefly absent every time
@@ -793,6 +801,10 @@ function AccountCard({
   const alert = accountAlertFor(data);
   const critical = alert ? BANNER_CRITICAL.has(alert.tone) : false;
   const days = tradingDaysRead(data.tradingDays);
+  /* The consistency rule, for the accounts that have one — `has: false` on the rest,
+     which is most of them, and the footer then draws nothing about it. The engine
+     computed the ratio and the verdict; this only reads them (see consistencyRead). */
+  const consistency = consistencyRead(data.consistency);
 
   return (
     /* NO HEADING. The design opens this card on the account chips, and it is right to:
@@ -866,6 +878,54 @@ function AccountCard({
         ) : (
           <span>No minimum trading days required</span>
         )}
+
+        {/* THE CONSISTENCY RULE, BESIDE THE DAY COUNT (owner spec 2026-09-02) — the two
+            facts a firm checks before it pays a trader that are not drawdown meters, so
+            they belong on the same line rather than as a fourth card.
+
+            NOTHING AT ALL WHEN THE ACCOUNT HAS NO SUCH RULE. Most accounts do not have
+            one — FTMO runs none — and a footer that said "no consistency rule" would
+            spend a line telling every trader about a rule they are not under. That is
+            the opposite call from the day count above, which DOES state its absence,
+            and for a reason: every prop account has a minimum-trading-days rule with
+            some value, so "0" there is an answer that needs saying. A consistency cap
+            is a rule an account either carries or does not.
+
+            THE SECOND ICON IS DOING WORK. This footer wraps on a narrow card, and with
+            one leading calendar glyph a wrapped "Best day 42% of profit" reads as part
+            of the day count. The foot's own [&_svg] rules size and colour it, so it
+            costs no styling here.
+
+            OVER THE CAP IS AMBER, NEVER RED. Being over is a payout DELAY: the share
+            falls on its own as the trader keeps trading, and nothing is lost. A red
+            figure here beside the breach banner's red would say the account is gone. */}
+        {consistency.has ? (
+          <>
+            <AccountFootRule />
+            <Scale aria-hidden="true" />
+            {consistency.pct == null ? (
+              /* A CAP WITH NO RATIO YET — the account has the rule and no profit to
+                 distribute, so there is nothing to be over. Naming the rule is the
+                 whole of what can honestly be said; a "0% of profit" would read as
+                 perfect compliance rather than as nothing measured. */
+              <span>{pctText(consistency.cap)} consistency cap</span>
+            ) : (
+              <>
+                Best day
+                <AccountFootFigure tone={consistency.withinCap ? 'default' : 'warn'}>
+                  {pctText(consistency.pct)}
+                </AccountFootFigure>
+                of profit
+                <AccountFootRule />
+                <span>
+                  {consistency.withinCap
+                    ? `${pctText(consistency.cap)} consistency cap`
+                    : `Over the ${pctText(consistency.cap)} consistency cap`}
+                </span>
+              </>
+            )}
+          </>
+        ) : null}
       </AccountCardFoot>
 
       {targetOpen && acctRecord && (
@@ -1003,6 +1063,7 @@ export default function Dashboard() {
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
     briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, markNotificationRead,
   } = useOutletContext();
+  const navigate = useNavigate();
   const brief = briefPrefs || defaultBriefPrefs();
 
   const beRounding = !!tradeSettings.beRounding;
@@ -1085,7 +1146,19 @@ export default function Dashboard() {
         candidates={candidates}
         selectedId={selectedAccount.account_id}
         onSelect={(id) => setPinnedAccounts([id])}
-        onOpen={() => setAccountId(String(selectedAccount.account_id))}
+        /* "View account" LEAVES THE DASHBOARD. It used to only set the app-wide
+           scope, which left the trader on the page they clicked from staring at
+           the same card — the link named a destination and then did not go there.
+           It now does both halves: select the account, then open Prop OS ›
+           Accounts on its Details tab, which is the single-account workspace that
+           card is a summary of. Details reads the same app-wide selection this
+           sets (PropAccounts, "one source of truth for the selected account"), so
+           the scope write is what carries the account across, and ?tab=details is
+           only which of that page's two views opens. */
+        onOpen={() => {
+          setAccountId(String(selectedAccount.account_id));
+          navigate('/prop/accounts?tab=details');
+        }}
         accounts={accounts}
         onChanged={loadProp}
         onLocked={reloadAccounts}
@@ -1159,7 +1232,7 @@ export default function Dashboard() {
           <div className="dash-account-cell">{accountSection}</div>
 
           <div className="dash-cal-cell">
-            <PanelCard className="dash-cal-panel">
+            <PanelCard narrow className="dash-cal-panel">
               <MonthCalendar
                 year={calYear}
                 month={calMonth}

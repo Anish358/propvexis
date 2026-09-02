@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { query, withTransaction } from '../../platform/db.js';
+import { postChallengeFee } from '../finance/fees.js';
 import { cascadeDeleteStatements } from './cascade.js';
 import { reconcileGroup } from '../prop/challengeGroups.js';
 
@@ -90,6 +91,7 @@ export async function listAccounts(userId) {
     `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
             a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
             a.payout_cycle_days, a.payout_anchor_date, a.dd_type, a.min_trading_days,
+            a.consistency_pct,
             a.firm_id, a.firm_name,
             a.product_id, a.capital_kind, a.platform, a.import_method,
             a.ingest_token, a.kind, a.is_active, a.created_at,
@@ -138,7 +140,7 @@ export async function listAccounts(userId) {
 // Exported so provisionQueries.js returns the same shape and test/provision-tx
 // can assert the new columns are actually reachable through the API.
 export const ACCOUNT_COLUMNS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at, challenge_group_id';
+  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, consistency_pct, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at, challenge_group_id';
 const ACCT_COLS = ACCOUNT_COLUMNS;
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a
@@ -208,7 +210,7 @@ export async function updateAccount(userId, id, fields) {
   // here would save the new percentages while leaving product_id at its old
   // value (normally NULL) — the account then reads as hand-configured, which is
   // exactly the drift the products layer exists to prevent.
-  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'payout_cycle_days', 'payout_anchor_date', 'dd_type', 'min_trading_days', 'firm_id', 'firm_name', 'product_id', 'is_active'];
+  const allowed = ['label', 'broker', 'currency', 'start_balance', 'account_type', 'daily_dd_pct', 'max_dd_pct', 'profit_target_pct', 'payout_split_pct', 'payout_cycle_days', 'payout_anchor_date', 'dd_type', 'min_trading_days', 'consistency_pct', 'firm_id', 'firm_name', 'product_id', 'is_active'];
   const sets = [];
   const params = [];
   for (const f of allowed) {
@@ -352,6 +354,23 @@ export async function accountByToken(token) {
 //  'ok'       – already bound to this login
 //  'mismatch' – bound to a different login (reject)
 //  'conflict' – that login already belongs to another account (reject)
+//
+// AND IT POSTS THE CHALLENGE COST, on the 'bound' branch only (0031). This is the
+// one moment an EA account stops being pending, and therefore the first moment its
+// cost can be recorded at all: account_fees is keyed by MT5 login, so until this
+// UPDATE lands there is no key to file the fee under — and a pending account is
+// excluded from every scope anyway (see ownedLogins), so a row keyed to null would
+// be invisible as well as unattributable.
+//
+// FROM THE UPDATE'S OWN RETURNING, not from the `account` argument. Six call sites
+// hand this function rows fetched by four different queries (accountByToken selects
+// *, ownedAccountById a column list), so reading the cost off the argument would
+// post the fee on some ingest paths and silently skip it on others. The statement
+// that binds the login is the statement that reports what to charge.
+//
+// Idempotent by (account_id, ext_ref) — see challengeFeeQuery. A replayed first
+// trade takes the 'ok' branch and posts nothing; a genuine double-bind cannot
+// charge twice.
 export async function bindOrCheckLogin(account, login) {
   if (account.mt5_login != null) {
     return Number(account.mt5_login) === Number(login) ? 'ok' : 'mismatch';
@@ -360,10 +379,22 @@ export async function bindOrCheckLogin(account, login) {
     const { rows } = await query(
       `UPDATE mt5_accounts SET mt5_login = $2
         WHERE id = $1 AND mt5_login IS NULL
-        RETURNING mt5_login;`,
+        RETURNING id, mt5_login, user_id, account_type, created_at, challenge_fee;`,
       [account.id, login]
     );
-    if (rows.length) return 'bound';
+    if (rows.length) {
+      /* THE FEE MUST NOT BE ABLE TO FAIL THE INGEST THAT TRIGGERED IT. This runs inside
+         the EA's trade-upload path: the trades are what the account exists for, and the
+         cost is bookkeeping the trader can still type into Prop OS > Finance by hand.
+         Logged rather than swallowed, so a broken post is findable instead of merely
+         absent. */
+      try {
+        await postChallengeFee(rows[0]);
+      } catch (err) {
+        console.error('[accounts] challenge fee post failed for account %s: %s', account.id, err.message);
+      }
+      return 'bound';
+    }
     // Lost a race — re-read and compare.
     const { rows: cur } = await query('SELECT mt5_login FROM mt5_accounts WHERE id = $1', [account.id]);
     return cur.length && Number(cur[0].mt5_login) === Number(login) ? 'ok' : 'mismatch';

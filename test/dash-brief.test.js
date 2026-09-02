@@ -15,6 +15,56 @@ const brief = readSrc('components/primitives/brief.jsx');
 const briefCode = stripComments(brief);
 const dash = readSrc('features/dashboard/Dashboard.jsx');
 
+test('a capped list SHOWS its scrollbar — the only affordance the columns have', () => {
+  /* Both columns cap at 153px, so a fifth economic event and a third account alert are
+   * present, scrollable, and — until 2026-09-01 — completely unannounced.
+   * legacy/app.css hides native scrollbar chrome on `*` ("standard in this class of
+   * app"), which is right for the page body and wrong here: there is no fade, no
+   * chevron and no "+2 more" in this card, so the scrollbar IS the affordance. The
+   * source comment on the scrolling box says exactly that.
+   *
+   * The fix is opt-in rather than a global un-hide: a box asks with `data-scroll`. */
+  assert.match(briefCode, /data-scroll=[{]scroll [?] 'y' : undefined[}]/,
+    'the capped list must opt in — and must NOT when scroll={false}');
+  // scroll={false} is the skeleton's: a scrollbar on placeholder rows is a lie about
+  // content that does not exist yet. The ternary above is what keeps that true.
+  assert.match(dash, /scroll=[{]false[}]/);
+
+  /* THE STYLES ARE UNLAYERED, WHICH IS THE ONLY REASON THEY APPLY. legacy/app.css is
+   * imported into layer(legacy) — the first layer declared, so it loses to every
+   * unlayered rule at any specificity. Dropping this import into a layer, or ordering
+   * it before tokens.css, makes the whole file a silent no-op. token-bridge.test.js
+   * pins the import; this pins the declarations. */
+  const css = readSrc('styles/scrollbars.css');
+  // `display: block` is not redundant: a width cannot revive a pseudo-element that
+  // another rule has set to `display: none`.
+  assert.ok(css.includes('display: block;'),
+    'the 8px track must explicitly undo the global display:none');
+  assert.ok(css.includes('width: 8px;'));
+  // The prototype's own numbers: an 8px track, a 2.5px transparent border and
+  // background-clip make a 3px thumb that still has an 8px hit target.
+  assert.ok(css.includes('border: 2.5px solid transparent;'));
+  assert.ok(css.includes('background-clip: padding-box;'));
+  assert.ok(css.includes('border-radius: 99px;'));
+  // Firefox gets the same thing through the standard properties, or the two engines
+  // disagree — which is precisely why the prototype's hover-only webkit thumb and the
+  // design screenshots did not match each other.
+  assert.ok(css.includes('scrollbar-width: thin;'));
+  assert.ok(css.includes('scrollbar-color: var(--line-chip) transparent;'));
+  // Tokenised, not the prototype's literals — COLOUR-INVENTORY §6 rules that these
+  // become no new tokens. #2a2a30 is --line-chip.
+  // The DECLARATIONS only: the file's header quotes the prototype's rule verbatim, so
+  // a raw scan would match the citation it exists to explain.
+  const decls = css.replace(/[/][*][\s\S]*?[*][/]/g, '');
+  assert.ok(!/#2a2a30|#26262b/.test(decls), 'the prototype literals must resolve to tokens');
+  assert.match(tokensCss, /--line-chip: #2a2a30/);
+  // Always visible, then INTENSIFIED on hover (§7) — never conjured by it. You cannot
+  // discover that a list scrolls by hovering a list you do not know scrolls.
+  assert.ok(css.includes('background: var(--line-chip);'));
+  assert.ok(css.includes(':hover::-webkit-scrollbar-thumb'));
+  assert.ok(css.includes('background: var(--line-hover);'));
+});
+
 test('the card carries the frame\'s geometry', () => {
   const geometry = [
     /* RHEA'S NUMBERS (2026-08-29). The card is edge-to-edge now — the header and the

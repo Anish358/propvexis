@@ -112,12 +112,16 @@ export function validateProvision(body = {}) {
     if (!product_id) return { ok: false, error: 'A prop account needs an account type' };
     if (!PHASES.includes(body.phase)) return { ok: false, error: 'A prop account needs a valid phase' };
     phase = body.phase;
-  } else if (body.firm_id || body.product_id || body.phase || body.challenge_group_id) {
+  } else if (body.firm_id || body.product_id || body.phase || body.challenge_group_id
+             || body.challenge_fee != null) {
     // Not merely ignored: silently dropping these would make a live account that
     // the user believes is tracking firm rules, which is the bug capital_kind
     // exists to end. `challenge_group_id` joins the list for the same reason — a
     // live account inside a prop challenge is the same category error, one level up.
-    return { ok: false, error: 'A live account has no prop firm, account type, phase or challenge' };
+    // `challenge_fee` for the third time: a live account is the trader's own money,
+    // there is no firm to have bought anything from, and a fee row attributed to one
+    // would show up as prop spend in an ROI the account has no part in.
+    return { ok: false, error: 'A live account has no prop firm, account type, phase, challenge or challenge cost' };
   }
 
   /* WHICH CHALLENGE THIS ACCOUNT JOINS, or null to start a new one (migration 0027).
@@ -135,6 +139,67 @@ export function validateProvision(body = {}) {
       return { ok: false, error: 'Invalid challenge' };
     }
     challenge_group_id = n;
+  }
+
+  /* WHAT THE CHALLENGE COST — asked by the wizard on the New-challenge branch only,
+   * and stored so it can become an account_fees row (see fees.js's
+   * challengeFeeQuery, and 0031 for why the column exists at all).
+   *
+   * OPTIONAL. The owner asked for "an option of adding" it, so an absent value is a
+   * complete answer and isStepComplete does not demand one. `numOrNull` is what makes
+   * '' absent rather than 0 — the same reason min_trading_days uses it.
+   *
+   * ZERO IS ALLOWED, NEGATIVE IS NOT. A comped or free challenge really did cost
+   * nothing and the trader should be able to say so (it posts no fee row, because no
+   * money moved). A negative cost is not a discount, it is a payout entered in the
+   * wrong field, and letting it through would quietly ADD to the ROI it should reduce.
+   *
+   * REFUSED ON THE EXISTING-CHALLENGE BRANCH, by the owner's rule: the fee for a
+   * challenge was recorded when the challenge was created, and the Phase 2 login the
+   * firm issues on passing Phase 1 is not a second purchase. Charging it again would
+   * double the spend of every challenge that got past its first phase. The wizard
+   * neither shows the field nor sends the value there (toProvisionPayload nulls it),
+   * so this is enforcement for a client that is wrong rather than a reachable error —
+   * which is exactly the standing of the live-path refusal above. */
+  let challenge_fee = null;
+  if (capital_kind === 'prop' && body.challenge_fee != null && body.challenge_fee !== '') {
+    challenge_fee = numOrNull(body.challenge_fee);
+    if (challenge_fee == null) return { ok: false, error: 'The challenge cost must be a number' };
+    if (challenge_fee < 0) return { ok: false, error: 'The challenge cost cannot be negative' };
+    if (challenge_group_id != null) {
+      return {
+        ok: false,
+        error: 'A phase of an existing challenge has no challenge cost — it was recorded with the challenge',
+      };
+    }
+  }
+
+  /* THE CONSISTENCY RULE — the cap on how much of the account's total profit may
+   * come from its single best trading day (migration 0032, owner spec 2026-09-02).
+   *
+   * OPTIONAL, AND OFF BY DEFAULT. This is the first rule most prop accounts do NOT
+   * have: FTMO has none, FundedNext's Rapid Daily has none, and the firms that do
+   * run one disagree on the number (15% to 50%). So the wizard asks with a toggle
+   * rather than a pre-filled box, and null — the toggle off — is the ordinary
+   * answer. It is validated exactly like the four percentages above and stored on
+   * the account, from where insertChallengeQuery snapshots it onto the challenge
+   * the prop engine judges.
+   *
+   * 0 IS REFUSED, unlike min_trading_days and unlike the challenge cost. Those both
+   * have a real meaning at zero ("no requirement", "it was free"). A 0% consistency
+   * cap says no single day may hold ANY share of the profit, which no profitable
+   * account can ever satisfy — it is not a lenient rule, it is a permanent payout
+   * block, and it can only be a mis-typed or mis-parsed "off". Absence is how "no
+   * consistency rule" is expressed, and it has to stay the only way.
+   *
+   * ABOVE 100 IS REFUSED because a day cannot be more than all of the profit; 100
+   * itself is allowed, being a rule the trader can enter and simply never breach. */
+  const consistency_pct = numOrNull(body.consistency_pct);
+  if (body.consistency_pct != null && body.consistency_pct !== '' && consistency_pct == null) {
+    return { ok: false, error: 'The consistency rule must be a number' };
+  }
+  if (consistency_pct != null && !(consistency_pct > 0 && consistency_pct <= 100)) {
+    return { ok: false, error: 'The consistency rule must be above 0% and no more than 100%' };
   }
 
   const provision_key = strOrNull(body.provision_key);
@@ -165,6 +230,8 @@ export function validateProvision(body = {}) {
       payout_split_pct: numOrNull(body.payout_split_pct),
       dd_type: body.dd_type === 'trailing' ? 'trailing' : 'static',
       min_trading_days: numOrNull(body.min_trading_days),
+      consistency_pct,
+      challenge_fee,
       provision_key,
     },
   };
@@ -209,6 +276,7 @@ import {
   findByProvisionKeyQuery, insertAccountQuery, assignSyntheticLoginQuery, insertChallengeQuery,
 } from './provisionQueries.js';
 import { insertGroup, lockJoinableGroup } from '../prop/challengeGroups.js';
+import { challengeFeeQuery, hasChallengeFee } from '../finance/fees.js';
 
 /** Typed conflicts, so the route can pick a status code without parsing pg text. */
 export const PROVISION_CONFLICT = {
@@ -244,6 +312,13 @@ const shape = (row) => ({
  *   4. the credential, then the job. A job leased before its credential exists is
  *      handed no payload, so the agent reports nothing, the lease expires, and
  *      reclaimExpired re-queues it forever with no error anywhere.
+ *   5. THE CHALLENGE COST, as an account_fees row — last, because it is the only
+ *      step that is about money rather than about the account existing, and because
+ *      it needs the login, which step 2 (Auto Sync) or the synthetic-login UPDATE
+ *      (manual, file) has settled by then. In the transaction rather than after it:
+ *      a fee that committed while the account rolled back would charge a trader for
+ *      an account they do not have, and one written by a follow-up request would be
+ *      lost by the network drop that the provision_key already exists to survive.
  *
  * Every failure rolls back to nothing written, which is what makes retry safe with
  * no cleanup path. `connect`, `credential` and `seal` are injected so all of the
@@ -363,6 +438,24 @@ export async function provisionAccount(userId, v, opts = {}) {
 
       const job = enqueueQuery(row.id, 'first_sync');
       await client.query(job.text, job.values);
+    }
+
+    /* WHAT THE CHALLENGE COST, if the trader said (0031, owner spec 2026-09-02).
+     *
+     * FROM THE ROW, NOT FROM `v`: account_fees is keyed by MT5 LOGIN, and the login is
+     * decided by the writes above rather than by the payload — a synthetic negative one
+     * for manual and file, the credential's real one for Auto Sync. `hasChallengeFee`
+     * is the same predicate the deferred path uses, so the two sites cannot disagree
+     * about which accounts get charged.
+     *
+     * AN EA ACCOUNT POSTS NOTHING HERE, and that is not a gap: it has no login yet, so
+     * there is no key to file the fee under and it would be invisible to every scope
+     * even if there were (ownedLogins excludes a pending account). The amount is on the
+     * account row, and bindOrCheckLogin posts it the moment the terminal binds a login
+     * — the one place a pending account stops being pending. */
+    if (hasChallengeFee(row, row.challenge_fee)) {
+      const fee = challengeFeeQuery(row, Number(row.challenge_fee));
+      await client.query(fee.text, fee.values);
     }
 
     return { account: shape(row), replayed: false };

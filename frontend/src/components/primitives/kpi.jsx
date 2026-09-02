@@ -32,13 +32,23 @@ import { cn } from '@/lib/utils';
 
 // tone -> the CSS colour a figure reads in. `flat` is deliberately null: a breakeven is
 // a result, not a nothing, and painting it green would inflate a losing week.
-/* THE BRIGHT PAIR (owner decision, 2026-08-30). The prototype writes #22c55e/#ef4444
- * for these figures; at 25px of mono on a raised card the structural red reads heavy
- * and slightly muddy, and the owner asked for the lighter step. That is a legal move
- * rather than a drift: both are the outcome family §4 reserves for exactly this, and
- * the bright pair is what the same red already does one card over in the trade rows. */
+/* THE STRUCTURAL PAIR, and this is the second time it has been decided (2026-09-01).
+ * A bright step was tried here on 2026-08-30 on the argument that #ef4444 reads heavy at
+ * 25px; the owner compared the two side by side against the prototype and reverted it.
+ * COLOUR-INVENTORY splits the outcome family by SUBSTRATE, not by size: --profit /
+ * --loss are the colours drawn on a plain surface — "gauge arcs, the profit-factor ring,
+ * the net-P&L figure" — and --profit-bright / --loss-bright are the ones drawn ON A TINT,
+ * which is why the chips below still use them and these do not. A figure sitting
+ * directly on --surface is the structural case, whatever its point size. */
+/* THE RED IS ONE STEP DOWN FROM THE GREEN, AND THAT ASYMMETRY IS DELIBERATE (owner,
+ * 2026-09-01). Green stays structural; red drops to --loss-bright. The two are not the
+ * same weight optically — at 25px of mono #ef4444 carries more visual mass than #22c55e
+ * does, so matching them by TOKEN makes a losing figure shout louder than a winning one
+ * of the same magnitude. The lighter red is what evens that out. Do not "fix" this back
+ * into a symmetric pair; it has been set both ways and this is the one that was kept.
+ * The gauges are unaffected — gaugeTone only ever returns pos or flat, never neg. */
 const TONE = {
-  pos: 'var(--profit-bright)',
+  pos: 'var(--profit)',
   neg: 'var(--loss-bright)',
   flat: null,
 };
@@ -295,10 +305,13 @@ export function KpiRing({ share = 0, empty = false, className, ...rest }) {
         cy="50"
         r="40"
         fill="none"
-        /* --loss-bright, matching the figure beside it (see TONE). A full ring of the
-           structural red is the single largest area of colour in the KPI row, and at
-           #ef4444 it pulled the eye off the four cards either side of it. */
-        stroke={empty ? 'var(--chart-grid)' : 'var(--loss-bright)'}
+        /* --loss, AND IT IS DELIBERATELY NOT THE LIGHTER RED THE FIGURE BESIDE IT USES
+           (owner, 2026-09-01). TONE drops the negative FIGURE to --loss-bright because
+           25px of mono red outweighs the same green; a ring is not type, it is the
+           prototype's own #ef4444, and against the structural green arc it is drawn with
+           it has to be the structural red or the two halves of the ratio stop reading as
+           one pair. Toning this down was tried in the same session and reverted. */
+        stroke={empty ? 'var(--chart-grid)' : 'var(--loss)'}
         strokeWidth="10"
       />
       {!empty && (

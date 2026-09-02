@@ -25,13 +25,38 @@ test('the three cards are one shell, not three', () => {
   // the card, so the panel that holds one cannot pad its children); the SHELL — one
   // radius, one border, one surface, declared once — is what this test is about.
   assert.match(panel, /rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/);
-  assert.match(panel, /flush \? 'overflow-hidden' : 'gap-\[18px\] px-6 pt-\[22px\] pb-6'/);
+  assert.match(panel, /flush \? 'overflow-hidden' : 'gap-\[18px\] pt-\[22px\] pb-6'/);
+  /* THE SIDE INSET SPLIT OFF THE VERTICAL ONE (2026-09-01) so the calendar can trim its
+   * gutters — see the `narrow` test below. The frame's 24 is still the default and the
+   * vertical inset never varies; what this pins is that the split kept both. */
+  assert.match(panel, /!flush && \(narrow \? 'px-3\.5' : 'px-6'\)/);
   const uses = (dash.match(/<PanelCard/g) || []).length;
   assert.ok(uses >= 3, `expected all three cards on PanelCard, found ${uses}`);
   // And none of them kept a bespoke box.
   for (const dead of ['dash-activity card-md', 'dash-equity card-md', 'panel dash-cal-panel']) {
     assert.ok(!dash.includes(dead), `${dead} is a second card shell`);
   }
+});
+
+test("`narrow` is the CALENDAR's alone, and it is a prop because a class would be a no-op", () => {
+  /* The owner asked for the calendar's side gaps back as cell width (2026-09-01). It is
+   * the one panel whose content is a GRID, so its gutters are width taken off eight
+   * columns rather than framing; 24 -> 14 returns 20px across the row. Every other panel
+   * keeps 24 — prose, rows and a chart do not get better 20px wider.
+   *
+   * A PROP, NOT A CLASS, and this is the fifth time §1's rule has decided a signature:
+   * Tailwind compiles utilities only under components/{ui,primitives}, so
+   * `className="px-3.5"` written in features/ emits NOTHING, silently. The test asserts
+   * the mechanism, not just the value, because the silent-failure mode is the whole
+   * reason the prop exists. */
+  assert.match(panel, /export function PanelCard\(\{ flush = false, narrow = false,/);
+  assert.match(dash, /<PanelCard narrow className="dash-cal-panel">/,
+    'the calendar panel opts in');
+  const optIns = (dash.match(/<PanelCard narrow/g) || []).length;
+  assert.equal(optIns, 1, `narrow is the calendar's alone — found ${optIns} opt-ins`);
+  // No page may reach for the utility directly; it would compile to nothing.
+  assert.ok(!/className="[^"]*px-3\.5/.test(dash),
+    'a page-level px-3.5 is a silent no-op — pass the prop');
 });
 
 test('the cell is tinted by its outcome, and idle is not an outcome', () => {
@@ -75,9 +100,14 @@ test('the cell is tinted by its outcome, and idle is not an outcome', () => {
   assert.match(calCode, /color-mix\(in srgb, var\(--line\) 40%, var\(--surface\)\)/);
   assert.ok(!/CELL = \{[\s\S]*?idle:/.test(calCode), 'idle has no tint entry — it falls back to flat');
   assert.match(calCode, /idle && \(weekend \? 'opacity-55' : 'opacity-80'\)/);
-  // TODAY IS AN EDGE, NEVER A FILL: a filled "today" competes with the outcome tints
-  // for the same channel and would argue with them on a losing day.
-  assert.match(calCode, /borderColor: today \? 'var\(--text-dim\)' : borderColor/);
+  /* TODAY IS AN EDGE, NEVER A FILL: a filled "today" competes with the outcome tints
+   * for the same channel and would argue with them on a losing day.
+   *
+   * The edge now travels as a CUSTOM PROPERTY rather than an inline `borderColor`
+   * (2026-09-02). Same three values, one layer lower: an inline declaration outranks
+   * every class, so writing it on `style` left the cell's `hover:border-[…]` inert.
+   * calendar-unified.test.js pins the hover half. */
+  assert.match(calCode, /'--cal-cell-line': today \? 'var\(--text-dim\)' : borderColor/);
   // The figure still carries the outcome colour — the tint is a second encoding of it,
   // not a replacement.
   assert.match(calCode, /color: hue \|\| 'var\(--text\)'/);

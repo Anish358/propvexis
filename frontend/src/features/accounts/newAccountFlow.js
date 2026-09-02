@@ -120,6 +120,34 @@ export function emptyDraft({ provisionKey = null, firstRun = false } = {}) {
     payout_split_pct: null,
     dd_type: 'static',
     min_trading_days: null,
+    /* THE CONSISTENCY RULE — the cap (%) on how much of this account's total profit
+     * may come from its single best trading day (owner spec 2026-09-02).
+     *
+     * NULL MEANS THE ACCOUNT HAS NO CONSISTENCY RULE, and that is both the default and
+     * the common case: FTMO runs none, FundedNext's Rapid Daily runs none, and the
+     * firms that do have one disagree on the number — 15% to 50%, sometimes different
+     * on the funded side than on evaluation. There is no defensible default to
+     * pre-fill, which is why the page asks with a TOGGLE and starts it off.
+     *
+     * A RULE, unlike challenge_fee below it: the prop engine measures the account
+     * against this one, so it travels with the other four rules — cleared by
+     * RULES_CLEARED when the purchase changes, sent only on the prop path, and
+     * snapshotted onto the challenge server-side. */
+    consistency_pct: null,
+    /* WHAT THE CHALLENGE COST (owner spec 2026-09-02) — the entry fee the trader paid
+     * the firm for this challenge, in the account's currency.
+     *
+     * OPTIONAL, and null is a complete answer: `isStepComplete` does not ask for it.
+     * A trader who does not remember can add it later in Prop OS > Finance, which is
+     * where it lands either way — the server turns this into an account_fees row, so
+     * the wizard is a shortcut into the ledger rather than a second place money lives.
+     *
+     * ASKED ONLY ON THE 'new' BRANCH. A phase of an existing challenge was paid for
+     * when that challenge was created, and the firm does not sell the Phase 2 login it
+     * issues for passing Phase 1 — charging it again would double the spend of every
+     * challenge that got past its first phase. The page hides the field there,
+     * `toProvisionPayload` nulls the value, and validateProvision refuses it. */
+    challenge_fee: null,
 
     platform: null,
     broker: null,                // free text, live path only (spec §7.2)
@@ -398,6 +426,18 @@ const RULES_CLEARED = {
   payout_split_pct: null,
   dd_type: 'static',
   min_trading_days: null,
+  /* Cleared with the rest of them, because the cap is a property of the PRODUCT the
+   * trader is buying: firms set it per plan and per phase, so a 50% cap carried from a
+   * 2-Step evaluation onto a funded account is a rule that account is not under. The
+   * toggle returns to off, which is the honest state for a purchase nobody has told us
+   * about yet. */
+  consistency_pct: null,
+  /* The cost goes with the rules even though it is not one. What a challenge cost is a
+   * property of a PURCHASE — this firm's 2-Step 50K — so changing the firm, the type or
+   * the size makes the number the trader typed the price of something they are no
+   * longer buying. Carrying it over is how a $49 25K evaluation gets filed as the cost
+   * of a $499 200K one, and the ledger has no way to tell afterwards. */
+  challenge_fee: null,
 };
 /* The challenge choice hangs off the FIRM: the list a trader picks from is that firm's
  * challenges only, so changing the firm invalidates both the mode and the id. Leaving
@@ -586,6 +626,17 @@ export function toProvisionPayload(draft) {
     payout_split_pct: prop ? d.payout_split_pct : null,
     dd_type: d.dd_type || 'static',
     min_trading_days: prop ? d.min_trading_days : null,
+    /* Prop-gated like every other rule: a live account is the trader's own money and
+     * has no firm to gate a withdrawal. Null is a complete answer, so there is nothing
+     * to validate here — the server refuses only a cap that is 0 or over 100. */
+    consistency_pct: prop ? d.consistency_pct : null,
+    /* THE 'new' BRANCH ONLY, gated exactly as `challenge_group_id` is and for the
+     * mirror-image reason: that field is sent only when there IS a challenge to join,
+     * this one only when there is not. validateProvision refuses the pair together, so
+     * a draft that kept a cost while switching to an existing challenge would 400 at
+     * the very end of the flow — nulling it here is what makes that refusal
+     * unreachable from our own UI rather than a trap in it. */
+    challenge_fee: prop && d.challenge_mode === 'new' ? d.challenge_fee : null,
     provision_key: d.provision_key,
   };
 }

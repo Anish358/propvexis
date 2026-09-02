@@ -361,3 +361,66 @@ test('stacking: the preset owns the menu\'s z-index, and the token agrees with i
   assert.match(legacyCss, /z-index: var\(--z-dropdown\)/,
     'the token still has a legacy consumer — do not retire it with the primitives');
 });
+
+// ── The two chrome pills' hover — Filters and the bell ───────────────────────
+
+test('the chrome pill answers every one of ghost\'s background classes in its own modifier set', () => {
+  /* THE BUG THIS PINS, and it shipped invisible for a week (fixed 2026-09-02).
+   *
+   * Both controls in this file's scope — the Filters button and the notification bell —
+   * are `variant="chrome" size=… pill`. `chrome` maps to the generated `ghost`, and
+   * `pill` then restates the surface the design draws (--control-bg, hovering to
+   * --surface-hover). That restatement only lands if tailwind-merge DELETES ghost's
+   * version, and tailwind-merge deletes a class only when the modifier sets match
+   * exactly: `hover:bg-[…]` removes `hover:bg-muted` and leaves `dark:hover:bg-muted/50`
+   * and `aria-expanded:bg-muted` untouched.
+   *
+   * Both survivors then beat the pill in the cascade — `dark:hover:` is emitted later
+   * inside the same `@media (hover:hover)` block — so the hover that actually rendered
+   * was `color-mix(in oklab, var(--sel-bg) 50%, transparent)`. Half-transparent, over a
+   * translucent top bar, which composited back to within a hex step of the resting
+   * --control-bg: the pills had no hover fill at all, only a brighter label. The design's
+   * #131316 -> #1a1a1e is exactly --control-bg -> --surface-hover, so the tokens were
+   * right the whole time and never reached the element.
+   *
+   * So the invariant is mechanical rather than a list of three classes to remember: for
+   * every MODIFIER SET ghost uses to set a background, PILL must set a background under
+   * the same set. A future `shadcn add` that introduces a fourth (`data-pressed:`, say)
+   * fails here instead of quietly repainting the bar. */
+  const btn = read('../frontend/src/components/primitives/button.jsx');
+  const gen = read('../frontend/src/components/ui/button.jsx');
+
+  assert.match(btn, /chrome: 'ghost'/, 'chrome maps to ghost — that is why ghost is read here');
+
+  const ghost = gen.match(/ghost:\s*\n?\s*"([^"]+)"/);
+  assert.ok(ghost, 'the generated ghost variant is readable');
+  const pill = btn.match(/const PILL = \[([\s\S]*?)\]\.join/);
+  assert.ok(pill, 'PILL is readable');
+
+  // The modifier prefix on every background class in each string — "hover:", the empty
+  // string for an unmodified one, and so on.
+  const bgSets = (s) => new Set(
+    [...s.matchAll(/(?:^|[\s'])((?:[\w[\]().,/-]+:)*)bg-[^\s']+/g)].map((m) => m[1]),
+  );
+  const ghostSets = bgSets(ghost[1]);
+  const pillSets = bgSets(pill[1]);
+  assert.ok(ghostSets.size >= 3,
+    'ghost is expected to set a background under several modifier sets — if not, re-read this test');
+  for (const set of ghostSets) {
+    assert.ok(pillSets.has(set),
+      `ghost sets a background under \`${set}\` and PILL does not — tailwind-merge cannot `
+      + 'drop it, so it will paint the top bar\'s pills instead of the design\'s tokens');
+  }
+
+  // And the values, which are the design's own two steps rather than any convenient pair:
+  // #131316 -> #1a1a1e resting to hover, then #1c1c21 while the popover is open.
+  assert.match(pill[1], /bg-\[var\(--control-bg\)\]/, 'resting surface');
+  assert.match(pill[1], /hover:bg-\[var\(--surface-hover\)\]/, 'the design\'s hover fill');
+  assert.match(pill[1], /dark:hover:bg-\[var\(--surface-hover\)\]/,
+    '`dark` is `&` in this app, so ghost\'s dark hover must be answered, not inherited');
+  assert.match(pill[1], /aria-expanded:bg-\[var\(--sel-bg\)\]/, 'an open control says so');
+  // The one that is about direction rather than colour: without it, hovering an OPEN
+  // control takes it back down from --sel-bg to --surface-hover, which is §14 in reverse.
+  assert.match(pill[1], /aria-expanded:hover:bg-\[var\(--sel-bg\)\]/,
+    'an open control must not dim under the pointer — DESIGN-LANGUAGE §14');
+});

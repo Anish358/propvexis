@@ -23,13 +23,25 @@ import { cn } from '@/lib/utils';
  * strip, its table header band and its rows all bleed to the border. Padding those from
  * the card would leave a 22px gutter of --surface beside a header band that is supposed
  * to span the card, which is the one thing a table header must not do. */
-export function PanelCard({ flush = false, className, children, ...rest }) {
+/* `narrow` trims the SIDE inset from the frame's 24 to 14, and it is a prop rather than
+ * a class for the reason §1 lists five times: Tailwind compiles utilities only under
+ * components/{ui,primitives}, so `className="px-3.5"` written at a call site in
+ * features/ emits nothing at all — silently. The vertical inset is untouched; only the
+ * gutters move.
+ *
+ * IT EXISTS FOR THE CALENDAR (owner, 2026-09-01). That panel is the one whose content is
+ * a seven-column GRID, so its side padding is not framing — it is width taken off eight
+ * cells that are already the narrowest thing on the dashboard. 10px back per side is 20px
+ * across the grid. Every other panel keeps 24: their content is prose, rows or a chart,
+ * none of which get better by being 20px wider. */
+export function PanelCard({ flush = false, narrow = false, className, children, ...rest }) {
   return (
     <section
       data-slot="panel"
       className={cn(
         'flex min-w-0 flex-col rounded-[14px] border border-[var(--line)] bg-[var(--surface)]',
-        flush ? 'overflow-hidden' : 'gap-[18px] px-6 pt-[22px] pb-6',
+        flush ? 'overflow-hidden' : 'gap-[18px] pt-[22px] pb-6',
+        !flush && (narrow ? 'px-3.5' : 'px-6'),
         className,
       )}
       {...rest}

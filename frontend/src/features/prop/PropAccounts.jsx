@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { CountBadge, EmptyState, LoadingBlock, Tabs } from '@/components/primitives';
 import PageHeader from '../../app/PageHeader.jsx';
 import { fetchPropPortfolio } from '../../lib/api.js';
@@ -29,6 +29,15 @@ import {
 // automatically (App already scopes them by that value), and the choice survives a
 // reload because App syncs it server-side with the rest of the view state.
 //
+// THE OPEN TAB IS IN THE URL (`?tab=details`), not in local state, because the tab
+// is a destination other surfaces send a trader to: the dashboard's Account Health
+// card links "View account" straight at this account's Details. A link cannot reach
+// a useState, so the alternatives were a second route the IA does not describe, or
+// router state that a reload throws away. A search param is neither — the page still
+// owns one route, and the URL now says which of its two views is open, so the link
+// works, the back button works, and a reload lands where it left off. Portfolio is
+// the default, so it writes no param and the bare /prop/accounts URL is unchanged.
+//
 // ONE FETCH DRIVES BOTH TABS. GET /api/prop/portfolio returns every owned
 // account's live rule state, so Details reads the entry it needs out of the same
 // payload the cards were built from. A separate per-account fetch would let a card
@@ -45,7 +54,17 @@ export default function PropAccounts() {
   // so Prop OS filters for itself — a live account has no challenge to report on.
   const accounts = useMemo(() => onlyPropCapital(allAccounts), [allAccounts]);
 
-  const [tab, setTab] = useState('portfolio');
+  /* replace:true — flipping between two views of one page is not a navigation
+     step worth a history entry; Back should return to wherever the trader came
+     from (often the dashboard), not to the other tab. */
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'details' ? 'details' : 'portfolio';
+  const setTab = (value) => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (value === 'details') next.set('tab', 'details');
+    else next.delete('tab');
+    return next;
+  }, { replace: true });
   const [slice, setSlice] = useState('evaluation');
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
