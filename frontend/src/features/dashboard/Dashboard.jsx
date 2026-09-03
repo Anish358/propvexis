@@ -32,7 +32,7 @@ import {
   Menu, MenuContent, MenuItem, MenuTrigger,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
+  ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain, useSectionEntrance,
   LoadingNote, MeterRow,
   PanelBody, PanelCard, PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelTab,
   PanelTabs, SkeletonBlock, SkeletonLine,
@@ -130,9 +130,43 @@ function AlertGlyph({ severity }) {
 // only way to SEE this card — there is no jsdom here, so nothing else renders it.
 export function DailyBanner({
   notifications = [], prefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
-  markNotificationRead,
+  markNotificationRead, ...rest
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  /* ROWS BEING DISMISSED, so Clear can animate before the row goes.
+   *
+   * The alert has to stay MOUNTED while it collapses, and the list it lives in is
+   * derived from `notifications` — so marking it read immediately would unmount it
+   * mid-animation and the row would vanish exactly as before. Holding the id here keeps
+   * it rendered and tells BriefAlert to play its exit; the read is written when the
+   * animation ends.
+   *
+   * THE 200 IS --dur RESTATED IN JS, and that is a real seam: the token is the source of
+   * truth for the CSS, but a setTimeout cannot read it without a getComputedStyle call
+   * per dismissal. If they drift the row unmounts early (a visible clip) or late (a gap
+   * that lingers). test/motion.test.js pins them equal.
+   *
+   * The write is DEFERRED, not skipped: navigate away inside that 200ms and the alert
+   * stays unread. Judged acceptable for a read-marker — the alternative is rendering
+   * from a second list that lags `notifications`, which is a lot of machinery for a
+   * fifth of a second.
+   *
+   * The Set guard makes a double-click idempotent; §10 says a dismissed thing does not
+   * animate back, and re-entering the exit would do exactly that. */
+  const [exiting, setExiting] = useState(() => new Set());
+  const clearAlert = (id) => {
+    if (exiting.has(id)) return;
+    setExiting((prev) => new Set(prev).add(id));
+    setTimeout(() => {
+      markNotificationRead?.(id);
+      setExiting((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 200);
+  };
   /* UNREAD ONLY, AND THAT IS WHAT MAKES Clear WORK (2026-08-30).
    *
    * This read `!n.read_at || n.severity !== 'info'` — keep it if unread, OR if it is
@@ -224,12 +258,27 @@ export function DailyBanner({
    *
    * The other two windows (4h, 24h) stay reachable in the popover. Rhea offers two
    * because two is what fits in 88px, not because the other two stopped being useful. */
-  const RANGE = BRIEF_WINDOWS.filter((w) => w.id === 'today' || w.id === 'week')
-    .map((w) => ({ id: w.id, label: w.id === 'week' ? 'Week' : 'Today' }));
+  /* MEMOISED, AND IT IS NOT AN OPTIMISATION — IT IS A RENDER LOOP.
+   *
+   * This banner re-renders EVERY SECOND: `useBriefClock` ticks `now` so the header can
+   * show seconds. Rebuilding this array on each of those renders hands BriefRange a new
+   * `options` reference every second, and BriefRange measures its sliding pill in a
+   * layout effect keyed on `options` — so the effect re-ran, set pill state, forced a
+   * render, which built a new array, which re-ran the effect. A loop, at layout-effect
+   * timing, which is synchronous and blocks paint.
+   *
+   * BriefRange bails out of an identical measurement too, so either fix alone stops the
+   * spin. Both are here because they guard different things: this one stops the effect
+   * firing at all, that one stops any caller — including a future one — from doing this
+   * again. The dependency is empty because BRIEF_WINDOWS is a module constant. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const RANGE = useMemo(() => BRIEF_WINDOWS
+    .filter((w) => w.id === 'today' || w.id === 'week')
+    .map((w) => ({ id: w.id, label: w.id === 'week' ? 'Week' : 'Today' })), []);
   const rangeNote = BRIEF_WINDOWS.find((w) => w.id === prefs.window)?.label;
 
   return (
-    <BriefCard>
+    <BriefCard {...rest}>
       <BriefHeader
         title="Today's Brief"
         date={formatBriefDate(now, prefs.timezone)}
@@ -278,6 +327,10 @@ export function DailyBanner({
                  economic calendar whatever is filtered out of it. */
               label="Economic calendar"
               note={rangeNote}
+              /* WHAT MAKES THIS A DIFFERENT LISTING: the window, and whether the feed
+                 has arrived. Both replace every row in the column, so both fade — one
+                 mechanism, and no separate loading-vs-swap branch to keep in step. */
+              swapKey={events == null ? 'loading' : prefs.window}
               action={(
                 <BriefRange
                   value={prefs.window}
@@ -293,6 +346,9 @@ export function DailyBanner({
               ) : shown.map((e, i) => (
                 <BriefEvent
                   key={`${e.date}-${e.title}-${i}`}
+                  /* THE LADDER'S POSITION, and it is NOT the key. The key identifies the
+                     row to React; this tells it when to arrive. See BriefEvent. */
+                  index={i}
                   currency={e.country}
                   title={e.title}
                   time={formatBriefTime(e.date, prefs.timezone, now)}
@@ -319,7 +375,8 @@ export function DailyBanner({
                      unread count disagreeing with the list beside it.
                      EVERY ROW HERE IS UNREAD (see the filter above), so Clear is
                      offered on all of them and always removes the one it is on. */
-                  onClear={markNotificationRead ? () => markNotificationRead(n.id) : undefined}
+                  onClear={markNotificationRead ? () => clearAlert(n.id) : undefined}
+                  exiting={exiting.has(n.id)}
                 >
                   {n.body || n.message || ''}
                 </BriefAlert>
@@ -340,9 +397,10 @@ export function DailyBanner({
 // editor; both are gone (2026-08-30) until every page is finalised. The strip stays
 // because Sync Trades and the sync status still belong here, and it is the anchor the
 // page's spacing is built around.
-function DashActions({ lastSynced }) {
+function DashActions({ lastSynced, ...rest }) {
   return (
     <ActionStrip
+      {...rest}
       action={(
         /* NOT PRIMARY (Rhea). It was a LIGHT fill — the page's one primary action — and
            Rhea draws it as a quiet FILLED pill. Right, on reflection: the primary act on
@@ -960,6 +1018,19 @@ function AccountCard({
 // way to SEE this state — there is no jsdom here, and reproducing it in the app means
 // throttling a network request.
 export function DashSkeleton() {
+  /* THE SKELETON DOES NOT CASCADE, and it must not start — it appears as a stable whole.
+   *
+   * IT DID, FOR ONE COMMIT, and the owner caught it in a screenshot: a cascade holds each
+   * section at opacity 0 until its delay, so a staggered SKELETON is a Today's Brief card
+   * above half a second of empty page. Then the trades land, the whole placeholder tree is
+   * torn down mid-cascade, and the real page arrives on a different motion. Two competing
+   * arrivals on the same boxes, the first interrupted.
+   *
+   * A placeholder's job is to reserve the shape of what is coming (§15). Animating it
+   * spends the app's one arrival on boxes that are about to be destroyed, and delays the
+   * only thing it was drawn to do. `useSectionEntrance` is what claims the
+   * once-per-browser-load flag, so NOT calling it here is also what leaves the cascade for
+   * the real content below. */
   return (
     <SkeletonRegion label="Loading dashboard" className="dash-skeleton">
       <BriefCard>
@@ -1065,6 +1136,26 @@ export default function Dashboard() {
   } = useOutletContext();
   const navigate = useNavigate();
   const brief = briefPrefs || defaultBriefPrefs();
+
+  /* THE RELOAD CASCADE — six sections, 60ms apart, once per browser load.
+   *
+   * OWNER DECISION, 2026-09-03, and the scope of it is the part to read: sections arrive
+   * as WHOLE BLOCKS. The calendar's 35 day cells, the trade rows and the P&L line do not
+   * stagger — they are figures, and a figure animating toward its place is unreadable for
+   * exactly as long as the animation runs. The prototype this came from ladders all
+   * three; that half was declined.
+   *
+   * CALLED HERE AND NOT IN DashSkeleton, WHICH IS THE FIX FOR A REAL FLICKER. This hook
+   * claims the once-per-browser-load flag, so whichever branch calls it is the branch that
+   * gets the arrival. Calling it from the loading branch spent it on placeholder boxes,
+   * left the page empty behind their delays, and then had the real content replace them
+   * mid-cascade on a different motion. The skeleton's own header carries the detail.
+   *
+   * `section(4)` TWICE IS DELIBERATE. The calendar and the right-hand column take the
+   * same delay so they arrive as ONE unit, which is how the design draws them. They
+   * cannot be wrapped in a div to say so — they are children of `dash-main-grid` and a
+   * wrapper would break the grid (§2). Same delay, no wrapper, same reading. */
+  const section = useSectionEntrance();
 
   const beRounding = !!tradeSettings.beRounding;
 
@@ -1194,6 +1285,12 @@ export default function Dashboard() {
   }
 
   return (
+    /* A PLAIN DIV, BECAUSE THE CASCADE IS THIS PAGE'S ARRIVAL. It used to be a
+       `ContentArrival`, which fades the whole page as one block — a second, competing
+       statement laid over the sections staggering in underneath it, and part of what read
+       as a flicker. The dashboard still replaces a skeleton to get here; the cascade is
+       what says so now, section by section, and it says it better than a flat fade over
+       the top of itself. */
     <div className="page">
       <DayTradesModal
         dayKeyStr={selectedDay}
@@ -1205,6 +1302,7 @@ export default function Dashboard() {
 
       <div className="page-body dash-page-body">
         <DailyBanner
+          {...section(0)}
           notifications={notifications}
           prefs={brief}
           patchBriefPrefs={patchBriefPrefs}
@@ -1213,11 +1311,11 @@ export default function Dashboard() {
           markNotificationRead={markNotificationRead}
         />
 
-        <DashActions lastSynced={lastSynced} />
+        <DashActions {...section(1)} lastSynced={lastSynced} />
 
         {/* KpiRow re-splits itself from a content floor, so there is no column count to
             keep in sync — see the header on kpi.jsx. */}
-        <KpiRow>
+        <KpiRow {...section(2)}>
           <NetPnlCard m={m} unit={unit} />
           <TradeWinCard m={m} />
           <ProfitFactorCard m={m} />
@@ -1229,9 +1327,9 @@ export default function Dashboard() {
           {/* Full width, and sized by its content: Account Health has no neighbour to
               line up with, and pinning it to a card height leaves dead surface under
               its footer. */}
-          <div className="dash-account-cell">{accountSection}</div>
+          <div className="dash-account-cell" {...section(3)}>{accountSection}</div>
 
-          <div className="dash-cal-cell">
+          <div className="dash-cal-cell" {...section(4)}>
             <PanelCard narrow className="dash-cal-panel">
               <MonthCalendar
                 year={calYear}
@@ -1247,7 +1345,7 @@ export default function Dashboard() {
             </PanelCard>
           </div>
 
-          <div className="dash-side">
+          <div className="dash-side" {...section(4)}>
             <div className="dash-trades-cell">
               <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />
             </div>

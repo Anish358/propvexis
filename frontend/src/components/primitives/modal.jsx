@@ -94,6 +94,35 @@ import { OverlayContainerContext } from './overlay-container.js';
  * modal to be painted above it, and only the shell knows what that element is.
  */
 
+/* THE ENTRANCE — DESIGN-LANGUAGE §10, whose OPEN item this closes (2026-09-03).
+ *
+ * IMPORTING tw-animate-css WAS NOT ENOUGH ON ITS OWN, and that is worth recording
+ * because it looked like it would be. The generated components/ui/dialog.jsx carries
+ * shadcn’s `data-open:animate-in` classes and they went live the moment the library was
+ * imported — but THIS shell does not use that component. It renders Base UI’s Dialog
+ * wearing the LEGACY `.modal-backdrop` / `.modal` classes (see the note above on why),
+ * and legacy CSS has no entrance at all. So every one of the app’s thirteen dialogs
+ * would still have appeared instantly while §10 claimed otherwise. The rule and the code
+ * have to agree, so the classes are written here.
+ *
+ * SAFE OVER THE LEGACY RULES, CHECKED RATHER THAN ASSUMED: neither `.modal-backdrop` nor
+ * `.modal` sets `opacity`, `transform` or `animation`, so nothing is being fought. The
+ * backdrop is a fixed flex centring box and the popup is a plain child, which is why the
+ * popup can scale in place — there is no centring translate for `zoom-in-95` to
+ * multiply against.
+ *
+ * `overlay-motion` CARRIES THE DURATIONS, not a `duration-*` utility: it sets
+ * `--tw-animation-duration`, which tw-animate-css reads BEFORE `--tw-duration`, so §10’s
+ * enter-at-`--dur` / leave-at-`--dur-fast` split wins by variable precedence rather than
+ * by cascade order. bridge.css explains that at length; menu.jsx and popover.jsx already
+ * use it, and this makes the third overlay family agree with them.
+ *
+ * THE BACKDROP DOES NOT ZOOM. A scrim is not an object arriving, it is the room
+ * dimming — scaling it would drag the whole viewport. It fades; the popup fades and
+ * scales. */
+const BACKDROP_MOTION = 'overlay-motion data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0';
+const POPUP_MOTION = 'overlay-motion data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95';
+
 function Modal({
   open = true,
   onClose,
@@ -117,10 +146,10 @@ function Modal({
         {/* Our scrim, our centring — see the note above and dialog.jsx. Dismissing on
             an outside click is Base UI's default, so the old `onClick={onClose}` on
             the backdrop is gone rather than reimplemented. */}
-        <DialogOverlay className={backdrop} forceRender>
+        <DialogOverlay className={[backdrop, BACKDROP_MOTION].join(' ')} forceRender>
           <DialogPopup
             ref={popupRef}
-            className={[surface, 'select-text', className].filter(Boolean).join(' ')}
+            className={[surface, 'select-text', POPUP_MOTION, className].filter(Boolean).join(' ')}
             aria-label={label}
             {...rest}
           >

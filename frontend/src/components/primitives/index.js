@@ -65,6 +65,9 @@ export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './fi
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { LoadingBlock } from './loading-block.jsx';
+export {
+  ContentArrival, PageEntrance, SECTION_STEP, useSectionEntrance,
+} from './page-entrance.jsx';
 // The shared shell all 11 modals adopt — Phase 4b's payoff. Built on Dialog above.
 export { Modal } from './modal.jsx';
 export {

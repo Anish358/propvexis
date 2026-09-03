@@ -138,7 +138,16 @@ test('the popup is a CHILD of the backdrop — centring and dismissal both depen
     /<DialogOverlay[^>]*>\s*<DialogPopup/,
     'DialogPopup must render INSIDE DialogOverlay — as siblings, nothing centres the popup',
   );
-  assert.match(s, /<DialogOverlay className=\{backdrop\} forceRender>/,
+  /* MATCHED ON THE TWO GUARANTEES RATHER THAN ON THE WHOLE TAG (2026-09-03). This
+     pinned the literal `className={backdrop} forceRender`, which broke the moment the
+     backdrop grew its §10 entrance classes and started composing its className — even
+     though `forceRender`, the thing the assertion is actually about, never moved. A
+     regex over an entire JSX tag fails on any attribute change, including ones that
+     cannot affect what it is guarding. Both halves are still asserted: the caller's
+     class reaches the element, and the overlay force-renders. */
+  assert.match(s, /<DialogOverlay[^>]*\bbackdrop\b[^>]*>/,
+    "the caller's backdrop class must still reach the overlay");
+  assert.match(s, /<DialogOverlay[^>]*\bforceRender\b[^>]*>/,
     'the backdrop must forceRender, or a nested dialog would take its popup down with it');
 });
 

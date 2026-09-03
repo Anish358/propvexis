@@ -58,6 +58,36 @@
    keyframes name). Introduced with the token bridge, as agreed. */
 @import "shadcn/tailwind.css";
 
+/* tw-animate-css — THE ENTER/EXIT UTILITIES, IMPORTED AT LAST (2026-09-03).
+
+   IT WAS A DEPENDENCY THAT NOTHING IMPORTED, and the failure was silent and total.
+   Every generated overlay in components/ui already carries `data-open:animate-in`,
+   `fade-in-0`, `zoom-in-95` and the four `slide-in-from-*` variants — shadcn ships them
+   and they were never removed. Without this line those class names matched no rule at
+   all, so every dialog, dropdown and popover in the app appeared and vanished with no
+   transition whatsoever, while the markup said otherwise. primitives/wizard.jsx found
+   this independently and worked around it with `@starting-style`; DESIGN-LANGUAGE §10
+   recorded the modal entrance as an OPEN item rather than inventing a rule. Both were
+   describing this missing import.
+
+   AUDITED TO THE SAME BAR AS THE shadcn IMPORT ABOVE, because Preflight is deliberately
+   absent from this file and a stray reset would restyle every legacy page. v1.4.0
+   contains `@property`, one `@theme inline` block and `@utility` declarations — no
+   reset, no base rules, and not one bare element selector. Verified against the shipped
+   dist, not the README.
+
+   NOT IN A LAYER, DELIBERATELY. `@utility` has to be top-level for Tailwind v4 to
+   register it; wrapped in `layer(...)` the declarations are accepted and quietly emit
+   nothing, which is the same class of silent failure this import is fixing.
+
+   IT DOES NOT SET OUR DURATIONS. Its own default is `.15s` on a bare `ease`, reached
+   through `var(--tw-animation-duration, var(--tw-duration, .15s))`. bridge.css’s
+   `overlay-motion` utility was written against exactly that chain — it sets
+   `--tw-animation-duration`, which is read FIRST — so §10’s enter/leave split lands by
+   variable precedence rather than by cascade order. That utility was inert until now
+   for the same reason everything else here was. */
+@import "tw-animate-css";
+
 /* SCANNING — ON, and scoped to the component library ONLY.
    These two directories are the only place Tailwind classes are written, so they
    are the only place scanned. Deliberately NOT `./` or `./**`: scanning all of src/

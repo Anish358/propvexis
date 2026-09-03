@@ -55,6 +55,43 @@ const toneColor = (tone) => TONE[tone] ?? null;
 // Which tones FILL UP as good news rather than as consumption. See the header.
 const INVERTED = new Set(['target', 'payout']);
 
+/* MOTION — §10's two durations and one easing, named once so this card cannot drift.
+ *
+ * WHAT ANIMATES HERE, AND WHY THE LIST IS SHORT. A meter animates when the QUANTITY IT
+ * DRAWS CHANGES: a trade lands and the drawdown grows, a fill crosses 90% and the cell
+ * washes red. Nothing here animates the PRESENTATION of a number. The figures do not
+ * count up and the bars do not sweep in on load — a trader opens this card to read
+ * three numbers under time pressure, and motion in front of a number you are trying to
+ * read is a delay wearing the costume of polish.
+ *
+ * TWO SPEEDS ON THIS CARD, AND THE SPLIT IS MEANING, NOT TASTE. `--dur-slow` (400ms)
+ * for anything reporting a change in the account — the bar travelling, the wash and the
+ * figures crossing 90%. `--dur-fast` (120ms) for a hover or a selection, which is the
+ * card acknowledging a click rather than reporting a change; a hover that takes 400ms
+ * feels broken.
+ *
+ * THE TRAVEL AND THE COLOURS SHARE ONE DURATION DELIBERATELY. They fire together on a
+ * threshold crossing — the bar grows past 90% as the cell washes red — so splitting
+ * them would land the colours 200ms before the bar they belong to. Owner set 400ms
+ * on 2026-09-03; §10 carries the amendment that made a third duration legal.
+ *
+ * REDUCED MOTION IS NOT HANDLED HERE, DELIBERATELY. styles/legacy/app.css collapses
+ * every duration in the app to ~0 under `prefers-reduced-motion: reduce`, globally and
+ * with `!important` (which wins from the legacy LAYER because !important reverses layer
+ * order). §10's "durations collapse to zero, the state change still happens" therefore
+ * already holds for everything below, and a local media query would only be a second
+ * place for one rule to live. test/motion.test.js pins that global rule — legacy CSS is
+ * scheduled for deletion, and taking §10 with it would be silent. */
+const STATE_MOTION = 'transition-colors duration-[var(--dur-slow)] ease-[var(--ease)]';
+const HOVER_MOTION = 'transition-colors duration-[var(--dur-fast)] ease-[var(--ease)]';
+
+/* The bar is the one element here that animates GEOMETRY, and `background-size` has to
+ * ride along with `width` because the two describe one thing. The ramp is stretched to
+ * (100/fill)x100% (see `barSize` below), so a width that eased while the stretch
+ * snapped would run the colour ahead of the bar it belongs to — the fill would arrive
+ * at its new length already wearing the wrong part of the gradient. */
+const FILL_MOTION = 'transition-[width,background-size] duration-[var(--dur-slow)] ease-[var(--ease)]';
+
 /* The card. `critical` reddens its own edge — the one place a container border carries
  * meaning in this app, and it earns it: when an account is inside its stop-trading zone
  * the whole card is the message, not one meter inside it. */
@@ -107,7 +144,8 @@ export function AccountTab({
       aria-pressed={selected}
       className={cn(
         'flex shrink-0 items-center gap-3 rounded-[12px] border py-3 pr-6 pl-[18px] text-left whitespace-nowrap',
-        'transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
+        HOVER_MOTION,
+        'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         selected
           ? 'border-[var(--line-selected)] bg-[var(--sel-well)]'
           : 'border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--sel-well)]',
@@ -121,7 +159,7 @@ export function AccountTab({
           selected ? 'border-[var(--action-2)]' : 'border-[var(--line-chip)]',
         )}
       >
-        <span className="size-1.5 rounded-full" style={{ background: hue }} aria-hidden="true" />
+        <span className={cn('size-1.5 rounded-full', STATE_MOTION)} style={{ background: hue }} aria-hidden="true" />
       </span>
       <span className="flex flex-col gap-[3px]">
         <span
@@ -154,7 +192,8 @@ export function AccountTabMore({ className, children, ...rest }) {
       data-slot="account-tab-more"
       className={cn(
         'flex shrink-0 items-center gap-1.5 rounded-[12px] border border-dashed border-[var(--line-strong)] px-4 py-3',
-        'text-[12.5px] leading-4 font-[550] whitespace-nowrap text-[var(--text-3)] transition-colors',
+        'text-[12.5px] leading-4 font-[550] whitespace-nowrap text-[var(--text-3)]',
+        HOVER_MOTION,
         'hover:border-[var(--line-hover)] hover:text-[var(--text)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-3.5',
@@ -296,7 +335,8 @@ export function AccountBannerAction({ tone = 'breach', render, className, childr
   const t = BANNER_TONE[tone] ?? BANNER_TONE.breach;
   const classes = cn(
     'flex h-7 shrink-0 items-center gap-1 rounded-full border px-[11px] whitespace-nowrap',
-    'text-[12px] leading-4 font-semibold no-underline transition-colors',
+    'text-[12px] leading-4 font-semibold no-underline',
+    HOVER_MOTION,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-60',
     /* The arrow on "View challenge →" is sized to the type. Lucide defaults to 24px,
@@ -325,7 +365,13 @@ export function AccountBannerAction({ tone = 'breach', render, className, childr
 
 /* The three meters. Equal thirds down to 1200, then one column — a meter has to hold a
  * 24px figure, its limit, a bar and a footer line, and under ~300px the figure and the
- * limit collide. */
+ * limit collide.
+ *
+ * IT DOES NOT REMOUNT PER ACCOUNT, so the bars inside it TWEEN when the trader switches
+ * accounts rather than repainting outright. That is an owner decision and the reasoning
+ * — including the argument against it — lives at the call site in AccountDetails.jsx,
+ * which is the file that would have to add the key. Nothing here needs to know: this
+ * component just draws three meters, and FILL_MOTION does the rest. */
 export function MeterRow({ className, children, ...rest }) {
   return (
     <div
@@ -376,6 +422,22 @@ export function Meter({
    * breach belongs, because it is a fact about the account and not about this rule. */
   const critical = !inverted && fill >= 90;
 
+  /* A TARGET IN PROGRESS READS IN ITS OWN COLOUR. 2026-09-03.
+   *
+   * The figure was --text on every state but critical, so a profit target sitting at
+   * 100% of its number was the same white as a drawdown allowance untouched. On an
+   * inverted meter the fill IS the good news (see the header), so once there is any
+   * progress the number takes the tone's hue — green for a profit target, the payout
+   * hue for a funded one — and the meter says "you are making money" in the one place
+   * the eye lands first.
+   *
+   * `fill > 0` and not `> 0.5` or `reached`: the figures are floored at zero
+   * (features/prop/ruleFigures.js), so a fill above zero means real profit, and a
+   * trader $1 up on a target is up. This is §4 colour used for a P&L quantity, which
+   * is exactly what a profit target is — not a status. A risk meter is untouched:
+   * green there would congratulate a trader for surviving. */
+  const positive = inverted && fill > 0;
+
   /* STRETCHING THE RAMP is the whole trick, and it is one line. `background-size` set to
    * (100 / fill) × 100% makes the gradient that many times wider than the bar, so the
    * visible portion is exactly the first `fill`% of it. At 30% you see the yellow end,
@@ -388,7 +450,7 @@ export function Meter({
   return (
     <div
       data-slot="meter"
-      className={cn('flex min-w-0 flex-col gap-3.5 rounded-[12px] px-[22px] pt-5 pb-[21px]', className)}
+      className={cn('flex min-w-0 flex-col gap-3.5 rounded-[12px] px-[22px] pt-5 pb-[21px]', STATE_MOTION, className)}
       style={{
         // A critical meter washes; every other state sits on the sunken surface. See
         // the header on why a quiet meter stays quiet.
@@ -400,7 +462,7 @@ export function Meter({
     >
       <div className="flex items-center gap-[7px]">
         <span
-          className="text-[11px] leading-4 font-semibold tracking-[0.09em] uppercase"
+          className={cn('text-[11px] leading-4 font-semibold tracking-[0.09em] uppercase', STATE_MOTION)}
           style={{ color: critical ? 'var(--loss-fg-2)' : 'var(--text-4)' }}
         >
           {label}
@@ -413,8 +475,8 @@ export function Meter({
           tick on every ingested trade. */}
       <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-[7px] font-mono tabular-nums">
         <span
-          className="text-[24px] leading-none font-semibold tracking-[-0.8px]"
-          style={{ color: critical ? 'var(--loss-fg)' : 'var(--text)' }}
+          className={cn('text-[24px] leading-none font-semibold tracking-[-0.8px]', STATE_MOTION)}
+          style={{ color: critical ? 'var(--loss-fg)' : positive ? hue : 'var(--text)' }}
         >
           {value}
         </span>
@@ -425,7 +487,7 @@ export function Meter({
           fill's own hue makes an 8%-used meter look half full from a distance. */}
       <div className="relative h-[5px] overflow-hidden rounded-full bg-[var(--surface-hover)]">
         <span
-          className="absolute inset-y-0 left-0 rounded-full"
+          className={cn('absolute inset-y-0 left-0 rounded-full', FILL_MOTION)}
           style={{
             width: `${fill}%`,
             background: inverted ? 'var(--profit-fill)' : 'var(--risk-ramp)',
@@ -436,7 +498,7 @@ export function Meter({
             than nearly dead, and a warning line would invert the message. */}
         {!inverted && (
           <span
-            className="absolute inset-y-0 left-[90%] w-px"
+            className={cn('absolute inset-y-0 left-[90%] w-px', STATE_MOTION)}
             style={{ background: critical ? 'var(--loss-fg-2)' : 'var(--line-hover)' }}
             aria-hidden="true"
           />
@@ -444,7 +506,7 @@ export function Meter({
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4">
-        <span className="font-mono font-semibold" style={{ color: hue || 'var(--risk-2)' }}>
+        <span className={cn('font-mono font-semibold', STATE_MOTION)} style={{ color: hue || 'var(--risk-2)' }}>
           {(fill).toFixed(1)}%
         </span>
         {sub && <span className="text-[var(--text-4)]">{sub}</span>}
@@ -522,7 +584,8 @@ export function AccountFootRule() {
 export function AccountCardLink({ render, className, children, ...rest }) {
   const classes = cn(
     'flex shrink-0 items-center gap-1.5 rounded-[6px] text-[13px] leading-5 font-[550] no-underline',
-    'text-[var(--text-link)] transition-colors hover:text-[var(--text)]',
+    'text-[var(--text-link)] hover:text-[var(--text)]',
+    HOVER_MOTION,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     /* 14px, NOT 16. The design draws this as a text arrow at the link's own 13px, so a
        16px icon beside 13px type reads as a button that lost its border — the glyph

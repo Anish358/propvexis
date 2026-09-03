@@ -241,7 +241,10 @@
   --fs-body:13px; --fs-label:11px;
 
   /* ===== MOTION ===== */
-  --ease:cubic-bezier(.16,1,.3,1); --dur-fast:120ms; --dur:200ms;
+  /* Three durations. --dur-slow is for a VALUE TRAVELLING along a path (a meter bar
+     moving from one percentage to another), not for a surface appearing — see
+     DESIGN-LANGUAGE §10, amended 2026-09-03. */
+  --ease:cubic-bezier(.16,1,.3,1); --dur-fast:120ms; --dur:200ms; --dur-slow:400ms;
 
   /* ===== Z-INDEX — the ORDER is the rule: nav < dropdown < toast < modal.
      --z-dropdown is 50 to match the generated dropdown's hardcoded z-50, which

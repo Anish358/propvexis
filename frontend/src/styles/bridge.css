@@ -588,7 +588,138 @@
    caller gates it behind `motion-safe:`, which is §10's rule: a reduced-motion user
    gets the banner, just not the pulse. The state change still happens.
 --------------------------------------------------------------------------- */
+/* pv-content-in — CONTENT ARRIVING IN A LIST THAT ALREADY EXISTED.
+
+   Used by BriefSection: the economic calendar swapping between Today and Week, and the
+   same column when the /api/calendar fetch lands and replaces its loading note. Both are
+   the same event — this listing is not the listing that was here a moment ago — and a
+   fade is the honest way to say so. A CROSSFADE rather than a slide or a wipe: nothing
+   about the new rows is positionally related to the old ones, so movement would imply a
+   relationship the data does not have.
+
+   OPACITY ONLY, for §2: layout is an invariant, and a list that travels on every toggle
+   is decoration. The caller keys the box so it remounts, then sets duration and curve
+   from the tokens at the use site — the same shape as pv-breathe below.
+
+   IT SETTLES, so §10 is satisfied and it needs no motion-safe gate of its own: the
+   global prefers-reduced-motion reset in legacy/app.css collapses its duration and the
+   new list still appears. */
+@keyframes pv-content-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @keyframes pv-breathe {
   0%, 100% { box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--loss) 28%, transparent); }
   50% { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--loss) 0%, transparent); }
+}
+
+/* ---------------------------------------------------------------------------
+   ENTRANCES — the reload choreography. DESIGN-LANGUAGE §10, amended 2026-09-03.
+
+   WHY THESE ARE PLAIN CSS RULES AND NOT TAILWIND UTILITIES. Utilities compile only
+   under components/{ui,primitives} (tailwind.css `@source`), and half the elements that
+   need an entrance are written in pages — app/Sidebar.jsx, features/dashboard. A utility
+   written there emits nothing at all, silently, which is the failure CLAUDE.md §1 says
+   has cost real debugging time five times. An attribute selector in this unlayered file
+   works everywhere the markup does.
+
+   THE SPLIT IS ATTRIBUTE vs INLINE STYLE, and it is deliberate: `data-entrance` names
+   the animation (a fixed thing, three of them, owned here) and the caller supplies only
+   `animation-delay` as an inline style (a per-index value, which is exactly what
+   CLAUDE.md means by "a caller-supplied dimension is a PROP, not a class").
+
+   DURATION IS SET BY THE SIZE OF WHAT MOVES. A page section or a piece of chrome is a
+   large surface and takes `--dur-slow`; a row inside a list is small and takes `--dur`.
+   That is why `row` overrides the duration and why brief.jsx can still keep its rule
+   that it never reaches for `--dur-slow`. §10 carries the amendment.
+
+   `backwards` IS NOT OPTIONAL. Without it a delayed element paints at full opacity for
+   every frame before its delay fires, so the whole cascade flashes into place first and
+   then animates — which is worse than no animation at all.
+--------------------------------------------------------------------------- */
+@keyframes pv-rise-in  { from { opacity: 0; transform: translateY(8px);  } to { opacity: 1; transform: none; } }
+@keyframes pv-drop-in  { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes pv-sweep-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+
+[data-entrance] {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease);
+  animation-fill-mode: backwards;
+}
+[data-entrance="up"]   { animation-name: pv-rise-in; }
+[data-entrance="down"] { animation-name: pv-drop-in; }
+[data-entrance="left"] { animation-name: pv-sweep-in; }
+/* A row in a list. Same travel, one duration down — see the note above. */
+[data-entrance="row"]  { animation-name: pv-rise-in; animation-duration: var(--dur); }
+
+/* THE GLOBAL REDUCED-MOTION RESET DOES NOT COVER DELAY, and that is a real bug rather
+   than a nicety. It collapses `animation-duration` to .001ms, which leaves a staggered
+   element holding `backwards` at opacity 0 for the whole of its delay and then snapping
+   in — so the reduced-motion user gets no animation and a third of a second of blank
+   chrome, which is the one outcome worse than the animation. The delay has to go too. */
+@media (prefers-reduced-motion: reduce) {
+  [data-entrance] { animation-delay: 0s !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   CHROME — the rail and the top bar, and NEITHER NEEDS A JS GATE.
+
+   `<Layout>` is a pathless layout route (App.jsx), so the rail and the top bar mount
+   once per document and persist across every client-side navigation. A CSS animation
+   fires once per element, which means "once per browser load" falls out of the DOM for
+   free here — the module-scope flag in page-entrance.jsx exists only for the ROUTED
+   page, which does remount on navigation.
+
+   THE RAIL SHELL IS SELECTED AT `sidebar-inner`, which exists only on desktop: the
+   generated Sidebar renders a Sheet under 900px whose inner div carries no data-slot at
+   all. So the drawer keeps the Sheet's own slide-in and does not get a second one
+   stacked on top of it. The nav rows inside it are guarded by hand in Sidebar.jsx for
+   the same reason — they remount on every drawer open.
+
+   The bar is sticky and stays sticky: this animates `transform` and `opacity` only,
+   never `position` or `top`.
+--------------------------------------------------------------------------- */
+[data-slot="sidebar-inner"] { animation: pv-sweep-in var(--dur-slow) var(--ease) backwards; }
+[data-slot="topbar"]        { animation: pv-drop-in  var(--dur-slow) var(--ease) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="sidebar-inner"],
+  [data-slot="topbar"] { animation-delay: 0s !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   LOADING SKELETONS BREATHE. DESIGN-LANGUAGE §10, amended 2026-09-03.
+
+   THE SECOND LOOPING ANIMATION IN THIS APP, and it earns the exception the same way the
+   stop-trading banner does: the CONDITION has not settled either. A skeleton is on screen
+   precisely because the app does not have the data yet, and it leaves the moment it does
+   — so this loops for exactly as long as the thing it describes is true, and stops
+   without anyone stopping it.
+
+   IT IS THE FIX FOR "THE PAGE LOOKS BLANK", which is what the owner reported and what a
+   screenshot showed: `SkeletonBlock` painted a flat `--surface-2` rectangle and nothing
+   else. A motionless grey box says THIS AREA IS EMPTY. A breathing one says STILL
+   WORKING — same pixels, opposite meaning, and the difference is the only thing telling
+   a trader whether to wait or to reload.
+
+   OPACITY, NOT A SWEEPING HIGHLIGHT. legacy CSS's `.u-skeleton` drags a gradient across
+   the box on a 1.4s loop, which needs `position: relative`, `overflow: hidden` and a
+   pseudo-element on every skeleton — three properties that would collide with the
+   dimensions these primitives take as props. Opacity needs none of them and reads
+   quieter, which matters when nineteen of them are on screen at once.
+
+   2s, WHICH IS DELIBERATELY SLOWER THAN ANYTHING ELSE HERE. §10's durations are for
+   things that settle; this is a heartbeat, and at 400ms nineteen boxes pulsing together
+   is a strobe. The curve is symmetric so neither half of the breath is the "action".
+
+   NOT GATED BEHIND `motion-safe:` at the call site — the global reduced-motion reset
+   collapses it, and a reduced-motion user still gets the skeleton, the `aria-busy` and
+   the "Loading…" note. The information survives; only the pulse goes.
+--------------------------------------------------------------------------- */
+@keyframes pv-breathe-soft { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+[data-slot="skeleton-block"],
+[data-slot="skeleton-line"] {
+  animation: pv-breathe-soft 2s cubic-bezier(.4, 0, .6, 1) infinite;
 }

@@ -171,19 +171,23 @@ export function WizardExit({ label = 'Exit setup', className, ...rest }) {
  * §10: enter at `--dur`, and reduced motion collapses it to zero rather than to
  * nothing — the step still appears.
  *
- * THE ENTRANCE IS `@starting-style`, NOT `animate-in`, and that is a finding rather
- * than a preference. tw-animate-css is in package.json and bridge.css's
- * `overlay-motion` recipe is written against its `--tw-animation-duration`, but it is
- * imported nowhere: `animate-in` and `fade-in` compile to NO CSS in this build, which
- * was verified by grepping the built stylesheet. The generated Dialog's
- * `data-open:animate-in` classes are therefore inert too — consistent with §10 still
- * listing the modal entrance animation as an OPEN item. Wiring that library in would
- * change every generated component's animation at once, so it is not done here on the
- * way past.
+ * THE ENTRANCE IS `@starting-style`, NOT `animate-in`, and it STAYS that way — but the
+ * reason has changed, so the old note is corrected rather than left to mislead.
  *
- * `starting:opacity-0` with a transition needs no library and no keyframes, and lands
- * inside §10's stated rule rather than inventing one. Verified to emit real
- * `@starting-style` CSS. */
+ * IT WAS ORIGINALLY A WORKAROUND. tw-animate-css was a dependency that nothing
+ * imported, so `animate-in` and `fade-in` compiled to no CSS at all; this component
+ * reached for `@starting-style` because the library route was silently dead. That was
+ * fixed on 2026-09-03 — tailwind.css imports the library now, and §10’s modal entrance
+ * is closed rather than OPEN.
+ *
+ * SO WHY NOT SWITCH? Because a wizard step is not an overlay. `animate-in` is built for
+ * something that opens over the page and closes again, and it is driven by
+ * `data-open`/`data-closed` — a wizard step has neither state. It is content being
+ * REPLACED in place, keyed on `step`, and `starting:opacity-0` on a plain transition
+ * expresses exactly that with no keyframes and nothing to keep in step. Switching now
+ * would be churn in pursuit of consistency with a component this one is not.
+ *
+ * Verified to emit real `@starting-style` CSS. */
 /* THE MEASURE IS PER STEP, because the steps are not the same shape and the reference
  * varies it the same way. `wide` is the step that lays its controls out in a GRID rather
  * than asking a single question: two columns of fields need room for two labels and two
@@ -227,7 +231,7 @@ export const WizardBody = React.forwardRef(function WizardBody(
         'mx-auto flex w-full flex-1 flex-col justify-center gap-8 px-6 py-12',
         BODY_MEASURE[size] || BODY_MEASURE.default,
         'outline-none',
-        'transition-opacity duration-[var(--dur)] starting:opacity-0 motion-reduce:duration-0',
+        'transition-opacity duration-[var(--dur)] ease-[var(--ease)] starting:opacity-0 motion-reduce:duration-0',
         className,
       )}
       {...rest}

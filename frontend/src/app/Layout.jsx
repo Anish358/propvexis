@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { RailProvider, useRail } from '@/components/primitives';
+import { PageEntrance, RailProvider, useRail } from '@/components/primitives';
 import Sidebar from './Sidebar.jsx';
 import FilterBar from '../features/filters/FilterBar.jsx';
 import { Toasts } from '../features/alerts/Notifications.jsx';
@@ -61,6 +61,10 @@ export default function Layout({
   }, [connected]);
 
   return (
+    /* NO ENTRANCE WRAPPER AROUND THE SHELL. The reload choreography now covers the rail
+       and the top bar too, but neither needs a gate from here: this is a PATHLESS LAYOUT
+       ROUTE, so both mount once per document and their CSS animations (bridge.css) fire
+       exactly once for free. Only the routed page below remounts, and only it is gated. */
     <RailProvider className="shell">
       {/* First focusable thing in the document. The rail is ~20 tab stops, so without
           this a keyboard user traverses the whole nav on every page to reach the
@@ -150,7 +154,16 @@ function Shell({ actionsSlot, setActionsSlot, toasts, dismissToast, outletContex
         slotRef={setActionsSlot}
         {...bar}
       />
-      <Outlet context={{ ...outletContext, toggleSidebar }} />
+      {/* THE ROUTED PAGE ARRIVES ONCE PER BROWSER LOAD — never on an in-app screen
+          change, which in this SPA is every navigation between Dashboard, Prop OS and
+          Settings. The distinction is the whole reason the component exists; its
+          header carries the argument.
+          IT IS THE FALLBACK, NOT THE ONLY ENTRANCE. A page that opts into the section
+          cascade (useSectionEntrance — the dashboard does) staggers its own blocks
+          inside this; every page that has not migrated yet still gets the flat fade. */}
+      <PageEntrance>
+        <Outlet context={{ ...outletContext, toggleSidebar }} />
+      </PageEntrance>
     </main>
   );
 }

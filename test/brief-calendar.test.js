@@ -59,7 +59,14 @@ test('nothing caps the list, because the column scrolls', () => {
   assert.match(dash, /filterBriefEvents\(events \|\| \[\], prefs, now\),/);
   assert.ok(!/filterBriefEvents\([^)]*\)\.slice\(/.test(dash), 'the events list is capped again');
   assert.ok(!/notifications\.filter\(\(n\) => !n\.read_at\)\.slice\(/.test(dash), 'the alerts list is capped again');
-  assert.match(brief, /max-h-\[153px\] overflow-x-hidden overflow-y-auto/, 'the section must scroll');
+  /* The scroll is MEASURED now rather than always on (see motion.test.js): the box asks
+     for a bar only when its content genuinely overflows, because four event rows come to
+     exactly the 153px cap and rounding alone was drawing a thumb that filled the track.
+     What matters here is unchanged — the list is capped in height, and a list with more
+     rows than fit still gets the affordance, so no row is ever hidden silently. */
+  assert.match(brief, /max-h-\[153px\]/, 'the section must be capped in height');
+  assert.match(brief, /data-scroll=\{scroll && scrollable \? 'y' : undefined\}/,
+    'a list that overflows must still ask for its scrollbar');
 });
 
 test('every currency Brief settings offers has a flag drawn for it', () => {

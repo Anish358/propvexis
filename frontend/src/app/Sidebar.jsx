@@ -70,6 +70,41 @@ const iconFor = (key) => ICONS[key] || ICONS.dashboard;
  * is a placement decision, not a verdict on the card.
  */
 
+/* THE RAIL'S ENTRANCE — a leftward sweep, laddering down the rows.
+ *
+ * OWNER DECISION, 2026-09-03: the chrome enters on a reload, having previously painted
+ * instantly. page-entrance.jsx carries the reversal and what survived it.
+ *
+ * NO JS GATE, AND NONE IS NEEDED. `<Layout>` is a pathless layout route, so this file
+ * mounts once per document and persists across every client-side navigation — a CSS
+ * animation fires once per element, which makes "once per browser load" fall out of the
+ * DOM for free. The routed page needs a gate because it remounts; this does not.
+ *
+ * EXCEPT ON MOBILE, WHICH IS WHY `isMobile` GATES IT. Under 900px the rail is a Sheet
+ * drawer that mounts and unmounts on every open, so an ungated ladder would replay each
+ * time the menu is tapped — on top of the Sheet's own slide-in, which is already saying
+ * the same thing. The rail SHELL is excluded in CSS instead (bridge.css selects
+ * `sidebar-inner`, which the generated component renders on desktop only).
+ *
+ * 30ms, HALF THE PAGE'S 60ms STEP. These are nine rows of one list; the page's sections
+ * are six different cards. The same step would make the rail take longer to assemble
+ * than the whole page beside it. Starting at 60ms lets the shell get moving first, so
+ * the rows ride in with it rather than ahead of it.
+ *
+ * The delays are inline styles because they are per-index VALUES — bridge.css owns the
+ * animation itself. A Tailwind delay utility written in this file would compile to
+ * nothing at all, silently (tailwind.css scopes @source to components/{ui,primitives}). */
+const NAV_STEP = 0.03;
+const NAV_BASE = 0.06;
+const CTA_DELAY = 0.04;
+// After the last row, so the footer closes the sweep instead of racing it. Derived from
+// NAV.length rather than written down, so adding a module does not silently overlap it.
+const FOOT_DELAY = NAV_BASE + NAV.length * NAV_STEP;
+
+const sweep = (delay, on) => (on
+  ? { 'data-entrance': 'left', style: { animationDelay: `${delay.toFixed(3)}s` } }
+  : undefined);
+
 /* One flat rail row.
  *
  * `useMatch` RATHER THAN NavLink's isActive, and the reason is structural. NavLink's
@@ -79,11 +114,12 @@ const iconFor = (key) => ICONS[key] || ICONS.dashboard;
  * clickable would be two different boxes. Passing `render={<Link/>}` makes the anchor
  * the row itself, and then active state has to come from somewhere else: `useMatch`
  * with the same `end` semantics NavLink uses, which is exactly what NavLink calls. */
-function RailLink({ to, label, icon, end, soon }) {
+function RailLink({ to, label, icon, end, soon, entrance }) {
   const Icon = iconFor(icon);
   const active = !!useMatch({ path: to, end: !!end });
   return (
     <RailItem
+      {...entrance}
       render={<Link to={to} />}
       active={active}
       icon={<Icon aria-hidden="true" />}
@@ -113,7 +149,7 @@ function RailSubLink({ to, label, end, soon }) {
 /* A module group: the header toggles an inline sub-nav. Auto-expands while the route is
  * inside the module; the user can still collapse or expand it by hand, and that
  * override outranks the route until they navigate away. */
-function RailGroup({ item }) {
+function RailGroup({ item, entrance }) {
   const { pathname } = useLocation();
   const { state, isMobile } = useRail();
   const inModule = pathname === item.base || pathname.startsWith(`${item.base}/`);
@@ -130,6 +166,7 @@ function RailGroup({ item }) {
   return (
     <div>
       <RailItem
+        {...entrance}
         // A collapsed module whose route you are on still reads as current — the
         // children are hidden, so the header is the only thing left to say so.
         active={inModule && !expanded}
@@ -170,6 +207,8 @@ export default function Sidebar() {
   const { user } = useAuth();
   const { state, isMobile, toggleSidebar } = useRail();
   const collapsed = state === 'collapsed' && !isMobile;
+  // See the sweep block above: the drawer remounts on every open, so it is excluded.
+  const entering = !isMobile;
 
   return (
     <Rail>
@@ -203,7 +242,11 @@ export default function Sidebar() {
           A Router Link, not a button with a navigate(): it is a destination, so it
           should middle-click, right-click and open in a new tab like every other
           navigation in this rail. */}
-      <RailCta render={<Link to="/accounts/new" />} icon={<Plus aria-hidden="true" />}>
+      <RailCta
+        {...sweep(CTA_DELAY, entering)}
+        render={<Link to="/accounts/new" />}
+        icon={<Plus aria-hidden="true" />}
+      >
         Add account
       </RailCta>
 
@@ -212,14 +255,21 @@ export default function Sidebar() {
           would be two sub-navs for one module. `to` falls back to `base` because such
           an entry is a destination as well as a module — nav.js says why. */}
       <RailNav aria-label="Main">
-        {NAV.map((item) => (
+        {NAV.map((item, i) => (
           item.children && !item.subnavInPage
-            ? <RailGroup key={item.base} item={item} />
-            : <RailLink key={item.to || item.base} {...item} to={item.to || item.base} />
+            ? <RailGroup key={item.base} item={item} entrance={sweep(NAV_BASE + i * NAV_STEP, entering)} />
+            : (
+              <RailLink
+                key={item.to || item.base}
+                {...item}
+                to={item.to || item.base}
+                entrance={sweep(NAV_BASE + i * NAV_STEP, entering)}
+              />
+            )
         ))}
       </RailNav>
 
-      <RailFooter>
+      <RailFooter {...sweep(FOOT_DELAY, entering)}>
         {/* Sign-out and account switching stay in the top-bar avatar menu; this row is
             identity, and it goes to the profile it names. */}
         {user && (

@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge, Button, Card } from '@/components/primitives';
 import { fmtMoney } from '../../lib/metrics.js';
 import { roomStatus, healthStatus } from './PropOS.jsx';
+import { maxDdUsed, targetProgress } from './ruleFigures.js';
 import { PHASE_LABEL } from './propAccounts.js';
 
 // ---------------------------------------------------------------------------
@@ -54,7 +55,8 @@ export default function AccountPortfolioCard({ row, onSelect }) {
   const maxSt = roomStatus(row.maxDd?.fracRemaining, row.maxDd?.breached);
   const daySt = roomStatus(row.dailyDd?.fracRemaining, row.dailyDd?.breached);
 
-  const maxUsed = row.maxDd ? row.maxDd.limit - row.maxDd.roomLeft : null;
+  // Floored at 0 — see ruleFigures.js.
+  const maxUsed = maxDdUsed(row.maxDd);
   const maxPct = row.maxDd?.limit ? maxUsed / row.maxDd.limit : 0;
   const dayPct = row.dailyDd?.limit ? row.dailyDd.usedToday / row.dailyDd.limit : 0;
   const target = row.profitTarget;
@@ -96,7 +98,7 @@ export default function AccountPortfolioCard({ row, onSelect }) {
         {target ? (
           <MiniMeter
             label={row.phase === 'funded' ? 'Payout Target' : 'Profit Target'}
-            value={target.current}
+            value={targetProgress(target)}
             limit={target.target}
             pct={target.pctToTarget}
             tone={row.phase === 'funded' ? 'payout' : 'target'}

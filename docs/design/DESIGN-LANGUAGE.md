@@ -321,19 +321,116 @@ focus state.**
 
 ## §10 Motion — 🔒 LOCKED
 
-- Two durations and one easing (`--dur-fast`, `--dur`, `--ease`). Enter at `--dur`, leave
-  faster.
+- Three durations and one easing (`--dur-fast`, `--dur`, `--dur-slow`, `--ease`). Enter
+  at `--dur`, leave faster.
+- **`--dur-slow` (400ms) is for a VALUE TRAVELLING, never for a surface appearing.**
+  Amended 2026-09-03, owner-approved, replacing "two durations". The reason it earns a
+  third number: everything else in this app animates a change of STATE, which the eye
+  registers rather than follows — a colour arrives, a panel is there. A meter bar moving
+  from one percentage to another is the one thing a reader has to track along a path,
+  and 200ms is not long enough to follow a bar across the width of a card. Its only use
+  today is the account card’s rule meters and the reload entrance below. It is NOT
+  licence to slow an overlay down: an entrance taking 400ms is a surface the user is
+  waiting for. Held by `test/motion.test.js`.
 - **`prefers-reduced-motion` collapses durations to zero — the state change still
   happens.** A reduced-motion user gets the result instantly, never nothing.
-- **Animation settles.** One exception, and it is the only looping animation in the app:
-  the **stop-trading banner breathes**, because the condition does not settle either. An
-  account 88% through its daily loss limit is still 88% through it a minute later, and a
-  static red bar is something the eye stops seeing. It pulses a ring, not the fill, so no
-  text reflows — and it is gated behind `motion-safe:`.
+- **Animation settles. A LOOP IS ONLY LEGAL WHILE ITS CONDITION HAS NOT.** Two things
+  loop in this app and both stop the moment the state they describe resolves — that is the
+  test, not a count. Amended 2026-09-03 (it read "one exception" and named only the first).
+
+  - The **stop-trading banner breathes**, because an account 88% through its daily loss
+    limit is still 88% through it a minute later, and a static red bar is something the eye
+    stops seeing. It pulses a ring, not the fill, so no text reflows — and it is gated
+    behind `motion-safe:`.
+  - **Loading skeletons breathe**, because the app does not have the data yet and the
+    pulse ends when it does. A MOTIONLESS GREY BOX SAYS "THIS AREA IS EMPTY"; a breathing
+    one says "still working" — same pixels, opposite meaning, and the difference is the
+    only thing telling a trader whether to wait or reload. Reported as "the dashboard
+    looks blank on reload" and it was: `SkeletonBlock` painted a flat fill and nothing
+    else. Opacity at 2s, slower than every settling duration on purpose — a heartbeat, not
+    an event, and nineteen boxes pulsing at 400ms is a strobe.
+
+  Anything that loops while its condition HAS settled is decoration and is forbidden.
 - Once a user has dismissed something, it does not animate back.
 
-**⬜ OPEN:** the modal entrance animation. `primitives/dialog.jsx` records the gap
-rather than inventing a rule.
+- **THE APP ARRIVES ONCE PER BROWSER LOAD, AS A CASCADE.** Amended 2026-09-03,
+  owner-approved, and it REVERSES what this section and `primitives/page-entrance.jsx`
+  said the same morning: that the routed page fades as one flat block and the chrome
+  paints instantly. The owner reviewed a prototype that staggers both and chose both.
+
+  The objection the first version was built on was FREQUENCY — a dashboard opened fifteen
+  times a day playing a choreography fifteen times a day, in front of the one screen whose
+  job is three numbers, fast. The gate already answers it: the entrance is confined to a
+  real browser load, and in this SPA every navigation between Dashboard, Prop OS and
+  Settings is client-side and plays nothing. At that frequency a cascade costs nothing a
+  flat fade does not.
+
+  Two limits survive the reversal, because neither was ever about frequency:
+
+  - **Sections arrive as WHOLE BLOCKS. No figure animates.** Calendar day cells, trade
+    rows and the P&L chart line are simply there inside the section that carried them in.
+    The prototype ladders all three; that half was declined. A figure animating toward its
+    place is unreadable for exactly as long as the animation runs, and §10 already says
+    motion carries state changes rather than decorating data.
+  - **An entrance transform bars a hover transform on the same element.** The entrance
+    settles on `transform: none`, so a hover transform on the same node fights it. The app
+    has none today and §14 is why — hover intensifies what is already there, it does not
+    move it. The prototype's lift-on-hover KPI card was declined on the same grounds.
+
+- **AN ENTRANCE TRAVELS, AND ITS DURATION IS THE SIZE OF WHAT MOVES.** A page section or
+  a piece of chrome is a large surface and takes `--dur-slow`; a row inside a list is
+  small and takes `--dur`. That is the second legal use of 400ms and it does not widen the
+  rule above — both are something travelling along a path. What stays forbidden is
+  slowing down anything the user is WAITING ON: an overlay they just opened still enters
+  at `--dur`. The distinction is what the motion answers — a click, or a page load.
+
+  Direction is language, not decoration: **chrome enters from the left, the top bar from
+  above, content upward.** Three keyframes, defined once in `bridge.css`
+  (`pv-sweep-in`, `pv-drop-in`, `pv-rise-in`).
+
+- **THE STAGGER RHYTHM: 60ms between page sections, 30ms between rail rows, 45ms between
+  rows in a list, and no list sweep runs longer than ~0.45s** — cap the per-item step
+  rather than the count. The rail is half the page's step on purpose: nine rows of one
+  list against six different cards, and the same step would leave the rail still
+  assembling after the page beside it had finished.
+
+  These live as named constants in JS, NOT as tokens in `tokens.css`, and that is
+  deliberate: no CSS rule reads them: a delay is computed per index and handed over as an
+  inline `animationDelay`. A token nothing resolves would be decoration in the one file
+  whose whole job is to be the single source of values. `bridge.css` owns the animation,
+  the caller owns only the delay — which is also what keeps this working in pages, where
+  a Tailwind utility compiles to nothing at all (§1).
+
+- **A STAGGERED ENTRANCE MUST ZERO ITS DELAY UNDER `prefers-reduced-motion`.** The global
+  reset collapses `animation-duration` and does NOT touch `animation-delay`, which leaves
+  a delayed element holding `backwards` at opacity 0 for the whole of its delay and then
+  snapping in — no animation and a third of a second of blank chrome, which is worse than
+  the motion it replaces. `bridge.css` zeroes it for every `[data-entrance]`.
+
+- **EVERY RE-ENTRANCE NEEDS A REMOUNT, AND THE REMOUNT IS A KEY ON THE CONTAINER.** A CSS
+  animation fires once per element. A list that re-populates in place from a different
+  array — Today → Week in the brief — has rows React will happily reuse, so the animation
+  does not run, the list snaps to new data, and nothing errors. `key={selection}` on the
+  list CONTAINER, never on the rows: the rows keep their identity, the container tears
+  down, and the ladder replays from i=0. The container itself gets no entrance, so the
+  card's header and divider stay anchored while its contents re-ladder.
+
+- **AN OVERLAY ENTERS; IT DOES NOT ARRIVE.** Closed 2026-09-03, owner-approved, and it
+  closes the OPEN item this section carried since it was written. A dialog, menu,
+  popover or tooltip fades and scales in from 95% at `--dur`, and leaves the same way at
+  `--dur-fast` — the enter/leave split at the top of this section, applied. It is not a
+  page entrance and must not become one: an overlay animates because the USER OPENED IT,
+  which is a state change they caused and are waiting on.
+
+  The gap was never a missing rule. `tw-animate-css` was a dependency that nothing
+  imported, so the `data-open:animate-in` classes shadcn ships on every generated overlay
+  compiled to no CSS — the intent had been written down for months and simply never ran.
+  `tailwind.css` imports it now; `bridge.css`’s `overlay-motion` utility carries the
+  duration split, by variable precedence rather than cascade order. Held by
+  `test/motion.test.js`.
+
+  `primitives/wizard.jsx` keeps `@starting-style` and is not a contradiction: a wizard
+  step is content replaced in place, with no open or closed state to drive.
 
 ---
 
