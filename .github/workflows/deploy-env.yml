@@ -115,7 +115,7 @@ jobs:
           # Pass APP_DIR/PM2_APP into the remote shell as env vars; the heredoc is
           # single-quoted so everything else expands ON the box, not locally.
           ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
-            "APP_DIR='$APP_DIR' PM2_APP='$PM2_APP' bash -s" <<'REMOTE'
+            "APP_DIR='$APP_DIR' PM2_APP='$PM2_APP' PM2_WORKER='$PM2_WORKER' bash -s" <<'REMOTE'
           set -e
           cd "$APP_DIR"
           npm install --omit=dev

@@ -27,30 +27,75 @@ const FILES = [
 
 let cached = null;
 
+/**
+ * The payload type a message DECLARES for itself.
+ *
+ * Every Open API message carries `optional ProtoOAPayloadType payloadType = 1
+ * [default = PROTO_OA_...]`, and protobufjs exposes that default as a number. It
+ * is the authoritative answer and it cannot drift from the .proto files, because
+ * it IS the .proto files.
+ *
+ * THE ALTERNATIVE COST US DISCOVERY ENTIRELY. The first version looked types up
+ * by a hand-written enum key and built its decode map by DERIVING a message name
+ * from each enum name. That works for almost every pair, and Spotware's naming
+ * diverges for the one message discovery depends on:
+ *
+ *   message  ProtoOAGetAccountList ByAccessTokenRes
+ *   enum     PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_RES
+ *
+ * "AccountList" against "ACCOUNTS". The request key resolved to `undefined` and
+ * the response resolved to no message at all, so the account picker sat on its
+ * loading skeleton forever with no error raised anywhere.
+ */
+export function payloadTypeOf(proto, typeName) {
+  let type;
+  try { type = proto.root.lookupType(typeName); } catch {
+    throw new Error(`ctrader: no message named '${typeName}'`);
+  }
+  const n = type.fields?.payloadType?.typeDefault;
+  if (typeof n !== 'number') {
+    throw new Error(`ctrader: ${typeName} declares no payloadType default`);
+  }
+  return n;
+}
+
 /** The protobuf root, loaded once per process. */
 export async function loadProto() {
   if (!cached) {
     const root = await protobuf.load(FILES);
     const ProtoMessage = root.lookupType('ProtoMessage');
-    const oaTypes = root.lookupEnum('ProtoOAPayloadType').values;
-    const commonTypes = root.lookupEnum('ProtoPayloadType').values;
-    // payloadType -> message name, so an inbound frame can be decoded without a
-    // switch statement that drifts from the proto.
+    const types = {
+      ...root.lookupEnum('ProtoPayloadType').values,
+      ...root.lookupEnum('ProtoOAPayloadType').values,
+    };
+
+    // payloadType -> message, built from what each MESSAGE declares rather than
+    // from what its enum value happens to be called.
     const byNumber = new Map();
-    for (const [name, num] of Object.entries({ ...commonTypes, ...oaTypes })) {
-      // PROTO_OA_DEAL_LIST_RES -> ProtoOADealListRes
-      const camel = name.toLowerCase().replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-      const guess = camel.replace(/^proto/, 'Proto').replace(/^ProtoOa/, 'ProtoOA');
-      const typeName = guess.charAt(0).toUpperCase() + guess.slice(1);
-      try { byNumber.set(num, root.lookupType(typeName)); } catch { /* not every enum value has a message */ }
-    }
-    cached = { root, ProtoMessage, types: { ...commonTypes, ...oaTypes }, byNumber };
+    const walk = (ns) => {
+      for (const obj of Object.values(ns.nested ?? {})) {
+        if (obj.fields) {
+          const n = obj.fields.payloadType?.typeDefault;
+          if (typeof n === 'number') byNumber.set(n, obj);
+        }
+        if (obj.nested) walk(obj);
+      }
+    };
+    walk(root);
+
+    cached = { root, ProtoMessage, types, byNumber };
   }
   return cached;
 }
 
-/** Encode an inner message into a ProtoMessage payload buffer. */
-export function encodeMessage(proto, typeName, payloadType, body, clientMsgId) {
+/**
+ * Encode an inner message into a ProtoMessage envelope.
+ *
+ * NO payloadType ARGUMENT. The message knows its own type, and passing one in was
+ * the seam a wrong enum key slipped through.
+ */
+export function encodeMessage(proto, typeName, body, clientMsgId) {
+  const payloadType = payloadTypeOf(proto, typeName);
   const Inner = proto.root.lookupType(typeName);
   const err = Inner.verify(body);
   // Loud: protobufjs silently drops unknown fields, so a typo'd field name would

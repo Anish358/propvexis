@@ -32,6 +32,35 @@ test('the worker is reloaded, not left running the previous build', () => {
     'an environment with no worker must skip the reload rather than fail the deploy');
 });
 
+test('PM2_WORKER REACHES THE REMOTE SHELL, not just the workflow step', () => {
+  /* THE BUG THIS CATCHES, AND IT SHIPPED — the worker never started once, on any
+   * environment, through several green deploys.
+   *
+   * The remote script runs over ssh with an EXPLICIT env allow-list:
+   *
+   *     "APP_DIR='$APP_DIR' PM2_APP='$PM2_APP' bash -s" <<'REMOTE'
+   *
+   * PM2_WORKER was set as an env var of the workflow STEP, which the remote bash
+   * never sees. So `${PM2_WORKER:-}` was empty on the box, the `if` never fired,
+   * and pm2 was never asked to start the worker. Deploy green, files rsynced,
+   * ecosystem correct, no worker, nothing in any log.
+   *
+   * The two assertions above passed the whole time, because they only proved the
+   * TEXT existed — not that the variable it reads could ever be set. A guard on a
+   * shell script has to follow the value, not the line. */
+  const ssh = deployEnv.split('\n').find((l) => l.includes("bash -s"));
+  assert.ok(ssh, 'could not find the remote shell invocation');
+  assert.match(ssh, /PM2_WORKER='\$PM2_WORKER'/,
+    'PM2_WORKER must be exported into the remote shell or the if is dead code');
+  // ...and every variable the remote script reads must be transported.
+  const remote = deployEnv.slice(deployEnv.indexOf("bash -s"));
+  for (const v of ['APP_DIR', 'PM2_APP', 'PM2_WORKER']) {
+    if (new RegExp(`\\$\\{?${v}[:}\\s"]`).test(remote)) {
+      assert.match(ssh, new RegExp(`${v}='\\$${v}'`), `${v} is read remotely but never sent`);
+    }
+  }
+});
+
 test('prod and dev each name their own worker; staging names none', () => {
   assert.match(read('.github/workflows/deploy.yml'), /pm2_worker: amey-ctrader\b/);
   assert.match(read('.github/workflows/deploy-dev.yml'), /pm2_worker: amey-ctrader-dev/);
