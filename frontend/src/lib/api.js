@@ -601,3 +601,17 @@ export async function ctraderAccounts(identityId) {
 export async function provisionCtraderAccounts(identityId, payload) {
   return postJson(`/api/ctrader/identities/${identityId}/accounts`, payload);
 }
+
+/* ---- sync ----------------------------------------------------------------
+ * The dashboard button and the per-row action both land here. ONE request for
+ * the whole workspace rather than a loop over accounts, so the 15-minute
+ * cooldown and the "which accounts even qualify" rule stay server-side, where
+ * a disabled button cannot be worked around. */
+export async function syncNow(accountIds) {
+  return postJson('/api/sync/now', accountIds ? { account_ids: accountIds } : {});
+}
+
+/** The newest sync job per account. Feeds the dashboard line and the Last Sync column. */
+export async function fetchSyncStatus() {
+  return getJson('/api/sync/status');
+}

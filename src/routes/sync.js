@@ -19,6 +19,8 @@ import {
   requestedPlatforms,
   manualCooldown,
   MANUAL_COOLDOWN_MS,
+  lastJobsForUser,
+  syncableAccounts,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
 import { freshAccessToken, markIdentityError } from '../domain/sync/ctraderIdentities.js';
@@ -325,6 +327,80 @@ export default function syncRoutes(app) {
     return reply.code(201).send({ credential: saved, job });
   });
 
+  /**
+   * The newest sync job per account, for the whole workspace.
+   *
+   * The accounts table draws a Last Sync cell per row and the dashboard prints one
+   * "last synced" line; both showed a dash and "never" because nothing fetched
+   * this. One query for the page, rather than one request per row.
+   */
+  app.get('/api/sync/status', { preHandler: app.requireAuth }, async (req, reply) => {
+    const jobs = await lastJobsForUser(req.user.uid);
+    return reply.send({
+      jobs: jobs.map((j) => ({
+        account_id: Number(j.account_id),
+        status: j.status,
+        reason: j.reason,
+        error: j.error,
+        created_at: j.created_at,
+        finished_at: j.finished_at,
+        stats: j.stats ?? null,
+      })),
+      cooldown_seconds: Math.round(MANUAL_COOLDOWN_MS / 1000),
+    });
+  });
+
+  /**
+   * Sync every account that can be synced.
+   *
+   * What the dashboard's "Sync Trades" button calls. It is ONE request rather than
+   * the page looping over accounts, so the cooldown, the eligibility rule and the
+   * "which accounts even qualify" question all stay in one place -- and a user
+   * with five accounts cannot half-succeed in five separate ways.
+   *
+   * A cooled-down account is REPORTED, not an error: pressing Sync with three
+   * accounts where one synced two minutes ago should sync the other two and say
+   * so, not refuse the lot.
+   */
+  app.post('/api/sync/now', { preHandler: app.requireAuth }, async (req, reply) => {
+    if (!credentialsEnabled()) {
+      return reply.code(503).send({ error: 'Auto Sync is not configured on this server yet' });
+    }
+    const wanted = Array.isArray(req.body?.account_ids)
+      ? new Set(req.body.account_ids.map(Number))
+      : null;
+
+    const accounts = (await syncableAccounts(req.user.uid))
+      .filter((a) => !wanted || wanted.has(Number(a.id)));
+
+    const queued = [];
+    const skipped = [];
+    for (const a of accounts) {
+      const previous = await lastJob(a.id);
+      const cooldown = manualCooldown(previous);
+      if (cooldown.blocked) {
+        const mins = Math.ceil(cooldown.retryAfterMs / 60_000);
+        skipped.push({
+          account_id: Number(a.id),
+          label: a.label,
+          reason: `synced recently — try again in ${mins} minute${mins === 1 ? '' : 's'}`,
+          retry_after_seconds: Math.ceil(cooldown.retryAfterMs / 1000),
+        });
+        continue;
+      }
+      const job = await enqueue(a.id, 'manual');
+      // enqueue is ON CONFLICT DO NOTHING while a job is open, so an account
+      // already syncing returns nothing rather than a second job.
+      if (job) queued.push({ account_id: Number(a.id), label: a.label, job_id: Number(job.id) });
+      else skipped.push({ account_id: Number(a.id), label: a.label, reason: 'already syncing' });
+    }
+
+    if (!accounts.length) {
+      return reply.code(409).send({ error: 'no accounts are connected for Auto Sync' });
+    }
+    return reply.send({ queued, skipped });
+  });
+
   app.delete('/api/accounts/:id/credentials', { preHandler: app.requireAuth }, async (req, reply) => {
     const acct = await ownedSyncAccount(req, reply);
     if (!acct) return reply;
@@ -349,13 +425,21 @@ export default function syncRoutes(app) {
   app.post('/api/accounts/:id/sync', { preHandler: app.requireAuth }, async (req, reply) => {
     const acct = await ownedSyncAccount(req, reply);
     if (!acct) return reply;
-    const cred = await credentialStatus(req.user.uid, acct.id);
-    if (!cred) return reply.code(409).send({ error: 'no credential stored for this account' });
-    // MT5 only: read_only === false is a master password awaiting deletion. On a
-    // platform with no read-only credential at all it is simply the normal state,
-    // and refusing it here would make Sync now permanently unusable there.
-    if (acct.platform === 'mt5' && cred.read_only === false) {
-      return reply.code(409).send({ error: 'stored credential can trade — enter the investor password' });
+    // WHAT COUNTS AS "CONNECTED" IS PER PLATFORM. cTrader has no mt5_credentials
+    // row at all -- its credential is an OAuth grant on ctrader_identities -- so
+    // demanding one here made Sync now answer 409 "no credential stored" on a
+    // perfectly healthy connection, which is how a working account looks broken.
+    if (acct.platform !== 'ctrader') {
+      const cred = await credentialStatus(req.user.uid, acct.id);
+      if (!cred) return reply.code(409).send({ error: 'no credential stored for this account' });
+      // MT5 only: read_only === false is a master password awaiting deletion. On a
+      // platform with no read-only credential at all it is simply the normal state,
+      // and refusing it here would make Sync now permanently unusable there.
+      if (acct.platform === 'mt5' && cred.read_only === false) {
+        return reply.code(409).send({ error: 'stored credential can trade — enter the investor password' });
+      }
+    } else if (acct.ctrader_identity_id == null) {
+      return reply.code(409).send({ error: 'this account is not connected to cTrader' });
     }
 
     const previous = await lastJob(acct.id);

@@ -87,7 +87,7 @@ export function scopeCondition(scope, add) {
 // that have never reported a balance still appear). Feeds the switcher + box.
 export async function listAccounts(userId) {
   const { rows } = await query(
-    `SELECT a.id, a.mt5_login, a.label, a.broker, a.currency, a.start_balance,
+    `SELECT a.id, a.mt5_login, a.platform_login, a.label, a.broker, a.currency, a.start_balance,
             a.account_type, a.daily_dd_pct, a.max_dd_pct, a.profit_target_pct, a.payout_split_pct,
             a.payout_cycle_days, a.payout_anchor_date, a.dd_type, a.min_trading_days,
             a.firm_id, a.firm_name,
@@ -138,7 +138,7 @@ export async function listAccounts(userId) {
 // Exported so provisionQueries.js returns the same shape and test/provision-tx
 // can assert the new columns are actually reachable through the API.
 export const ACCOUNT_COLUMNS =
-  'id, mt5_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at, challenge_group_id';
+  'id, mt5_login, platform_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at, challenge_group_id';
 const ACCT_COLS = ACCOUNT_COLUMNS;
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a
