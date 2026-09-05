@@ -53,14 +53,18 @@ const liveUpToImport = (over = {}) => fresh({
 
 // ---- the step lists (spec §3, decision B1) ---------------------------------
 
-test('the route list is exactly the nine ids the flow has after the merges', () => {
+test('the route list is exactly the ten ids the flow has after the merges', () => {
   // Was eleven, per spec §8.1. The owner restructure of 2026-08-25 merged `product`,
   // `phase` and `name` into `account`, and folded `connect`'s sub-choice into `import`.
   // `connect` itself stays: it is where Auto Sync gives its credential and where the EA
   // is shown its setup card.
   assert.deepEqual(STEP_IDS, [
     'welcome', 'capital', 'firm', 'account',
-    'platform', 'import', 'connect', 'upload', 'done',
+    // `ctraderAccounts` is the tenth: one cTrader GRANT can cover several trading
+    // accounts, so authorizing does not say which account is being made and a
+    // picker has to follow `connect`. It is the only branch whose commit is not
+    // on `connect`.
+    'platform', 'import', 'connect', 'ctrader-accounts', 'upload', 'done',
   ]);
 });
 
@@ -302,13 +306,15 @@ test('account_type is derived from the phase, never trusted from a page', () => 
 });
 
 test('a platform badged Soon is not a complete answer', () => {
-  // mt4, cTrader and TradeLocker are listed so the catalog reads as the real
-  // roadmap, and the backend refuses all three. Accepting one here would pass the
-  // step and then 400 at the commit, two steps later.
-  for (const soon of ['mt4', 'ctrader', 'tradelocker']) {
+  // mt4 and TradeLocker are listed so the catalog reads as the real roadmap, and
+  // the backend refuses both. Accepting one here would pass the step and then 400
+  // at the commit, two steps later. cTrader LEFT this list when its worker
+  // shipped -- which is the point of driving the rule off `status` rather than a
+  // hardcoded list.
+  for (const soon of ['mt4', 'tradelocker']) {
     assert.equal(isStepComplete({ ...fresh(), platform: soon }, 'platform'), false, soon);
   }
-  for (const live of ['mt5', 'other']) {
+  for (const live of ['mt5', 'ctrader', 'other']) {
     assert.equal(isStepComplete({ ...fresh(), platform: live }, 'platform'), true, live);
   }
   assert.equal(isStepComplete({ ...fresh(), platform: 'zzz' }, 'platform'), false, 'unknown platform');

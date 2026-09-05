@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import Logo from '../../components/Logo.jsx';
 import { BRAND } from '../../lib/theme.js';
-import { completeOnboarding, fetchChallengeGroups, provisionAccount } from '../../lib/api.js';
+import {
+  completeOnboarding, fetchChallengeGroups, provisionAccount, provisionCtraderAccounts,
+} from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import {
   Button, WizardBody, WizardBrand, WizardExit, WizardFooter, WizardHeader, WizardPage,
@@ -268,7 +270,22 @@ export default function NewAccountFlow({
     setCommitting(true);
     try {
       const source = draftOverride ?? draft;
-      const account = await provisionAccount({ ...toProvisionPayload(source), ...extra });
+      // cTRADER COMMITS THROUGH ITS OWN ENDPOINT, because one grant can become
+      // SEVERAL accounts and /api/accounts/provision makes exactly one. The
+      // selections are re-validated server-side against what that identity
+      // actually owns, so a tampered list cannot point at a stranger's account.
+      let account;
+      if (extra.ctraderSelections) {
+        const { ctraderSelections, ...rest } = extra;
+        const { accounts } = await provisionCtraderAccounts(source.ctrader_identity_id, {
+          ...toProvisionPayload(source), ...rest, selections: ctraderSelections,
+        });
+        // The draft records ONE account because the rest of the wizard is
+        // single-account shaped; the others exist and appear in the accounts list.
+        [account] = accounts;
+      } else {
+        account = await provisionAccount({ ...toProvisionPayload(source), ...extra });
+      }
       // Recorded BEFORE anything that can fail: from here the draft is committed,
       // navigation is forward-only, and a retry would create a second account.
       // reloadAccounts and the onboarding stamp are best-effort by comparison.

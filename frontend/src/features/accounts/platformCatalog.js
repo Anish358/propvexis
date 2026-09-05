@@ -70,11 +70,15 @@ export const PLATFORM_CARDS = [
   {
     id: 'ctrader',
     name: 'cTrader',
-    status: 'soon',
+    status: 'live',
     blurb: '',
-    importMethods: ['file', 'manual'],
+    importMethods: ['auto_sync', 'file', 'manual'],
+    // No fields: cTrader authorizes on Spotware's site rather than collecting a
+    // credential. ConnectStep renders its OAuth branch off exactly this emptiness.
     credentialFields: [],
-    credentialNote: null,
+    credentialNote:
+      'You authorize PropVexis on cTrader\'s own site. We never see your password, and the '
+      + 'access we ask for is view-only — placing trades is refused by cTrader, not just by us.',
     credentialConsent: null,
   },
   {

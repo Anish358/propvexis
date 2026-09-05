@@ -5,7 +5,15 @@ import {
 import {
   identitiesEnabled, sealTokens, createIdentity, rotateTokens,
   listIdentities, revokeIdentity, discoveredForIdentity,
+  identitiesAwaitingDiscovery, freshAccessToken, upsertDiscovered, setCtid,
+  markIdentityError, identityForUser,
 } from '../domain/sync/ctraderIdentities.js';
+import { workerTokenMatches } from '../domain/sync/workerAuth.js';
+import {
+  validateProvision, provisionAccount, provisionGate, PROVISION_CONFLICT,
+} from '../domain/accounts/provision.js';
+import { toBandedLogin } from '../domain/sync/logins.js';
+import { planForUser, syncedAccountCount, manualAccountCount } from '../domain/billing/entitlements.js';
 
 /**
  * cTrader Open API: the OAuth surface and the account picker's data.
@@ -128,6 +136,139 @@ export default function ctraderRoutes(app) {
     if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid identity id' });
     const accounts = await discoveredForIdentity(req.user.uid, id);
     return reply.send({ accounts, pending: accounts.length === 0 });
+  });
+
+  // ---- worker-facing: discovery -----------------------------------------
+  //
+  // Discovery is NOT a sync_jobs row. Listing a cTID's accounts needs a protobuf
+  // socket, so it is the worker's job -- but sync_jobs.account_id is NOT NULL and
+  // references mt5_accounts, and at discovery time no account exists yet;
+  // discovering them is the point. Rather than make that column nullable for
+  // every other caller, the worker polls these two routes.
+
+  const requireWorker = async (req, reply) => {
+    if (!workerTokenMatches(req.headers.authorization, config.syncWorkerToken)) {
+      return reply.code(401).send({ error: 'worker not authorized' });
+    }
+    return undefined;
+  };
+
+  /**
+   * Identities still needing their accounts enumerated, each with a USABLE access
+   * token. Refresh happens here, not in the worker: the refresh token is consumed
+   * on use, so a rotation the worker completed but failed to report back would be
+   * unrecoverable.
+   */
+  app.get('/api/ctrader/discovery/pending', { preHandler: requireWorker }, async (req, reply) => {
+    if (!ctraderEnabled(config) || !identitiesEnabled()) return reply.send({ identities: [] });
+    const rows = await identitiesAwaitingDiscovery(5);
+    const identities = [];
+    for (const row of rows) {
+      try {
+        const { accessToken } = await freshAccessToken({ ...row, identity_id: row.id });
+        identities.push({ identity_id: Number(row.id), access_token: accessToken });
+      } catch (err) {
+        req.log.error({ identity: row.id, err: err.message }, 'ctrader discovery token unusable');
+        await markIdentityError(row.id, err.message.slice(0, 1000));
+      }
+    }
+    return reply.send({ identities });
+  });
+
+  /**
+   * What the worker found. The cTID user id arrives with it because
+   * ProtoOAGetAccountListByAccessTokenReq is the first call that reveals it.
+   */
+  app.post('/api/ctrader/discovery/:id', { preHandler: requireWorker }, async (req, reply) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid identity id' });
+    const accounts = Array.isArray(req.body?.accounts) ? req.body.accounts : [];
+    if (req.body?.ctid_user_id != null) await setCtid(id, Number(req.body.ctid_user_id));
+    for (const a of accounts) await upsertDiscovered(id, a);
+    return reply.send({ ok: true, stored: accounts.length });
+  });
+
+  /**
+   * Provision the accounts the user picked.
+   *
+   * ONE PROPVEXIS ACCOUNT PER SELECTED cTRADER ACCOUNT, each with its own
+   * provision_key so a double-submit replays instead of duplicating. The
+   * selections are re-read from ctrader_discovered_accounts rather than trusted
+   * from the body: a caller could otherwise name any ctidTraderAccountId and have
+   * us provision an account pointing at a stranger's trading account.
+   */
+  app.post('/api/ctrader/identities/:id/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
+    if (!requireConfigured(reply)) return reply;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid identity id' });
+    if (!await identityForUser(req.user.uid, id)) {
+      return reply.code(404).send({ error: 'identity not found' });
+    }
+
+    const wanted = (Array.isArray(req.body?.selections) ? req.body.selections : []).map(Number);
+    if (!wanted.length) return reply.code(400).send({ error: 'select at least one account' });
+
+    // The authority on what this identity owns is the discovered table, not the body.
+    const owned = await discoveredForIdentity(req.user.uid, id);
+    const byCtid = new Map(owned.map((a) => [Number(a.ctid_trader_account_id), a]));
+    const unknown = wanted.filter((c) => !byCtid.has(c));
+    if (unknown.length) {
+      return reply.code(400).send({ error: 'those accounts are not on this connection' });
+    }
+
+    // THE SAME GATE EVERY OTHER PROVISION PATH USES. Plan caps are lifted today
+    // (every tier is Infinity), so this changes nothing now -- which is exactly
+    // why it has to be wired in NOW rather than remembered later: the day caps
+    // return, a route that skipped the gate is a free unlimited-accounts hole,
+    // and nothing would fail to point at it.
+    const plan = await planForUser(req.user.uid);
+    const gate = provisionGate({
+      plan,
+      kind: 'synced',
+      // The gate asks "may ONE more be created", so a batch of N is checked by
+      // pretending N-1 already exist. Checking only the current count would let a
+      // capped user pick five accounts and get all five.
+      syncedCount: (await syncedAccountCount(req.user.uid)) + wanted.length - 1,
+      manualCount: await manualAccountCount(req.user.uid),
+    });
+    if (!gate.ok) return reply.code(gate.code).send({ error: gate.error });
+
+    const created = [];
+    for (const ctid of wanted) {
+      const found = byCtid.get(ctid);
+      const parsed = validateProvision({
+        ...req.body,
+        platform: 'ctrader',
+        import_method: 'auto_sync',
+        kind: 'synced',
+        credential: undefined,
+        // Distinct per selection, so picking three accounts is three accounts and
+        // a retried submit replays rather than duplicating.
+        provision_key: `${String(req.body?.provision_key ?? `ct-${id}`)}:${ctid}`,
+        label: String(req.body?.label ?? '').trim() || `cTrader ${found.trader_login ?? ctid}`,
+        broker: req.body?.broker ?? found.broker_name ?? null,
+        currency: req.body?.currency ?? found.deposit_currency ?? 'USD',
+      });
+      if (!parsed.ok) return reply.code(400).send({ error: parsed.error });
+
+      try {
+        const { account } = await provisionAccount(req.user.uid, {
+          ...parsed.value,
+          ctrader_identity_id: id,
+          ctid_trader_account_id: ctid,
+          // The number the trader recognises. mt5_login carries the banded value.
+          platform_login: found.trader_login ?? null,
+          is_live_env: found.is_live === true,
+        }, { credential: null, login: toBandedLogin(ctid) });
+        created.push(account);
+      } catch (err) {
+        if (err.conflict === PROVISION_CONFLICT.LOGIN) {
+          return reply.code(409).send({ error: 'That cTrader account is already connected', conflict: err.conflict });
+        }
+        throw err;
+      }
+    }
+    return reply.code(201).send({ accounts: created });
   });
 
   /**

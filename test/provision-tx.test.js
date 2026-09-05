@@ -70,6 +70,9 @@ test('insertAccountQuery: the values array is pinned position-for-position', () 
     // challenge_group_id (0027). Null here because propValue() names no challenge —
     // provisionAccount is what fills it, from the group it created or locked.
     null,
+    // The four cTrader columns (0029). Null for every MT5 account, which is every
+    // account this fixture describes.
+    null, null, null, null,
   ]);
 
   // AND IT REALLY IS WRITTEN when there is one, rather than being a placeholder the
@@ -77,8 +80,29 @@ test('insertAccountQuery: the values array is pinned position-for-position', () 
   // failure this whole feature is about, and it is invisible until the Challenges page
   // draws the phase as a separate challenge days later.
   const joined = insertAccountQuery(7, propValue({ challenge_group_id: 91 }), 314943467);
-  assert.equal(joined.values.at(-1), 91);
+  assert.equal(joined.values[22], 91);
   assert.match(joined.text, /challenge_group_id/);
+});
+
+test('insertAccountQuery writes the cTrader identity link in the INSERT itself', () => {
+  /* THE FAILURE THIS PREVENTS. These four are what let the worker find and
+   * authorize the account: which identity holds the token, which cTrader account
+   * this is, the number the trader recognises, and which of the two disjoint
+   * sockets it lives on. Set by a follow-up UPDATE instead, any path that skipped
+   * that statement would produce an account the worker can NEVER authorize —
+   * looking completely normal in the UI while silently never syncing. That is the
+   * same argument the file already makes for challenge_group_id. */
+  const q = insertAccountQuery(7, propValue({
+    platform: 'ctrader',
+    ctrader_identity_id: 5,
+    ctid_trader_account_id: 314943467,
+    platform_login: 8_675_309,
+    is_live_env: false,
+  }), 4_000_314_943_467);
+  assert.match(q.text, /ctrader_identity_id, ctid_trader_account_id, platform_login, is_live_env/);
+  assert.deepEqual(q.values.slice(23), [5, 314943467, 8_675_309, false]);
+  // mt5_login carries the BANDED value; platform_login carries what the trader sees.
+  assert.equal(q.values[19], 4_000_314_943_467);
 });
 
 test('assignSyntheticLoginQuery keeps manual accounts in the negative space', () => {

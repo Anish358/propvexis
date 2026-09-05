@@ -11,6 +11,14 @@ on:
         description: Absolute target dir on the box (e.g. /opt/amey-journal)
         required: true
         type: string
+      pm2_worker:
+        description: >-
+          Optional pm2 app name for this environment's cTrader worker (e.g.
+          amey-ctrader). Reloaded alongside the backend. Left unset for an
+          environment that runs no broker socket.
+        required: false
+        type: string
+        default: ''
       pm2_app:
         description: pm2 app name to reload (e.g. amey-backend)
         required: true
@@ -88,7 +96,7 @@ jobs:
           # inert unless the monitoring job runs (prod only). scripts/ (incl.
           # monitoring-up.sh) is already in this list.
           rsync -az -e "ssh -i ~/.ssh/deploy_key" \
-            package.json package-lock.json ecosystem.config.cjs src db scripts ea \
+            package.json package-lock.json ecosystem.config.cjs src db scripts ea worker \
             monitoring docker-compose.monitoring.prod.yml \
             "$SSH_USER@$SSH_HOST:$APP_DIR/"
           # Built UI (--delete clears stale hashed Vite assets)
@@ -102,6 +110,7 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           APP_DIR: ${{ inputs.app_dir }}
           PM2_APP: ${{ inputs.pm2_app }}
+          PM2_WORKER: ${{ inputs.pm2_worker }}
         run: |
           # Pass APP_DIR/PM2_APP into the remote shell as env vars; the heredoc is
           # single-quoted so everything else expands ON the box, not locally.
@@ -121,6 +130,13 @@ jobs:
           # version-controlled ecosystem file (survives fresh start / reboot);
           # pm2 save persists the process list for reboot resurrection.
           pm2 startOrReload ecosystem.config.cjs --only "$PM2_APP" --update-env
+          # The worker is a SECOND pm2 app, so `--only $PM2_APP` never touches it.
+          # Without this line the box keeps running the previous worker build
+          # after every deploy -- new code on the web tier, stale code on the
+          # socket, and nothing anywhere says so.
+          if [ -n "${PM2_WORKER:-}" ]; then
+            pm2 startOrReload ecosystem.config.cjs --only "$PM2_WORKER" --update-env
+          fi
           pm2 save
           REMOTE
 

@@ -1,6 +1,7 @@
 import { query } from '../../platform/db.js';
 import { config } from '../../platform/config.js';
 import { seal, open, secretboxEnabled } from '../../platform/secretbox.js';
+import { refreshTokens } from './ctraderOauth.js';
 
 // The cTrader OAuth identity: how a token pair is stored, rotated and revoked.
 //
@@ -216,3 +217,107 @@ export const markIdentityError = (identityId, error) => run(markIdentityErrorQue
 export const upsertDiscovered = (identityId, a) => run(upsertDiscoveredQuery(identityId, a));
 export const discoveredForIdentity = (userId, identityId) =>
   run(discoveredForIdentityQuery(userId, identityId));
+
+/**
+ * How long before expiry we proactively refresh.
+ *
+ * The access token lives about 30 days, so a day of slack costs almost nothing.
+ * The asymmetry is what sets it: refreshing a day early costs one round trip and
+ * one re-authorization of that identity's accounts (landmine 10.1 -- a refresh
+ * terminates their sessions). Being a minute late costs a failed job and a
+ * user-visible sync error.
+ */
+/**
+ * Identities the worker still has to enumerate accounts for.
+ *
+ * WHY DISCOVERY IS NOT A sync_jobs ROW. Listing accounts needs
+ * ProtoOAGetAccountListByAccessTokenReq -- a protobuf message on a socket -- so
+ * it is the worker's job, not the web tier's. But sync_jobs.account_id is NOT
+ * NULL and references mt5_accounts, and at discovery time no account EXISTS yet:
+ * discovering them is the whole point. Making that column nullable to fit one
+ * platform's bootstrap would weaken a constraint on the hottest job table for
+ * every other caller.
+ *
+ * So the worker polls this instead. An identity qualifies while it is live and
+ * has no discovered rows; the first successful discovery removes it from the
+ * list by writing them.
+ */
+export function identitiesAwaitingDiscoveryQuery(limit = 5) {
+  return {
+    text: `SELECT i.id, i.access_token_ct, i.refresh_token_ct, i.expires_at
+             FROM ctrader_identities i
+            WHERE i.revoked_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM ctrader_discovered_accounts d
+                               WHERE d.identity_id = i.id)
+            ORDER BY i.created_at
+            LIMIT $1;`,
+    values: [limit],
+  };
+}
+
+export const REFRESH_SKEW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A usable access token for a leased cTrader job, refreshing first if needed.
+ *
+ * THIS LIVES IN THE BACKEND, NOT THE WORKER, AND THAT IS THE WHOLE POINT.
+ * The refresh token is CONSUMED on use (landmine 10.2): the instant cTrader
+ * answers a refresh, the old one is dead. If the worker held it, refreshed, and
+ * then failed to POST the new pair back -- a crash, a deploy, a network blip --
+ * the rotation would be lost and the identity unrecoverable, which the user
+ * experiences as their broker connection breaking for no reason.
+ *
+ * Keeping it here means the exchange and the store are adjacent and the worker
+ * never holds a refresh token at all. A rotation that cannot be persisted is a
+ * HARD FAILURE, because the alternative is handing out an access token whose
+ * refresh half is already dead and unrecorded.
+ *
+ * Everything is injected so this is testable without crypto, a network or a database.
+ */
+export async function freshAccessToken(row, opts = {}) {
+  const {
+    now = Date.now(),
+    skewMs = REFRESH_SKEW_MS,
+    cfg = config,
+    open: openFn = openTokens,   // aliased: `open` is already the secretbox import
+    refresh = refreshTokens,
+    rotate = rotateTokens,
+  } = opts;
+
+  // THE ROW COMES IN TWO SHAPES and the AAD depends on getting the id from
+  // either. The discovery query selects a bare `id`; the lease query selects
+  // `i.id AS identity_id`, because a bare `id` there would collide with the
+  // job's own. Reading only `row.id` made the AAD `ctrader-token:NaN` on every
+  // lease -- and openTokens then failed, surfacing as "authorization expired" on
+  // a healthy connection.
+  const identityId = row?.identity_id ?? row?.id;
+  if (identityId == null) {
+    throw new Error('ctrader: cannot open tokens — the row identifies no identity');
+  }
+  const current = openFn({ ...row, id: identityId }, cfg);
+  const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : null;
+  // A null or unparseable expiry is treated as EXPIRED. Assuming it is still
+  // valid is the choice that fails in production at a time nobody chose.
+  const stillFresh = Number.isFinite(expiresAt) && expiresAt - now > skewMs;
+  if (stillFresh) return { accessToken: current.accessToken, refreshed: false };
+
+  const next = await refresh({ refreshToken: current.refreshToken, cfg });
+
+  let stored;
+  try {
+    const sealed = sealTokens(identityId, next, cfg);
+    stored = await rotate(
+      identityId, sealed.access_token_ct, sealed.refresh_token_ct, next.expiresAt,
+    );
+  } catch (err) {
+    throw new Error(`ctrader token rotation could not be stored: ${err.message}`);
+  }
+  // rotateTokensQuery carries `WHERE ... revoked_at IS NULL`, so a revoked
+  // identity updates zero rows. Treating that as success would hand out a token
+  // we never recorded the other half of.
+  if (!stored || (Array.isArray(stored) && stored.length === 0)) {
+    throw new Error('ctrader token rotation stored no row — identity revoked?');
+  }
+  return { accessToken: next.accessToken, refreshed: true };
+}
+export const identitiesAwaitingDiscovery = (limit) => run(identitiesAwaitingDiscoveryQuery(limit));

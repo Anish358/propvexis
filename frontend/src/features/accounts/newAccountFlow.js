@@ -44,7 +44,7 @@ export const DRAFT_KEY = `propvexis.newAccount.v${FLOW_VERSION}`;
  */
 export const STEP_IDS = [
   'welcome', 'capital', 'firm', 'account',
-  'platform', 'import', 'connect', 'upload', 'done',
+  'platform', 'import', 'connect', 'ctrader-accounts', 'upload', 'done',
 ];
 
 /** The phase values challenges.phase accepts. Mirrors PHASES in
@@ -122,6 +122,9 @@ export function emptyDraft({ provisionKey = null, firstRun = false } = {}) {
     min_trading_days: null,
 
     platform: null,
+    // The cTrader grant this draft is building on. Written by ConnectStep when the
+    // consent redirect comes back; the picker and the commit both read it.
+    ctrader_identity_id: null,
     broker: null,                // free text, live path only (spec §7.2)
     import_method: null,         // 'auto_sync' | 'ea' | 'file' | 'manual'
 
@@ -181,8 +184,14 @@ export function stepsFor(draft) {
   steps.push('capital');
   if (d.capital_kind === 'prop') steps.push('firm');
   steps.push('account', 'platform', 'import');
-  if (AUTO_SYNC_METHODS.includes(d.import_method)) steps.push('connect');
-  else if (d.import_method === 'file') steps.push('upload');
+  if (AUTO_SYNC_METHODS.includes(d.import_method)) {
+    steps.push('connect');
+    // cTrader authorizes instead of collecting a credential, and ONE grant can
+    // cover several trading accounts -- so `connect` cannot know which account is
+    // being made and a picker has to follow it. This is the only branch where the
+    // commit is not on `connect`.
+    if (d.platform === 'ctrader' && d.import_method === 'auto_sync') steps.push('ctrader-accounts');
+  } else if (d.import_method === 'file') steps.push('upload');
   steps.push('done');
   return steps;
 }
@@ -199,7 +208,10 @@ export function stepsFor(draft) {
 export function commitStep(draft) {
   const method = draft?.import_method;
   if (!method) return null;
-  return method === 'auto_sync' ? 'connect' : 'import';
+  if (method !== 'auto_sync') return 'import';
+  // cTrader commits at the PICKER, not at `connect`: authorizing tells us the
+  // grant exists, not which of its accounts the trader wants journalled.
+  return draft?.platform === 'ctrader' ? 'ctrader-accounts' : 'connect';
 }
 
 export const isCommitted = (draft) => draft?.account != null;
@@ -210,7 +222,7 @@ export const isCommitted = (draft) => draft?.account != null;
  * here; `upload` still has a statement to import into an account that already exists;
  * `done` is the receipt.
  */
-export const POST_COMMIT_STEPS = ['connect', 'upload', 'done'];
+export const POST_COMMIT_STEPS = ['connect', 'ctrader-accounts', 'upload', 'done'];
 
 /**
  * Is this stored draft SPENT — committed, and being resumed somewhere that is not
@@ -300,7 +312,11 @@ const COMPLETE = {
   // card is not enough — a failed provision must leave the user on the step that
   // failed rather than one past it.
   import: (d) => Boolean(d.import_method) && (commitStep(d) !== 'import' || isCommitted(d)),
-  connect: (d) => isCommitted(d),
+  // On cTrader `connect` only has to produce a grant; the account is written one
+  // step later, so requiring a committed account here would strand the user on a
+  // step they have finished.
+  connect: (d) => (d.platform === 'ctrader' ? Boolean(d.ctrader_identity_id) : isCommitted(d)),
+  'ctrader-accounts': (d) => isCommitted(d),
   upload: (d) => d.uploadDone === true,
   // Terminal: never complete, so firstIncomplete always has somewhere to come to
   // rest and never falls off the end of the list.

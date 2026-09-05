@@ -70,12 +70,25 @@ export const PLATFORMS = [
   {
     id: 'ctrader',
     label: 'cTrader',
-    connector: null,        // P3 — OAuth 2.0 + Protobuf, gated on Spotware app registration
-    enabled: false,
-    importMethods: ['file', 'manual'],
+    connector: 'ctrader',
+    enabled: true,
+    importMethods: ['auto_sync', 'file', 'manual'],
     assetTypes: ['forex', 'cfd'],
+    // EMPTY ON PURPOSE, AND LOAD-BEARING. cTrader collects no credential at all:
+    // the trader authorizes on Spotware's own consent screen and we hold a scoped
+    // OAuth token. validateProvision reads this list to decide whether Auto Sync
+    // needs a credential, so emptying it is what lets a cTrader account provision
+    // without one -- and MT5's non-empty list is what keeps its requirement.
     credentialFields: [],
-    credentialNote: null,
+    // The read-only story here is STRONGER than MT5's and different in kind.
+    // MT5 asks for an investor password and deletes it if the terminal reports it
+    // can trade -- a check we perform. Here Spotware refuses trading operations on
+    // our behalf: the grant is scope `accounts`, and the worker re-checks
+    // permissionScope against the server's own answer on every discovery.
+    credentialNote:
+      'You authorize PropVexis on cTrader\'s own site. We never see your password, and the '
+      + 'access we ask for is view-only — placing trades is refused by cTrader, not just by us.',
+    // No gate: there is no trade-capable secret to consent to holding.
     credentialConsent: null,
   },
   {

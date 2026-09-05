@@ -19,4 +19,5 @@ jobs:
     with:
       app_dir: /opt/amey-dev
       pm2_app: amey-backend-dev
+      pm2_worker: amey-ctrader-dev
     secrets: inherit

@@ -7,6 +7,8 @@ import {
   enqueueDue,
   leaseJobs,
   leasedPayloads,
+  ctraderLeasedPayloads,
+  splitJobsByPlatform,
   completeJob,
   failJob,
   reclaimExpired,
@@ -19,6 +21,7 @@ import {
   MANUAL_COOLDOWN_MS,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
+import { freshAccessToken, markIdentityError } from '../domain/sync/ctraderIdentities.js';
 import {
   credentialsEnabled,
   credentialStatus,
@@ -113,7 +116,12 @@ export default function syncRoutes(app) {
     // the queue by the time we get here, so it is unaffected.
     const queued = isMarketOpen() ? await enqueueDue() : [];
     const leased = await leaseJobs(workerId, limit, undefined, requestedPlatforms(body));
-    const rows = await leasedPayloads(leased.map((j) => j.id));
+    // ONE QUERY PER PLATFORM. The MT5 payload query INNER JOINs mt5_credentials,
+    // which a cTrader account has no row in -- serving both through it returns no
+    // row for cTrader, and the job then leases, reports nothing, expires and is
+    // reclaimed forever with no error anywhere. See ctraderLeasedPayloadQuery.
+    const byPlatform = splitJobsByPlatform(leased);
+    const rows = await leasedPayloads(byPlatform.mt5);
 
     const jobs = [];
     for (const row of rows) {
@@ -141,6 +149,50 @@ export default function syncRoutes(app) {
         reason: row.reason,
         first_sync: row.verified_at == null,
       });
+    }
+
+    // ---- cTrader ---------------------------------------------------------
+    // The worker is handed a READY-TO-USE ACCESS TOKEN and never a refresh token.
+    // The refresh token is consumed on use (landmine 10.2), so a rotation the
+    // worker completed but failed to send back would be unrecoverable and the
+    // user's connection would break for no visible reason. Refresh lives here,
+    // next to the store that records it.
+    for (const row of await ctraderLeasedPayloads(byPlatform.ctrader)) {
+      let token;
+      try {
+        ({ accessToken: token } = await freshAccessToken(row));
+      } catch (err) {
+        req.log.error(
+          { account: row.account_id, identity: row.identity_id, err: err.message },
+          'ctrader token unusable',
+        );
+        await failJob(row.job_id, 'cTrader authorization expired — reconnect the account');
+        await markIdentityError(row.identity_id, err.message.slice(0, 1000));
+        continue;
+      }
+      jobs.push({
+        job_id: Number(row.job_id),
+        account_id: Number(row.account_id),
+        platform: 'ctrader',
+        ctid_trader_account_id: Number(row.ctid_trader_account_id),
+        // Landmine 10.7: which of the two sockets this account lives on. Decided
+        // at discovery, never recomputed.
+        is_live: row.is_live_env === true,
+        access_token: token,
+        identity_id: Number(row.identity_id),
+        ingest_token: row.ingest_token,
+        login: row.mt5_login == null ? null : Number(row.mt5_login),
+        since: row.since,
+        cursor_at: row.cursor_at,
+        reason: row.reason,
+      });
+    }
+
+    // A job whose platform we do not recognise must FAIL, not vanish. Dropping it
+    // recreates the same lease-expire-reclaim spin in a different place.
+    for (const jobId of byPlatform.unknown) {
+      req.log.error({ job: jobId }, 'leased job has no known platform');
+      await failJob(jobId, 'job has no known platform');
     }
 
     return reply.send({

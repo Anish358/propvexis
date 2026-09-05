@@ -267,6 +267,78 @@ export function leasedPayloadQuery(jobIds, lookbackMs = 48 * 60 * 60 * 1000) {
 }
 
 /**
+ * The payload for a leased cTRADER job.
+ *
+ * A SEPARATE QUERY, NOT A LOOSENED JOIN. leasedPayloadQuery INNER JOINs
+ * mt5_credentials, and that join must stay strict: an MT5 job with no credential
+ * is a real error and has to fail loudly. But a cTrader account has no row there
+ * at all -- its credential is an OAuth token pair held at cTID grain on
+ * ctrader_identities, shared by every account that identity owns.
+ *
+ * Serving cTrader through the MT5 query would return NO ROW: the job leases, the
+ * worker is handed nothing, reports nothing, the lease expires, reclaimExpired
+ * re-queues it, forever. No error, no failed job, no log line -- the account just
+ * reads "Syncing now" until someone looks in the database. That is the failure
+ * credentials.js documents for a missing credential, applied to a whole platform.
+ *
+ * `since` is computed exactly as the MT5 query computes it, so an account with no
+ * trades collapses to epoch and a first sync means "everything" with no second
+ * code path. `cursor_at` rides along so a worker killed mid-backfill resumes
+ * instead of re-walking years of history.
+ */
+export function ctraderLeasedPayloadQuery(jobIds, lookbackMs = 48 * 60 * 60 * 1000) {
+  return {
+    text: `SELECT j.id            AS job_id,
+                  j.reason,
+                  j.attempts,
+                  j.cursor_at,
+                  a.id            AS account_id,
+                  a.mt5_login,
+                  a.ingest_token,
+                  a.ctid_trader_account_id,
+                  -- Landmine 10.7: demo and live are disjoint endpoints, and an
+                  -- account authorized on the wrong socket fails in a way that
+                  -- reads as a permissions problem. Stored at discovery, read
+                  -- here, never recomputed.
+                  a.is_live_env,
+                  i.id            AS identity_id,
+                  i.access_token_ct,
+                  i.refresh_token_ct,
+                  i.expires_at,
+                  GREATEST(
+                    COALESCE((SELECT max(t.close_time) FROM trades t
+                               WHERE t.account_id = a.mt5_login), 'epoch'::timestamptz)
+                      - make_interval(secs => $2),
+                    'epoch'::timestamptz
+                  )               AS since
+             FROM sync_jobs j
+             JOIN mt5_accounts a       ON a.id = j.account_id
+             JOIN ctrader_identities i ON i.id = a.ctrader_identity_id
+            WHERE j.id = ANY($1::bigint[]) AND i.revoked_at IS NULL;`,
+    values: [jobIds, Math.round(lookbackMs / 1000)],
+  };
+}
+
+/**
+ * Leased jobs bucketed by platform, so each goes to the query that can serve it.
+ *
+ * `unknown` is not a tidiness bucket. A job with an absent or unrecognised
+ * platform must surface, because silently dropping it recreates the same
+ * lease-expire-reclaim spin that having one payload query caused in the first
+ * place. The caller fails those jobs with a reason.
+ */
+export function splitJobsByPlatform(jobs = []) {
+  const out = { mt5: [], ctrader: [], tradelocker: [], unknown: [] };
+  for (const j of jobs) {
+    const bucket = Object.prototype.hasOwnProperty.call(out, j?.platform) && j.platform !== 'unknown'
+      ? j.platform
+      : 'unknown';
+    out[bucket].push(j.id);
+  }
+  return out;
+}
+
+/**
  * The job a worker is entitled to report on. Both conditions matter:
  *
  *  - `status = 'leased'` — a done/failed job is not reportable twice;
@@ -394,6 +466,8 @@ export const leaseJobs = (workerId, limit, leaseMs, platforms) =>
   run(leaseQuery(workerId, limit, leaseMs, platforms));
 export const leasedPayloads = (jobIds, lookbackMs) =>
   jobIds.length ? run(leasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
+export const ctraderLeasedPayloads = (jobIds, lookbackMs) =>
+  jobIds.length ? run(ctraderLeasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
 export const completeJob = async (jobId, stats) => (await run(completeQuery(jobId, stats)))[0] ?? null;
 export const failJob = async (jobId, error) => (await run(failQuery(jobId, error)))[0] ?? null;
 export const reclaimExpired = () => run(reclaimQuery());
