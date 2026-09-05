@@ -7,10 +7,13 @@ import { readFileSync } from 'node:fs';
 // assertions protect is not syntax (Postgres would catch that on deploy) but
 // ORDER and DIRECTION: a backfill after SET NOT NULL fails on live data, and a
 // half-written CHECK admits exactly the rows it exists to reject.
-const sql = readFileSync(
-  new URL('../db/migrations/0026_account_capital_and_platform.sql', import.meta.url),
-  'utf8',
-);
+// LF whatever the checkout used: assertions below span lines with a literal newline, and
+// `.` never matches the carriage return a Windows checkout leaves in front of it. Same
+// reasoning as helpers/src-files.js, repeated here because this file reads its own SQL.
+const readLf = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8')
+  .split('\r\n').join('\n');
+
+const sql = readLf('../db/migrations/0026_account_capital_and_platform.sql');
 
 test('0026: capital_kind defaults to prop, so every existing row stays a prop account', () => {
   assert.match(sql, /ADD COLUMN IF NOT EXISTS capital_kind\s+TEXT NOT NULL DEFAULT 'prop'/);
@@ -83,10 +86,7 @@ test('0026: createAccount writes import_method explicitly, or the CHECK rejects 
   // writes product_id/capital_kind (Task 9), and those legitimately share the
   // list with firm_id/firm_name ahead of import_method, so pinning import_method
   // to being the literal last column would fail on a correct implementation.
-  const src = readFileSync(
-    new URL('../src/domain/accounts/accounts.js', import.meta.url),
-    'utf8',
-  );
+  const src = readLf('../src/domain/accounts/accounts.js');
   const fn = src.slice(
     src.indexOf('export async function createAccount'),
     src.indexOf('export function stripNullProfitTarget'),
@@ -107,10 +107,7 @@ test('0026: createAccount casts its percentage defaults to numeric, or a fractio
   // code) already fixed exactly this on the sibling builder, with a comment
   // explaining why — this pins the same fix on the legacy createAccount path
   // the sibling left uncast.
-  const src = readFileSync(
-    new URL('../src/domain/accounts/accounts.js', import.meta.url),
-    'utf8',
-  );
+  const src = readLf('../src/domain/accounts/accounts.js');
   const fn = src.slice(
     src.indexOf('export async function createAccount'),
     src.indexOf('export function stripNullProfitTarget'),
