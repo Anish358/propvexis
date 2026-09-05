@@ -28,7 +28,10 @@ const stepFiles = () => allSrcFiles().filter((f) => f.startsWith('features/accou
 test('every step id has a route, and every route is a step id', () => {
   // A step in stepsFor() with no <Route> is a redirect to a blank page; a <Route>
   // with no step is dead.
-  const declared = [...app.matchAll(/<Route\s+path="([a-z]+)"/g)]
+  // [a-z-]+, not [a-z]+: `ctrader-accounts` is the first step id with two words
+  // in it, and the narrower pattern silently skipped it rather than failing —
+  // which would have let a routeless step ship as a redirect to a blank page.
+  const declared = [...app.matchAll(/<Route\s+path="([a-z-]+)"/g)]
     .map((m) => m[1])
     .filter((p) => STEP_IDS.includes(p));
   for (const id of STEP_IDS) {

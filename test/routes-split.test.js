@@ -30,6 +30,12 @@ const ROUTES = [
   ['post', '/api/ctrader/authorize'], ['get', '/api/ctrader/callback'],
   ['get', '/api/ctrader/identities'], ['get', '/api/ctrader/identities/:id/accounts'],
   ['delete', '/api/ctrader/identities/:id'],
+  // The account picker's write half: provision one PropVexis account per selected
+  // cTrader account.
+  ['post', '/api/ctrader/identities/:id/accounts'],
+  // Worker-facing discovery. Not sync_jobs rows: sync_jobs.account_id is NOT NULL
+  // and at discovery time no account exists yet.
+  ['get', '/api/ctrader/discovery/pending'], ['post', '/api/ctrader/discovery/:id'],
   ['get', '/api/accounts/:id/sync'], ['post', '/api/accounts/:id/sync'],
   ['put', '/api/accounts/:id/credentials'], ['delete', '/api/accounts/:id/credentials'],
   ['patch', '/api/accounts/:id'], ['delete', '/api/accounts/:id'], ['get', '/api/account'],
@@ -125,6 +131,12 @@ test('the guarded routes kept their guard', () => {
   // The only routes the sync worker's token may open. Everything else is a session.
   const WORKER = new Set([
     'post /api/sync/lease', 'post /api/sync/jobs/:id/result', 'post /api/sync/heartbeat',
+    // cTrader discovery. The worker is the only thing that CAN enumerate a cTID's
+    // accounts -- it needs a protobuf socket -- so these two are its endpoints,
+    // not a user's. They are listed here rather than left to the generic rule so
+    // that a USER route can never be quietly downgraded to worker auth, which is
+    // the whole point of pinning direction as well as presence.
+    'get /api/ctrader/discovery/pending', 'post /api/ctrader/discovery/:id',
   ]);
   const unguarded = [];
   const wrongGuard = [];

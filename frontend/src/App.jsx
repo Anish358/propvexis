@@ -36,6 +36,7 @@ import WelcomeStep from './features/accounts/steps/WelcomeStep.jsx';
 import UploadStep from './features/accounts/steps/UploadStep.jsx';
 import DoneStep from './features/accounts/steps/DoneStep.jsx';
 import ConnectStep from './features/accounts/steps/ConnectStep.jsx';
+import CtraderAccountsStep from './features/accounts/steps/CtraderAccountsStep.jsx';
 import ImportStep from './features/accounts/steps/ImportStep.jsx';
 import CapitalStep from './features/accounts/steps/CapitalStep.jsx';
 import FirmStep from './features/accounts/steps/FirmStep.jsx';
@@ -75,6 +76,7 @@ function wizardRoutes({ accounts, reloadAccounts, setAccountId, firstRun, onOnbo
       <Route path="platform" element={<PlatformStep />} />
       <Route path="import" element={<ImportStep />} />
       <Route path="connect" element={<ConnectStep />} />
+      <Route path="ctrader-accounts" element={<CtraderAccountsStep />} />
       <Route path="upload" element={<UploadStep />} />
       <Route path="done" element={<DoneStep />} />
     </Route>,

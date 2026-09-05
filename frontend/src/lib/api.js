@@ -582,3 +582,22 @@ export function connectSocket(onUpsert, onUpdate) {
   socket.on('trade:updated', onUpdate);
   return socket;
 }
+
+/* ---- cTrader --------------------------------------------------------------
+ * The trader authorizes on Spotware's own site, so nothing here ever sees a
+ * broker password. `startCtraderAuth` returns the grant URL rather than
+ * redirecting, which lets the wizard keep its draft in sessionStorage before the
+ * browser leaves the app. */
+export async function startCtraderAuth() {
+  return postJson('/api/ctrader/authorize', {});
+}
+
+/** The picker's data. `pending` means the worker has not looked yet — not "none". */
+export async function ctraderAccounts(identityId) {
+  return getJson(`/api/ctrader/identities/${identityId}/accounts`);
+}
+
+/** Provision one PropVexis account per selected cTrader account. */
+export async function provisionCtraderAccounts(identityId, payload) {
+  return postJson(`/api/ctrader/identities/${identityId}/accounts`, payload);
+}

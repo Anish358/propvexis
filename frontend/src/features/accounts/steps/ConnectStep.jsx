@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Alert, AlertDescription, AlertTitle, Button, ConsentField, Field, FieldDescription,
   FieldLabel, Input, WizardFields, WizardForm, WizardGroup, WizardHeading,
@@ -7,7 +7,7 @@ import {
 import { SetupCard } from '../AccountForms.jsx';
 import { useFlow } from '../NewAccountFlow.jsx';
 import { findPlatformCard } from '../platformCatalog.js';
-import { checkLoginAvailable } from '../../../lib/api.js';
+import { checkLoginAvailable, startCtraderAuth } from '../../../lib/api.js';
 
 /* The credential — and, for the EA, the setup card for an account that already exists.
  *
@@ -56,9 +56,14 @@ import { checkLoginAvailable } from '../../../lib/api.js';
  * `false` only: `null` means the pre-check could not answer.
  */
 export default function ConnectStep() {
-  const { draft, advance, commit, committing, accounts } = useFlow();
+  const { draft, advance, commit, committing, accounts, patch } = useFlow();
+  const [params] = useSearchParams();
 
   const isEa = draft.import_method === 'ea';
+  // cTrader collects NO fields — the trader authorizes on Spotware's own site —
+  // so the branch is chosen by the platform having nothing to ask for, not by an
+  // id test. The next OAuth platform needs no change here.
+  const isOauth = draft.platform === 'ctrader';
 
   const card = findPlatformCard(draft.platform);
   const fields = card?.credentialFields || [];
@@ -139,6 +144,68 @@ export default function ConnectStep() {
   const credentialReady = fields.length > 0
     && fields.every(fieldFilled)
     && (!needsConsent || consented);
+
+  /* ---- the OAuth branch: cTrader -------------------------------------------
+   * The consent screen is Spotware's, so the browser LEAVES the app. The draft is
+   * already mirrored to sessionStorage by the shell, and cTrader redirects back to
+   * /accounts/new with the identity id, which is picked up here and written to the
+   * draft so the picker step can read it. */
+  const ctraderResult = params.get('ctrader');
+  const returnedIdentity = params.get('identity');
+
+  useEffect(() => {
+    if (ctraderResult === 'connected' && returnedIdentity && !draft.ctrader_identity_id) {
+      patch({ ctrader_identity_id: Number(returnedIdentity) });
+    }
+  }, [ctraderResult, returnedIdentity, draft.ctrader_identity_id, patch]);
+
+  if (isOauth) {
+    const authorize = async () => {
+      setErr(null);
+      try {
+        const { url } = await startCtraderAuth();
+        // A full navigation, not a router push: the destination is Spotware.
+        window.location.assign(url);
+      } catch (ex) {
+        setErr(ex.message);
+      }
+    };
+
+    const failed = ctraderResult === 'error';
+    const connected = Boolean(draft.ctrader_identity_id);
+
+    return (
+      <>
+        <WizardHeading align="center" title="Connect your account" />
+        <WizardGroup>
+          {failed ? (
+            <Alert variant="error">
+              <AlertTitle>cTrader did not complete the connection</AlertTitle>
+              <AlertDescription>
+                {params.get('reason') === 'expired'
+                  ? 'That link expired before it was used. Authorizing again takes a few seconds.'
+                  : 'Nothing was saved. You can try authorizing again.'}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {err ? (
+            <Alert variant="error">
+              <AlertTitle>We could not start the connection</AlertTitle>
+              <AlertDescription>{err}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {card?.credentialNote ? <FieldDescription>{card.credentialNote}</FieldDescription> : null}
+
+          {connected ? (
+            <Button variant="primary" onClick={() => advance()}>Choose your accounts</Button>
+          ) : (
+            <Button variant="primary" onClick={authorize}>Authorize with cTrader</Button>
+          )}
+        </WizardGroup>
+      </>
+    );
+  }
 
   /* ---- the EA branch: the account already exists ---------------------------
    * The EA commits on `import` now, so by the time this page renders the row is
