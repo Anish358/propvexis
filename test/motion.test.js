@@ -316,7 +316,7 @@ test('the brief composes every transition from its named motion constants', () =
   // Same rule as the account card: a bare `transition-colors` silently runs Tailwind's
   // 150ms on Tailwind's curve, which is a second easing curve in an app §10 says has one.
   const inline = brief.match(/'[^']*\btransition-[^']*'/g) || [];
-  const declared = inline.filter((s) => !/^'transition-(colors|opacity|\[transform,width\]|\[grid-template-rows,opacity\]) duration-/.test(s));
+  const declared = inline.filter((s) => !/^'transition-(colors|opacity|\[transform,width\]|\[grid-template-rows,opacity,margin\]) duration-/.test(s));
   assert.deepEqual(declared, [], 'compose transitions from the MOTION constants at the top of brief.jsx');
 });
 
@@ -428,21 +428,36 @@ test('the alert exit collapses height via grid rows, with the min-h-0 that makes
    * min-content height, and the row inside carries `min-h-[73px]` — without `min-h-0`
    * on the item the track will not go below 73px and the collapse silently does not
    * happen. The row would fade but never shrink, and the list would not close up. */
-  assert.equal(briefConst('EXIT_MOTION')[1], 'transition-[grid-template-rows,opacity] duration-[var(--dur)] ease-[var(--ease)]');
-  assert.match(brief, /exiting \? 'grid-rows-\[0fr\] opacity-0' : 'grid-rows-\[1fr\] opacity-100'/);
+  assert.equal(briefConst('EXIT_MOTION')[1], 'transition-[grid-template-rows,opacity,margin] duration-[var(--dur-fast)] ease-[var(--ease)]');
+  assert.match(brief, /grid-rows-\[0fr\] opacity-0/);
+  assert.match(brief, /: 'grid-rows-\[1fr\] opacity-100'/);
   assert.match(brief, /className="min-h-0 overflow-hidden"/);
 });
 
-test('the dismissal timeout equals --dur, so the row unmounts as the collapse ends', () => {
+test('the exiting row cancels the flex gap it was holding open', () => {
+  /* THE ONE DISCONTINUITY IN AN OTHERWISE CONTINUOUS MOTION, and the reason the
+   * dismissal read as glitchy. The list is `flex flex-col gap-[7px]`; a gap belongs to
+   * the CONTAINER, so the collapsing row cannot ease it and the 7px shut in a single
+   * frame at unmount — every row below jumped.
+   *
+   * A negative margin of exactly one gap, transitioned with the track, closes it. The
+   * side depends on position (a gap sits BETWEEN two rows), so `last:` flips it and
+   * `first:last:` zeroes it for a sole row that has no gap at all. Specificity — not
+   * source order, which Tailwind owns — is what makes the override land. */
+  assert.match(brief, /mb-\[-7px\] last:mb-0 last:mt-\[-7px\] first:last:mt-0/);
+  assert.ok(briefConst('EXIT_MOTION')[1].includes('margin'), 'margin must ride the exit transition');
+});
+
+test('the dismissal timeout equals --dur-fast, so the row unmounts as the collapse ends', () => {
   /* A REAL SEAM, pinned because nothing else can catch it. The exit duration lives in a
    * CSS token; the unmount lives in a setTimeout that cannot read that token without a
    * getComputedStyle call per dismissal. Drift them and the row either unmounts early
    * (a visible clip mid-collapse) or late (a gap that sits open). */
-  const tok = tokensCss.match(/--dur:\s*(\d+)ms/);
-  assert.ok(tok, 'tokens.css no longer states --dur in ms');
+  const tok = tokensCss.match(/--dur-fast:\s*(\d+)ms/);
+  assert.ok(tok, 'tokens.css no longer states --dur-fast in ms');
   const timeout = dash.match(/setExiting\([\s\S]*?\}, (\d+)\);/);
   assert.ok(timeout, 'the alert dismissal timeout is gone from Dashboard.jsx');
-  assert.equal(timeout[1], tok[1], `dismissal timeout ${timeout[1]}ms must equal --dur ${tok[1]}ms`);
+  assert.equal(timeout[1], tok[1], `dismissal timeout ${timeout[1]}ms must equal --dur-fast ${tok[1]}ms`);
 });
 
 test('a dismissed alert cannot re-enter its own exit', () => {

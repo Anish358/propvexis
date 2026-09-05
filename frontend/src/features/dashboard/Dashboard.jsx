@@ -145,10 +145,14 @@ export function DailyBanner({
    * it rendered and tells BriefAlert to play its exit; the read is written when the
    * animation ends.
    *
-   * THE 200 IS --dur RESTATED IN JS, and that is a real seam: the token is the source of
-   * truth for the CSS, but a setTimeout cannot read it without a getComputedStyle call
-   * per dismissal. If they drift the row unmounts early (a visible clip) or late (a gap
-   * that lingers). test/motion.test.js pins them equal.
+   * THE 120 IS --dur-fast RESTATED IN JS, and that is a real seam: the token is the
+   * source of truth for the CSS, but a setTimeout cannot read it without a
+   * getComputedStyle call per dismissal. If they drift the row unmounts early (a visible
+   * clip) or late (a gap that lingers). test/motion.test.js pins them equal.
+   *
+   * IT IS --dur-fast RATHER THAN --dur BECAUSE THE ROW IS LEAVING — §10, "enter at
+   * --dur, leave faster". See EXIT_MOTION in brief.jsx for what the 200ms version
+   * actually looked like on screen.
    *
    * The write is DEFERRED, not skipped: navigate away inside that 200ms and the alert
    * stays unread. Judged acceptable for a read-marker — the alternative is rendering
@@ -168,7 +172,7 @@ export function DailyBanner({
         next.delete(id);
         return next;
       });
-    }, 200);
+    }, 120);
   };
   /* UNREAD ONLY, AND THAT IS WHAT MAKES Clear WORK (2026-08-30).
    *

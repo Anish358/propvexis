@@ -71,8 +71,17 @@ function useRowEntrance(index) {
 }
 
 /* An alert row leaving. `grid-template-rows` is what animates the HEIGHT here without
- * anyone having to know it — see BriefAlert. */
-const EXIT_MOTION = 'transition-[grid-template-rows,opacity] duration-[var(--dur)] ease-[var(--ease)]';
+ * anyone having to know it, and `margin` closes the flex GAP the row leaves behind —
+ * see BriefAlert.
+ *
+ * `--dur-fast`, NOT `--dur`, and §10 states the rule the other way round from how this
+ * shipped: enter at `--dur`, LEAVE FASTER. The 200ms version read as glitchy for a
+ * reason the curve makes obvious — `--ease` is cubic-bezier(.16,1,.3,1), which is 96%
+ * done at half its duration. At 200ms the row was invisible and all but closed inside
+ * 60ms and then spent another 140ms crawling a ~3px sliver shut. What a user sees there
+ * is not a collapse, it is a snap followed by a hang. Halving it halves the hang; the
+ * curve itself is a locked foundation value and is not ours to swap. */
+const EXIT_MOTION = 'transition-[grid-template-rows,opacity,margin] duration-[var(--dur-fast)] ease-[var(--ease)]';
 
 /* TODAY'S BRIEF — the dashboard's top card, on Base Rhea (2026-08-29).
  *
@@ -786,14 +795,32 @@ export function BriefAlert({
        `min-h-[73px]`, so without `min-h-0` the track would refuse to go under 73px and
        the collapse would simply not happen.
 
-       The 7px flex gap this row contributes survives until unmount, so the last frame
-       closes a 7px space rather than easing it. Left alone deliberately: fixing it
-       means animating margin too, for a gap nobody can see moving at this duration. */
+       THE 7px FLEX GAP HAS TO GO WITH THE ROW, and this is the second half of the
+       collapse rather than a polish pass. The list is a flex column with `gap-[7px]`, and
+       a gap is the CONTAINER's, so no amount of animating this row touches it: the track
+       eased to zero, the row unmounted, and the 7px it had been holding open shut in one
+       frame — every row below jumped. That single discontinuity at the exact end of an
+       otherwise continuous motion is what reads as "glitchy"; it was left alone once on
+       the grounds that nobody could see 7px move, which was wrong, because what they see
+       is not the 7px moving but the jump.
+
+       A NEGATIVE MARGIN OF EXACTLY ONE GAP, transitioned alongside the track, cancels it.
+       Which side depends on where the row sits, because a gap lives BETWEEN two rows:
+       a row with something after it owns the gap below (`-mb`), and the last row's gap is
+       the one above it (`-mt`). The `last:`/`first:last:` pair picks the side in CSS —
+       specificity settles it (`.mb-0:last-child` outranks `.mb-[-7px]`, and
+       `.mt-0:first-child:last-child` outranks `.mt-[-7px]:last-child`) rather than
+       source order, which Tailwind does not let us control. A sole row has no gap at all,
+       which is the `first:last:` case.
+
+       Clearing two rows at once still balances: two rows leaving remove two gaps. */
     <div
       className={cn(
         'grid shrink-0',
         EXIT_MOTION,
-        exiting ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
+        exiting
+          ? 'grid-rows-[0fr] opacity-0 mb-[-7px] last:mb-0 last:mt-[-7px] first:last:mt-0'
+          : 'grid-rows-[1fr] opacity-100',
       )}
     >
       <div className="min-h-0 overflow-hidden">
