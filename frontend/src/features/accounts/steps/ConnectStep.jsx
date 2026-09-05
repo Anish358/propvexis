@@ -195,7 +195,16 @@ export default function ConnectStep() {
             </Alert>
           ) : null}
 
-          {card?.credentialNote ? <FieldDescription>{card.credentialNote}</FieldDescription> : null}
+          {/* INSIDE a Field, and that is not cosmetic. FieldDescription is a Base
+              UI Field PART: rendered without a Field root above it, it throws at
+              render time (Base UI error #28) and takes the whole page down —
+              which is exactly what shipped here. test/field-parts-nesting.test.js
+              now fails on it statically, because nothing in CI renders a DOM. */}
+          {card?.credentialNote ? (
+            <Field>
+              <FieldDescription>{card.credentialNote}</FieldDescription>
+            </Field>
+          ) : null}
 
           {connected ? (
             <Button variant="primary" onClick={() => advance()}>Choose your accounts</Button>
