@@ -157,10 +157,27 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS, perPlatform = PL
                   CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule' END,
                   a.platform
              FROM mt5_accounts a
-             JOIN mt5_credentials c ON c.account_id = a.id
+             -- LEFT, NOT INNER, AND THIS IS THE THIRD TIME THE DISTINCTION HAS
+             -- MATTERED. A cTrader account has no mt5_credentials row at all --
+             -- its credential is an OAuth token pair on ctrader_identities, at
+             -- cTID grain. Under an inner join this query matched nothing for it:
+             -- no error, no failed job, no row ever considered, and the account
+             -- simply never synced. Same shape as leasedPayloadQuery and the
+             -- read_only filter before it.
+             LEFT JOIN mt5_credentials c  ON c.account_id = a.id
+             LEFT JOIN ctrader_identities ci
+                    ON ci.id = a.ctrader_identity_id AND ci.revoked_at IS NULL
              LEFT JOIN intervals i ON i.platform = a.platform
             WHERE a.is_active
               AND a.kind = 'synced'
+              -- "Can this account actually sync", asked per platform rather than
+              -- assumed to mean one table. Loosening the join must not loosen the
+              -- RULE: an MT5 account with no stored password still cannot sync,
+              -- and queueing it only produces a job the worker can fail.
+              AND CASE a.platform
+                    WHEN 'ctrader' THEN ci.id IS NOT NULL
+                    ELSE c.account_id IS NOT NULL
+                  END
               -- read_only = FALSE means DIFFERENT THINGS PER PLATFORM, so this
               -- rule is scoped to the one it is about. On MT5 it is a master
               -- password awaiting deletion and must never be retried. On
@@ -339,6 +356,51 @@ export function splitJobsByPlatform(jobs = []) {
 }
 
 /**
+ * The newest sync job per account, for every account a user owns.
+ *
+ * ONE QUERY, NOT ONE PER ROW. The accounts page draws a Last Sync cell per row
+ * and the dashboard prints a single "last synced"; both were showing a dash and
+ * "never" because nothing fetched this at all. DISTINCT ON is the cheap way to
+ * take the newest per account in Postgres.
+ */
+export function lastJobsForUserQuery(userId) {
+  return {
+    text: `SELECT DISTINCT ON (j.account_id)
+                  j.account_id, j.id AS job_id, j.status, j.reason, j.error,
+                  j.created_at, j.finished_at, j.stats
+             FROM sync_jobs j
+             JOIN mt5_accounts a ON a.id = j.account_id
+            WHERE a.user_id = $1
+            ORDER BY j.account_id, j.id DESC;`,
+    values: [userId],
+  };
+}
+
+/** The user's accounts that Auto Sync can actually run for, newest first. */
+export function syncableAccountsQuery(userId) {
+  return {
+    text: `SELECT a.id, a.label, a.platform
+             FROM mt5_accounts a
+             LEFT JOIN mt5_credentials c  ON c.account_id = a.id
+             LEFT JOIN ctrader_identities ci
+                    ON ci.id = a.ctrader_identity_id AND ci.revoked_at IS NULL
+            WHERE a.user_id = $1
+              AND a.is_active
+              AND a.kind = 'synced'
+              AND a.import_method = 'auto_sync'
+              -- The same per-platform question dueAccountsQuery asks. Asking it
+              -- once, here, is what keeps "Sync now" from offering a button that
+              -- can only produce a job the worker fails.
+              AND CASE a.platform
+                    WHEN 'ctrader' THEN ci.id IS NOT NULL
+                    ELSE c.account_id IS NOT NULL
+                  END
+            ORDER BY a.id;`,
+    values: [userId],
+  };
+}
+
+/**
  * The job a worker is entitled to report on. Both conditions matter:
  *
  *  - `status = 'leased'` — a done/failed job is not reportable twice;
@@ -475,3 +537,5 @@ export const lastJob = async (accountId) => (await run(lastJobQuery(accountId)))
 export const jobForWorker = async (jobId, workerId) => (await run(jobForWorkerQuery(jobId, workerId)))[0] ?? null;
 export const heartbeat = (workerId, version, note) => run(heartbeatQuery(workerId, version, note));
 export const staleWorkers = (maxAgeMs) => run(staleWorkersQuery(maxAgeMs));
+export const lastJobsForUser = (userId) => run(lastJobsForUserQuery(userId));
+export const syncableAccounts = (userId) => run(syncableAccountsQuery(userId));

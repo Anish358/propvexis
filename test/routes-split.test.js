@@ -37,6 +37,9 @@ const ROUTES = [
   // and at discovery time no account exists yet.
   ['get', '/api/ctrader/discovery/pending'], ['post', '/api/ctrader/discovery/:id'],
   ['get', '/api/accounts/:id/sync'], ['post', '/api/accounts/:id/sync'],
+  // Workspace-wide sync (the dashboard button) and the last-job feed that both the
+  // dashboard and the accounts table read.
+  ['post', '/api/sync/now'], ['get', '/api/sync/status'],
   ['put', '/api/accounts/:id/credentials'], ['delete', '/api/accounts/:id/credentials'],
   ['patch', '/api/accounts/:id'], ['delete', '/api/accounts/:id'], ['get', '/api/account'],
   ['get', '/api/strategies'], ['post', '/api/strategies'],
