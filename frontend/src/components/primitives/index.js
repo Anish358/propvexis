@@ -62,6 +62,8 @@ export {
 } from './dialog.jsx';
 export { EmptyState } from './empty-state.jsx';
 export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './field.jsx';
+export { Checkbox } from './checkbox.js';
+export { ConsentField } from './consent-field.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { LoadingBlock } from './loading-block.jsx';

@@ -139,3 +139,36 @@ test('POLICY PIN: flipping the platform on must also teach provision about email
   assert.match(credentials, /login_email/,
     'saveCredentialQuery still has no login_email column — the trader email is dropped silently');
 });
+
+test('provision stores the TradeLocker email and does not invent a login', async () => {
+  /* Replaces the source-level pin above with the real thing, now that the path
+   * exists. Two distinct failures were waiting here:
+   *
+   *   1. `credential.login` is undefined for TradeLocker. Passed to pg as
+   *      undefined it is not null — node-postgres refuses it, or worse coerces it
+   *      — so the account either fails to insert or inserts a nonsense login.
+   *      TradeLocker's real accountId is NOT KNOWN at connect time: it comes from
+   *      /auth/jwt/all-accounts once the credential works. Null-and-pending is the
+   *      truthful state, and the same one the cTrader discovery flow uses.
+   *   2. saveCredentialQuery had nowhere to put the email, so the one identifier
+   *      /auth/jwt/token cannot authenticate without would have been dropped
+   *      silently and every sync would 401 hours later. */
+  const { saveCredentialQuery } = await import('../src/domain/sync/credentials.js');
+  const q = saveCredentialQuery({
+    accountId: 7, server: 'OSP-DEMO', firmKey: null, passwordCt: 'v1.x', loginEmail: 'a@b.com',
+  });
+  assert.match(q.text, /login_email/, 'the email must be written, not dropped');
+  assert.ok(q.values.includes('a@b.com'), 'the email must reach the query values');
+  assert.match(q.text, /ON CONFLICT \(account_id\) DO UPDATE[\s\S]*login_email = EXCLUDED\.login_email/,
+    'reconnecting with a different email must replace it, not keep the stale one');
+});
+
+test('a credential with no login leaves the account pending, never undefined', async () => {
+  const { loginFromCredential } = await import('../src/domain/accounts/provision.js');
+  assert.equal(loginFromCredential({ server: 'S', email: 'a@b.com', password: 'p' }), null);
+  assert.equal(loginFromCredential({ server: 'S', login: 314943467, password: 'p' }), 314943467);
+  assert.equal(loginFromCredential(null), null);
+  // The distinction that matters: null is a value pg accepts and means "not known
+  // yet". undefined is not, and is how this ships as a 500 on the first connect.
+  assert.notEqual(loginFromCredential({ server: 'S' }), undefined);
+});

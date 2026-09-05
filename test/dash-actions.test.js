@@ -73,21 +73,39 @@ test('the sync status is the design\'s label with a TRUE value in it', () => {
    * number a trader will act on ("it synced two minutes ago, so this P&L is current")
    * when nothing has run. It asserted the honest placeholder instead.
    *
-   * The design's LABEL is right and it is back; what was wrong was the hardcoded value.
-   * There is still no sync-status endpoint, but the newest ingested trade IS evidence
-   * that a sync happened and when — so the figure is derived, says "never" with no
-   * trades, and stops being a guess the day a real feed lands without the label
-   * changing at all.
+   * THAT DAY HAS ARRIVED, which this test anticipated in as many words: "stops being a
+   * guess the day a real feed lands without the label changing at all". GET
+   * /api/sync/status now answers it, and the value comes from the SYNC JOBS.
    *
-   * So this now pins the thing that actually matters: the value is COMPUTED, never a
-   * literal. */
+   * The interim source — the newest trade's close_time — was wrong in both directions
+   * and is gone: a successful sync that found nothing new left the line reading "never",
+   * and an account whose last trade closed on Friday reported Friday as the sync time.
+   * Those are different facts and only one of them is called "last synced".
+   *
+   * So this pins what still matters: the label is the design's, the value is COMPUTED
+   * rather than a literal, and it is derived from sync jobs rather than from trades. */
   const code = stripComments(dash);
   const block = code.slice(code.indexOf('function DashActions'), code.indexOf('Section 2'));
-  assert.match(block, /Last synced: \{lastSynced \|\| 'never'\}/, "the label is the design's");
+  assert.match(block, /Last synced: \$\{lastSynced \|\| 'never'\}/, "the label is the design's");
   assert.doesNotMatch(code, /['"`]\s*\d+ min ago\s*['"`]/, 'no hardcoded elapsed time anywhere');
-  // And it is derived from the data, not from a constant.
+  // Derived from the data, not from a constant...
   assert.match(code, /const lastSynced = useMemo\(/);
   assert.match(code, /Date\.now\(\) - newest/);
+  // ...and from the SYNC FEED, not from the trade list.
+  assert.match(code, /for \(const j of syncJobs\)/,
+    'last synced must read sync jobs; trades are a different fact');
+  assert.match(code, /fetchSyncStatus\(\)/);
+});
+
+test('the Sync Trades button actually syncs', () => {
+  /* IT WAS NEVER WIRED. The button rendered, looked right, and did nothing at all —
+   * no onClick, no handler, no request. A control that cannot fail is
+   * indistinguishable from one that silently does. */
+  const code = stripComments(dash);
+  const block = code.slice(code.indexOf('function DashActions'), code.indexOf('Section 2'));
+  assert.match(block, /onClick=\{onSync\}/, 'the button must have a handler');
+  assert.match(block, /disabled=\{syncing\}/, 'and must not be pressable twice while in flight');
+  assert.match(code, /syncNow\(\)/, 'and that handler must call the sync endpoint');
 });
 
 test('Today\'s Brief banner has a titled head with a settings control', () => {

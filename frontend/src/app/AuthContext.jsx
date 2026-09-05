@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { fetchMe, logout as apiLogout, setUnauthorizedHandler } from '../lib/api.js';
 
+// Dummy comment
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {

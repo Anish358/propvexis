@@ -63,7 +63,7 @@ test('insertAccountQuery: the values array is pinned position-for-position', () 
   // `q.values.includes(x)` (used above) is position-blind — it cannot tell a
   // correctly-placed value from one swapped with its neighbour (e.g.
   // capital_kind and platform, both strings). This snapshot is what makes the
-  // 25-column placeholder/values audit permanent rather than a one-time count.
+  // 29-column placeholder/values audit permanent rather than a one-time count.
   const q = insertAccountQuery(7, propValue(), 314943467);
   assert.deepEqual(q.values, [
     7, 'GFT 50K', null, 'USD', 50000, 'eval',
@@ -84,6 +84,9 @@ test('insertAccountQuery: the values array is pinned position-for-position', () 
     // ONE rule in this array with no COALESCE behind it, so a null here really does
     // store a null rather than falling back to a template default.
     null,
+    // The four cTrader columns (0029). Null for every MT5 account, which is every
+    // account this fixture describes.
+    null, null, null, null,
   ]);
 
   // AND THE LAST THREE REALLY ARE WRITTEN when there is a value, rather than being
@@ -125,6 +128,31 @@ test('provisioning reads back the two columns the account API deliberately does 
     assert.match(q.text, /RETURNING[\s\S]*user_id/, 'the fee needs the owner off the row');
     assert.match(q.text, /RETURNING[\s\S]*challenge_fee/, 'the fee needs the amount off the row');
   }
+});
+
+test('insertAccountQuery writes the cTrader identity link in the INSERT itself', () => {
+  /* THE FAILURE THIS PREVENTS. These four are what let the worker find and
+   * authorize the account: which identity holds the token, which cTrader account
+   * this is, the number the trader recognises, and which of the two disjoint
+   * sockets it lives on. Set by a follow-up UPDATE instead, any path that skipped
+   * that statement would produce an account the worker can NEVER authorize —
+   * looking completely normal in the UI while silently never syncing. That is the
+   * same argument the file already makes for challenge_group_id. */
+  const q = insertAccountQuery(7, propValue({
+    platform: 'ctrader',
+    ctrader_identity_id: 5,
+    ctid_trader_account_id: 314943467,
+    platform_login: 8_675_309,
+    is_live_env: false,
+  }), 4_000_314_943_467);
+  assert.match(q.text, /ctrader_identity_id, ctid_trader_account_id, platform_login, is_live_env/);
+  // slice(25), not slice(23): challenge_fee (0031) and consistency_pct (0032) landed
+  // ahead of these four, so the cTrader block starts two positions later. The snapshot
+  // test above is what makes that shift visible instead of silently re-pointing this
+  // assertion at the wrong columns.
+  assert.deepEqual(q.values.slice(25), [5, 314943467, 8_675_309, false]);
+  // mt5_login carries the BANDED value; platform_login carries what the trader sees.
+  assert.equal(q.values[19], 4_000_314_943_467);
 });
 
 test('assignSyntheticLoginQuery keeps manual accounts in the negative space', () => {

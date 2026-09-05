@@ -91,8 +91,15 @@ export function validateProvision(body = {}) {
 
   // A credential belongs to exactly one method. A stray one on an EA account
   // would be stored by nothing and read by nothing — silently discarded input.
+  // A PLATFORM WITH NO CREDENTIAL FIELDS SUPPLIES NO CREDENTIAL, and that is a
+  // registry fact rather than a special case for cTrader. cTrader's "credential"
+  // is an OAuth grant that already exists as a ctrader_identity row by the time
+  // the account is provisioned; there is nothing for the wizard to collect and
+  // nothing to seal. Asking the registry keeps the next OAuth platform from
+  // needing another branch here.
+  const collectsCredential = platform.credentialFields.length > 0;
   const hasCredential = body.credential != null;
-  if (import_method === 'auto_sync' && !hasCredential) {
+  if (import_method === 'auto_sync' && collectsCredential && !hasCredential) {
     return { ok: false, error: 'Auto Sync needs a credential' };
   }
   if (import_method !== 'auto_sync' && hasCredential) {
@@ -271,6 +278,22 @@ export function provisionGate({ plan, kind, syncedCount = 0, manualCount = 0 }) 
 import crypto from 'node:crypto';
 import { withTransaction } from '../../platform/db.js';
 import { sealPassword, saveCredentialQuery } from '../sync/credentials.js';
+
+/**
+ * The broker login to store on the account, or null when there is not one yet.
+ *
+ * NOT `credential.login`. That is MT5's shape. A TradeLocker credential has an
+ * email and no login at all -- its accountId comes from /auth/jwt/all-accounts
+ * once the credential has been proven, which is after this row exists. Reading
+ * the property directly yields `undefined`, which pg will not accept as a value,
+ * so the first TradeLocker connect would 500 rather than create a pending
+ * account.
+ *
+ * Null is the truthful answer and the one the schema already models: mt5_login
+ * NULL means `pending`, which is exactly what an account awaiting discovery is.
+ */
+export const loginFromCredential = (credential) =>
+  credential?.login == null ? null : credential.login;
 import { enqueueQuery } from '../sync/queue.js';
 import {
   findByProvisionKeyQuery, insertAccountQuery, assignSyntheticLoginQuery, insertChallengeQuery,
@@ -325,7 +348,13 @@ const shape = (row) => ({
  * above is testable without a database (test/provision-tx.test.js).
  */
 export async function provisionAccount(userId, v, opts = {}) {
-  const { connect, credential = null, seal = sealPassword } = opts;
+  const {
+    connect, credential = null, seal = sealPassword,
+    // An explicit banded login, for a platform whose identifier does not come
+    // from a credential. cTrader's arrives from the account picker (4e12 + ctid),
+    // which is discovered over a socket long before any of this runs.
+    login: loginOverride = null,
+  } = opts;
 
   return withTransaction(async (client) => {
     // Idempotency first: a network drop after COMMIT is exactly when a user
@@ -381,7 +410,8 @@ export async function provisionAccount(userId, v, opts = {}) {
       : {};
 
     const synced = v.kind === 'synced';
-    const login = v.import_method === 'auto_sync' && credential ? credential.login : null;
+    const login = loginOverride
+      ?? (v.import_method === 'auto_sync' ? loginFromCredential(credential) : null);
     const insert = insertAccountQuery(
       userId,
       {
@@ -427,14 +457,24 @@ export async function provisionAccount(userId, v, opts = {}) {
       await client.query(challenge.text, challenge.values);
     }
 
-    if (v.import_method === 'auto_sync' && credential) {
+    if (v.import_method === 'auto_sync') {
+      // The JOB is enqueued for every Auto Sync account; the CREDENTIAL is stored
+      // only when the platform has one. Gating the enqueue on the credential too
+      // -- as this did -- means a cTrader account is provisioned and then never
+      // syncs, with no job, no error and no way to tell from the UI.
+      if (credential) {
       const cred = saveCredentialQuery({
         accountId: row.id,
         server: credential.server,
         firmKey: v.firm_id ?? null,
         passwordCt: seal(row.id, credential.password),
+        // Present for TradeLocker, absent for MT5. Dropping it would leave a
+        // credential that cannot authenticate, failing three hours later in an
+        // unattended job rather than here.
+        loginEmail: credential.email ?? null,
       });
       await client.query(cred.text, cred.values);
+      }
 
       const job = enqueueQuery(row.id, 'first_sync');
       await client.query(job.text, job.values);

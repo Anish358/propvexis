@@ -582,3 +582,36 @@ export function connectSocket(onUpsert, onUpdate) {
   socket.on('trade:updated', onUpdate);
   return socket;
 }
+
+/* ---- cTrader --------------------------------------------------------------
+ * The trader authorizes on Spotware's own site, so nothing here ever sees a
+ * broker password. `startCtraderAuth` returns the grant URL rather than
+ * redirecting, which lets the wizard keep its draft in sessionStorage before the
+ * browser leaves the app. */
+export async function startCtraderAuth() {
+  return postJson('/api/ctrader/authorize', {});
+}
+
+/** The picker's data. `pending` means the worker has not looked yet — not "none". */
+export async function ctraderAccounts(identityId) {
+  return getJson(`/api/ctrader/identities/${identityId}/accounts`);
+}
+
+/** Provision one PropVexis account per selected cTrader account. */
+export async function provisionCtraderAccounts(identityId, payload) {
+  return postJson(`/api/ctrader/identities/${identityId}/accounts`, payload);
+}
+
+/* ---- sync ----------------------------------------------------------------
+ * The dashboard button and the per-row action both land here. ONE request for
+ * the whole workspace rather than a loop over accounts, so the 15-minute
+ * cooldown and the "which accounts even qualify" rule stay server-side, where
+ * a disabled button cannot be worked around. */
+export async function syncNow(accountIds) {
+  return postJson('/api/sync/now', accountIds ? { account_ids: accountIds } : {});
+}
+
+/** The newest sync job per account. Feeds the dashboard line and the Last Sync column. */
+export async function fetchSyncStatus() {
+  return getJson('/api/sync/status');
+}

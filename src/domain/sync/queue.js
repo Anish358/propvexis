@@ -157,10 +157,27 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS, perPlatform = PL
                   CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule' END,
                   a.platform
              FROM mt5_accounts a
-             JOIN mt5_credentials c ON c.account_id = a.id
+             -- LEFT, NOT INNER, AND THIS IS THE THIRD TIME THE DISTINCTION HAS
+             -- MATTERED. A cTrader account has no mt5_credentials row at all --
+             -- its credential is an OAuth token pair on ctrader_identities, at
+             -- cTID grain. Under an inner join this query matched nothing for it:
+             -- no error, no failed job, no row ever considered, and the account
+             -- simply never synced. Same shape as leasedPayloadQuery and the
+             -- read_only filter before it.
+             LEFT JOIN mt5_credentials c  ON c.account_id = a.id
+             LEFT JOIN ctrader_identities ci
+                    ON ci.id = a.ctrader_identity_id AND ci.revoked_at IS NULL
              LEFT JOIN intervals i ON i.platform = a.platform
             WHERE a.is_active
               AND a.kind = 'synced'
+              -- "Can this account actually sync", asked per platform rather than
+              -- assumed to mean one table. Loosening the join must not loosen the
+              -- RULE: an MT5 account with no stored password still cannot sync,
+              -- and queueing it only produces a job the worker can fail.
+              AND CASE a.platform
+                    WHEN 'ctrader' THEN ci.id IS NOT NULL
+                    ELSE c.account_id IS NOT NULL
+                  END
               -- read_only = FALSE means DIFFERENT THINGS PER PLATFORM, so this
               -- rule is scoped to the one it is about. On MT5 it is a master
               -- password awaiting deletion and must never be retried. On
@@ -267,6 +284,123 @@ export function leasedPayloadQuery(jobIds, lookbackMs = 48 * 60 * 60 * 1000) {
 }
 
 /**
+ * The payload for a leased cTRADER job.
+ *
+ * A SEPARATE QUERY, NOT A LOOSENED JOIN. leasedPayloadQuery INNER JOINs
+ * mt5_credentials, and that join must stay strict: an MT5 job with no credential
+ * is a real error and has to fail loudly. But a cTrader account has no row there
+ * at all -- its credential is an OAuth token pair held at cTID grain on
+ * ctrader_identities, shared by every account that identity owns.
+ *
+ * Serving cTrader through the MT5 query would return NO ROW: the job leases, the
+ * worker is handed nothing, reports nothing, the lease expires, reclaimExpired
+ * re-queues it, forever. No error, no failed job, no log line -- the account just
+ * reads "Syncing now" until someone looks in the database. That is the failure
+ * credentials.js documents for a missing credential, applied to a whole platform.
+ *
+ * `since` is computed exactly as the MT5 query computes it, so an account with no
+ * trades collapses to epoch and a first sync means "everything" with no second
+ * code path. `cursor_at` rides along so a worker killed mid-backfill resumes
+ * instead of re-walking years of history.
+ */
+export function ctraderLeasedPayloadQuery(jobIds, lookbackMs = 48 * 60 * 60 * 1000) {
+  return {
+    text: `SELECT j.id            AS job_id,
+                  j.reason,
+                  j.attempts,
+                  j.cursor_at,
+                  a.id            AS account_id,
+                  a.mt5_login,
+                  a.ingest_token,
+                  a.ctid_trader_account_id,
+                  -- Landmine 10.7: demo and live are disjoint endpoints, and an
+                  -- account authorized on the wrong socket fails in a way that
+                  -- reads as a permissions problem. Stored at discovery, read
+                  -- here, never recomputed.
+                  a.is_live_env,
+                  i.id            AS identity_id,
+                  i.access_token_ct,
+                  i.refresh_token_ct,
+                  i.expires_at,
+                  GREATEST(
+                    COALESCE((SELECT max(t.close_time) FROM trades t
+                               WHERE t.account_id = a.mt5_login), 'epoch'::timestamptz)
+                      - make_interval(secs => $2),
+                    'epoch'::timestamptz
+                  )               AS since
+             FROM sync_jobs j
+             JOIN mt5_accounts a       ON a.id = j.account_id
+             JOIN ctrader_identities i ON i.id = a.ctrader_identity_id
+            WHERE j.id = ANY($1::bigint[]) AND i.revoked_at IS NULL;`,
+    values: [jobIds, Math.round(lookbackMs / 1000)],
+  };
+}
+
+/**
+ * Leased jobs bucketed by platform, so each goes to the query that can serve it.
+ *
+ * `unknown` is not a tidiness bucket. A job with an absent or unrecognised
+ * platform must surface, because silently dropping it recreates the same
+ * lease-expire-reclaim spin that having one payload query caused in the first
+ * place. The caller fails those jobs with a reason.
+ */
+export function splitJobsByPlatform(jobs = []) {
+  const out = { mt5: [], ctrader: [], tradelocker: [], unknown: [] };
+  for (const j of jobs) {
+    const bucket = Object.prototype.hasOwnProperty.call(out, j?.platform) && j.platform !== 'unknown'
+      ? j.platform
+      : 'unknown';
+    out[bucket].push(j.id);
+  }
+  return out;
+}
+
+/**
+ * The newest sync job per account, for every account a user owns.
+ *
+ * ONE QUERY, NOT ONE PER ROW. The accounts page draws a Last Sync cell per row
+ * and the dashboard prints a single "last synced"; both were showing a dash and
+ * "never" because nothing fetched this at all. DISTINCT ON is the cheap way to
+ * take the newest per account in Postgres.
+ */
+export function lastJobsForUserQuery(userId) {
+  return {
+    text: `SELECT DISTINCT ON (j.account_id)
+                  j.account_id, j.id AS job_id, j.status, j.reason, j.error,
+                  j.created_at, j.finished_at, j.stats
+             FROM sync_jobs j
+             JOIN mt5_accounts a ON a.id = j.account_id
+            WHERE a.user_id = $1
+            ORDER BY j.account_id, j.id DESC;`,
+    values: [userId],
+  };
+}
+
+/** The user's accounts that Auto Sync can actually run for, newest first. */
+export function syncableAccountsQuery(userId) {
+  return {
+    text: `SELECT a.id, a.label, a.platform
+             FROM mt5_accounts a
+             LEFT JOIN mt5_credentials c  ON c.account_id = a.id
+             LEFT JOIN ctrader_identities ci
+                    ON ci.id = a.ctrader_identity_id AND ci.revoked_at IS NULL
+            WHERE a.user_id = $1
+              AND a.is_active
+              AND a.kind = 'synced'
+              AND a.import_method = 'auto_sync'
+              -- The same per-platform question dueAccountsQuery asks. Asking it
+              -- once, here, is what keeps "Sync now" from offering a button that
+              -- can only produce a job the worker fails.
+              AND CASE a.platform
+                    WHEN 'ctrader' THEN ci.id IS NOT NULL
+                    ELSE c.account_id IS NOT NULL
+                  END
+            ORDER BY a.id;`,
+    values: [userId],
+  };
+}
+
+/**
  * The job a worker is entitled to report on. Both conditions matter:
  *
  *  - `status = 'leased'` — a done/failed job is not reportable twice;
@@ -359,6 +493,42 @@ export function lastJobQuery(accountId) {
   };
 }
 
+/**
+ * The account's most recent MANUAL sync -- the ONLY input the manual cooldown may read.
+ *
+ * A SEPARATE QUERY FROM lastJobQuery, AND THE SPLIT IS THE WHOLE FIX. The cooldown was
+ * fed lastJob(), which returns the newest job of ANY kind, so the two cadences this
+ * module deliberately keeps apart were sharing one clock:
+ *
+ *   Adding an account enqueues a `first_sync`. It finishes in seconds, stamps
+ *   finished_at, and started a fifteen-minute manual cooldown nobody asked for -- so
+ *   the trader's FIRST press of "Sync Trades", on an account they had just connected,
+ *   was refused with "already synced recently". Seen on prod: a first_sync finishing
+ *   at 18:52:59 and the first manual job appearing at 19:08:33, exactly 15m34s later.
+ *
+ * The unattended cadence already has its own limiter -- dueAccountsQuery's
+ * per-platform interval -- and it is three hours, not fifteen minutes. MANUAL_COOLDOWN_MS
+ * exists to stop a human holding down a button; a scheduled run is not a human, and a
+ * `first_sync` is the app's own doing. Neither may consume the human's allowance.
+ *
+ * lastJobQuery is deliberately left alone: the sync-status panel and the Last Sync cell
+ * want the newest job WHATEVER its reason, and narrowing it would make a scheduled sync
+ * invisible in the UI.
+ */
+export function lastManualJobQuery(accountId) {
+  return {
+    // Ordered by id for the same reason lastJobQuery is: a requeued job keeps its row,
+    // so id is the only monotonic column here.
+    text: `SELECT id, status, reason, attempts, run_after, finished_at, error, stats,
+                  created_at, lease_expires_at
+             FROM sync_jobs
+            WHERE account_id = $1 AND reason = 'manual'
+            ORDER BY id DESC
+            LIMIT 1;`,
+    values: [accountId],
+  };
+}
+
 /** Liveness. The agent calls this whether or not it found work to do. */
 export function heartbeatQuery(workerId, version = null, note = null) {
   return {
@@ -394,10 +564,15 @@ export const leaseJobs = (workerId, limit, leaseMs, platforms) =>
   run(leaseQuery(workerId, limit, leaseMs, platforms));
 export const leasedPayloads = (jobIds, lookbackMs) =>
   jobIds.length ? run(leasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
+export const ctraderLeasedPayloads = (jobIds, lookbackMs) =>
+  jobIds.length ? run(ctraderLeasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
 export const completeJob = async (jobId, stats) => (await run(completeQuery(jobId, stats)))[0] ?? null;
 export const failJob = async (jobId, error) => (await run(failQuery(jobId, error)))[0] ?? null;
 export const reclaimExpired = () => run(reclaimQuery());
 export const lastJob = async (accountId) => (await run(lastJobQuery(accountId)))[0] ?? null;
+export const lastManualJob = async (accountId) => (await run(lastManualJobQuery(accountId)))[0] ?? null;
 export const jobForWorker = async (jobId, workerId) => (await run(jobForWorkerQuery(jobId, workerId)))[0] ?? null;
 export const heartbeat = (workerId, version, note) => run(heartbeatQuery(workerId, version, note));
 export const staleWorkers = (maxAgeMs) => run(staleWorkersQuery(maxAgeMs));
+export const lastJobsForUser = (userId) => run(lastJobsForUserQuery(userId));
+export const syncableAccounts = (userId) => run(syncableAccountsQuery(userId));

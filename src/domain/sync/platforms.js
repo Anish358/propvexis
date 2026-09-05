@@ -49,6 +49,9 @@ export const PLATFORMS = [
     // and a note living on the connector cannot be inherited by accident.
     credentialNote:
       'Use your investor (read-only) password. A password that can place trades is rejected and deleted on the first login.',
+    // No gate: the credential we ask for here CANNOT trade, and the worker proves
+    // it on every login. A tick-box would be ceremony over a checked fact.
+    credentialConsent: null,
   },
   {
     // Listed deliberately though we cannot sync it: a lot of prop accounts are
@@ -62,16 +65,31 @@ export const PLATFORMS = [
     assetTypes: ['forex', 'cfd'],
     credentialFields: [],
     credentialNote: null,
+    credentialConsent: null,
   },
   {
     id: 'ctrader',
     label: 'cTrader',
-    connector: null,        // P3 — OAuth 2.0 + Protobuf, gated on Spotware app registration
-    enabled: false,
-    importMethods: ['file', 'manual'],
+    connector: 'ctrader',
+    enabled: true,
+    importMethods: ['auto_sync', 'file', 'manual'],
     assetTypes: ['forex', 'cfd'],
+    // EMPTY ON PURPOSE, AND LOAD-BEARING. cTrader collects no credential at all:
+    // the trader authorizes on Spotware's own consent screen and we hold a scoped
+    // OAuth token. validateProvision reads this list to decide whether Auto Sync
+    // needs a credential, so emptying it is what lets a cTrader account provision
+    // without one -- and MT5's non-empty list is what keeps its requirement.
     credentialFields: [],
-    credentialNote: null,
+    // The read-only story here is STRONGER than MT5's and different in kind.
+    // MT5 asks for an investor password and deletes it if the terminal reports it
+    // can trade -- a check we perform. Here Spotware refuses trading operations on
+    // our behalf: the grant is scope `accounts`, and the worker re-checks
+    // permissionScope against the server's own answer on every discovery.
+    credentialNote:
+      'You authorize PropVexis on cTrader\'s own site. We never see your password, and the '
+      + 'access we ask for is view-only — placing trades is refused by cTrader, not just by us.',
+    // No gate: there is no trade-capable secret to consent to holding.
+    credentialConsent: null,
   },
   {
     id: 'tradelocker',
@@ -106,6 +124,13 @@ export const PLATFORMS = [
       'TradeLocker has no read-only password — this is the same password that can place trades on your account. '
       + 'We store it encrypted, and PropVexis only ever reads your trade history with it. '
       + 'You can disconnect the account at any time, which deletes the stored password.',
+    // A REAL GATE, NOT A SENTENCE (spec §3). The note above explains; this is what
+    // the trader has to actively affirm before the password field will submit.
+    // The distinction is the whole point of the §3 decision: we are asking for a
+    // credential that can move real money on a funded account, and a sentence
+    // someone scrolled past is not consent to that.
+    credentialConsent:
+      'I understand this password can place trades on my account, and I authorise PropVexis to use it to read my trade history.',
   },
   {
     // The escape hatch. Without it, a trader on a platform we have never heard of
@@ -118,6 +143,7 @@ export const PLATFORMS = [
     assetTypes: [],
     credentialFields: [],
     credentialNote: null,
+    credentialConsent: null,
   },
 ];
 

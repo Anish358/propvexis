@@ -59,8 +59,11 @@ test('a platform with no connector still offers a way in', () => {
   }
 });
 
-test('mt5 is the one platform that can Auto Sync in Phase A', () => {
-  assert.deepEqual(autoSyncPlatforms().map((p) => p.id), ['mt5']);
+test('mt5 and cTrader are the platforms that can Auto Sync', () => {
+  // TradeLocker's connector module is BUILT and registered, but its platform
+  // entry still says connector: null until a live account has synced and its
+  // derived P&L has reconciled -- so it must not appear here.
+  assert.deepEqual(autoSyncPlatforms().map((p) => p.id), ['mt5', 'ctrader']);
 });
 
 test('mt4 exists but cannot Auto Sync — the EA is .mq5 and the farm is MT5-only', () => {
@@ -71,8 +74,8 @@ test('mt4 exists but cannot Auto Sync — the EA is .mq5 and the farm is MT5-onl
   assert.equal(mt4.importMethods.includes('ea'), false, 'the EA cannot attach to MT4');
 });
 
-test('ctrader and tradelocker are listed but not yet connectable', () => {
-  for (const id of ['ctrader', 'tradelocker']) {
+test('tradelocker is listed but not yet connectable', () => {
+  for (const id of ['tradelocker']) {
     const p = findPlatform(id);
     assert.ok(p, `${id} must be listed so the catalog is the real roadmap`);
     assert.equal(p.connector, null);
@@ -95,9 +98,23 @@ test('mt5 states the read-only rule as the checked fact it is', () => {
   assert.match(findPlatform('mt5').credentialNote, /investor|read-only/i);
 });
 
-test('a platform with no credential fields carries no credential note', () => {
-  for (const p of PLATFORMS.filter((x) => x.credentialFields.length === 0)) {
-    assert.equal(p.credentialNote, null, `${p.id} promises something it never collects`);
+test('a platform that neither syncs nor collects anything says nothing', () => {
+  /* THE RULE THIS ENFORCES, restated for a third case. It used to read "no
+   * credential fields means no note", which was right while every note described
+   * a credential we store. cTrader broke that shape honestly: it collects NO
+   * fields -- you authorize on Spotware's site -- and yet has the most important
+   * note of the three, because "we never see your password" is exactly what a
+   * trader needs told at that moment.
+   *
+   * So the rule is about promises, not fields: a platform we cannot connect at
+   * all must not describe a connection. mt4, TradeLocker and `other` are silent;
+   * MT5 and cTrader each explain their own very different arrangement. */
+  for (const p of PLATFORMS.filter((x) => x.credentialFields.length === 0 && !x.connector)) {
+    assert.equal(p.credentialNote, null, `${p.id} describes a connection it cannot make`);
+  }
+  // ...and a platform that CAN sync must say something about what it holds.
+  for (const p of PLATFORMS.filter((x) => x.connector)) {
+    assert.ok(p.credentialNote, `${p.id} can Auto Sync but explains nothing`);
   }
 });
 

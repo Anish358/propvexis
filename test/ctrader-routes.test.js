@@ -16,13 +16,28 @@ test('the module is exported for a plain call, not app.register()', () => {
   assert.doesNotMatch(appJs, /app\.register\(ctraderRoutes/);
 });
 
-test('every cTrader route except the OAuth callback requires a session', () => {
+test('every cTrader route is guarded, and by the guard its audience needs', () => {
+  /* TWO AUDIENCES, TWO GUARDS. The user-facing routes take a session. The two
+   * discovery routes take the worker's bearer token, because the worker is the
+   * only thing that CAN enumerate a cTID's accounts -- that needs a protobuf
+   * socket -- and it has no session.
+   *
+   * Direction is asserted, not just presence: a user route silently downgraded to
+   * worker auth would let anything holding the farm token read or provision
+   * another tenant's accounts. */
+  const WORKER = new Set(['/api/ctrader/discovery/pending', '/api/ctrader/discovery/:id']);
   const routes = [...src.matchAll(/app\.(get|post|delete)\('([^']+)'(,\s*\{[^}]*\})?/g)];
-  assert.ok(routes.length >= 5, `expected the five routes, found ${routes.length}`);
+  assert.ok(routes.length >= 8, `expected every route, found ${routes.length}`);
   for (const [, method, route, opts] of routes) {
+    // The callback carries no preHandler by design: a cross-site redirect does
+    // not reliably send a cookie, so its guard is the signed `state`.
     if (route === '/api/ctrader/callback') continue;
-    assert.match(opts ?? '', /preHandler: app\.requireAuth/,
-      `${method} ${route} must require a session`);
+    const o = opts ?? '';
+    if (WORKER.has(route)) {
+      assert.match(o, /preHandler: requireWorker/, `${method} ${route} is a worker route`);
+    } else {
+      assert.match(o, /preHandler: app\.requireAuth/, `${method} ${route} must require a session`);
+    }
   }
 });
 

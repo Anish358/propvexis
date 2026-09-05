@@ -7,18 +7,25 @@ import {
   enqueueDue,
   leaseJobs,
   leasedPayloads,
+  ctraderLeasedPayloads,
+  splitJobsByPlatform,
   completeJob,
   failJob,
   reclaimExpired,
   heartbeat,
   lastJob,
+  lastManualJob,
   jobForWorker,
   isMarketOpen,
   requestedPlatforms,
   manualCooldown,
   MANUAL_COOLDOWN_MS,
+  lastJobsForUser,
+  syncableAccounts,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
+import { recordBrokerAccount } from '../domain/sync/brokerAccount.js';
+import { freshAccessToken, markIdentityError } from '../domain/sync/ctraderIdentities.js';
 import {
   credentialsEnabled,
   credentialStatus,
@@ -113,7 +120,12 @@ export default function syncRoutes(app) {
     // the queue by the time we get here, so it is unaffected.
     const queued = isMarketOpen() ? await enqueueDue() : [];
     const leased = await leaseJobs(workerId, limit, undefined, requestedPlatforms(body));
-    const rows = await leasedPayloads(leased.map((j) => j.id));
+    // ONE QUERY PER PLATFORM. The MT5 payload query INNER JOINs mt5_credentials,
+    // which a cTrader account has no row in -- serving both through it returns no
+    // row for cTrader, and the job then leases, reports nothing, expires and is
+    // reclaimed forever with no error anywhere. See ctraderLeasedPayloadQuery.
+    const byPlatform = splitJobsByPlatform(leased);
+    const rows = await leasedPayloads(byPlatform.mt5);
 
     const jobs = [];
     for (const row of rows) {
@@ -141,6 +153,50 @@ export default function syncRoutes(app) {
         reason: row.reason,
         first_sync: row.verified_at == null,
       });
+    }
+
+    // ---- cTrader ---------------------------------------------------------
+    // The worker is handed a READY-TO-USE ACCESS TOKEN and never a refresh token.
+    // The refresh token is consumed on use (landmine 10.2), so a rotation the
+    // worker completed but failed to send back would be unrecoverable and the
+    // user's connection would break for no visible reason. Refresh lives here,
+    // next to the store that records it.
+    for (const row of await ctraderLeasedPayloads(byPlatform.ctrader)) {
+      let token;
+      try {
+        ({ accessToken: token } = await freshAccessToken(row));
+      } catch (err) {
+        req.log.error(
+          { account: row.account_id, identity: row.identity_id, err: err.message },
+          'ctrader token unusable',
+        );
+        await failJob(row.job_id, 'cTrader authorization expired — reconnect the account');
+        await markIdentityError(row.identity_id, err.message.slice(0, 1000));
+        continue;
+      }
+      jobs.push({
+        job_id: Number(row.job_id),
+        account_id: Number(row.account_id),
+        platform: 'ctrader',
+        ctid_trader_account_id: Number(row.ctid_trader_account_id),
+        // Landmine 10.7: which of the two sockets this account lives on. Decided
+        // at discovery, never recomputed.
+        is_live: row.is_live_env === true,
+        access_token: token,
+        identity_id: Number(row.identity_id),
+        ingest_token: row.ingest_token,
+        login: row.mt5_login == null ? null : Number(row.mt5_login),
+        since: row.since,
+        cursor_at: row.cursor_at,
+        reason: row.reason,
+      });
+    }
+
+    // A job whose platform we do not recognise must FAIL, not vanish. Dropping it
+    // recreates the same lease-expire-reclaim spin in a different place.
+    for (const jobId of byPlatform.unknown) {
+      req.log.error({ job: jobId }, 'leased job has no known platform');
+      await failJob(jobId, 'job has no known platform');
     }
 
     return reply.send({
@@ -181,6 +237,24 @@ export default function syncRoutes(app) {
 
     if (b.ok) {
       await markVerified(accountId);
+      /* WHAT THE BROKER SAYS THE ACCOUNT IS -- balance and deposit currency, reported
+       * alongside the result because they belong to the ACCOUNT rather than to any
+       * trade. Two things were wrong without it: a cTrader account kept the `'USD'`
+       * fallback it was provisioned with (its currency is unreachable at discovery
+       * time), and an account that has never closed a trade had no balance recorded
+       * anywhere, because the only source was a closing deal.
+       *
+       * BEST EFFORT, ON PURPOSE. This is metadata riding along with a sync that has
+       * already imported trades successfully; failing the job over it would throw away
+       * real work for a cosmetic field. `accountId` still comes from the JOB, never
+       * from the body, so a hostile worker cannot aim this at another tenant. */
+      if (b.account) {
+        try {
+          await recordBrokerAccount(accountId, b.account);
+        } catch (err) {
+          req.log.warn({ account: accountId, err: err.message }, 'broker account facts not stored');
+        }
+      }
       const job = await completeJob(jobId, b.stats ?? {});
       if (!job) return reply.code(409).send({ error: 'job is not leased' });
       return reply.send({ ok: true, job });
@@ -273,6 +347,84 @@ export default function syncRoutes(app) {
     return reply.code(201).send({ credential: saved, job });
   });
 
+  /**
+   * The newest sync job per account, for the whole workspace.
+   *
+   * The accounts table draws a Last Sync cell per row and the dashboard prints one
+   * "last synced" line; both showed a dash and "never" because nothing fetched
+   * this. One query for the page, rather than one request per row.
+   */
+  app.get('/api/sync/status', { preHandler: app.requireAuth }, async (req, reply) => {
+    const jobs = await lastJobsForUser(req.user.uid);
+    return reply.send({
+      jobs: jobs.map((j) => ({
+        account_id: Number(j.account_id),
+        status: j.status,
+        reason: j.reason,
+        error: j.error,
+        created_at: j.created_at,
+        finished_at: j.finished_at,
+        stats: j.stats ?? null,
+      })),
+      cooldown_seconds: Math.round(MANUAL_COOLDOWN_MS / 1000),
+    });
+  });
+
+  /**
+   * Sync every account that can be synced.
+   *
+   * What the dashboard's "Sync Trades" button calls. It is ONE request rather than
+   * the page looping over accounts, so the cooldown, the eligibility rule and the
+   * "which accounts even qualify" question all stay in one place -- and a user
+   * with five accounts cannot half-succeed in five separate ways.
+   *
+   * A cooled-down account is REPORTED, not an error: pressing Sync with three
+   * accounts where one synced two minutes ago should sync the other two and say
+   * so, not refuse the lot.
+   */
+  app.post('/api/sync/now', { preHandler: app.requireAuth }, async (req, reply) => {
+    if (!credentialsEnabled()) {
+      return reply.code(503).send({ error: 'Auto Sync is not configured on this server yet' });
+    }
+    const wanted = Array.isArray(req.body?.account_ids)
+      ? new Set(req.body.account_ids.map(Number))
+      : null;
+
+    const accounts = (await syncableAccounts(req.user.uid))
+      .filter((a) => !wanted || wanted.has(Number(a.id)));
+
+    const queued = [];
+    const skipped = [];
+    for (const a of accounts) {
+      // THE MANUAL COOLDOWN READS MANUAL JOBS ONLY. lastJob() returns the newest job
+      // of any reason, so adding an account -- which enqueues a `first_sync` -- used to
+      // start a 15-minute manual cooldown and refuse the trader's very first press.
+      // See lastManualJobQuery.
+      const previous = await lastManualJob(a.id);
+      const cooldown = manualCooldown(previous);
+      if (cooldown.blocked) {
+        const mins = Math.ceil(cooldown.retryAfterMs / 60_000);
+        skipped.push({
+          account_id: Number(a.id),
+          label: a.label,
+          reason: `synced recently — try again in ${mins} minute${mins === 1 ? '' : 's'}`,
+          retry_after_seconds: Math.ceil(cooldown.retryAfterMs / 1000),
+        });
+        continue;
+      }
+      const job = await enqueue(a.id, 'manual');
+      // enqueue is ON CONFLICT DO NOTHING while a job is open, so an account
+      // already syncing returns nothing rather than a second job.
+      if (job) queued.push({ account_id: Number(a.id), label: a.label, job_id: Number(job.id) });
+      else skipped.push({ account_id: Number(a.id), label: a.label, reason: 'already syncing' });
+    }
+
+    if (!accounts.length) {
+      return reply.code(409).send({ error: 'no accounts are connected for Auto Sync' });
+    }
+    return reply.send({ queued, skipped });
+  });
+
   app.delete('/api/accounts/:id/credentials', { preHandler: app.requireAuth }, async (req, reply) => {
     const acct = await ownedSyncAccount(req, reply);
     if (!acct) return reply;
@@ -297,16 +449,27 @@ export default function syncRoutes(app) {
   app.post('/api/accounts/:id/sync', { preHandler: app.requireAuth }, async (req, reply) => {
     const acct = await ownedSyncAccount(req, reply);
     if (!acct) return reply;
-    const cred = await credentialStatus(req.user.uid, acct.id);
-    if (!cred) return reply.code(409).send({ error: 'no credential stored for this account' });
-    // MT5 only: read_only === false is a master password awaiting deletion. On a
-    // platform with no read-only credential at all it is simply the normal state,
-    // and refusing it here would make Sync now permanently unusable there.
-    if (acct.platform === 'mt5' && cred.read_only === false) {
-      return reply.code(409).send({ error: 'stored credential can trade — enter the investor password' });
+    // WHAT COUNTS AS "CONNECTED" IS PER PLATFORM. cTrader has no mt5_credentials
+    // row at all -- its credential is an OAuth grant on ctrader_identities -- so
+    // demanding one here made Sync now answer 409 "no credential stored" on a
+    // perfectly healthy connection, which is how a working account looks broken.
+    if (acct.platform !== 'ctrader') {
+      const cred = await credentialStatus(req.user.uid, acct.id);
+      if (!cred) return reply.code(409).send({ error: 'no credential stored for this account' });
+      // MT5 only: read_only === false is a master password awaiting deletion. On a
+      // platform with no read-only credential at all it is simply the normal state,
+      // and refusing it here would make Sync now permanently unusable there.
+      if (acct.platform === 'mt5' && cred.read_only === false) {
+        return reply.code(409).send({ error: 'stored credential can trade — enter the investor password' });
+      }
+    } else if (acct.ctrader_identity_id == null) {
+      return reply.code(409).send({ error: 'this account is not connected to cTrader' });
     }
 
-    const previous = await lastJob(acct.id);
+    // MANUAL JOBS ONLY -- a scheduled sync and the account's own `first_sync` must not
+    // spend the human's allowance. The unattended cadence has its own limiter, and it
+    // is three hours (dueAccountsQuery), not this fifteen minutes.
+    const previous = await lastManualJob(acct.id);
     const cooldown = manualCooldown(previous);
     if (cooldown.blocked) {
       const retryAfter = Math.ceil(cooldown.retryAfterMs / 1000);

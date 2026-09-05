@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { MoreVertical, Plus } from 'lucide-react';
 import {
@@ -7,7 +7,10 @@ import {
 } from '@/components/primitives';
 import { AccountEditModal, EaSetupModal } from '../accounts/AccountForms.jsx';
 import SyncModal from '../accounts/SyncModal.jsx';
-import { deleteAccount, updateAccount } from '../../lib/api.js';
+import { accountIdentity } from './accountIdentity.js';
+import {
+  deleteAccount, updateAccount, fetchSyncStatus, syncNow,
+} from '../../lib/api.js';
 import { fmtMoney } from '../../lib/metrics.js';
 
 // ---------------------------------------------------------------------------
@@ -95,7 +98,7 @@ function syncStatus(a) {
 // lets EA Setup appear only where it means something — a manual account has no EA —
 // without leaving a hole in a button strip.
 // ---------------------------------------------------------------------------
-function RowMenu({ account, onEdit, onSetup, onSync, onArchive, onDelete }) {
+function RowMenu({ account, onEdit, onSetup, onSync, onSyncNow, syncing, onArchive, onDelete }) {
   const archived = account.is_active === false;
   return (
     <Menu>
@@ -117,7 +120,21 @@ function RowMenu({ account, onEdit, onSetup, onSync, onArchive, onDelete }) {
             halves of one question — how does this account get its trades — and it is
             hidden on the same two conditions: a manual bucket has no terminal to log
             into, and an archived account should not be woken by a scheduler. */}
-        {account.kind !== 'manual' && !archived && (
+        {/* "Sync now" is the action for an account that is ALREADY connected,
+            whatever platform it is on. It was missing entirely, so a connected
+            account had no way to be refreshed on demand from this page. The
+            15-minute cooldown is enforced server-side; the button is not the gate. */}
+        {account.kind !== 'manual' && !archived && account.import_method === 'auto_sync' && (
+          <MenuItem onClick={onSyncNow} disabled={syncing}>
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </MenuItem>
+        )}
+        {/* LIVE SYNC IS THE MT5 CREDENTIAL FORM, AND ONLY MT5 HAS ONE. It opens a
+            modal asking for an MT5 server, login and investor password — which is
+            meaningless for a cTrader account, whose credential is an OAuth grant
+            held on cTrader's side. Offering it there showed a trader a password
+            form for an account that has no password. */}
+        {account.kind !== 'manual' && !archived && account.platform === 'mt5' && (
           <MenuItem onClick={onSync}>Live sync</MenuItem>
         )}
         <MenuSeparator />
@@ -136,7 +153,7 @@ function RowMenu({ account, onEdit, onSetup, onSync, onArchive, onDelete }) {
 // eight columns of account data cannot be honestly reflowed into a phone's width, and
 // a figure squeezed until it wraps is not a smaller figure, it is an unreadable one.
 // ---------------------------------------------------------------------------
-function AccountsTable({ rows, onEdit, onSetup, onSync, onArchive, onDelete }) {
+function AccountsTable({ rows, jobs, syncingId, onEdit, onSetup, onSync, onSyncNow, onArchive, onDelete }) {
   return (
     <div className="set-table-scroll">
       <table className="prop-table set-table">
@@ -167,7 +184,9 @@ function AccountsTable({ rows, onEdit, onSetup, onSync, onArchive, onDelete }) {
                       it rides under the name the trader gave it rather than taking a
                       column of its own. */}
                   <div className="set-acct-sub">
-                    {a.kind === 'manual' ? 'Manual entry' : a.pending ? 'No login bound yet' : `MT5 ${a.mt5_login}`}
+                    {a.kind === 'manual' ? 'Manual entry'
+                      : a.pending ? 'No login bound yet'
+                        : accountIdentity(a)}
                   </div>
                 </td>
                 <td title={firmOf(a)}>{firmOf(a)}</td>
@@ -192,13 +211,21 @@ function AccountsTable({ rows, onEdit, onSetup, onSync, onArchive, onDelete }) {
                     {status && <Badge tone={status.tone}>{status.label}</Badge>}
                   </span>
                 </td>
-                <td className="set-col-tight set-col-date">{fmtSync(a.balance_updated_at)}</td>
+                {/* THE SYNC JOB, NOT THE BALANCE TIMESTAMP. balance_updated_at is
+                    when the EA last reported equity, which is a different fact and is
+                    null for every cTrader account — so this column read "—" on a
+                    connection that was syncing fine. */}
+                <td className="set-col-tight set-col-date">
+                  {fmtSync(jobs?.[a.id]?.finished_at) || fmtSync(a.balance_updated_at)}
+                </td>
                 <td className="set-col-actions">
                   <RowMenu
                     account={a}
                     onEdit={() => onEdit(a)}
                     onSetup={() => onSetup(a)}
                     onSync={() => onSync(a)}
+                    onSyncNow={() => onSyncNow(a)}
+                    syncing={syncingId === a.id}
                     onArchive={() => onArchive(a)}
                     onDelete={() => onDelete(a)}
                   />
@@ -225,6 +252,39 @@ export default function SettingsAccounts() {
   const [setup, setSetup] = useState(null);
   const [syncFor, setSyncFor] = useState(null);
   const [err, setErr] = useState(null);
+  const [jobs, setJobs] = useState({});
+  const [syncingId, setSyncingId] = useState(null);
+
+  /* The newest sync job per account, keyed by account id. One request for the whole
+   * table rather than one per row. */
+  const loadJobs = useCallback(() => {
+    fetchSyncStatus()
+      .then((d) => {
+        const byId = {};
+        for (const j of d?.jobs ?? []) byId[j.account_id] = j;
+        setJobs(byId);
+      })
+      .catch(() => { /* the table still works without the column */ });
+  }, []);
+  useEffect(() => { loadJobs(); }, [loadJobs]);
+
+  /* Sync ONE account. The 15-minute cooldown is enforced by the server, so a 429
+   * here is a real answer to show the user rather than a state the button should
+   * have prevented — a disabled button is a suggestion, the endpoint is the rule. */
+  const onSyncNow = useCallback(async (a) => {
+    setErr(null);
+    setSyncingId(a.id);
+    try {
+      const r = await syncNow([a.id]);
+      const skipped = r?.skipped?.[0];
+      if (!r?.queued?.length && skipped) setErr(`${a.label}: ${skipped.reason}`);
+      setTimeout(loadJobs, 4000);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSyncingId(null);
+    }
+  }, [loadJobs]);
 
   // Newest first. `created_at` ascending is what the API returns (the switcher wants a
   // stable order); a management list wants the account you just added at the top,
@@ -315,9 +375,12 @@ export default function SettingsAccounts() {
         ) : (
           <AccountsTable
             rows={rows}
+            jobs={jobs}
+            syncingId={syncingId}
             onEdit={(a) => setEditing(a)}
             onSetup={(a) => setSetup(a)}
             onSync={(a) => setSyncFor(a)}
+            onSyncNow={onSyncNow}
             onArchive={toggleArchive}
             onDelete={remove}
           />

@@ -1,5 +1,5 @@
 import React, {
-  useEffect, useId, useMemo, useRef, useState,
+  useCallback, useEffect, useId, useMemo, useRef, useState,
 } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import {
@@ -52,11 +52,13 @@ import AccountAlertBanner from '../prop/AccountAlertBanner.jsx';
 import { accountAlertFor } from '../prop/accountAlert.js';
 import AccountDetails from '../prop/AccountDetails.jsx';
 import RecentTrades from '../trades/RecentTrades.jsx';
-import { fetchProp, updateAccount, fetchCalendar } from '../../lib/api.js';
+import {
+  fetchProp, updateAccount, fetchCalendar, fetchSyncStatus, syncNow,
+} from '../../lib/api.js';
 import { chartPalette, token } from '../../lib/theme.js';
 import { cumulativeSeries, pnlAxis } from './cumulativePnl.js';
 import {
-  computeMetrics, fmtVal, fmtValShort,
+  computeMetrics, fmtMoney, fmtVal, fmtValShort,
 } from '../../lib/metrics.js';
 
 // Chart theming from design tokens (matches Analytics.jsx's equity curve).
@@ -397,7 +399,7 @@ export function DailyBanner({
 // editor; both are gone (2026-08-30) until every page is finalised. The strip stays
 // because Sync Trades and the sync status still belong here, and it is the anchor the
 // page's spacing is built around.
-function DashActions({ lastSynced, ...rest }) {
+function DashActions({ lastSynced, onSync, syncing, syncNote, ...rest }) {
   return (
     <ActionStrip
       {...rest}
@@ -414,19 +416,26 @@ function DashActions({ lastSynced, ...rest }) {
            TOP BAR's resting surface, so it sat a step darker than the design and read as
            chrome rather than as an action. Same treatment as the account switcher, which
            is correct: they are the same kind of control. */
-        <Button variant="tinted" size="sm" pill type="button">
+        <Button
+          variant="tinted"
+          size="sm"
+          pill
+          type="button"
+          onClick={onSync}
+          disabled={syncing}
+        >
           <RefreshCw aria-hidden="true" />
-          Sync Trades
+          {syncing ? 'Syncing…' : 'Sync Trades'}
         </Button>
       )}
       /* THE DESIGN'S SHAPE, WITH A TRUE VALUE IN IT. Rhea writes "Last synced: 2 min
-         ago"; the app has no sync-status feed on this page, and printing an elapsed
-         time with nothing behind it is a number a trader will act on ("it synced two
-         minutes ago, so this P&L is current") when nothing has run.
-         So the LABEL is the design's and the VALUE is whatever is true — "never" until
-         a sync happens. That reads correctly the day the feed lands and never has to be
-         un-lied about. */
-      status={<ActionStatus>Last synced: {lastSynced || 'never'}</ActionStatus>}
+         ago". The value now comes from the sync jobs themselves rather than from the
+         newest trade — those are different facts, and the old one lied in both
+         directions: a successful sync that found nothing new left it reading "never",
+         and an account whose last trade was on Friday reported that as the sync time.
+         `syncNote` is what the last press actually did, which is the only way a user
+         can tell "nothing to fetch" from "the button does nothing". */
+      status={<ActionStatus>{syncNote || `Last synced: ${lastSynced || 'never'}`}</ActionStatus>}
     />
   );
 }
@@ -820,7 +829,42 @@ function AccountCard({
 }) {
   const [targetOpen, setTargetOpen] = useState(false);
   const [locking, setLocking] = useState(false);
+  const [fixingBalance, setFixingBalance] = useState(false);
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
+
+  /* ADOPT THE BROKER'S BALANCE AS THE STARTING BALANCE.
+   *
+   * The one fix for a SETUP_MISMATCH banner (features/prop/accountAlert.js): the account
+   * is configured as, say, a $25,000 prop challenge while the broker reports it holds
+   * 999.87, so every rule on this card is sized off a number the account contradicts.
+   *
+   * CONFIRMED, NEVER AUTOMATIC, and the dialog quotes both figures — the app cannot tell
+   * which one is wrong. PATCH /api/accounts/:id mirrors start_balance onto the ACTIVE
+   * challenge (syncActiveChallengeRules), which is what makes this one click rather than
+   * an edit here and a second one in Prop OS; the drawdown and target percentages are
+   * untouched, so the rules keep their shape and only their base moves. */
+  async function fixStartBalance() {
+    const check = data.balanceCheck;
+    if (!acctRecord || !check) return;
+    // eslint-disable-next-line no-alert
+    if (!confirm(
+      `Set the starting balance of ${acctRecord.label || `account ${data.account_id}`} `
+      + `to ${fmtMoney(check.reported)}?\n\n`
+      + `It is currently ${fmtMoney(check.startBalance)}, which your broker does not `
+      + 'agree with. Your drawdown and profit-target percentages stay as they are — they '
+      + 'will simply be measured from the new balance.\n\n'
+      + 'Only do this if the broker figure is the right one. If the account really is a '
+      + `${fmtMoney(check.startBalance)} challenge, leave this alone and check that you `
+      + 'connected the account you meant to.',
+    )) return;
+    setFixingBalance(true);
+    try {
+      await updateAccount(acctRecord.id, { start_balance: check.reported });
+      onChanged();
+    } finally {
+      setFixingBalance(false);
+    }
+  }
 
   async function lockAccount() {
     if (!acctRecord) return;
@@ -850,7 +894,7 @@ function AccountCard({
    * It used to fire on `healthStatus(...) === 'bad'` — a blended 0-100 score over three
    * meters — while its copy read "is close to today's loss limit", a sentence that
    * could be false at the moment it appeared: the score also falls to `bad` on max
-   * drawdown alone, or on a breach that happened days ago. Six explicit states now live
+   * drawdown alone, or on a breach that happened days ago. Seven explicit states now live
    * in features/prop/accountAlert.js, each reading ONE rule and quoting its number.
    *
    * THE CARD'S RED EDGE FOLLOWS THE BANNER'S OWN SEVERITY, from the banner's own set —
@@ -888,6 +932,8 @@ function AccountCard({
         data={data}
         onLock={acctRecord ? lockAccount : null}
         locking={locking}
+        onFixBalance={acctRecord ? fixStartBalance : null}
+        fixingBalance={fixingBalance}
       />
 
       {/* The three rule meters live in AccountDetails.jsx — Accounts › Details renders
@@ -1159,16 +1205,27 @@ export default function Dashboard() {
 
   const beRounding = !!tradeSettings.beRounding;
 
-  /* "LAST SYNCED" FROM THE DATA, NOT FROM A FEED WE DO NOT HAVE. There is no sync-status
-   * endpoint, but the newest ingested trade IS evidence that a sync happened and when —
-   * so this reports the freshest thing the app actually knows. It says "never" with no
-   * trades, which is exactly right for a new account, and it stops being a guess the day
-   * a real sync feed lands: the label does not change, only its source. */
+  /* "LAST SYNCED" FROM THE SYNC JOBS, which is what the phrase actually means.
+   * It used to be derived from the newest trade's close_time, because no sync feed
+   * existed. That lied in both directions: a successful sync that found nothing new
+   * left the line reading "never", and an account whose last trade closed on Friday
+   * reported Friday as the sync time. GET /api/sync/status now answers it. */
+  const [syncJobs, setSyncJobs] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState(null);
+
+  const loadSyncStatus = useCallback(() => {
+    fetchSyncStatus()
+      .then((d) => setSyncJobs(d?.jobs ?? []))
+      .catch(() => { /* the dashboard still works without it */ });
+  }, []);
+  useEffect(() => { loadSyncStatus(); }, [loadSyncStatus]);
+
   const lastSynced = useMemo(() => {
     let newest = 0;
-    for (const t of trades) {
-      const at = new Date(t.close_time || 0).getTime();
-      if (at > newest) newest = at;
+    for (const j of syncJobs) {
+      const at = new Date(j.finished_at || 0).getTime();
+      if (j.status === 'done' && at > newest) newest = at;
     }
     if (!newest) return null;
     const mins = Math.max(0, Math.round((Date.now() - newest) / 60_000));
@@ -1177,7 +1234,29 @@ export default function Dashboard() {
     const hrs = Math.round(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
     return new Date(newest).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }, [trades]);
+  }, [syncJobs]);
+
+  /* The button reports what actually happened. A sync is asynchronous — the worker
+   * picks the job up within seconds — so "Syncing…" then a plain count is honest,
+   * where a spinner that resolved to nothing would look broken. A cooled-down
+   * account is REPORTED, not an error: with three accounts where one synced two
+   * minutes ago, the other two still go. */
+  const onSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncNote(null);
+    try {
+      const r = await syncNow();
+      const q = r?.queued?.length ?? 0;
+      const s0 = r?.skipped?.[0];
+      setSyncNote(q ? `Syncing ${q} account${q === 1 ? '' : 's'}…` : (s0?.reason ?? 'Nothing to sync'));
+      setTimeout(loadSyncStatus, 4000);
+    } catch (e) {
+      setSyncNote(e.message);
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadSyncStatus]);
+
   const m = useMemo(() => computeMetrics(trades, unit, beRounding), [trades, unit, beRounding]);
 
   const now = new Date();
@@ -1311,7 +1390,13 @@ export default function Dashboard() {
           markNotificationRead={markNotificationRead}
         />
 
-        <DashActions {...section(1)} lastSynced={lastSynced} />
+        <DashActions
+          {...section(1)}
+          lastSynced={lastSynced}
+          onSync={onSync}
+          syncing={syncing}
+          syncNote={syncNote}
+        />
 
         {/* KpiRow re-splits itself from a content floor, so there is no column count to
             keep in sync — see the header on kpi.jsx. */}

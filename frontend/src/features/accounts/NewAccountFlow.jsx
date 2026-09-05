@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import Logo from '../../components/Logo.jsx';
 import { BRAND } from '../../lib/theme.js';
-import { completeOnboarding, fetchChallengeGroups, provisionAccount } from '../../lib/api.js';
+import {
+  completeOnboarding, fetchChallengeGroups, provisionAccount, provisionCtraderAccounts,
+} from '../../lib/api.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import {
   Button, WizardBody, WizardBrand, WizardExit, WizardFooter, WizardHeader, WizardPage,
@@ -150,6 +152,31 @@ export default function NewAccountFlow({
    * is the opposite end of the ladder from the one the trader clicked. Validated against
    * the group below, never trusted on its own. */
   const wantedPhase = new URLSearchParams(location.search).get('phase') || null;
+  /* `?ctrader=connected&identity=<id>` — where the cTrader consent screen sends the
+   * trader back.
+   *
+   * READ HERE, IN THE SHELL, AND NOT IN ConnectStep. The callback redirects to
+   * `/accounts/new`, which is FlowIndex, which immediately does
+   * `<Navigate to={`/accounts/new/${firstIncomplete(draft)}`} />` -- and <Navigate>
+   * does NOT carry location.search. The query is therefore GONE before any step
+   * mounts, so a step reading useSearchParams() sees nothing and asks the user to
+   * authorize again, forever, while the identity is created server-side every time.
+   *
+   * The shell is mounted for every step and sees the entry location, which is why
+   * `challenge` and `phase` are already read here. This is the same problem.
+   *
+   * CAPTURED ONCE, IN useState, NOT DERIVED FROM THE LIVE LOCATION. A useMemo on
+   * location.search recomputes to null the moment FlowIndex navigates -- which the
+   * SUCCESS path survives, because the identity is already in the draft by then,
+   * but the FAILURE path does not: `?ctrader=error&reason=expired` would render
+   * for one frame and vanish, leaving the trader on an Authorize button with no
+   * explanation of why the last attempt did nothing. */
+  const [ctraderReturn] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    const status = q.get('ctrader');
+    if (!status) return null;
+    return { status, reason: q.get('reason'), identityId: Number(q.get('identity')) || null };
+  });
   const [seedTried, setSeedTried] = useState(false);
 
   useEffect(() => {
@@ -264,11 +291,41 @@ export default function NewAccountFlow({
    * handler (connect's EA branch patches import_method then provisions). patch()
    * returns the new draft but this component has not re-rendered yet, so the payload
    * must be built from what the caller just computed. */
+  /* The identity goes into the DRAFT, which is mirrored to sessionStorage and
+   * survives the navigation that eats the query string. Guarded on the current
+   * value so this cannot loop. */
+  useEffect(() => {
+    if (ctraderReturn?.status === 'connected' && ctraderReturn.identityId
+        && draft.ctrader_identity_id !== ctraderReturn.identityId) {
+      patch({ ctrader_identity_id: ctraderReturn.identityId });
+    }
+  }, [ctraderReturn, draft.ctrader_identity_id, patch]);
+
   const commit = useCallback(async (extra = {}, draftOverride) => {
     setCommitting(true);
     try {
       const source = draftOverride ?? draft;
-      const account = await provisionAccount({ ...toProvisionPayload(source), ...extra });
+      // cTRADER COMMITS THROUGH ITS OWN ENDPOINT, because one grant can become
+      // SEVERAL accounts and /api/accounts/provision makes exactly one. The
+      // selections are re-validated server-side against what that identity
+      // actually owns, so a tampered list cannot point at a stranger's account.
+      let account;
+      if (extra.ctraderSelections) {
+        const { ctraderSelections, ...rest } = extra;
+        const { accounts } = await provisionCtraderAccounts(source.ctrader_identity_id, {
+          ...toProvisionPayload(source), ...rest, selections: ctraderSelections,
+        });
+        // The draft records ONE account because the rest of the wizard is
+        // single-account shaped; the others exist and appear in the accounts list.
+        [account] = accounts ?? [];
+        // The route answers 409 when it created nothing (everything was already
+        // connected), so this cannot normally happen — but reading `.id` off undefined
+        // would replace the wizard with the error boundary and say nothing useful,
+        // which is a poor way to learn that a contract changed.
+        if (!account) throw new Error('cTrader returned no new accounts to add');
+      } else {
+        account = await provisionAccount({ ...toProvisionPayload(source), ...extra });
+      }
       // Recorded BEFORE anything that can fail: from here the draft is committed,
       // navigation is forward-only, and a retry would create a second account.
       // reloadAccounts and the onboarding stamp are best-effort by comparison.
@@ -300,7 +357,7 @@ export default function NewAccountFlow({
   }, [draft, setAccountId, navigate]);
 
   const ctx = {
-    draft, patch, advance, back, canGoBack, step, index, total,
+    draft, patch, advance, back, canGoBack, step, index, total, ctraderReturn,
     accounts, challenges, plan: user?.plan, firstRun, onOnboarded,
     commit, committing, finish,
   };

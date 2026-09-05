@@ -97,3 +97,69 @@ test('an empty-query result is a copy, not the live PLATFORM_CARDS reference', (
   result.reverse();
   assert.notDeepEqual(PLATFORM_CARDS.map((c) => c.id), result.map((c) => c.id));
 });
+
+test('the credential form is mirrored, field for field, into the UI catalog', () => {
+  /* THE DRIFT THIS CATCHES. ConnectStep renders the credential form from the UI
+   * catalog, because the frontend cannot import src/domain. The backend then
+   * validates what comes back with the connector's own validateCredential. If the
+   * two field lists disagree, the form collects the wrong things and the user is
+   * refused by a 400 they cannot act on — asking for an MT5 login on a platform
+   * whose credential is an email, say. Same arrangement as importMethods above. */
+  for (const c of PLATFORM_CARDS) {
+    const authority = findPlatform(c.id);
+    assert.deepEqual(
+      (c.credentialFields || []).map((f) => ({ name: f.name, type: f.type, required: f.required })),
+      authority.credentialFields.map((f) => ({ name: f.name, type: f.type, required: f.required })),
+      `${c.id}: the two catalogs disagree about the credential form`,
+    );
+  }
+});
+
+test('the credential COPY is mirrored too — the note and the consent gate', () => {
+  // The note is a per-platform security claim. MT5 promises a trade-capable
+  // password is rejected; TradeLocker says outright that no read-only credential
+  // exists. Letting the UI carry its own wording is how one platform's promise
+  // gets shown above another platform's password field.
+  for (const c of PLATFORM_CARDS) {
+    const authority = findPlatform(c.id);
+    assert.equal(c.credentialNote ?? null, authority.credentialNote ?? null,
+      `${c.id}: the credential note differs between the catalogs`);
+    assert.equal(c.credentialConsent ?? null, authority.credentialConsent ?? null,
+      `${c.id}: the consent gate differs between the catalogs`);
+  }
+});
+
+test('a platform that collects a password says something about it', () => {
+  // A password field with no note is a bare ask for a broker credential. Whatever
+  // the platform's security story is, it has to be ON the field.
+  for (const c of PLATFORM_CARDS) {
+    if (!(c.credentialFields || []).some((f) => f.type === 'password')) continue;
+    assert.ok(c.credentialNote, `${c.id} asks for a password and explains nothing`);
+  }
+});
+
+test('a consent gate exists exactly where the credential can trade', () => {
+  /* The rule, stated once so it cannot drift: a gate is required when and only
+   * when we cannot promise the credential is read-only. MT5's worker checks
+   * trade_allowed and deletes a credential that can trade, so its note is a
+   * checked fact and a tick-box would be ceremony. TradeLocker offers no
+   * read-only credential at all, so the trader must actively affirm what they
+   * are handing over. Getting this backwards in either direction is the bug. */
+  for (const c of PLATFORM_CARDS) {
+    const note = c.credentialNote || '';
+    const claimsReadOnly = /investor|read-only password/i.test(note) && !/no read-only/i.test(note);
+    if (!(c.credentialFields || []).some((f) => f.type === 'password')) {
+      assert.equal(c.credentialConsent ?? null, null, `${c.id} gates a credential it never collects`);
+      continue;
+    }
+    if (claimsReadOnly) {
+      assert.equal(c.credentialConsent ?? null, null,
+        `${c.id} promises a read-only credential, so a consent gate would be theatre`);
+    } else {
+      assert.ok(c.credentialConsent,
+        `${c.id} cannot promise the credential is read-only, so it MUST gate on consent`);
+      assert.match(c.credentialConsent, /trade/i,
+        `${c.id}: the thing being consented to is that the credential can TRADE — say so`);
+    }
+  }
+});

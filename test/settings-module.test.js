@@ -224,12 +224,23 @@ test('no column is invented — the two obvious ones PropVexis lacks are absent'
   const src = code(accounts);
   assert.ok(!/Profit calculation/i.test(src), 'no FIFO/LIFO column');
   assert.ok(!/Next\s*(update|sync)/i.test(src), 'no next-update column');
-  // Every cell reads a field GET /api/accounts actually returns.
+  /* Every cell reads a field GET /api/accounts actually returns.
+   *
+   * The page PLUS the pure helper it renders the identity line from. That helper
+   * moved out of the JSX so node:test could import it and assert the VALUES it
+   * produces — the bug it fixes is "MT5 4000048583094" printed for a cTrader
+   * account, which is about values, not about the shape of the code. Reading only
+   * the page would have failed here for a field that is still very much read. */
+  const src2 = src + code(readSrc('features/settings/accountIdentity.js'));
   for (const field of [
     'label', 'firm_name', 'broker', 'account_type', 'start_balance', 'balance',
     'kind', 'is_active', 'pending', 'mt5_login', 'balance_updated_at', 'created_at',
+    // Added with the cTrader connector: mt5_login is the BANDED join key, and
+    // these two are what say which platform an account is on and what number the
+    // trader recognises.
+    'platform', 'platform_login',
   ]) {
-    assert.match(src, new RegExp(`\\b${field}\\b`), `${field} should be read from the account`);
+    assert.match(src2, new RegExp(`\\b${field}\\b`), `${field} should be read from the account`);
   }
 });
 

@@ -87,6 +87,45 @@ function app({ name, cwd, port, ssmPrefix, appEnv, workers = 1 }) {
   };
 }
 
+// The cTrader worker.
+//
+// A SEPARATE PROCESS FROM THE WEB TIER, and prod-only. Two reasons it cannot live
+// inside Fastify: the web tier is destined for pm2 cluster mode, and N cluster
+// workers each holding a cTrader socket would each receive every execution event
+// and race to ingest it; and a long-lived protobuf socket has a lifecycle
+// (reconnect, re-auth, watchdog) that has no business sharing a process with
+// request handling.
+//
+// `fork`, `instances: 1`, and it must STAY that way: Spotware's guidance is one
+// connection per environment, and two workers would open two live sockets and
+// double-deliver every execution event.
+//
+// It reads the SAME SSM tree as the web tier, so CTRADER_CLIENT_ID,
+// CTRADER_CLIENT_SECRET and SYNC_WORKER_TOKEN are set once per environment.
+function ctraderWorker({ name, cwd, ssmPrefix, appEnv, port }) {
+  return {
+    name,
+    script: 'worker/ctrader/main.js',
+    cwd,
+    instances: 1,
+    exec_mode: 'fork',
+    // A broker socket that dies at 3am should come back, but a crash loop caused
+    // by a bad credential should not hammer Spotware. Ten restarts then stop.
+    max_restarts: 10,
+    restart_delay: 5000,
+    env: {
+      NODE_ENV: 'production',
+      AWS_REGION: 'ap-south-1',
+      SSM_PREFIX: ssmPrefix,
+      APP_ENV: appEnv,
+      // Loopback: the worker talks to its OWN environment's backend, never
+      // through Caddy and never across environments.
+      PROPVEXIS_URL: `http://127.0.0.1:${port}`,
+      CTRADER_WORKER_ID: `ctrader-${appEnv}`,
+    },
+  };
+}
+
 module.exports = {
   apps: [
     app({
@@ -112,6 +151,23 @@ module.exports = {
       ssmPrefix: '/amey-journal/dev/',
       appEnv: 'dev',
       workers: WORKERS.dev,
+    }),
+    // Prod runs the live broker socket. Dev gets one too, because dev is where
+    // this is proven before it reaches prod -- and the two are isolated by SSM
+    // prefix, database and backend port, so they cannot cross-ingest.
+    ctraderWorker({
+      name: 'amey-ctrader',
+      cwd: '/opt/amey-journal',
+      ssmPrefix: '/amey-journal/prod/',
+      appEnv: 'prod',
+      port: 3000,
+    }),
+    ctraderWorker({
+      name: 'amey-ctrader-dev',
+      cwd: '/opt/amey-dev',
+      ssmPrefix: '/amey-journal/dev/',
+      appEnv: 'dev',
+      port: 3012,
     }),
   ],
 };

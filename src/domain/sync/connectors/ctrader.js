@@ -58,12 +58,55 @@ export const normalizeCtraderSymbol = (name) => String(name ?? '').replace(/\//g
 
 const iso = (ms) => new Date(Number(ms)).toISOString();
 
+/**
+ * The account's own facts, from ProtoOATrader plus the broker's asset list.
+ *
+ * WHY THIS IS NEEDED AT ALL. `ProtoOAGetAccountListByAccessTokenRes` -- the only thing
+ * discovery can call -- does not carry the deposit currency, so every cTrader account
+ * was provisioned with the `'USD'` fallback in routes/ctrader.js. On prod that put USD
+ * on a EUR demo account, which is the same class of error as the balance mismatch it
+ * sits next to: a number rendered in a unit it is not in.
+ *
+ * ProtoOATrader carries `depositAssetId`, an id that means nothing on its own --
+ * ProtoOAAssetListReq is what turns it into "EUR". Both are already reachable from the
+ * sync job: fetchTrader() is called on every run for registrationTimestamp and its
+ * `balance` and `moneyDigits` were being thrown away.
+ *
+ * THE BALANCE COMES BACK TOO, AND IT IS NOT REDUNDANT. `dealToTrade` already reports a
+ * post-close balance, but ONLY on a closing deal -- an account with no closed trades has
+ * no `accounts` row at all, so the app knows nothing about what it holds. On prod that
+ * is account 33: connected, synced, and invisible to the reconciliation check. This
+ * figure arrives whether or not the account has ever traded.
+ *
+ * MONEY DIGITS ARE THE MESSAGE'S OWN, as everywhere else in this file. ProtoOATrader
+ * declares its own `moneyDigits` and it is NOT the one on a deal's closePositionDetail.
+ *
+ * Returns null when there is nothing worth writing, so a caller can pass the result on
+ * without deciding what an absent field means.
+ */
+export function traderAccountFacts(trader, assets = []) {
+  if (!trader) return null;
+  const balance = trader.balance == null
+    ? null
+    : scaleMoney(trader.balance, trader.moneyDigits);
+  const depositAssetId = trader.depositAssetId == null ? null : Number(trader.depositAssetId);
+  const asset = depositAssetId == null
+    ? null
+    : (assets ?? []).find((a) => Number(a?.assetId) === depositAssetId) ?? null;
+  // `name` is the code ('EUR'); displayName is prose ('Euro') and would land a sentence
+  // in a currency column.
+  const currency = asset?.name ? String(asset.name).trim().toUpperCase().slice(0, 8) : null;
+  if (balance == null && currency == null) return null;
+  return { balance, currency };
+}
+
 export const ctraderConnector = {
   id: 'ctrader',
   scaleMoney,
   toLots,
   isClosingDeal,
   normalizeCtraderSymbol,
+  traderAccountFacts,
 
   /**
    * A closing deal plus its opening deal becomes one ingest payload.
