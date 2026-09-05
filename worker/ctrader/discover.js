@@ -23,11 +23,7 @@ export const SCOPE_VIEW = 0;
  * hold it, because the read-only promise for this platform IS the scope.
  */
 export async function discoverAccounts({ conn, accessToken }) {
-  const res = await conn.request(
-    'ProtoOAGetAccountListByAccessTokenReq',
-    'PROTO_OA_GET_ACCOUNT_LIST_BY_ACCESS_TOKEN_REQ',
-    { accessToken },
-  );
+  const res = await conn.request('ProtoOAGetAccountListByAccessTokenReq', { accessToken });
 
   const scope = res?.permissionScope;
   if (scope != null && Number(scope) !== SCOPE_VIEW) {
@@ -70,11 +66,7 @@ export async function discoverAccounts({ conn, accessToken }) {
  * connected twice and the same accounts discovered under two identities.
  */
 export async function fetchCtidUserId({ conn, accessToken }) {
-  const res = await conn.request(
-    'ProtoOAGetCtidProfileByTokenReq',
-    'PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_REQ',
-    { accessToken },
-  );
+  const res = await conn.request('ProtoOAGetCtidProfileByTokenReq', { accessToken });
   const id = res?.profile?.userId;
   return id == null ? null : Number(id);
 }

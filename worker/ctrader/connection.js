@@ -86,15 +86,14 @@ export class CtraderConnection extends EventEmitter {
   }
 
   async authApp() {
-    await this.request('ProtoOAApplicationAuthReq', 'PROTO_OA_APPLICATION_AUTH_REQ',
+    await this.request('ProtoOAApplicationAuthReq',
       { clientId: this.clientId, clientSecret: this.clientSecret });
     this.appAuthed = true;
   }
 
   /** Authorize one trading account on this socket, and remember it for reconnects. */
   async authAccount(ctidTraderAccountId, accessToken) {
-    await this.request('ProtoOAAccountAuthReq', 'PROTO_OA_ACCOUNT_AUTH_REQ',
-      { ctidTraderAccountId, accessToken });
+    await this.request('ProtoOAAccountAuthReq', { ctidTraderAccountId, accessToken });
     this.accounts.set(String(ctidTraderAccountId), accessToken);
   }
 
@@ -110,20 +109,21 @@ export class CtraderConnection extends EventEmitter {
         return;
       }
       try {
-        this.send('ProtoHeartbeatEvent', 'HEARTBEAT_EVENT', {});
+        this.send('ProtoHeartbeatEvent', {});
       } catch (err) { this.onDown(err); }
     }, HEARTBEAT_MS);
     this.hb.unref?.();
   }
 
-  send(typeName, typeKey, body, clientMsgId) {
-    const payloadType = this.proto.types[typeKey];
-    const buf = encodeMessage(this.proto, typeName, payloadType, body, clientMsgId);
+  send(typeName, body, clientMsgId) {
+    // The message declares its own payload type — see proto.js. Passing one in
+    // was the seam a wrong enum key slipped through, and it cost us discovery.
+    const buf = encodeMessage(this.proto, typeName, body, clientMsgId);
     this.socket.write(frame(buf));
   }
 
   /** Send and await the correlated reply. */
-  request(typeName, typeKey, body) {
+  request(typeName, body) {
     this.msgSeq += 1;
     const id = `pv-${this.msgSeq}`;
     return new Promise((resolve, reject) => {
@@ -133,7 +133,7 @@ export class CtraderConnection extends EventEmitter {
       }, REQUEST_TIMEOUT_MS);
       timer.unref?.();
       this.pending.set(id, { resolve, reject, timer });
-      try { this.send(typeName, typeKey, body, id); } catch (err) {
+      try { this.send(typeName, body, id); } catch (err) {
         clearTimeout(timer); this.pending.delete(id); reject(err);
       }
     });

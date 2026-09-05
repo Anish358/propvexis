@@ -12,8 +12,7 @@ const PAGE_ROWS = 1000;
 
 /** registrationTimestamp is the true floor for historical requests. */
 export async function fetchTrader({ conn, ctid }) {
-  const res = await conn.request('ProtoOATraderReq', 'PROTO_OA_TRADER_REQ',
-    { ctidTraderAccountId: ctid });
+  const res = await conn.request('ProtoOATraderReq', { ctidTraderAccountId: ctid });
   return res?.trader ?? null;
 }
 
@@ -28,14 +27,14 @@ export async function fetchTrader({ conn, ctid }) {
 export async function fetchSymbols({ conn, ctid, symbolIds }) {
   const out = new Map();
   if (!symbolIds.length) return out;
-  const list = await conn.request('ProtoOASymbolsListReq', 'PROTO_OA_SYMBOLS_LIST_REQ',
+  const list = await conn.request('ProtoOASymbolsListReq',
     { ctidTraderAccountId: ctid, includeArchivedSymbols: true });
   for (const s of list?.symbol ?? []) {
     if (symbolIds.includes(Number(s.symbolId))) {
       out.set(Number(s.symbolId), { symbolName: s.symbolName ?? null, lotSize: null });
     }
   }
-  const full = await conn.request('ProtoOASymbolByIdReq', 'PROTO_OA_SYMBOL_BY_ID_REQ',
+  const full = await conn.request('ProtoOASymbolByIdReq',
     { ctidTraderAccountId: ctid, symbolId: symbolIds });
   for (const s of full?.symbol ?? []) {
     const prev = out.get(Number(s.symbolId)) ?? { symbolName: null, lotSize: null };
@@ -50,7 +49,7 @@ export async function fetchWindow({ conn, ctid, from, to, throttle }) {
   let cursor = from;
   for (let page = 0; page < 200; page += 1) {
     await throttle.take();
-    const res = await conn.request('ProtoOADealListReq', 'PROTO_OA_DEAL_LIST_REQ', {
+    const res = await conn.request('ProtoOADealListReq', {
       ctidTraderAccountId: ctid, fromTimestamp: cursor, toTimestamp: to, maxRows: PAGE_ROWS,
     });
     const batch = res?.deal ?? [];

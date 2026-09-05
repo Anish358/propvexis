@@ -27,8 +27,8 @@ function connected({ isLive = false } = {}) {
   return { sock, conn };
 }
 
-const reply = (conn, sock, typeName, typeKey, body, clientMsgId) => {
-  const buf = encodeMessage(proto, typeName, proto.types[typeKey], body, clientMsgId);
+const reply = (conn, sock, typeName, body, clientMsgId) => {
+  const buf = encodeMessage(proto, typeName, body, clientMsgId);
   sock.emit('data', frame(buf));
 };
 
@@ -50,7 +50,7 @@ test('opening the socket authenticates the APPLICATION first', async () => {
   assert.equal(sock.written.length, 1, 'exactly one message before any reply');
   const sent = proto.ProtoMessage.decode(sock.written[0]);
   assert.equal(sent.payloadType, proto.types.PROTO_OA_APPLICATION_AUTH_REQ);
-  reply(conn, sock, 'ProtoOAApplicationAuthRes', 'PROTO_OA_APPLICATION_AUTH_RES', {}, sent.clientMsgId);
+  reply(conn, sock, 'ProtoOAApplicationAuthRes', {}, sent.clientMsgId);
   await opening;
   assert.equal(conn.appAuthed, true);
   conn.close();
@@ -63,13 +63,13 @@ test('a reply is matched to its request by clientMsgId, not by arrival order', a
    * for a trader record. */
   const { sock, conn } = connected();
   conn.proto = proto; conn.socket = sock; sock.on('data', (c) => conn.onData(c));
-  const a = conn.request('ProtoOATraderReq', 'PROTO_OA_TRADER_REQ', { ctidTraderAccountId: 1 });
-  const b = conn.request('ProtoOATraderReq', 'PROTO_OA_TRADER_REQ', { ctidTraderAccountId: 2 });
+  const a = conn.request('ProtoOATraderReq', { ctidTraderAccountId: 1 });
+  const b = conn.request('ProtoOATraderReq', { ctidTraderAccountId: 2 });
   const [idA, idB] = sock.written.map((w) => proto.ProtoMessage.decode(w).clientMsgId);
   // Answer them OUT OF ORDER.
-  reply(conn, sock, 'ProtoOATraderRes', 'PROTO_OA_TRADER_RES',
+  reply(conn, sock, 'ProtoOATraderRes',
     { ctidTraderAccountId: 2, trader: { ctidTraderAccountId: 2, depositAssetId: 1, balance: 0, moneyDigits: 2 } }, idB);
-  reply(conn, sock, 'ProtoOATraderRes', 'PROTO_OA_TRADER_RES',
+  reply(conn, sock, 'ProtoOATraderRes',
     { ctidTraderAccountId: 1, trader: { ctidTraderAccountId: 1, depositAssetId: 1, balance: 0, moneyDigits: 2 } }, idA);
   assert.equal(Number((await a).ctidTraderAccountId), 1);
   assert.equal(Number((await b).ctidTraderAccountId), 2);
@@ -85,9 +85,9 @@ test('retryAfter is SECONDS and is converted before it reaches a millisecond clo
   let clock = 1_000_000;
   const { sock, conn } = connected();
   conn.proto = proto; conn.socket = sock; sock.on('data', (c) => conn.onData(c)); conn.now = () => clock;
-  const p = conn.request('ProtoOADealListReq', 'PROTO_OA_DEAL_LIST_REQ', { ctidTraderAccountId: 1 });
+  const p = conn.request('ProtoOADealListReq', { ctidTraderAccountId: 1 });
   const id = proto.ProtoMessage.decode(sock.written[0]).clientMsgId;
-  reply(conn, sock, 'ProtoOAErrorRes', 'PROTO_OA_ERROR_RES',
+  reply(conn, sock, 'ProtoOAErrorRes',
     { errorCode: 'BLOCKED_PAYLOAD_TYPE', description: 'slow down', retryAfter: 30 }, id);
   await assert.rejects(p, /BLOCKED_PAYLOAD_TYPE/);
   assert.ok(conn.throttle.nextSlotAt() >= clock + 30_000,
@@ -107,7 +107,7 @@ test('a token invalidation re-authorizes ONLY the named accounts', async () => {
   conn.on('accountsInvalidated', (e) => seen.push(e));
   let wentDown = false;
   conn.on('down', () => { wentDown = true; });
-  reply(conn, sock, 'ProtoOAAccountsTokenInvalidatedEvent', 'PROTO_OA_ACCOUNTS_TOKEN_INVALIDATED_EVENT',
+  reply(conn, sock, 'ProtoOAAccountsTokenInvalidatedEvent',
     { ctidTraderAccountIds: [111], reason: 'token was refreshed' });
   assert.deepEqual(seen[0].ids, ['111']);
   assert.equal(conn.accounts.has('111'), false, 'the invalidated account must be forgotten');
@@ -121,7 +121,7 @@ test('an execution event is emitted, not mistaken for a reply', async () => {
   conn.proto = proto; conn.socket = sock; sock.on('data', (c) => conn.onData(c));
   const got = [];
   conn.on('execution', (m) => got.push(m));
-  reply(conn, sock, 'ProtoOAExecutionEvent', 'PROTO_OA_EXECUTION_EVENT',
+  reply(conn, sock, 'ProtoOAExecutionEvent',
     { ctidTraderAccountId: 5, executionType: EXEC.ORDER_FILLED });
   assert.equal(got.length, 1);
   assert.equal(Number(got[0].ctidTraderAccountId), 5);
@@ -169,7 +169,7 @@ test('going down rejects every in-flight request instead of hanging them', async
   // until it expired, which is the silent-spin failure in a different costume.
   const { sock, conn } = connected();
   conn.proto = proto; conn.socket = sock; sock.on('data', (c) => conn.onData(c));
-  const p = conn.request('ProtoOATraderReq', 'PROTO_OA_TRADER_REQ', { ctidTraderAccountId: 1 });
+  const p = conn.request('ProtoOATraderReq', { ctidTraderAccountId: 1 });
   conn.onDown(new Error('network gone'));
   await assert.rejects(p, /network gone/);
   conn.close();
