@@ -283,8 +283,10 @@ export function identitiesAwaitingDiscoveryQuery(limit = 5) {
     text: `SELECT i.id, i.access_token_ct, i.refresh_token_ct, i.expires_at
              FROM ctrader_identities i
             WHERE i.revoked_at IS NULL
-              AND NOT EXISTS (SELECT 1 FROM ctrader_discovered_accounts d
-                               WHERE d.identity_id = i.id)
+              -- "NOT YET LOOKED AT", not "found nothing". Filtering on the
+              -- absence of discovered rows re-polled an identity that
+              -- legitimately owns ZERO accounts on every single tick, forever.
+              AND i.discovered_at IS NULL
             ORDER BY i.created_at
             LIMIT $1;`,
     values: [limit],
@@ -359,3 +361,20 @@ export async function freshAccessToken(row, opts = {}) {
 export const identitiesAwaitingDiscovery = (limit) => run(identitiesAwaitingDiscoveryQuery(limit));
 export const supersedeDuplicateIdentities = (identityId, ctidUserId) =>
   run(supersedeDuplicateIdentitiesQuery(identityId, ctidUserId));
+
+/**
+ * Record that discovery has run for this identity.
+ *
+ * Stamped on SUCCESS whatever the count, because "this grant owns no trading
+ * accounts" is an answer. Without it the identity is asked again on every tick.
+ */
+export function markDiscoveredQuery(identityId) {
+  return {
+    text: `UPDATE ctrader_identities
+              SET discovered_at = now(), updated_at = now()
+            WHERE id = $1
+        RETURNING id, discovered_at;`,
+    values: [identityId],
+  };
+}
+export const markDiscovered = (identityId) => run(markDiscoveredQuery(identityId));

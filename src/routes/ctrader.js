@@ -6,7 +6,7 @@ import {
   identitiesEnabled, sealTokens, createIdentity, rotateTokens,
   listIdentities, revokeIdentity, discoveredForIdentity,
   identitiesAwaitingDiscovery, freshAccessToken, upsertDiscovered, setCtid,
-  supersedeDuplicateIdentities,
+  supersedeDuplicateIdentities, markDiscovered,
   markIdentityError, identityForUser,
 } from '../domain/sync/ctraderIdentities.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
@@ -198,6 +198,10 @@ export default function ctraderRoutes(app) {
       await setCtid(id, ctidUserId);
     }
     for (const a of accounts) await upsertDiscovered(id, a);
+    // Stamped even when accounts is empty: "this grant owns no trading accounts"
+    // is an answer, and treating it as "not looked at yet" is what made the
+    // worker re-poll the same identity on every tick, forever.
+    await markDiscovered(id);
     return reply.send({ ok: true, stored: accounts.length });
   });
 

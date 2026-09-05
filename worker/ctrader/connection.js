@@ -91,10 +91,40 @@ export class CtraderConnection extends EventEmitter {
     this.appAuthed = true;
   }
 
-  /** Authorize one trading account on this socket, and remember it for reconnects. */
+  /**
+   * Authorize one trading account on this socket, and remember it for reconnects.
+   *
+   * ALREADY_LOGGED_IN IS SUCCESS. These sockets are long-lived and serve unlimited
+   * accounts, so the second job for an account is always a re-auth and cTrader
+   * refuses it outright:
+   *
+   *   ALREADY_LOGGED_IN: Trading account is already authorized in this channel
+   *
+   * From our side the outcome is exactly the one we asked for -- the account IS
+   * authorized on this channel -- so treating the refusal as a failure meant the
+   * job failed, never completed, and sat queued forever while the UI reported
+   * "already syncing". Every OTHER error still propagates: swallowing them would
+   * turn an expired token into a job that "succeeds" having read nothing.
+   */
   async authAccount(ctidTraderAccountId, accessToken) {
-    await this.request('ProtoOAAccountAuthReq', { ctidTraderAccountId, accessToken });
+    try {
+      await this.request('ProtoOAAccountAuthReq', { ctidTraderAccountId, accessToken });
+    } catch (err) {
+      if (err?.errorCode !== 'ALREADY_LOGGED_IN') throw err;
+    }
     this.accounts.set(String(ctidTraderAccountId), accessToken);
+  }
+
+  /**
+   * Authorize only if this socket has not already done so.
+   *
+   * The cheapest fix for a refusal is not making the request. The set lives on the
+   * CONNECTION and is cleared when the socket drops (onDown), which is correct:
+   * a new socket has authorized nobody, and cTrader agrees.
+   */
+  async ensureAccount(ctidTraderAccountId, accessToken) {
+    if (this.accounts.get(String(ctidTraderAccountId)) === accessToken) return;
+    await this.authAccount(ctidTraderAccountId, accessToken);
   }
 
   startTimers() {
@@ -208,6 +238,9 @@ export class CtraderConnection extends EventEmitter {
     this.appAuthed = false;
     for (const [, p] of this.pending) { clearTimeout(p.timer); p.reject(err); }
     this.pending.clear();
+    // A dead socket has authorized nobody. Keeping the set would make the next
+    // connection skip the auth it actually needs.
+    this.accounts.clear();
     try { this.socket?.destroy(); } catch { /* already gone */ }
     this.socket = null;
     this.reader = new FrameReader();

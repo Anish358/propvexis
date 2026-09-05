@@ -96,9 +96,12 @@ class Worker {
 
   async runJob(job) {
     const conn = await this.connection(job.is_live);
-    // Authorizing is idempotent and cheap; doing it per job is what makes a
-    // reconnect self-healing without tracking which accounts a new socket has.
-    await conn.authAccount(job.ctid_trader_account_id, job.access_token);
+    // NOT unconditionally: cTrader refuses a re-auth with ALREADY_LOGGED_IN, and
+    // these sockets are long-lived, so every job after the first for an account
+    // was hitting it. ensureAccount skips when this socket already has it, and
+    // treats the refusal as success when the race happens anyway. The set is
+    // cleared on disconnect, so a reconnect still re-authorizes.
+    await conn.ensureAccount(job.ctid_trader_account_id, job.access_token);
 
     const { posted, windows } = await backfillAccount({
       conn, api: this.api, job, throttle: conn.throttle, log,
