@@ -317,7 +317,12 @@ export default function NewAccountFlow({
         });
         // The draft records ONE account because the rest of the wizard is
         // single-account shaped; the others exist and appear in the accounts list.
-        [account] = accounts;
+        [account] = accounts ?? [];
+        // The route answers 409 when it created nothing (everything was already
+        // connected), so this cannot normally happen — but reading `.id` off undefined
+        // would replace the wizard with the error boundary and say nothing useful,
+        // which is a poor way to learn that a contract changed.
+        if (!account) throw new Error('cTrader returned no new accounts to add');
       } else {
         account = await provisionAccount({ ...toProvisionPayload(source), ...extra });
       }

@@ -14,6 +14,7 @@ import {
   reclaimExpired,
   heartbeat,
   lastJob,
+  lastManualJob,
   jobForWorker,
   isMarketOpen,
   requestedPlatforms,
@@ -23,6 +24,7 @@ import {
   syncableAccounts,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
+import { recordBrokerAccount } from '../domain/sync/brokerAccount.js';
 import { freshAccessToken, markIdentityError } from '../domain/sync/ctraderIdentities.js';
 import {
   credentialsEnabled,
@@ -235,6 +237,24 @@ export default function syncRoutes(app) {
 
     if (b.ok) {
       await markVerified(accountId);
+      /* WHAT THE BROKER SAYS THE ACCOUNT IS -- balance and deposit currency, reported
+       * alongside the result because they belong to the ACCOUNT rather than to any
+       * trade. Two things were wrong without it: a cTrader account kept the `'USD'`
+       * fallback it was provisioned with (its currency is unreachable at discovery
+       * time), and an account that has never closed a trade had no balance recorded
+       * anywhere, because the only source was a closing deal.
+       *
+       * BEST EFFORT, ON PURPOSE. This is metadata riding along with a sync that has
+       * already imported trades successfully; failing the job over it would throw away
+       * real work for a cosmetic field. `accountId` still comes from the JOB, never
+       * from the body, so a hostile worker cannot aim this at another tenant. */
+      if (b.account) {
+        try {
+          await recordBrokerAccount(accountId, b.account);
+        } catch (err) {
+          req.log.warn({ account: accountId, err: err.message }, 'broker account facts not stored');
+        }
+      }
       const job = await completeJob(jobId, b.stats ?? {});
       if (!job) return reply.code(409).send({ error: 'job is not leased' });
       return reply.send({ ok: true, job });
@@ -376,7 +396,11 @@ export default function syncRoutes(app) {
     const queued = [];
     const skipped = [];
     for (const a of accounts) {
-      const previous = await lastJob(a.id);
+      // THE MANUAL COOLDOWN READS MANUAL JOBS ONLY. lastJob() returns the newest job
+      // of any reason, so adding an account -- which enqueues a `first_sync` -- used to
+      // start a 15-minute manual cooldown and refuse the trader's very first press.
+      // See lastManualJobQuery.
+      const previous = await lastManualJob(a.id);
       const cooldown = manualCooldown(previous);
       if (cooldown.blocked) {
         const mins = Math.ceil(cooldown.retryAfterMs / 60_000);
@@ -442,7 +466,10 @@ export default function syncRoutes(app) {
       return reply.code(409).send({ error: 'this account is not connected to cTrader' });
     }
 
-    const previous = await lastJob(acct.id);
+    // MANUAL JOBS ONLY -- a scheduled sync and the account's own `first_sync` must not
+    // spend the human's allowance. The unattended cadence has its own limiter, and it
+    // is three hours (dueAccountsQuery), not this fifteen minutes.
+    const previous = await lastManualJob(acct.id);
     const cooldown = manualCooldown(previous);
     if (cooldown.blocked) {
       const retryAfter = Math.ceil(cooldown.retryAfterMs / 1000);

@@ -123,7 +123,7 @@ export function emptyDraft({ provisionKey = null, firstRun = false } = {}) {
 
     platform: null,
     // The cTrader grant this draft is building on. Written by ConnectStep when the
-    // consent redirect comes back; the picker and the commit both read it.
+    // consent redirect comes back; the discovery poll and the commit both read it.
     ctrader_identity_id: null,
     broker: null,                // free text, live path only (spec §7.2)
     import_method: null,         // 'auto_sync' | 'ea' | 'file' | 'manual'
@@ -186,10 +186,14 @@ export function stepsFor(draft) {
   steps.push('account', 'platform', 'import');
   if (AUTO_SYNC_METHODS.includes(d.import_method)) {
     steps.push('connect');
-    // cTrader authorizes instead of collecting a credential, and ONE grant can
-    // cover several trading accounts -- so `connect` cannot know which account is
-    // being made and a picker has to follow it. This is the only branch where the
-    // commit is not on `connect`.
+    // cTrader authorizes instead of collecting a credential, and ONE grant can cover
+    // several trading accounts -- so `connect` cannot know which accounts are being
+    // made and a step has to follow it. That step no longer ASKS which (owner decision
+    // 2026-09-06: cTrader's own consent screen already did, and the account list comes
+    // back covering only what was granted); it waits for the worker to enumerate them
+    // and provisions the lot. It is still a step because it is the only thing that
+    // waits -- see CtraderAccountsStep. This is the only branch where the commit is not
+    // on `connect`.
     if (d.platform === 'ctrader' && d.import_method === 'auto_sync') steps.push('ctrader-accounts');
   } else if (d.import_method === 'file') steps.push('upload');
   steps.push('done');
@@ -209,8 +213,8 @@ export function commitStep(draft) {
   const method = draft?.import_method;
   if (!method) return null;
   if (method !== 'auto_sync') return 'import';
-  // cTrader commits at the PICKER, not at `connect`: authorizing tells us the
-  // grant exists, not which of its accounts the trader wants journalled.
+  // cTrader commits at `ctrader-accounts`, not at `connect`: authorizing tells us the
+  // grant exists, and only the worker can say which trading accounts it covers.
   return draft?.platform === 'ctrader' ? 'ctrader-accounts' : 'connect';
 }
 

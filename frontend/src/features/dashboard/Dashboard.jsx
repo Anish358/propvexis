@@ -58,7 +58,7 @@ import {
 import { chartPalette, token } from '../../lib/theme.js';
 import { cumulativeSeries, pnlAxis } from './cumulativePnl.js';
 import {
-  computeMetrics, fmtVal, fmtValShort,
+  computeMetrics, fmtMoney, fmtVal, fmtValShort,
 } from '../../lib/metrics.js';
 
 // Chart theming from design tokens (matches Analytics.jsx's equity curve).
@@ -763,7 +763,42 @@ function AccountCard({
 }) {
   const [targetOpen, setTargetOpen] = useState(false);
   const [locking, setLocking] = useState(false);
+  const [fixingBalance, setFixingBalance] = useState(false);
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
+
+  /* ADOPT THE BROKER'S BALANCE AS THE STARTING BALANCE.
+   *
+   * The one fix for a SETUP_MISMATCH banner (features/prop/accountAlert.js): the account
+   * is configured as, say, a $25,000 prop challenge while the broker reports it holds
+   * 999.87, so every rule on this card is sized off a number the account contradicts.
+   *
+   * CONFIRMED, NEVER AUTOMATIC, and the dialog quotes both figures — the app cannot tell
+   * which one is wrong. PATCH /api/accounts/:id mirrors start_balance onto the ACTIVE
+   * challenge (syncActiveChallengeRules), which is what makes this one click rather than
+   * an edit here and a second one in Prop OS; the drawdown and target percentages are
+   * untouched, so the rules keep their shape and only their base moves. */
+  async function fixStartBalance() {
+    const check = data.balanceCheck;
+    if (!acctRecord || !check) return;
+    // eslint-disable-next-line no-alert
+    if (!confirm(
+      `Set the starting balance of ${acctRecord.label || `account ${data.account_id}`} `
+      + `to ${fmtMoney(check.reported)}?\n\n`
+      + `It is currently ${fmtMoney(check.startBalance)}, which your broker does not `
+      + 'agree with. Your drawdown and profit-target percentages stay as they are — they '
+      + 'will simply be measured from the new balance.\n\n'
+      + 'Only do this if the broker figure is the right one. If the account really is a '
+      + `${fmtMoney(check.startBalance)} challenge, leave this alone and check that you `
+      + 'connected the account you meant to.',
+    )) return;
+    setFixingBalance(true);
+    try {
+      await updateAccount(acctRecord.id, { start_balance: check.reported });
+      onChanged();
+    } finally {
+      setFixingBalance(false);
+    }
+  }
 
   async function lockAccount() {
     if (!acctRecord) return;
@@ -793,7 +828,7 @@ function AccountCard({
    * It used to fire on `healthStatus(...) === 'bad'` — a blended 0-100 score over three
    * meters — while its copy read "is close to today's loss limit", a sentence that
    * could be false at the moment it appeared: the score also falls to `bad` on max
-   * drawdown alone, or on a breach that happened days ago. Six explicit states now live
+   * drawdown alone, or on a breach that happened days ago. Seven explicit states now live
    * in features/prop/accountAlert.js, each reading ONE rule and quoting its number.
    *
    * THE CARD'S RED EDGE FOLLOWS THE BANNER'S OWN SEVERITY, from the banner's own set —
@@ -827,6 +862,8 @@ function AccountCard({
         data={data}
         onLock={acctRecord ? lockAccount : null}
         locking={locking}
+        onFixBalance={acctRecord ? fixStartBalance : null}
+        fixingBalance={fixingBalance}
       />
 
       {/* The three rule meters live in AccountDetails.jsx — Accounts › Details renders

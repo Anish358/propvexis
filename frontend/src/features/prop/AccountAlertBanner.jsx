@@ -15,7 +15,7 @@ import { accountAlertFor } from './accountAlert.js';
  *
  * IT REPLACED A HARD-CODED RED STRIP that fired on a blended health score and always
  * said the same two things. The strip's structure, spacing, type and height are
- * unchanged — the six states differ only in hue, glyph, sentence and action, which is
+ * unchanged — the seven states differ only in hue, glyph, sentence and action, which is
  * what makes them read as one component changing state.
  *
  * THE GLYPHS ARE THE METERS' GLYPHS. AccountDetails maps warn -> AlertTriangle and
@@ -38,12 +38,17 @@ const ICON = {
 };
 
 /**
- * @param {object}   data       one entry from GET /api/prop (challengeState)
- * @param {function} onLock     archive this account, or null when the card cannot act
- *                              on it (no matching account record loaded)
- * @param {boolean}  locking    the archive request is in flight
+ * @param {object}   data          one entry from GET /api/prop (challengeState)
+ * @param {function} onLock        archive this account, or null when the card cannot act
+ *                                 on it (no matching account record loaded)
+ * @param {boolean}  locking       the archive request is in flight
+ * @param {function} onFixBalance  adopt the broker's balance as the starting balance, or
+ *                                 null when there is no account record to write to
+ * @param {boolean}  fixingBalance that write is in flight
  */
-export default function AccountAlertBanner({ data, onLock = null, locking = false }) {
+export default function AccountAlertBanner({
+  data, onLock = null, locking = false, onFixBalance = null, fixingBalance = false,
+}) {
   const alert = accountAlertFor(data);
   if (!alert) return null;
 
@@ -59,7 +64,20 @@ export default function AccountAlertBanner({ data, onLock = null, locking = fals
    * PropVexis TRACKING the account, which is a genuine thing a trader in a stop-trading
    * zone may want. The confirm dialog the card owns says exactly that. */
   let action = null;
-  if (alert.action === 'lock' && onLock) {
+  if (alert.action === 'balance' && onFixBalance) {
+    /* THE ONLY WRITE ANY BANNER OFFERS, and it is offered rather than performed: the app
+     * cannot tell which of the two numbers is wrong. A demo account added from a $25K
+     * prop template and a real $25K account whose balance read is stale are the same
+     * signal here, and silently adopting the broker's figure would REWRITE THE RULES a
+     * trader deliberately configured — on a funded account mid-drawdown that means
+     * scoring them against a band their firm never set. So the trader confirms, and the
+     * card's dialog quotes both numbers before it does anything. */
+    action = (
+      <AccountBannerAction tone={alert.tone} onClick={onFixBalance} disabled={fixingBalance}>
+        {fixingBalance ? 'Updating…' : 'Use broker balance'}
+      </AccountBannerAction>
+    );
+  } else if (alert.action === 'lock' && onLock) {
     action = (
       <AccountBannerAction tone={alert.tone} onClick={onLock} disabled={locking}>
         {locking ? 'Locking…' : 'Lock account'}
