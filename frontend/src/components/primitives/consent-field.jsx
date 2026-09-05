@@ -25,7 +25,7 @@ import { Field, FieldItem, FieldLabel } from './field.jsx';
  * exposing checked state to assistive tech. `htmlFor`/`id` pairing means clicking
  * the sentence toggles the box, which for a three-line label is the whole target.
  */
-export function ConsentField({ id, checked, onCheckedChange, children }) {
+export function ConsentField({ id, checked, onCheckedChange, disabled = false, children }) {
   return (
     <Field>
       <FieldItem className="items-start gap-3">
@@ -33,6 +33,7 @@ export function ConsentField({ id, checked, onCheckedChange, children }) {
           id={id}
           checked={checked}
           onCheckedChange={onCheckedChange}
+          disabled={disabled}
           className="mt-0.5 shrink-0"
         />
         <FieldLabel htmlFor={id} className="block font-normal leading-relaxed">

@@ -110,3 +110,45 @@ test('a missing expiry is treated as expired, not as forever', async () => {
   });
   assert.equal(refreshed, true);
 });
+
+test('THE AAD IS BUILT FROM THE ROW THE LEASE ACTUALLY RETURNS', async () => {
+  /* THE BUG THIS CATCHES, AND WHY THE TESTS ABOVE MISSED IT.
+   *
+   * openTokens derives its AAD from `row.id`. ctraderLeasedPayloadQuery selects
+   * `i.id AS identity_id` and NO bare `id`, because `id` there would collide with
+   * the job's own. So the lease path handed openTokens a row with no `id`, the
+   * AAD became `ctrader-token:NaN`, and EVERY cTrader lease failed to decrypt --
+   * surfacing as "cTrader authorization expired — reconnect the account" on a
+   * connection that was perfectly healthy.
+   *
+   * Every test above injects `open`, which is precisely what hid it: they proved
+   * the refresh LOGIC and said nothing about whether the ciphertext could be
+   * opened. This one uses the REAL seal and open, so the AAD is exercised. */
+  const { sealTokens, freshAccessToken: fresh } = await import('../src/domain/sync/ctraderIdentities.js');
+  const realCfg = { syncCredKey: 'b'.repeat(64) };
+  const sealed = sealTokens(42, { accessToken: 'real-access', refreshToken: 'real-refresh' }, realCfg);
+
+  // Shaped exactly as ctraderLeasedPayloadQuery returns it: identity_id, no id.
+  const leaseRow = {
+    identity_id: 42,
+    access_token_ct: sealed.access_token_ct,
+    refresh_token_ct: sealed.refresh_token_ct,
+    expires_at: new Date(Date.now() + 30 * 24 * 3600_000),
+  };
+  const r = await fresh(leaseRow, { cfg: realCfg });
+  assert.equal(r.accessToken, 'real-access');
+  assert.equal(r.refreshed, false);
+
+  // ...and the discovery path's shape (bare `id`) must keep working too.
+  const discoveryRow = { ...leaseRow, id: 42, identity_id: undefined };
+  assert.equal((await fresh(discoveryRow, { cfg: realCfg })).accessToken, 'real-access');
+});
+
+test('a row identifying no identity fails loudly rather than sealing to NaN', async () => {
+  const { freshAccessToken: fresh } = await import('../src/domain/sync/ctraderIdentities.js');
+  await assert.rejects(
+    fresh({ access_token_ct: 'x', refresh_token_ct: 'y', expires_at: new Date() },
+      { cfg: { syncCredKey: 'c'.repeat(64) } }),
+    /identity/i,
+  );
+});

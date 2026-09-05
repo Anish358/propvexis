@@ -284,7 +284,17 @@ export async function freshAccessToken(row, opts = {}) {
     rotate = rotateTokens,
   } = opts;
 
-  const current = openFn(row, cfg);
+  // THE ROW COMES IN TWO SHAPES and the AAD depends on getting the id from
+  // either. The discovery query selects a bare `id`; the lease query selects
+  // `i.id AS identity_id`, because a bare `id` there would collide with the
+  // job's own. Reading only `row.id` made the AAD `ctrader-token:NaN` on every
+  // lease -- and openTokens then failed, surfacing as "authorization expired" on
+  // a healthy connection.
+  const identityId = row?.identity_id ?? row?.id;
+  if (identityId == null) {
+    throw new Error('ctrader: cannot open tokens — the row identifies no identity');
+  }
+  const current = openFn({ ...row, id: identityId }, cfg);
   const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : null;
   // A null or unparseable expiry is treated as EXPIRED. Assuming it is still
   // valid is the choice that fails in production at a time nobody chose.
@@ -295,9 +305,9 @@ export async function freshAccessToken(row, opts = {}) {
 
   let stored;
   try {
-    const sealed = sealTokens(row.identity_id, next, cfg);
+    const sealed = sealTokens(identityId, next, cfg);
     stored = await rotate(
-      row.identity_id, sealed.access_token_ct, sealed.refresh_token_ct, next.expiresAt,
+      identityId, sealed.access_token_ct, sealed.refresh_token_ct, next.expiresAt,
     );
   } catch (err) {
     throw new Error(`ctrader token rotation could not be stored: ${err.message}`);

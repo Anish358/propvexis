@@ -36,18 +36,26 @@ export async function discoverAccounts({ conn, accessToken }) {
     );
   }
 
+  // CAMEL CASE, AND THAT IS A CONTRACT, NOT A STYLE CHOICE. These objects are
+  // JSON-posted straight to /api/ctrader/discovery/:id and handed to
+  // upsertDiscoveredQuery, which reads a.ctidTraderAccountId, a.traderLogin,
+  // a.isLive, a.brokerName. Emitting snake_case here resolved every field to
+  // undefined and put a null in the NOT NULL primary key -- discovery 500'd and
+  // the picker was never populated. Two modules, one JSON shape, no type system
+  // between them, so test/ctrader-discovery.test.js runs the real producer into
+  // the real consumer.
   const accounts = (res?.ctidTraderAccount ?? []).map((a) => ({
-    ctid_trader_account_id: Number(a.ctidTraderAccountId),
-    trader_login: a.traderLogin == null ? null : Number(a.traderLogin),
-    // Which of the two disjoint sockets this account lives on. Stored, never recomputed.
-    is_live: a.isLive === true,
-    broker_name: a.brokerTitleShort ?? null,
-    // Not in this response. ProtoOATraderReq carries depositAssetId when the
+    ctidTraderAccountId: Number(a.ctidTraderAccountId),
+    traderLogin: a.traderLogin == null ? null : Number(a.traderLogin),
+    // Which of the two disjoint sockets this account lives on. Stored, never
+    // recomputed, and a real boolean: undefined would be neither socket.
+    isLive: a.isLive === true,
+    brokerName: a.brokerTitleShort ?? null,
+    // Not in this response. ProtoOATraderReq carries the deposit asset when the
     // account is actually used; inventing a currency here would put a wrong one
     // on the picker card.
-    deposit_currency: null,
-    last_closing_deal_at: a.lastClosingDealTimestamp == null
-      ? null : Number(a.lastClosingDealTimestamp),
+    depositCurrency: null,
+    registeredAt: null,
   }));
   return { accounts };
 }

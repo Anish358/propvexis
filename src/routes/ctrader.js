@@ -9,8 +9,11 @@ import {
   markIdentityError, identityForUser,
 } from '../domain/sync/ctraderIdentities.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
-import { validateProvision, provisionAccount, PROVISION_CONFLICT } from '../domain/accounts/provision.js';
+import {
+  validateProvision, provisionAccount, provisionGate, PROVISION_CONFLICT,
+} from '../domain/accounts/provision.js';
 import { toBandedLogin } from '../domain/sync/logins.js';
+import { planForUser, syncedAccountCount, manualAccountCount } from '../domain/billing/entitlements.js';
 
 /**
  * cTrader Open API: the OAuth surface and the account picker's data.
@@ -212,6 +215,23 @@ export default function ctraderRoutes(app) {
     if (unknown.length) {
       return reply.code(400).send({ error: 'those accounts are not on this connection' });
     }
+
+    // THE SAME GATE EVERY OTHER PROVISION PATH USES. Plan caps are lifted today
+    // (every tier is Infinity), so this changes nothing now -- which is exactly
+    // why it has to be wired in NOW rather than remembered later: the day caps
+    // return, a route that skipped the gate is a free unlimited-accounts hole,
+    // and nothing would fail to point at it.
+    const plan = await planForUser(req.user.uid);
+    const gate = provisionGate({
+      plan,
+      kind: 'synced',
+      // The gate asks "may ONE more be created", so a batch of N is checked by
+      // pretending N-1 already exist. Checking only the current count would let a
+      // capped user pick five accounts and get all five.
+      syncedCount: (await syncedAccountCount(req.user.uid)) + wanted.length - 1,
+      manualCount: await manualAccountCount(req.user.uid),
+    });
+    if (!gate.ok) return reply.code(gate.code).send({ error: gate.error });
 
     const created = [];
     for (const ctid of wanted) {

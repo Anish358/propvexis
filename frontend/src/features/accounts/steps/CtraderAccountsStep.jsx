@@ -133,11 +133,18 @@ export default function CtraderAccountsStep() {
                 key={a.ctid_trader_account_id}
                 id={`ct-${a.ctid_trader_account_id}`}
                 checked={picked.includes(a.ctid_trader_account_id)}
-                onCheckedChange={() => toggle(a.ctid_trader_account_id)}
+                // `claimed` means this cTrader account already has a PropVexis
+                // account. mt5_accounts.ctid_trader_account_id is uniquely
+                // indexed, so picking it would 409 at the end of the wizard --
+                // showing it as unavailable HERE is the difference between a
+                // greyed row and a failed submit after the user chose.
+                disabled={a.claimed === true}
+                onCheckedChange={() => !a.claimed && toggle(a.ctid_trader_account_id)}
               >
                 {a.trader_login ?? a.ctid_trader_account_id}
                 {a.broker_name ? ` · ${a.broker_name}` : ''}
                 {a.is_live ? ' · Live' : ' · Demo'}
+                {a.claimed ? ' · Already added' : ''}
               </ConsentField>
             ))}
             <Button type="submit" variant="primary" disabled={!picked.length || committing}>
