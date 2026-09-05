@@ -9,6 +9,7 @@ import {
 import {
   closedGroupOf, defaultScopeFor, effectiveScope, isOpenAccount, SCOPE_ALL, SCOPE_OPEN,
 } from '../frontend/src/lib/scope.js';
+import { readCode } from './helpers/src-files.js';
 
 /* CLOSING AN ACCOUNT, AND WHAT EACH PAGE COUNTS (owner spec 2026-09-05).
  *
@@ -104,6 +105,51 @@ test('correcting the rules clears the suppression', () => {
   // Suppression buys time; corrected rules are the fix, and re-judging against them is
   // wanted immediately. Without this, a disputed account is muted for ever.
   assert.match(challenges, /sets\.push\('suppressed_outcome = NULL'\)/);
+});
+
+test('an unanswered outcome outranks every other banner action', () => {
+  /* THE BUG THIS PINS, which only running the app caught. This branch was written third,
+     behind one that matched `action === 'lock'` — and a breach alert carried exactly that
+     intent, so on a breached account the lock branch won and these buttons never
+     rendered. It looked like the feature had not shipped. It worked on a pass, so the
+     half that was dead was the half about losing an account. */
+  const banner = read('frontend/src/features/prop/AccountAlertBanner.jsx');
+  const first = banner.indexOf('if (onCloseAccount && onReject)');
+  assert.notEqual(first, -1, 'the strip branch is gone');
+  for (const later of ["alert.action === 'balance'", "alert.action === 'challenge'"]) {
+    assert.ok(banner.indexOf(later) > first, `${later} must not shadow the strip`);
+  }
+  // And the negative button is worded for what the trader means in each case.
+  assert.match(banner, /data\?\.status === 'breached' \? 'Still trading' : 'Not passed yet'/);
+});
+
+test('"Lock account" is gone from the app, not just from the banner', () => {
+  /* Owner 2026-09-06. It archived the account — `is_active = false` — which takes its
+     entire history out of every analytic the trader has. Offering that at the moment an
+     account dies is close to the worst thing the app could do, and the lifecycle work
+     gave the moment a better answer: Close account, which keeps everything.
+     Archiving is still reachable, one deliberate step away, in Settings › Accounts. */
+  /* readCode, not read: these files now CARRY prose about the removal — the banner
+     explains which branch was deleted and why — and a raw text search would match the
+     explanation and report the code it describes as still present. */
+  const banner = readCode('AccountAlertBanner.jsx');
+  const alertMeta = readCode('accountAlert.js');
+  const dash = readCode('Dashboard.jsx');
+  assert.ok(!/onLock\b/.test(banner), 'the banner still takes an onLock');
+  assert.ok(!/action === 'lock'/.test(banner), 'the lock branch survived');
+  assert.ok(!/action: 'lock'/.test(alertMeta), 'an alert still declares the lock intent');
+  assert.ok(!/lockAccount/.test(dash), 'the dashboard still holds the handler');
+  // The archive itself is untouched — it just lives where it belongs.
+  assert.match(readCode('SettingsAccounts.jsx'), /is_active/);
+});
+
+test('the strip appears exactly while an outcome is settled and unanswered', () => {
+  // Read from the ACCOUNT (closed_at), which is what the scope resolves on — deriving it
+  // from the challenge here would give the page a second opinion about what it counts.
+  const dash = read('frontend/src/features/dashboard/Dashboard.jsx');
+  assert.match(dash, /acctRecord\.closed_at == null && isSettled\(data\)/);
+  assert.match(dash, /onCloseAccount=\{unanswered \? closeAccount : null\}/);
+  assert.match(dash, /onReject=\{unanswered \? rejectOutcome : null\}/);
 });
 
 // ---------------------------------------------------------------------------

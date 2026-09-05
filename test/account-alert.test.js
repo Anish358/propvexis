@@ -240,9 +240,15 @@ test('the account is never hard-coded into the component — the name comes from
 // ---------------------------------------------------------------------------
 test('each state carries its own tone, glyph, label and action intent', () => {
   const rows = [
-    [daily(0.8), 'caution', 'warning', 'Daily DD warning', 'lock'],
-    [max(0.85), 'severe', 'warning', 'Max DD warning', 'lock'],
-    [{ breached: true }, 'breach', 'danger', 'Account breach', 'lock'],
+    /* THE THREE DRAWDOWN STATES CARRY NO ACTION (owner 2026-09-06). They used to offer
+       'lock' — archive the account. Archiving takes its whole history out of every
+       analytic the trader has, which is close to the worst thing to offer someone at the
+       moment their account dies; a settled account gets the Close account strip instead,
+       which keeps the history. A warning on a RUNNING account has nothing for the app to
+       do anyway: naming the rule and quoting the number is the job. */
+    [daily(0.8), 'caution', 'warning', 'Daily DD warning', null],
+    [max(0.85), 'severe', 'warning', 'Max DD warning', null],
+    [{ breached: true }, 'breach', 'danger', 'Account breach', null],
     [target(0.8), 'progress', 'target', 'Target near', 'challenge'],
     [target(1), 'success', 'success', 'Phase passed', 'challenge'],
     [{ ...target(1), tradingDaysMet: false, tradingDaysLeft: 1 }, 'success', 'success', 'Target reached', 'challenge'],

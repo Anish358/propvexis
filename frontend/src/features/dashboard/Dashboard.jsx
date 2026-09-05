@@ -826,10 +826,9 @@ function SetTargetModal({
 // account header (tab row) so switching which account you're looking at
 // doesn't require leaving the page.
 function AccountCard({
-  data, candidates, selectedId, onSelect, onOpen, accounts, onChanged, onLocked,
+  data, candidates, selectedId, onSelect, onOpen, accounts, onChanged, onAccountsChanged,
 }) {
   const [targetOpen, setTargetOpen] = useState(false);
-  const [locking, setLocking] = useState(false);
   const [fixingBalance, setFixingBalance] = useState(false);
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
 
@@ -867,29 +866,6 @@ function AccountCard({
     }
   }
 
-  async function lockAccount() {
-    if (!acctRecord) return;
-    // eslint-disable-next-line no-alert
-    if (!confirm(
-      `Lock ${acctRecord.label || `account ${data.account_id}`}?\n\n`
-      + 'PropVexis cannot disable the account at your prop firm — only your firm can do '
-      + 'that. Locking here stops PropVexis tracking it: it leaves the account switcher '
-      + 'and every total, so you are not reading figures from an account you should not '
-      + 'be trading.\n\nYou can unlock it from Settings › Accounts.',
-    )) return;
-    setLocking(true);
-    try {
-      await updateAccount(acctRecord.id, { is_active: false });
-      // BOTH reloads: the prop engine's view of the account AND the account list the
-      // scope switcher reads. Reloading one leaves the locked account still selectable
-      // in the top bar, which is the half of "stops tracking it" that matters most.
-      onChanged();
-      onLocked();
-    } finally {
-      setLocking(false);
-    }
-  }
-
   /* AN OUTCOME NOBODY HAS ANSWERED YET (owner spec 2026-09-05).
    *
    * The phase has settled and the account is still open — which is exactly the window
@@ -909,7 +885,7 @@ function AccountCard({
     try {
       await acknowledgeOutcome(data.account_id);
       onChanged();
-      onLocked();   // the account list too: the switcher and the scope both change here
+      onAccountsChanged();  // the switcher and the scope both change here, not just the card
     } finally {
       setAnswering(false);
     }
@@ -923,7 +899,7 @@ function AccountCard({
     try {
       await settlePhase({ account_id: data.account_id, status: 'active' });
       onChanged();
-      onLocked();
+      onAccountsChanged();
     } finally {
       setAnswering(false);
     }
@@ -970,8 +946,6 @@ function AccountCard({
           renders its message without a control rather than a control that cannot act. */}
       <AccountAlertBanner
         data={data}
-        onLock={acctRecord ? lockAccount : null}
-        locking={locking}
         onFixBalance={acctRecord ? fixStartBalance : null}
         fixingBalance={fixingBalance}
         onCloseAccount={unanswered ? closeAccount : null}
@@ -1399,7 +1373,7 @@ export default function Dashboard() {
         }}
         accounts={accounts}
         onChanged={loadProp}
-        onLocked={reloadAccounts}
+        onAccountsChanged={reloadAccounts}
       />
     ));
 
