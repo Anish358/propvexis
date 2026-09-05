@@ -97,6 +97,42 @@ export function rotateTokensQuery(identityId, accessCt, refreshCt, expiresAt) {
 
 /** Record which cTID a grant belongs to, once the account list says. Column is
  *  ctid_user_id because `ctid` is a reserved PostgreSQL system column name. */
+/**
+ * Retire any OTHER live identity this user holds for the same cTID.
+ *
+ * WHY THIS IS NEEDED AT ALL. The OAuth callback creates a NEW identity row every
+ * time the trader completes the consent screen -- it has to, because the token
+ * pair is new and the cTID is not known until discovery runs. Several rows with
+ * ctid_user_id = NULL coexist happily, because NULLs do not collide in a unique
+ * index.
+ *
+ * They collide the instant discovery learns the real cTID:
+ * uq_ctrader_identities_live is UNIQUE (user_id, ctid_user_id) WHERE revoked_at
+ * IS NULL, so setting the same cTID on the second row raises 23505 and discovery
+ * fails -- permanently, and for a reason no part of the UI can explain. A trader
+ * who clicked "Authorize" twice (or once on dev and once on prod, or once and
+ * then again because the first attempt looked like it had not worked) is enough
+ * to trigger it.
+ *
+ * The NEWEST row wins because it holds the freshest token pair; the older ones
+ * are revoked rather than deleted, so the audit trail survives and any account
+ * already pointing at one keeps its foreign key.
+ */
+export function supersedeDuplicateIdentitiesQuery(identityId, ctidUserId) {
+  return {
+    text: `UPDATE ctrader_identities
+              SET revoked_at = now(),
+                  last_error = 'superseded by a newer authorization for the same cTrader login',
+                  updated_at = now()
+            WHERE ctid_user_id = $2
+              AND id <> $1
+              AND revoked_at IS NULL
+              AND user_id = (SELECT user_id FROM ctrader_identities WHERE id = $1)
+        RETURNING id;`,
+    values: [identityId, ctidUserId],
+  };
+}
+
 export function setCtidQuery(identityId, ctidUserId) {
   return {
     text: `UPDATE ctrader_identities SET ctid_user_id = $2, updated_at = now()
@@ -321,3 +357,5 @@ export async function freshAccessToken(row, opts = {}) {
   return { accessToken: next.accessToken, refreshed: true };
 }
 export const identitiesAwaitingDiscovery = (limit) => run(identitiesAwaitingDiscoveryQuery(limit));
+export const supersedeDuplicateIdentities = (identityId, ctidUserId) =>
+  run(supersedeDuplicateIdentitiesQuery(identityId, ctidUserId));

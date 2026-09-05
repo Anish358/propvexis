@@ -6,6 +6,7 @@ import {
   identitiesEnabled, sealTokens, createIdentity, rotateTokens,
   listIdentities, revokeIdentity, discoveredForIdentity,
   identitiesAwaitingDiscovery, freshAccessToken, upsertDiscovered, setCtid,
+  supersedeDuplicateIdentities,
   markIdentityError, identityForUser,
 } from '../domain/sync/ctraderIdentities.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
@@ -183,7 +184,19 @@ export default function ctraderRoutes(app) {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return reply.code(400).send({ error: 'invalid identity id' });
     const accounts = Array.isArray(req.body?.accounts) ? req.body.accounts : [];
-    if (req.body?.ctid_user_id != null) await setCtid(id, Number(req.body.ctid_user_id));
+    if (req.body?.ctid_user_id != null) {
+      const ctidUserId = Number(req.body.ctid_user_id);
+      // BEFORE setCtid, never after: setting the cTID on this row while an older
+      // row still holds it live raises 23505 on uq_ctrader_identities_live and
+      // discovery fails permanently, for a reason nothing in the UI can explain.
+      // Clicking "Authorize" twice is enough to cause it.
+      const superseded = await supersedeDuplicateIdentities(id, ctidUserId);
+      if (superseded.length) {
+        req.log.info({ identity: id, superseded: superseded.map((r) => r.id) },
+          'ctrader: retired older identities for the same cTID');
+      }
+      await setCtid(id, ctidUserId);
+    }
     for (const a of accounts) await upsertDiscovered(id, a);
     return reply.send({ ok: true, stored: accounts.length });
   });

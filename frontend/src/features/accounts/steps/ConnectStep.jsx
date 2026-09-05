@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Alert, AlertDescription, AlertTitle, Button, ConsentField, Field, FieldDescription,
   FieldLabel, Input, WizardFields, WizardForm, WizardGroup, WizardHeading,
@@ -56,8 +56,7 @@ import { checkLoginAvailable, startCtraderAuth } from '../../../lib/api.js';
  * `false` only: `null` means the pre-check could not answer.
  */
 export default function ConnectStep() {
-  const { draft, advance, commit, committing, accounts, patch } = useFlow();
-  const [params] = useSearchParams();
+  const { draft, advance, commit, committing, accounts, ctraderReturn } = useFlow();
 
   const isEa = draft.import_method === 'ea';
   // cTrader collects NO fields — the trader authorizes on Spotware's own site —
@@ -147,18 +146,14 @@ export default function ConnectStep() {
 
   /* ---- the OAuth branch: cTrader -------------------------------------------
    * The consent screen is Spotware's, so the browser LEAVES the app. The draft is
-   * already mirrored to sessionStorage by the shell, and cTrader redirects back to
-   * /accounts/new with the identity id, which is picked up here and written to the
-   * draft so the picker step can read it. */
-  const ctraderResult = params.get('ctrader');
-  const returnedIdentity = params.get('identity');
-
-  useEffect(() => {
-    if (ctraderResult === 'connected' && returnedIdentity && !draft.ctrader_identity_id) {
-      patch({ ctrader_identity_id: Number(returnedIdentity) });
-    }
-  }, [ctraderResult, returnedIdentity, draft.ctrader_identity_id, patch]);
-
+   * mirrored to sessionStorage by the shell and survives that.
+   *
+   * THE RETURN IS READ BY THE SHELL, NOT HERE. cTrader redirects to
+   * /accounts/new?ctrader=..., FlowIndex immediately <Navigate>s to the first
+   * incomplete step, and <Navigate> does not carry location.search -- so the query
+   * is gone before this component mounts. Reading it here meant the identity was
+   * never recorded and the trader was asked to authorize again, every time,
+   * forever. The shell captures it on entry and hands it down. */
   if (isOauth) {
     const authorize = async () => {
       setErr(null);
@@ -171,7 +166,7 @@ export default function ConnectStep() {
       }
     };
 
-    const failed = ctraderResult === 'error';
+    const failed = ctraderReturn?.status === 'error';
     const connected = Boolean(draft.ctrader_identity_id);
 
     return (
@@ -182,7 +177,7 @@ export default function ConnectStep() {
             <Alert variant="error">
               <AlertTitle>cTrader did not complete the connection</AlertTitle>
               <AlertDescription>
-                {params.get('reason') === 'expired'
+                {ctraderReturn?.reason === 'expired'
                   ? 'That link expired before it was used. Authorizing again takes a few seconds.'
                   : 'Nothing was saved. You can try authorizing again.'}
               </AlertDescription>
