@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { repoRoot } from '../src/platform/paths.js';
 import { appCss } from './helpers/app-css.js';
-import { readSrc } from './helpers/src-files.js';
+import { appJsx, readSrc } from './helpers/src-files.js';
 
 /* THE ACCOUNT SWITCHER — the one control that changes what every figure on the page
  * MEANS, rather than how it is written or which rows feed it.
@@ -100,6 +100,38 @@ test('the phases show for EVERY selection, a single account included', () => {
   assert.match(filterBar, /accountId === OPEN \? summaryOf\(openAccounts\)/);
   assert.ok(!/selected\.length > 1 \? summaryOf/.test(filterBar),
     'the summary is gated on a count again — a single account loses its phase');
+});
+
+test('every MenuGroupLabel in the app sits inside a MenuGroup', () => {
+  /* THIS ONE TOOK THE WHOLE PAGE DOWN. MenuGroupLabel renders Base UI's Menu.GroupLabel,
+     which reads its group's context to label the group it belongs to; bare inside
+     MenuContent there is no context and the render throws — a white "Something went
+     wrong" screen the moment the menu opens.
+     It was invisible until the first account was CLOSED, because the label only renders
+     once there is a closed group to distinguish the active ones from. So a component
+     that had been fine for months started crashing on a user action three screens away,
+     which is exactly the kind of link nobody makes while debugging.
+     Swept across the app rather than pinned to the switcher: the trap is in the
+     primitive, so it is waiting for every future caller, and FinanceLedger's correct
+     usage is the pattern. */
+  for (const file of appJsx()) {
+    const src = readSrc(file);
+    if (!src.includes('<MenuGroupLabel')) continue;
+    for (const at of [...src.matchAll(/<MenuGroupLabel/g)].map((m) => m.index)) {
+      const before = src.slice(0, at);
+      const opens = (before.match(/<MenuGroup>/g) || []).length;
+      const closes = (before.match(/<\/MenuGroup>/g) || []).length;
+      assert.ok(opens > closes,
+        `${file}: a MenuGroupLabel is outside any MenuGroup — Base UI throws on render`);
+    }
+  }
+});
+
+test('the switcher only labels the active group when there is a closed one', () => {
+  // "ACTIVE" over a list that is entirely active says nothing, and the label is what
+  // needs the MenuGroup wrapper above — so no closed accounts means neither appears.
+  assert.match(filterBar, /closedByGroup\.length > 0 \? \(/);
+  assert.match(filterBar, /<MenuGroupLabel>Active<\/MenuGroupLabel>/);
 });
 
 test('when closed accounts are in scope, the bar says so before it says anything else', () => {

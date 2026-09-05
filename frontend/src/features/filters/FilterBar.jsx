@@ -27,7 +27,7 @@ import FilterPanel from './FilterPanel.jsx';
 // here is geometry the preset has no opinion about — a width cap, a truncation.
 import {
   Badge, Button, ButtonDot, ButtonLabel, CountBadge,
-  Menu, MenuCheckboxItem, MenuContent, MenuGroupLabel, MenuItem,
+  Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger,
   ToggleGroupExclusive, ToggleGroupItem,
   TopBar, TopBarActions, TopBarTitle,
@@ -285,9 +285,23 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
             <Layers aria-hidden="true" />
             All accounts, incl. closed <span className="acct-opt-sub">{bound.length}</span>
           </MenuItem>
-          {closedByGroup.length > 0 && <MenuSeparator />}
-          {closedByGroup.length > 0 && <MenuGroupLabel>Active</MenuGroupLabel>}
-          {openAccounts.map(accountRow)}
+          {/* A LABEL ONLY WHEN THERE IS SOMETHING TO DISTINGUISH IT FROM. With no closed
+              accounts the whole list is active and "ACTIVE" over all of it says nothing.
+
+              INSIDE A MenuGroup, WHICH IS NOT OPTIONAL. MenuGroupLabel renders Base UI's
+              Menu.GroupLabel, and that reads its group's context to label the group it
+              belongs to — bare inside MenuContent it has no context to read and takes the
+              whole page down when the menu opens. It cost a white screen on the first
+              account anyone closed, because the label only renders once one exists. */}
+          {closedByGroup.length > 0 ? (
+            <>
+              <MenuSeparator />
+              <MenuGroup>
+                <MenuGroupLabel>Active</MenuGroupLabel>
+                {openAccounts.map(accountRow)}
+              </MenuGroup>
+            </>
+          ) : openAccounts.map(accountRow)}
           {closedByGroup.map((g) => (
             <React.Fragment key={g.key}>
               {/* THE GROUP HEADER IS THE TOGGLE. A collapsed group with its count is honest —
