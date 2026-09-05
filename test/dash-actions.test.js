@@ -164,5 +164,15 @@ test('Clear on a brief alert actually removes the row', async () => {
     'a read alert must leave the brief, or Clear does nothing visible');
   // Clear is still the same act as the notification panel's, against the same route —
   // not local component state, which would return on reload and disagree with the badge.
-  assert.match(src, /onClear=\{markNotificationRead \? \(\) => markNotificationRead\(n\.id\) : undefined\}/);
+  //
+  // ASSERTED IN TWO HALVES rather than against one literal call site. The row now
+  // animates out before the read is written (§10), so `onClear` hands off to the
+  // `clearAlert` wrapper instead of calling the prop inline — a seam this test read as
+  // a regression because it pinned the exact pre-animation expression. What actually
+  // matters is unchanged, and is what is pinned now: the control is still GATED on the
+  // prop (no Clear when the page cannot mark anything read), and the deferred write
+  // still goes to `markNotificationRead`, not to component state.
+  assert.match(src, /onClear=\{markNotificationRead \? \(\) => clearAlert\(n\.id\) : undefined\}/);
+  assert.match(src, /const clearAlert = \(id\) => \{[\s\S]*?markNotificationRead\?\.\(id\)/,
+    'clearAlert must still write through the notification route, not local state');
 });
