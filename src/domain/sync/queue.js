@@ -493,6 +493,42 @@ export function lastJobQuery(accountId) {
   };
 }
 
+/**
+ * The account's most recent MANUAL sync -- the ONLY input the manual cooldown may read.
+ *
+ * A SEPARATE QUERY FROM lastJobQuery, AND THE SPLIT IS THE WHOLE FIX. The cooldown was
+ * fed lastJob(), which returns the newest job of ANY kind, so the two cadences this
+ * module deliberately keeps apart were sharing one clock:
+ *
+ *   Adding an account enqueues a `first_sync`. It finishes in seconds, stamps
+ *   finished_at, and started a fifteen-minute manual cooldown nobody asked for -- so
+ *   the trader's FIRST press of "Sync Trades", on an account they had just connected,
+ *   was refused with "already synced recently". Seen on prod: a first_sync finishing
+ *   at 18:52:59 and the first manual job appearing at 19:08:33, exactly 15m34s later.
+ *
+ * The unattended cadence already has its own limiter -- dueAccountsQuery's
+ * per-platform interval -- and it is three hours, not fifteen minutes. MANUAL_COOLDOWN_MS
+ * exists to stop a human holding down a button; a scheduled run is not a human, and a
+ * `first_sync` is the app's own doing. Neither may consume the human's allowance.
+ *
+ * lastJobQuery is deliberately left alone: the sync-status panel and the Last Sync cell
+ * want the newest job WHATEVER its reason, and narrowing it would make a scheduled sync
+ * invisible in the UI.
+ */
+export function lastManualJobQuery(accountId) {
+  return {
+    // Ordered by id for the same reason lastJobQuery is: a requeued job keeps its row,
+    // so id is the only monotonic column here.
+    text: `SELECT id, status, reason, attempts, run_after, finished_at, error, stats,
+                  created_at, lease_expires_at
+             FROM sync_jobs
+            WHERE account_id = $1 AND reason = 'manual'
+            ORDER BY id DESC
+            LIMIT 1;`,
+    values: [accountId],
+  };
+}
+
 /** Liveness. The agent calls this whether or not it found work to do. */
 export function heartbeatQuery(workerId, version = null, note = null) {
   return {
@@ -534,6 +570,7 @@ export const completeJob = async (jobId, stats) => (await run(completeQuery(jobI
 export const failJob = async (jobId, error) => (await run(failQuery(jobId, error)))[0] ?? null;
 export const reclaimExpired = () => run(reclaimQuery());
 export const lastJob = async (accountId) => (await run(lastJobQuery(accountId)))[0] ?? null;
+export const lastManualJob = async (accountId) => (await run(lastManualJobQuery(accountId)))[0] ?? null;
 export const jobForWorker = async (jobId, workerId) => (await run(jobForWorkerQuery(jobId, workerId)))[0] ?? null;
 export const heartbeat = (workerId, version, note) => run(heartbeatQuery(workerId, version, note));
 export const staleWorkers = (maxAgeMs) => run(staleWorkersQuery(maxAgeMs));

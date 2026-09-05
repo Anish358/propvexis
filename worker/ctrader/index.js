@@ -103,11 +103,16 @@ class Worker {
     // cleared on disconnect, so a reconnect still re-authorizes.
     await conn.ensureAccount(job.ctid_trader_account_id, job.access_token);
 
-    const { posted, windows } = await backfillAccount({
+    const { posted, windows, account } = await backfillAccount({
       conn, api: this.api, job, throttle: conn.throttle, log,
     });
-    await this.api.report(job.job_id, { ok: true, stats: { posted, windows } });
-    log.info({ account: job.account_id, posted, windows }, 'ctrader job done');
+    // `account` is the broker's own balance + deposit currency (ProtoOATrader). Sent
+    // with the result rather than to the ingest endpoint because it belongs to the
+    // ACCOUNT, not to a trade -- an account that has never closed one still has both,
+    // and that is exactly the account the app currently knows nothing about.
+    await this.api.report(job.job_id, { ok: true, stats: { posted, windows }, account });
+    log.info({ account: job.account_id, posted, windows, currency: account?.currency ?? null },
+      'ctrader job done');
   }
 
   async tick() {

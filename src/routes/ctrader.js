@@ -17,7 +17,7 @@ import { toBandedLogin } from '../domain/sync/logins.js';
 import { planForUser, syncedAccountCount, manualAccountCount } from '../domain/billing/entitlements.js';
 
 /**
- * cTrader Open API: the OAuth surface and the account picker's data.
+ * cTrader Open API: the OAuth surface and the discovered-accounts read.
  *
  * WHAT THIS MODULE DOES NOT DO. It never opens a protobuf socket. Listing a
  * cTID's trading accounts requires ProtoOAGetAccountListByAccessTokenReq on a
@@ -126,11 +126,13 @@ export default function ctraderRoutes(app) {
   });
 
   /**
-   * What the account picker renders.
+   * What the wizard's cTrader step waits on, and then provisions from.
    *
    * `pending` distinguishes "the worker has not looked yet" from "this cTID owns
    * no accounts". They are the same empty array and very different messages, and
-   * showing the second when the first is true reads as a broken integration.
+   * showing the second when the first is true reads as a broken integration --
+   * and now that the step provisions automatically, mistaking the first for the
+   * second would silently create nothing at all.
    */
   app.get('/api/ctrader/identities/:id/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
     const id = Number(req.params.id);
@@ -208,11 +210,18 @@ export default function ctraderRoutes(app) {
   /**
    * Provision the accounts the user picked.
    *
-   * ONE PROPVEXIS ACCOUNT PER SELECTED cTRADER ACCOUNT, each with its own
-   * provision_key so a double-submit replays instead of duplicating. The
-   * selections are re-read from ctrader_discovered_accounts rather than trusted
-   * from the body: a caller could otherwise name any ctidTraderAccountId and have
-   * us provision an account pointing at a stranger's trading account.
+   * ONE PROPVEXIS ACCOUNT PER cTRADER ACCOUNT, each with its own provision_key so a
+   * double-submit replays instead of duplicating. The selections are re-read from
+   * ctrader_discovered_accounts rather than trusted from the body: a caller could
+   * otherwise name any ctidTraderAccountId and have us provision an account pointing
+   * at a stranger's trading account.
+   *
+   * THE CALLER NO LONGER REPRESENTS A HUMAN CHOICE. Since 2026-09-06 the wizard sends
+   * every account the grant covers rather than a ticked subset (cTrader's own consent
+   * screen is where the choosing happens). The body is still the same shape, and is
+   * still not trusted -- but "the user picked these" is no longer a thing this route
+   * may assume about it, which is why the already-connected case below became a skip
+   * rather than an error.
    */
   app.post('/api/ctrader/identities/:id/accounts', { preHandler: app.requireAuth }, async (req, reply) => {
     if (!requireConfigured(reply)) return reply;
@@ -233,6 +242,28 @@ export default function ctraderRoutes(app) {
       return reply.code(400).send({ error: 'those accounts are not on this connection' });
     }
 
+    /* AN ALREADY-CONNECTED ACCOUNT IS SKIPPED, NOT FATAL.
+     *
+     * mt5_accounts.ctid_trader_account_id is uniquely indexed, so provisioning one
+     * twice raises PROVISION_CONFLICT.LOGIN -- and this loop used to answer 409 the
+     * moment it hit one. WITH THE ACCOUNTS BEFORE IT ALREADY CREATED. Three accounts
+     * where the second is claimed left the first in the database and the request
+     * reported failure, so the wizard showed an error over work that had partly
+     * succeeded and a retry would then skip past.
+     *
+     * That mattered little while a human ticked the boxes -- the old picker greyed
+     * claimed rows out. It matters now that the step provisions automatically: nobody
+     * is looking at the list, and the only thing standing between a second connection
+     * of the same cTID and a half-written batch is this filter. */
+    const claimed = wanted.filter((c) => byCtid.get(c)?.claimed === true);
+    const fresh = wanted.filter((c) => !claimed.includes(c));
+    if (!fresh.length) {
+      return reply.code(409).send({
+        error: 'those cTrader accounts are already connected to PropVexis',
+        claimed,
+      });
+    }
+
     // THE SAME GATE EVERY OTHER PROVISION PATH USES. Plan caps are lifted today
     // (every tier is Infinity), so this changes nothing now -- which is exactly
     // why it has to be wired in NOW rather than remembered later: the day caps
@@ -245,14 +276,26 @@ export default function ctraderRoutes(app) {
       // The gate asks "may ONE more be created", so a batch of N is checked by
       // pretending N-1 already exist. Checking only the current count would let a
       // capped user pick five accounts and get all five.
-      syncedCount: (await syncedAccountCount(req.user.uid)) + wanted.length - 1,
+      // `fresh`, not `wanted`: an account that already exists is already counted, and
+      // charging for it again would refuse a batch that creates nothing new.
+      syncedCount: (await syncedAccountCount(req.user.uid)) + fresh.length - 1,
       manualCount: await manualAccountCount(req.user.uid),
     });
     if (!gate.ok) return reply.code(gate.code).send({ error: gate.error });
 
     const created = [];
-    for (const ctid of wanted) {
+    const skipped = [...claimed];
+    for (const ctid of fresh) {
       const found = byCtid.get(ctid);
+      /* ONE GRANT, SEVERAL ACCOUNTS, ONE FORM. The wizard collected a single label and
+       * the whole batch is stamped with it, so a cTID covering three accounts produced
+       * three rows all called "GoatFundedTrader 2-Step 25K" -- indistinguishable in the
+       * account switcher, which is the one place they have to be told apart. The
+       * trader's own login is the only thing that differs, so it is appended when, and
+       * only when, there is more than one to disambiguate. */
+      const suffix = fresh.length > 1 && (found.trader_login ?? null) != null
+        ? ` · ${found.trader_login}`
+        : '';
       const parsed = validateProvision({
         ...req.body,
         platform: 'ctrader',
@@ -262,7 +305,8 @@ export default function ctraderRoutes(app) {
         // Distinct per selection, so picking three accounts is three accounts and
         // a retried submit replays rather than duplicating.
         provision_key: `${String(req.body?.provision_key ?? `ct-${id}`)}:${ctid}`,
-        label: String(req.body?.label ?? '').trim() || `cTrader ${found.trader_login ?? ctid}`,
+        label: (String(req.body?.label ?? '').trim() && `${String(req.body.label).trim()}${suffix}`)
+          || `cTrader ${found.trader_login ?? ctid}`,
         broker: req.body?.broker ?? found.broker_name ?? null,
         currency: req.body?.currency ?? found.deposit_currency ?? 'USD',
       });
@@ -279,13 +323,27 @@ export default function ctraderRoutes(app) {
         }, { credential: null, login: toBandedLogin(ctid) });
         created.push(account);
       } catch (err) {
+        // The RACE the `claimed` filter above cannot close: another tab (or another
+        // pass of this same auto-provisioning step) connected this account between the
+        // read and the write. Skipping keeps the rest of the batch, which is the whole
+        // point of not failing mid-loop.
         if (err.conflict === PROVISION_CONFLICT.LOGIN) {
-          return reply.code(409).send({ error: 'That cTrader account is already connected', conflict: err.conflict });
+          req.log.info({ identity: id, ctid }, 'ctrader account already connected, skipped');
+          skipped.push(ctid);
+          continue;
         }
         throw err;
       }
     }
-    return reply.code(201).send({ accounts: created });
+    if (!created.length) {
+      return reply.code(409).send({
+        error: 'those cTrader accounts are already connected to PropVexis',
+        claimed: skipped,
+      });
+    }
+    // `skipped` so the caller can say what it did NOT do. The wizard records one account
+    // because it is single-account shaped; the rest appear in the accounts list.
+    return reply.code(201).send({ accounts: created, skipped });
   });
 
   /**

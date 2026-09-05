@@ -98,6 +98,73 @@ export function buildEquitySeries({ startBalance, trades = [], snapshots = [], s
   return { series: synthesizeEquity(startBalance, trades, startDate), mode: 'realized' };
 }
 
+// ---------------------------------------------------------------------------
+// DOES THE BROKER'S BALANCE AGREE WITH THE ACCOUNT'S OWN CONFIGURED HISTORY?
+//
+// WHY THIS EXISTS. Two numbers reach the engine from two unrelated places:
+//
+//   • `challenge.start_balance` — what the TRADER said, picked from a prop-firm
+//     template in the Add Account wizard;
+//   • `live` — what the BROKER says the account holds, read by the connector.
+//
+// Every rule below is sized off the first and scored against the second, and nothing
+// ever checked they describe the same account. On prod (2026-09-05) a cTrader demo
+// holding EUR 999.87 was added from the GoatFundedTrader 2-Step 25K template, so:
+//
+//     floor    = 25,000 - 10%  = 22,500
+//     roomLeft = 999.87 - 22,500 = -21,500.13
+//     "used"   = 2,500 - (-21,500.13) = 24,000.13 of a 2,500 limit
+//
+// which drew a full-width ACCOUNT BREACH banner and a -$24,000.13 profit target on an
+// account whose entire trading history is one trade for -$0.13. The arithmetic was
+// right; the two inputs were about different accounts.
+//
+// WHAT "EXPECTED" IS. The realized series already answers it: start_balance plus every
+// closed trade. Withdrawals are subtracted because synthesizeEquity deliberately leaves
+// payouts OUT of the curve (a payout is not a loss), while the broker's balance of
+// course reflects them -- without this term every funded account that had ever been
+// paid would look mismatched.
+//
+// WHY THE TOLERANCE IS THE DRAWDOWN BAND. It has to absorb the ordinary reasons the two
+// differ -- floating P&L on open positions, swap and commission the journal did not see,
+// a balance read a few minutes stale -- while catching the case that matters. The
+// drawdown allowance is the natural line: a disagreement WIDER THAN THE WHOLE BAND makes
+// every meter derived from it meaningless, because the error alone can move the account
+// from untouched to breached. Below that line the numbers are still worth reading.
+//
+// PURE, AND SEPARATE FROM WHAT IS DONE ABOUT IT (challengeState decides that, and the UI
+// decides what to say), so the rule can be tested with plain numbers.
+// ---------------------------------------------------------------------------
+export function balanceReconciliation({ challenge, series = [], payouts = [], live }) {
+  const base = num(challenge?.start_balance);
+  const reported = live == null || Number.isNaN(Number(live)) ? null : Number(live);
+  // No broker figure, or no configured baseline, means there is nothing to compare --
+  // NOT that the two agree. Null is "unchecked", which the caller reads as "carry on".
+  if (base == null || reported == null) return null;
+
+  const realized = series.length ? series[series.length - 1].equity : base;
+  // gross_amount, not trader_amount: the firm's cut is withheld from the payout, but the
+  // whole gross is what leaves the TRADING account, and that is the balance we compare.
+  const withdrawn = payouts.reduce((sum, p) => sum + (Number(p?.gross_amount) || 0), 0);
+  const expected = round2(realized - withdrawn);
+  const discrepancy = round2(Math.abs(round2(reported) - expected));
+
+  const pct = num(challenge.max_dd_pct);
+  // A challenge with no max-DD rule has no band to measure against; 10% of the baseline
+  // is the same default mt5_accounts COALESCEs that column to, so the check still runs
+  // rather than silently switching itself off.
+  const tolerance = round2((base * (pct == null ? 10 : pct)) / 100);
+
+  return {
+    ok: discrepancy <= tolerance,
+    expected,
+    reported: round2(reported),
+    discrepancy,
+    tolerance,
+    startBalance: base,
+  };
+}
+
 // Latest equity we know about: an explicit live figure wins, else the series tail,
 // else the baseline.
 function currentEquityOf(series, startBalance, live) {
@@ -297,7 +364,27 @@ export function challengeState({ challenge, trades = [], payouts = [], snapshots
     snapshots,
     startDate: challenge.start_date,
   });
-  const currentEquity = currentEquityOf(series, challenge.start_balance, live);
+  /* THE BROKER'S BALANCE IS ONLY ALLOWED TO OVERRIDE THE SERIES WHEN THE TWO AGREE.
+   *
+   * `live` is normally the best number in this function -- real floating equity, read
+   * from the account itself. But it is scored against rules sized off
+   * `challenge.start_balance`, and when those two describe DIFFERENT accounts the
+   * override manufactures a breach out of nothing: a EUR 1,000 demo added from a
+   * $25,000 template read as $24,000.13 of a $2,500 drawdown limit (see
+   * balanceReconciliation).
+   *
+   * SO THE MISMATCH FALLS BACK TO THE SERIES, which is internally consistent -- the
+   * configured baseline plus this account's own trades. The meters then show
+   * self-consistent figures rather than a mixture of two scales, and `balanceCheck`
+   * rides out with the state so the UI can say the baseline itself is in doubt. The
+   * alternative -- returning null meters -- blanks a card over a setup problem the
+   * trader fixes in one field.
+   *
+   * IT IS NOT SILENT. Suppressing the override without reporting it would leave the
+   * app quietly scoring a $25,000 challenge on an account that does not have $25,000. */
+  const balanceCheck = balanceReconciliation({ challenge, series, payouts, live });
+  const trustedLive = balanceCheck && !balanceCheck.ok ? null : live;
+  const currentEquity = currentEquityOf(series, challenge.start_balance, trustedLive);
 
   const maxDd = maxDrawdown(challenge, series, currentEquity);
   const dailyDd = dailyDrawdown(challenge, series, asOf, offsetMin);
@@ -327,6 +414,9 @@ export function challengeState({ challenge, trades = [], payouts = [], snapshots
     startBalance: num(challenge.start_balance),
     currentEquity: round2(currentEquity),
     mode, // 'live' (EA snapshots) | 'realized' (synthesized from closed trades)
+    // null when there was nothing to compare (no broker balance, or no baseline).
+    // `ok: false` means the meters above were computed WITHOUT the broker's figure.
+    balanceCheck,
     maxDd,
     dailyDd,
     profitTarget, // null for funded

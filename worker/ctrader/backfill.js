@@ -5,7 +5,7 @@
 // The 30-day window is ours, to keep each response and each retry small.
 
 import { splitBatch } from '../../src/domain/trades/batch.js';
-import { ctraderConnector } from '../../src/domain/sync/connectors/ctrader.js';
+import { ctraderConnector, traderAccountFacts } from '../../src/domain/sync/connectors/ctrader.js';
 import { backfillWindows, advanceCursor } from './windows.js';
 
 const PAGE_ROWS = 1000;
@@ -14,6 +14,24 @@ const PAGE_ROWS = 1000;
 export async function fetchTrader({ conn, ctid }) {
   const res = await conn.request('ProtoOATraderReq', { ctidTraderAccountId: ctid });
   return res?.trader ?? null;
+}
+
+/**
+ * The broker's asset table, which is what turns ProtoOATrader.depositAssetId into 'EUR'.
+ *
+ * ONE REQUEST PER JOB, AND IT MUST NEVER FAIL THE JOB. This is metadata: an account
+ * whose currency we could not resolve still has trades worth journalling, and throwing
+ * here would turn a cosmetic gap into a failed sync with a backoff behind it. The
+ * caller gets an empty list and reports a null currency.
+ */
+export async function fetchAssets({ conn, ctid, log = console }) {
+  try {
+    const res = await conn.request('ProtoOAAssetListReq', { ctidTraderAccountId: ctid });
+    return res?.asset ?? [];
+  } catch (err) {
+    log.info?.({ ctid, err: err.message }, 'ctrader asset list unavailable');
+    return [];
+  }
 }
 
 /**
@@ -114,6 +132,15 @@ export async function backfillAccount({
   const registeredAt = trader?.registrationTimestamp == null
     ? null : Number(trader.registrationTimestamp);
 
+  /* THE ACCOUNT'S OWN BALANCE AND CURRENCY, reported back with the result.
+   *
+   * `trader` was already fetched for registrationTimestamp and the rest of it discarded.
+   * It is the only place the DEPOSIT CURRENCY is reachable -- the discovery call does not
+   * carry one, which is why every cTrader account was provisioned as USD -- and the only
+   * place a balance arrives for an account that has never closed a trade. Both feed the
+   * engine's start_balance reconciliation (src/domain/prop/prop.js). */
+  const account = traderAccountFacts(trader, await fetchAssets({ conn, ctid, log }));
+
   const windows = backfillWindows({
     now: now(),
     registeredAt,
@@ -144,5 +171,5 @@ export async function backfillAccount({
     await onWindow(w);
     log.info?.({ account: job.account_id, from: w.from, to: w.to, posted }, 'ctrader window done');
   }
-  return { posted, windows: windows.length };
+  return { posted, windows: windows.length, account };
 }
