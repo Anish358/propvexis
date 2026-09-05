@@ -204,6 +204,22 @@ export function provisionGate({ plan, kind, syncedCount = 0, manualCount = 0 }) 
 import crypto from 'node:crypto';
 import { withTransaction } from '../../platform/db.js';
 import { sealPassword, saveCredentialQuery } from '../sync/credentials.js';
+
+/**
+ * The broker login to store on the account, or null when there is not one yet.
+ *
+ * NOT `credential.login`. That is MT5's shape. A TradeLocker credential has an
+ * email and no login at all -- its accountId comes from /auth/jwt/all-accounts
+ * once the credential has been proven, which is after this row exists. Reading
+ * the property directly yields `undefined`, which pg will not accept as a value,
+ * so the first TradeLocker connect would 500 rather than create a pending
+ * account.
+ *
+ * Null is the truthful answer and the one the schema already models: mt5_login
+ * NULL means `pending`, which is exactly what an account awaiting discovery is.
+ */
+export const loginFromCredential = (credential) =>
+  credential?.login == null ? null : credential.login;
 import { enqueueQuery } from '../sync/queue.js';
 import {
   findByProvisionKeyQuery, insertAccountQuery, assignSyntheticLoginQuery, insertChallengeQuery,
@@ -306,7 +322,7 @@ export async function provisionAccount(userId, v, opts = {}) {
       : {};
 
     const synced = v.kind === 'synced';
-    const login = v.import_method === 'auto_sync' && credential ? credential.login : null;
+    const login = v.import_method === 'auto_sync' ? loginFromCredential(credential) : null;
     const insert = insertAccountQuery(
       userId,
       {
@@ -358,6 +374,10 @@ export async function provisionAccount(userId, v, opts = {}) {
         server: credential.server,
         firmKey: v.firm_id ?? null,
         passwordCt: seal(row.id, credential.password),
+        // Present for TradeLocker, absent for MT5. Dropping it would leave a
+        // credential that cannot authenticate, failing three hours later in an
+        // unattended job rather than here.
+        loginEmail: credential.email ?? null,
       });
       await client.query(cred.text, cred.values);
 

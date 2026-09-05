@@ -1028,10 +1028,13 @@ test('nothing in the credential form is prefilled, including by the browser', ()
   const src = readCode('ConnectStep.jsx');
   assert.match(src, /autoComplete="new-password"/,
     'the password field must suppress autofill with new-password, not off');
-  for (const f of ['server', 'login', 'password']) {
-    assert.match(src, new RegExp(`const \\[${f}, set\\w+\\] = useState\\(''\\)`),
-      `${f} must start empty — nothing may seed it from the draft`);
-  }
+  // The fields are a per-platform list now, so they live in one values map rather
+  // than three useStates. What has to stay true is that the map starts EMPTY and
+  // nothing seeds it — the draft is mirrored to sessionStorage.
+  assert.match(src, /useState\(\{\}\)/,
+    'the credential values must start as an empty object — nothing may seed them');
+  assert.equal(/useState\(\s*draft\./.test(src), false,
+    'no credential field may be initialised from the draft');
 });
 
 test('the connect step keeps the password out of the draft entirely', () => {
@@ -1056,22 +1059,25 @@ test('the password never even reaches sessionStorage-adjacent state', () => {
   assert.equal(/console\.\w+\([^)]*password/i.test(src), false, 'the password must not be logged');
 });
 
-test('the connect step names the read-only guarantee as a checked fact', () => {
-  // The worker reads account_info().trade_allowed on every login and DELETES a
-  // credential that can trade. That is a checked fact, not a promise, and the copy
-  // must say the tradeable password is rejected — spec §7.6.
+test('the connect step holds NO credential copy of its own', () => {
+  /* THIS REPLACES A PAIR OF TESTS THAT PINNED THE OLD SHAPE, and it is stronger
+   * than both. They asserted the page contained MT5's investor-password wording
+   * and gated it on `draft.platform === 'mt5'`. That gate was one `if` away from
+   * being wrong, and TradeLocker made the stake concrete: MT5 promises a
+   * trade-capable password is REJECTED, TradeLocker's credential is exactly such a
+   * password. Printing the first sentence above the second platform's field is a
+   * false security claim on a funded account.
+   *
+   * So the page now holds no such string at all. The note and the gate come from
+   * the platform record, per platform, and platform-catalog.test.js asserts the
+   * wording and that the two catalogs agree. A page carrying no copy cannot show
+   * the wrong platform's copy. */
   const src = readCode('ConnectStep.jsx');
-  assert.match(src, /investor/i);
-  assert.match(src, /reject|delete/i);
-});
-
-test('the read-only copy stays MT5-specific, so P2 cannot inherit it', () => {
-  // Spec §7.6 and §10 risk 1: TradeLocker has no investor-password concept, so this
-  // promise becomes false the moment TradeLocker ships. It must be reachable only for
-  // the platform that keeps it.
-  const src = readCode('ConnectStep.jsx');
-  assert.match(src, /'mt5'/,
-    'the read-only note must be gated on the platform, not printed unconditionally');
+  assert.equal(/investor \(read-only\)|rejected and deleted/i.test(src), false,
+    'MT5 credential copy must not be a literal in the page');
+  assert.equal(/no read-only password|can place trades/i.test(src), false,
+    'TradeLocker credential copy must not be a literal in the page either');
+  assert.match(src, /credentialNote/, 'the note must be read from the platform record');
 });
 
 test('the connect step pre-checks the login while the user types', () => {
@@ -1080,6 +1086,19 @@ test('the connect step pre-checks the login while the user types', () => {
   const src = readCode('ConnectStep.jsx');
   assert.match(src, /checkLoginAvailable\(/);
   assert.match(src, /setTimeout|debounce/i, 'the pre-check fires on every keystroke without one');
+});
+
+test('the login pre-check runs only where a login number exists to check', () => {
+  /* THE BUG THIS CATCHES. The pre-check asks the backend whether an MT5 login is
+   * free. TradeLocker's credential has no login at all — its accountId is not
+   * known until the worker calls /auth/jwt/all-accounts after the account exists.
+   * Left unconditional, the effect is not an error: `Number(undefined)` is NaN,
+   * the guard rejects it, and the pre-check silently never runs. That is fine by
+   * accident today and would stop being fine the moment a platform ships a
+   * non-numeric field named `login`. Ask the platform instead of the value. */
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /loginField/,
+    'the pre-check must key off whether the PLATFORM has a login field');
 });
 
 test('a 409 keeps what the user typed', () => {
@@ -1481,4 +1500,59 @@ test('finish drops the draft on the way out', () => {
   const fn = shell.slice(shell.indexOf('const finish ='), shell.indexOf('const ctx ='));
   assert.match(fn, /clearStoredDraft\(\)/);
   assert.match(fn, /navigate\('\/'\)/);
+});
+
+// ---- Task 8: the credential form is per-platform, and the consent gate ------
+
+test('the credential form is rendered from the platform record, not hardcoded', () => {
+  /* THE BUG THIS CATCHES. This page used to hardcode MT5's three fields: a text
+   * server, a NUMERIC login and a password. TradeLocker's credential is an email,
+   * a server and a password — no login at all. Hardcoded, the form would ask a
+   * TradeLocker user for a numeric MT5 login that does not exist, and
+   * `credentialReady` would never go true, so the button would sit disabled
+   * forever with nothing on screen explaining why. */
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /findPlatformCard\(/, 'the fields must come from the catalog');
+  assert.match(src, /credentialFields/);
+  assert.equal(/MT5 server|MT5 login/.test(src), false,
+    'no platform-specific field label may be a literal in the page');
+  assert.match(src, /[Ff]ields\.map\(/, 'the form must be built by iterating the field list');
+});
+
+test('the consent gate is a real control, and it blocks the submit', () => {
+  /* SPEC §3 SAYS "a real gate rather than a sentence", and this is what that
+   * means mechanically: for a platform whose credential can trade, the submit
+   * button is disabled until the box is ticked. A paragraph the user scrolls past
+   * is not consent to handing over a password that can move money on a funded
+   * account. */
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /<ConsentField/, 'the gate must be the real control, not a styled div');
+  // ...and that primitive must itself be a real checkbox, not a picture of one.
+  assert.match(readSrc('components/primitives/consent-field.jsx'), /<Checkbox/);
+  assert.match(src, /credentialConsent/, 'the gate copy comes from the platform record');
+  assert.match(src, /consent/i);
+  // The disabled expression must actually consider the gate.
+  const ready = /const credentialReady =([\s\S]*?);\n/.exec(src);
+  assert.ok(ready, 'credentialReady must still exist');
+  assert.match(ready[1], /consent/i,
+    'credentialReady must account for the consent gate, or the gate is decoration');
+});
+
+test('a platform with no consent gate is not made to tick one', () => {
+  // MT5's credential cannot trade and the worker proves it on every login. A
+  // tick-box there would be ceremony over a checked fact, and ceremony is what
+  // teaches users to tick without reading.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /needsConsent|consentRequired/,
+    'the gate must be conditional on the platform, not always rendered');
+});
+
+test('the password is submitted exactly as typed, never trimmed', () => {
+  // A leading or trailing space is a legal password character. Trimming it
+  // silently changes the credential and the broker login fails hours later with
+  // nothing to explain it. Other fields ARE trimmed — a pasted server name with a
+  // stray space is the common case there.
+  const src = readCode('ConnectStep.jsx');
+  assert.match(src, /'password'[\s\S]{0,120}\.trim\(\)|type === 'password'/,
+    'the password must be excluded from the trim, explicitly');
 });

@@ -49,6 +49,9 @@ export const PLATFORMS = [
     // and a note living on the connector cannot be inherited by accident.
     credentialNote:
       'Use your investor (read-only) password. A password that can place trades is rejected and deleted on the first login.',
+    // No gate: the credential we ask for here CANNOT trade, and the worker proves
+    // it on every login. A tick-box would be ceremony over a checked fact.
+    credentialConsent: null,
   },
   {
     // Listed deliberately though we cannot sync it: a lot of prop accounts are
@@ -62,6 +65,7 @@ export const PLATFORMS = [
     assetTypes: ['forex', 'cfd'],
     credentialFields: [],
     credentialNote: null,
+    credentialConsent: null,
   },
   {
     id: 'ctrader',
@@ -72,6 +76,7 @@ export const PLATFORMS = [
     assetTypes: ['forex', 'cfd'],
     credentialFields: [],
     credentialNote: null,
+    credentialConsent: null,
   },
   {
     id: 'tradelocker',
@@ -106,6 +111,13 @@ export const PLATFORMS = [
       'TradeLocker has no read-only password — this is the same password that can place trades on your account. '
       + 'We store it encrypted, and PropVexis only ever reads your trade history with it. '
       + 'You can disconnect the account at any time, which deletes the stored password.',
+    // A REAL GATE, NOT A SENTENCE (spec §3). The note above explains; this is what
+    // the trader has to actively affirm before the password field will submit.
+    // The distinction is the whole point of the §3 decision: we are asking for a
+    // credential that can move real money on a funded account, and a sentence
+    // someone scrolled past is not consent to that.
+    credentialConsent:
+      'I understand this password can place trades on my account, and I authorise PropVexis to use it to read my trade history.',
   },
   {
     // The escape hatch. Without it, a trader on a platform we have never heard of
@@ -118,6 +130,7 @@ export const PLATFORMS = [
     assetTypes: [],
     credentialFields: [],
     credentialNote: null,
+    credentialConsent: null,
   },
 ];
 

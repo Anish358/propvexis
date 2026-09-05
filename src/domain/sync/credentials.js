@@ -47,20 +47,26 @@ export function openPassword(row, cfg = config) {
  * has not been proven read-only yet, and carrying the old verdict forward would
  * let a master password inherit an investor password's clean record.
  */
-export function saveCredentialQuery({ accountId, server, firmKey, passwordCt }) {
+export function saveCredentialQuery({ accountId, server, firmKey, passwordCt, loginEmail = null }) {
+  // `login_email` is NULL for MT5, whose credential is identified by a login
+  // number, and set for TradeLocker, whose /auth/jwt/token takes an email. It is
+  // in the DO UPDATE set for the same reason `server` is: reconnecting an account
+  // after fixing a typo must replace the identifier, not authenticate forever
+  // against the stale one and fail hours later in an unattended job.
   return {
-    text: `INSERT INTO mt5_credentials (account_id, server, firm_key, password_ct)
-           VALUES ($1, $2, $3, $4)
+    text: `INSERT INTO mt5_credentials (account_id, server, firm_key, password_ct, login_email)
+           VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT (account_id) DO UPDATE
               SET server = EXCLUDED.server,
                   firm_key = EXCLUDED.firm_key,
                   password_ct = EXCLUDED.password_ct,
+                  login_email = EXCLUDED.login_email,
                   read_only = NULL,
                   verified_at = NULL,
                   last_error = NULL,
                   updated_at = now()
           RETURNING account_id, server, firm_key, read_only, verified_at;`,
-    values: [accountId, server, firmKey ?? null, passwordCt],
+    values: [accountId, server, firmKey ?? null, passwordCt, loginEmail ?? null],
   };
 }
 
