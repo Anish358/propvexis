@@ -47,13 +47,14 @@ import {
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
 import { healthStatus } from '../prop/PropOS.jsx';
-import { consistencyRead, pctText, tradingDaysRead } from '../prop/propAccounts.js';
+import { consistencyRead, isSettled, pctText, tradingDaysRead } from '../prop/propAccounts.js';
 import AccountAlertBanner from '../prop/AccountAlertBanner.jsx';
 import { accountAlertFor } from '../prop/accountAlert.js';
 import AccountDetails from '../prop/AccountDetails.jsx';
 import RecentTrades from '../trades/RecentTrades.jsx';
 import {
   fetchProp, updateAccount, fetchCalendar, fetchSyncStatus, syncNow,
+  acknowledgeOutcome, settlePhase,
 } from '../../lib/api.js';
 import { chartPalette, token } from '../../lib/theme.js';
 import { cumulativeSeries, pnlAxis } from './cumulativePnl.js';
@@ -889,6 +890,45 @@ function AccountCard({
     }
   }
 
+  /* AN OUTCOME NOBODY HAS ANSWERED YET (owner spec 2026-09-05).
+   *
+   * The phase has settled and the account is still open — which is exactly the window
+   * where the account keeps counting in every figure on this page and the trader has not
+   * yet said they have seen it. Read from the ACCOUNT rather than the challenge because
+   * `closed_at` is the one fact the scope resolves on; deriving it from the challenge
+   * here would give the page a second opinion about which accounts it is counting.
+   *
+   * NOTE THIS IS NOT AN EXCEPTION TO SCOPE. The strip appears because the account is
+   * genuinely still in this card's scope, not because this card ignores the switcher —
+   * so there is no per-endpoint special case hiding inside one component. */
+  const unanswered = Boolean(acctRecord) && acctRecord.closed_at == null && isSettled(data);
+  const [answering, setAnswering] = useState(false);
+
+  async function closeAccount() {
+    setAnswering(true);
+    try {
+      await acknowledgeOutcome(data.account_id);
+      onChanged();
+      onLocked();   // the account list too: the switcher and the scope both change here
+    } finally {
+      setAnswering(false);
+    }
+  }
+
+  /* "Not passed yet" / "Still trading" — reopen the phase and silence that verdict.
+   * The suppression is the server's (challenges.suppressed_outcome); without it the next
+   * ingest would re-settle the phase within seconds and the strip would be back. */
+  async function rejectOutcome() {
+    setAnswering(true);
+    try {
+      await settlePhase({ account_id: data.account_id, status: 'active' });
+      onChanged();
+      onLocked();
+    } finally {
+      setAnswering(false);
+    }
+  }
+
   /* THE BANNER NAMES THE RULE IT IS ABOUT, and that is the change here.
    *
    * It used to fire on `healthStatus(...) === 'bad'` — a blended 0-100 score over three
@@ -934,6 +974,9 @@ function AccountCard({
         locking={locking}
         onFixBalance={acctRecord ? fixStartBalance : null}
         fixingBalance={fixingBalance}
+        onCloseAccount={unanswered ? closeAccount : null}
+        onReject={unanswered ? rejectOutcome : null}
+        answering={answering}
       />
 
       {/* The three rule meters live in AccountDetails.jsx — Accounts › Details renders
@@ -1303,12 +1346,37 @@ export default function Dashboard() {
   /* Account Health, which is the one card with two whole arrangements — an empty state
    * and the real thing. Named rather than inlined for that reason alone; every other
    * card on this page is one element at its call site below. */
+  /* EVERY ACCOUNT CLOSED IS NOT THE SAME STORY AS NO ACCOUNTS (rule 3.7).
+   *
+   * The dashboard counts open accounts by default, so a trader whose accounts have all
+   * passed or breached lands here with nothing in scope — and the empty state below used
+   * to tell them they had never added a prop account, which is both wrong and alarming
+   * when they have eleven. It is also not a rare case: it is where every trader sits
+   * between blowing one challenge and buying the next.
+   *
+   * The way out is offered rather than described, because the switcher is the only thing
+   * that can fix it and a trader who has just been told they have no accounts is not
+   * going to look there. */
+  const hasClosedAccounts = accounts.some((a) => a.is_active !== false && !a.pending && a.closed_at != null);
+
   const accountSection = (!selectedAccount ? (
       <AccountCardShell>
-        <EmptyState
-          title="No prop accounts yet"
-          description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
-        />
+        {hasClosedAccounts ? (
+          <EmptyState
+            title="No active accounts"
+            description="Every account you have is passed, breached or retired. Add a new one to start tracking again — or bring the closed ones back into view."
+            actions={(
+              <Button variant="tinted" size="sm" onClick={() => setAccountId('all')}>
+                Show closed accounts
+              </Button>
+            )}
+          />
+        ) : (
+          <EmptyState
+            title="No prop accounts yet"
+            description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
+          />
+        )}
       </AccountCardShell>
     ) : (
       <AccountCard

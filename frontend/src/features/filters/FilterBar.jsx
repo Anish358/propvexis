@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 // `Menu as MenuIcon` — the primitives barrel below already exports a `Menu`
 // component, and the icon would silently shadow it.
-import { Bell, ChevronDown, Filter, Menu as MenuIcon, Settings, Star } from 'lucide-react';
+import { Bell, ChevronDown, Filter, Layers, Menu as MenuIcon, Settings, Star } from 'lucide-react';
 import { activeFilterCount } from './filters.js';
+import { closedGroupOf, isOpenAccount } from '../../lib/scope.js';
 import { navTitle, isSingleAccountRoute } from '../../app/nav.js';
 import FilterPanel from './FilterPanel.jsx';
 // PHASE 4b (overlays) + PHASE 4c (the controls themselves).
@@ -48,7 +49,24 @@ const PHASE_ORDER = ['P1', 'P2', 'P3', 'Funded'];
 // to name (filtering by owner, and the only place account-less trades appeared) was
 // removed with migration 0028.
 const ALL = 'all';
+/* THE SECOND NAMED SCOPE (owner spec 2026-09-05): the accounts still being traded.
+ *
+ * BOTH ROWS ARE ALWAYS IN THE MENU, and that is the point of having two named scopes
+ * rather than one whose meaning depends on the page. The Dashboard starts on OPEN and
+ * every analytic starts on ALL, but the trader is never shown one label that means
+ * different things in different places — "All active accounts" is the same five accounts
+ * wherever it is read, and so is "All accounts, incl. closed". */
+const OPEN = 'open';
 const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
+
+/* The closed tiers, in the order they are worth reading. Passed first: it is the good
+ * news and the shorter list. `retired` is a funded account the trader closed by hand —
+ * it never passed or breached, and calling it either would be a lie about their record. */
+const CLOSED_GROUPS = [
+  { key: 'passed', label: 'Passed' },
+  { key: 'breached', label: 'Breached' },
+  { key: 'retired', label: 'Retired' },
+];
 
 // Account selector (top-right): "All accounts" + each BOUND account as a
 // multi-select checkbox, plus a "Manage accounts" entry. The selection is 'all'
@@ -78,17 +96,37 @@ const acctLabel = (a) => a.label || `MT5 ${a.mt5_login}`;
 // "All accounts" stays: it is a selection of everything active, and it is what the
 // page shows before an account has been picked.
 function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect = false, notifications = [] }) {
-  // Bound + active only; archived accounts stay out of the switcher (still in the modal).
+  // Bound + unarchived only; archived accounts stay out of the switcher (still in the modal).
   const bound = accounts.filter((a) => !a.pending && a.is_active !== false);
   const pendingCount = accounts.filter((a) => a.pending && a.is_active !== false).length;
 
-  const selected = accountId === ALL ? [] : String(accountId).split(',');
+  /* THE TWO TIERS THE SWITCHER SHOWS. Open is what the trader is still trading; closed
+     is passed, breached or retired — present, grouped, and out of the way rather than
+     removed. Removing them was the other proposal and it fails the first time someone
+     breaches an account on Monday and wants to review Monday: the account they most
+     need to look at would be the one they could not select. */
+  const openAccounts = bound.filter(isOpenAccount);
+  const closedAccounts = bound.filter((a) => !isOpenAccount(a));
+  const closedByGroup = CLOSED_GROUPS
+    .map((g) => ({ ...g, rows: closedAccounts.filter((a) => closedGroupOf(a) === g.key) }))
+    .filter((g) => g.rows.length);
+
+  /* WHICH CLOSED GROUPS ARE OPEN, remembered for the session. Collapsed by default
+     because six expanded breached accounts would bury the three being traded — which is
+     the entire complaint that started this design. */
+  const [expanded, setExpanded] = useState({});
+  const toggleGroup = (key) => setExpanded((e) => ({ ...e, [key]: !e[key] }));
+
+  const named = accountId === ALL || accountId === OPEN;
+  const selected = named ? [] : String(accountId).split(',');
   const isSel = (login) => selected.includes(String(login));
   const toggle = (login) => {
     const key = String(login);
     const next = isSel(key) ? selected.filter((l) => l !== key) : [...selected, key];
     const sorted = next.map(Number).sort((a, b) => a - b).map(String);
-    setAccountId(sorted.length ? sorted.join(',') : ALL);
+    /* Unticking the last account falls back to UNSET, not to 'all': the trader
+       cleared their selection, they did not ask for their closed accounts. */
+    setAccountId(sorted.length ? sorted.join(',') : null);
   };
   // Single-select REPLACES rather than accumulates, and never empties the selection
   // by re-clicking the current account — "All accounts" is the row for that.
@@ -97,8 +135,18 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
   /* THE LABEL CARRIES ITS COUNT (Rhea: "All accounts · 5"). It used to read just
    * "All accounts", which says the scope is everything without saying how much
    * everything is — and "everything" is 2 accounts for one trader and 11 for another. */
+  /* AND IT SAYS WHEN CLOSED ACCOUNTS ARE IN SCOPE, which is the safety net for this whole
+   * feature (rule 3.4). Without it a trader can be reading a month's P&L that includes
+   * three blown accounts and have no way to tell — the numbers just look wrong, and
+   * "these figures are weird" is the one support conversation this design could create.
+   * With it, the scope is never hidden state: the bar says what it counted. */
+  const closedInScope = named
+    ? (accountId === ALL ? closedAccounts.length : 0)
+    : closedAccounts.filter((a) => selected.includes(String(a.mt5_login))).length;
+
   let current;
-  if (accountId === ALL) current = bound.length ? `All accounts · ${bound.length}` : 'All accounts';
+  if (accountId === OPEN) current = openAccounts.length ? `All active · ${openAccounts.length}` : 'All active accounts';
+  else if (accountId === ALL) current = bound.length ? `All accounts · ${bound.length}` : 'All accounts';
   else if (selected.length === 1) current = acctLabel(bound.find((a) => String(a.mt5_login) === selected[0]) || {});
   else current = `${selected.length} Accounts`;
 
@@ -128,9 +176,60 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
    * an answer, and matters most, when exactly one account is in scope: a P1 evaluation
    * and a funded account are read completely differently, and the label above says only
    * which broker. So the rule is now simply "the phases of whatever is in scope". */
-  const scopeSummary = accountId === ALL
-    ? summaryOf(bound)
-    : summaryOf(bound.filter((a) => isSel(a.mt5_login)));
+  const scopeSummary = closedInScope
+    // The count of closed accounts outranks the phase summary when there is one: a
+    // reader needs to know the figures include dead accounts before they need to know
+    // which phases those accounts are.
+    ? `${closedInScope} closed`
+    : accountId === OPEN ? summaryOf(openAccounts)
+      : accountId === ALL ? summaryOf(bound)
+        : summaryOf(bound.filter((a) => isSel(a.mt5_login)));
+
+  /* ONE ROW RENDERER FOR BOTH TIERS. A closed account's row is the same row — same
+     label, same phase badge, same select behaviour — because it is the same account and
+     the trader picks it for the same reason. Only where it sits in the menu changes. */
+  const accountRow = (a) => {
+      /* A ROW THAT SAYS WHAT THE ACCOUNT IS (2026-08-28). It used to read a label
+         and then either "Manual" or a five-digit login — the login is the least
+         useful thing about an account you are choosing BY NAME, and "Manual" is
+         how trades arrive, not what the account is.
+         What a trader picks by is the phase, so that is the badge; the connection
+         kind stays as quiet text for the manual case, where it does explain why
+         there is no live balance. Uses the Badge primitive rather than a fourth
+         hand-styled span, so it matches the phase badges in Prop OS. */
+      const row = (
+        <>
+          <span className="acct-opt-name">{acctLabel(a)}</span>
+          {PHASE_TAG[a.phase] && (
+            <Badge tone={a.phase === 'funded' ? 'profit' : 'neutral'}>
+              {PHASE_TAG[a.phase]}
+            </Badge>
+          )}
+          {a.kind === 'manual' && <span className="acct-opt-sub">Manual</span>}
+        </>
+      );
+      return singleSelect ? (
+        <MenuItem
+          key={a.id}
+          className={isSel(a.mt5_login) ? 'acct-opt-sel' : ''}
+          onClick={() => pick(a.mt5_login)}
+        >
+          {row}
+        </MenuItem>
+      ) : (
+        /* The hand-rolled <input type="checkbox"> is gone: the generated item
+           renders its own indicator from `checked`, so the state is expressed once
+           instead of being mirrored into a decorative aria-hidden input. */
+        <MenuCheckboxItem
+          key={a.id}
+          className={isSel(a.mt5_login) ? 'acct-opt-sel' : ''}
+          checked={isSel(a.mt5_login)}
+          onCheckedChange={() => toggle(a.mt5_login)}
+        >
+          {row}
+        </MenuCheckboxItem>
+      );
+  };
 
   return (
     <div className="tb-acct">
@@ -178,52 +277,34 @@ function AccountSwitcher({ accounts = [], accountId, setAccountId, singleSelect 
           {/* The `★` and `⚙` literals become lucide icons: a text glyph inherits the
               row's font metrics and lands at a different size in every typeface,
               where an icon is sized by the menu item itself. Same two meanings. */}
-          <MenuItem className={accountId === ALL ? 'acct-opt-sel' : ''} onClick={() => setAccountId(ALL)}>
+          <MenuItem className={accountId === OPEN ? 'acct-opt-sel' : ''} onClick={() => setAccountId(OPEN)}>
             <Star aria-hidden="true" />
-            All accounts <span className="acct-opt-sub">Every active account</span>
+            All active accounts <span className="acct-opt-sub">{openAccounts.length}</span>
           </MenuItem>
-          {bound.map((a) => {
-            /* A ROW THAT SAYS WHAT THE ACCOUNT IS (2026-08-28). It used to read a label
-               and then either "Manual" or a five-digit login — the login is the least
-               useful thing about an account you are choosing BY NAME, and "Manual" is
-               how trades arrive, not what the account is.
-               What a trader picks by is the phase, so that is the badge; the connection
-               kind stays as quiet text for the manual case, where it does explain why
-               there is no live balance. Uses the Badge primitive rather than a fourth
-               hand-styled span, so it matches the phase badges in Prop OS. */
-            const row = (
-              <>
-                <span className="acct-opt-name">{acctLabel(a)}</span>
-                {PHASE_TAG[a.phase] && (
-                  <Badge tone={a.phase === 'funded' ? 'profit' : 'neutral'}>
-                    {PHASE_TAG[a.phase]}
-                  </Badge>
-                )}
-                {a.kind === 'manual' && <span className="acct-opt-sub">Manual</span>}
-              </>
-            );
-            return singleSelect ? (
-              <MenuItem
-                key={a.id}
-                className={isSel(a.mt5_login) ? 'acct-opt-sel' : ''}
-                onClick={() => pick(a.mt5_login)}
-              >
-                {row}
+          <MenuItem className={accountId === ALL ? 'acct-opt-sel' : ''} onClick={() => setAccountId(ALL)}>
+            <Layers aria-hidden="true" />
+            All accounts, incl. closed <span className="acct-opt-sub">{bound.length}</span>
+          </MenuItem>
+          {closedByGroup.length > 0 && <MenuSeparator />}
+          {closedByGroup.length > 0 && <MenuGroupLabel>Active</MenuGroupLabel>}
+          {openAccounts.map(accountRow)}
+          {closedByGroup.map((g) => (
+            <React.Fragment key={g.key}>
+              {/* THE GROUP HEADER IS THE TOGGLE. A collapsed group with its count is honest —
+                  they are right there, six of them — without putting them between the
+                  trader and the accounts they are actually trading. closeOnClick={false}
+                  because expanding a group is not choosing a scope. */}
+              <MenuItem closeOnClick={false} onClick={() => toggleGroup(g.key)}>
+                <ChevronDown
+                  aria-hidden="true"
+                  style={{ transform: expanded[g.key] ? 'none' : 'rotate(-90deg)' }}
+                />
+                {g.label}
+                <span className="acct-opt-sub">{g.rows.length}</span>
               </MenuItem>
-            ) : (
-              /* The hand-rolled <input type="checkbox"> is gone: the generated item
-                 renders its own indicator from `checked`, so the state is expressed once
-                 instead of being mirrored into a decorative aria-hidden input. */
-              <MenuCheckboxItem
-                key={a.id}
-                className={isSel(a.mt5_login) ? 'acct-opt-sel' : ''}
-                checked={isSel(a.mt5_login)}
-                onCheckedChange={() => toggle(a.mt5_login)}
-              >
-                {row}
-              </MenuCheckboxItem>
-            );
-          })}
+              {expanded[g.key] && g.rows.map(accountRow)}
+            </React.Fragment>
+          ))}
           <MenuSeparator />
           {/* A LINK, NOT A DIALOG. Managing accounts is a page now — Settings >
               Accounts — so this navigates there instead of opening a modal that

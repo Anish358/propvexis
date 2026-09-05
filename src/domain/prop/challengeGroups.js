@@ -10,6 +10,7 @@
 // owner, and every write scoped by user_id so an id from a request body can never
 // reach another trader's challenge.
 import { pool, query } from '../../platform/db.js';
+import { isOutcomeSuppressed, recursOnItsOwn } from './challengeStatus.js';
 
 const num = (v) => (v == null ? null : Number(v));
 
@@ -193,18 +194,41 @@ export async function attachAccountToGroup(client, accountId, groupId) {
  * Returns `{ challengeId, phase, status }` for the transition that actually happened,
  * or null when there was none.
  */
-export async function applyChallengeOutcome(accountId, { status, reason = null } = {}) {
+export async function applyChallengeOutcome(accountId, { status, reason = null, day = null } = {}) {
   if (status !== 'passed' && status !== 'breached') return null;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    /* THE SUPPRESSION CHECK (migration 0033), read inside the transaction rather than
+       expressed in the UPDATE's WHERE clause. The rule for what a rejection silences is
+       genuinely intricate — sticky for a pass and a max-DD breach, day-keyed for a
+       daily-loss one — and there is no test database here, so the only place that rule
+       can be PINNED is a pure function. Duplicating it in SQL would give this codebase
+       two answers to one question and only one of them under test.
+       FOR UPDATE holds the row for the write below, so the read cannot straddle another
+       ingest reaching the same verdict. */
+    const { rows: pending } = await client.query(
+      `SELECT id, suppressed_outcome FROM challenges
+        WHERE mt5_account_id = $1 AND status = 'active'
+        FOR UPDATE`,
+      [accountId],
+    );
+    if (!pending.length) { await client.query('ROLLBACK'); return null; }
+    if (isOutcomeSuppressed(pending[0].suppressed_outcome, { status, reason, day })) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
     const stamp = status === 'breached' ? 'breached_at' : 'passed_at';
     const { rows } = await client.query(
       `UPDATE challenges
-          SET status = $1, ${stamp} = now(), breach_reason = $2
-        WHERE mt5_account_id = $3 AND status = 'active'
+          SET status = $1, ${stamp} = now(), breach_reason = $2, outcome_day = $3
+        WHERE mt5_account_id = $4 AND status = 'active'
         RETURNING id, phase`,
-      [status, status === 'breached' ? reason : null, accountId],
+      // The day is recorded only for the outcome that HAS one, so that a later rejection
+      // silences the breach the trader is looking at rather than the day they clicked.
+      [status, status === 'breached' ? reason : null, recursOnItsOwn({ status, reason }) ? day : null, accountId],
     );
     if (!rows.length) { await client.query('ROLLBACK'); return null; }
 
@@ -245,13 +269,23 @@ export async function applyChallengeOutcome(accountId, { status, reason = null }
  * else in the group is still breached — a 3-phase challenge with two breached accounts is
  * still a failed challenge, and reopening one of them does not change that.
  */
-export async function reopenChallenge(accountId) {
+export async function reopenChallenge(accountId, { suppress = false } = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
       `UPDATE challenges c
-          SET status = 'active', passed_at = NULL, breached_at = NULL, breach_reason = NULL
+          SET status = 'active', passed_at = NULL, breached_at = NULL, breach_reason = NULL,
+              -- WHAT THE TRADER JUST REJECTED, taken from the row itself rather than from
+              -- the request: the outcome being silenced is the one being undone, and the
+              -- row is the only place that pairing is guaranteed to be consistent.
+              -- outcome_day is already NULL for a pass and for a max-DD breach, so the
+              -- sticky/day-keyed distinction falls out with no branch here.
+              suppressed_outcome = CASE WHEN $2 THEN
+                jsonb_build_object('status', c.status, 'reason', c.breach_reason, 'day', c.outcome_day)
+              ELSE c.suppressed_outcome END,
+              acknowledged_at = NULL,
+              outcome_day = NULL
         WHERE c.id = (
                 SELECT id FROM challenges
                  WHERE mt5_account_id = $1 AND status <> 'active'
@@ -263,9 +297,18 @@ export async function reopenChallenge(accountId) {
                  WHERE o.mt5_account_id = $1 AND o.status = 'active'
               )
         RETURNING c.id, c.phase`,
-      [accountId],
+      [accountId, suppress],
     );
     if (!rows.length) { await client.query('ROLLBACK'); return null; }
+
+    /* AND THE ACCOUNT COMES BACK WITH IT. Reopening a phase says the trader is still
+       trading this account, so it returns to the dashboard's default scope — otherwise
+       "Not passed yet" would put the challenge back to running while leaving the account
+       invisible on the page the trader watches while running it. */
+    await client.query(
+      'UPDATE mt5_accounts SET closed_at = NULL, closed_reason = NULL WHERE id = $1',
+      [accountId],
+    );
 
     await client.query(
       `UPDATE challenge_groups g
@@ -287,6 +330,167 @@ export async function reopenChallenge(accountId) {
   } finally {
     client.release();
   }
+}
+
+/**
+ * THE TRADER HAS SEEN IT — "Close account" (migration 0033).
+ *
+ * The engine settles a challenge off the trading; this records that the human agreed,
+ * and it is the moment the account leaves the dashboard's default scope. Everything
+ * before this point the trader still sees exactly as they did: the account keeps
+ * counting in KPIs, the calendar and recent trades from the instant it settles until
+ * the instant they press this.
+ *
+ * WHY THE ACKNOWLEDGEMENT AND THE CLOSE ARE ONE TRANSACTION AND TWO FACTS. The stamp on
+ * the challenge says WHICH OUTCOME was answered — it has to live there, because an
+ * account collects many settled rows over its life and a flag on the account would
+ * already be set the second time round, silently eating the strip for the pass that
+ * actually counted. The stamp on the account says THE ACCOUNT IS DONE, which is what
+ * every scope resolution reads and what a manual retire sets with no challenge at all.
+ * Written together, they cannot disagree.
+ *
+ * Returns the transition, or null when there was nothing waiting to be acknowledged —
+ * which the route reports as a 409 rather than an empty success.
+ */
+export async function acknowledgeOutcome(accountId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    /* The latest settled row that has NOT been answered. Guarded on acknowledged_at
+       rather than read-then-write, so a double click acknowledges once. */
+    const { rows } = await client.query(
+      `UPDATE challenges c
+          SET acknowledged_at = now()
+        WHERE c.id = (
+                SELECT id FROM challenges
+                 WHERE mt5_account_id = $1 AND status <> 'active' AND acknowledged_at IS NULL
+                 ORDER BY COALESCE(passed_at, breached_at) DESC, id DESC
+                 LIMIT 1
+              )
+        RETURNING c.id, c.phase, c.status`,
+      [accountId],
+    );
+    if (!rows.length) { await client.query('ROLLBACK'); return null; }
+
+    await client.query(
+      `UPDATE mt5_accounts
+          SET closed_at = now(), closed_reason = $2
+        WHERE id = $1 AND closed_at IS NULL`,
+      [accountId, rows[0].status],
+    );
+    await client.query('COMMIT');
+    return { challengeId: Number(rows[0].id), phase: rows[0].phase, status: rows[0].status };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * The settled-but-unanswered outcome for each of a user's accounts — what draws the
+ * strip, and what the auto-acknowledgement sweep reads.
+ *
+ * ONE QUERY FOR THE WHOLE USER, like challengeGroupsForUser above and for the same
+ * reason: the dashboard holds every account already, and asking per account would be N
+ * requests behind one card.
+ */
+export async function pendingOutcomesForUser(userId) {
+  const { rows } = await query(
+    `SELECT DISTINCT ON (a.id)
+            a.mt5_login, a.label, c.id AS challenge_id, c.phase, c.status,
+            c.breach_reason, c.outcome_day,
+            COALESCE(c.passed_at, c.breached_at) AS settled_at
+       FROM mt5_accounts a
+       JOIN challenges c ON c.mt5_account_id = a.id
+      WHERE a.user_id = $1 AND a.is_active AND a.closed_at IS NULL
+        AND c.status <> 'active' AND c.acknowledged_at IS NULL
+        -- An account that has moved on has nothing pending: the trader answered by
+        -- adding the next phase, and a strip for a phase they have already left is a
+        -- question about ancient history.
+        AND NOT EXISTS (SELECT 1 FROM challenges o
+                         WHERE o.mt5_account_id = a.id AND o.status = 'active')
+      ORDER BY a.id, COALESCE(c.passed_at, c.breached_at) DESC, c.id DESC`,
+    [userId],
+  );
+  return rows.map((r) => ({
+    accountId: Number(r.mt5_login),
+    label: r.label,
+    challengeId: Number(r.challenge_id),
+    phase: r.phase,
+    status: r.status,
+    reason: r.breach_reason ?? null,
+    day: r.outcome_day ?? null,
+    settledAt: r.settled_at,
+  }));
+}
+
+/** How long a settled account waits for an answer before we stop asking. */
+export const AUTO_ACK_DAYS = 7;
+
+/**
+ * AUTO-ACKNOWLEDGEMENT — the accounts nobody answered (owner spec 2026-09-05).
+ *
+ * The strip is the polite version of this: an account settles, keeps counting in the
+ * dashboard, and waits for the trader to say they have seen it. Traders do not always
+ * say so, and an account that waits forever means dead accounts dragged through the
+ * numbers forever — which is the exact thing this feature exists to stop. After
+ * AUTO_ACK_DAYS with no answer AND NO NEW TRADES, we take the silence as agreement.
+ *
+ * THE "NO NEW TRADES" HALF IS NOT DECORATION. Elapsed time alone would close an account
+ * the trader is visibly still trading — a breach the firm reinstated, a pass the trader
+ * is disputing while they keep going. A trade after the settlement is that trader
+ * telling us, in the only language this system reads reliably, that the account is not
+ * finished. `resolveChallengeOutcome` is still running on those trades, so a genuinely
+ * dead account cannot produce them.
+ *
+ * RETURNS WHAT IT CLOSED, because rule 2.1 does not stop applying just because the
+ * trader was not looking: the dashboard total is about to change, so the caller
+ * announces it. A silent auto-acknowledgement is the same unexplained P&L change the
+ * strip exists to prevent, moved to day 8.
+ */
+export async function sweepAutoAcknowledged({ days = AUTO_ACK_DAYS } = {}) {
+  const { rows } = await query(
+    `WITH ripe AS (
+        SELECT DISTINCT ON (a.id)
+               a.id AS account_id, a.user_id, a.mt5_login, a.label,
+               c.id AS challenge_id, c.phase, c.status,
+               COALESCE(c.passed_at, c.breached_at) AS settled_at
+          FROM mt5_accounts a
+          JOIN challenges c ON c.mt5_account_id = a.id
+         WHERE a.is_active AND a.closed_at IS NULL
+           AND c.status <> 'active' AND c.acknowledged_at IS NULL
+           AND COALESCE(c.passed_at, c.breached_at) < now() - ($1 || ' days')::interval
+           -- Still mid-challenge (the next phase is running on this same account) is not
+           -- an unanswered outcome; the trader answered by carrying on.
+           AND NOT EXISTS (SELECT 1 FROM challenges o
+                            WHERE o.mt5_account_id = a.id AND o.status = 'active')
+           -- The trader kept trading it. Not finished, whatever the engine decided.
+           AND NOT EXISTS (SELECT 1 FROM trades t
+                            WHERE t.account_id = a.mt5_login
+                              AND t.close_time > COALESCE(c.passed_at, c.breached_at))
+         ORDER BY a.id, COALESCE(c.passed_at, c.breached_at) DESC, c.id DESC
+     ), acked AS (
+        UPDATE challenges c SET acknowledged_at = now()
+          FROM ripe r WHERE c.id = r.challenge_id
+        RETURNING c.id
+     )
+     UPDATE mt5_accounts a
+        SET closed_at = now(), closed_reason = r.status
+       FROM ripe r
+      WHERE a.id = r.account_id
+      RETURNING a.user_id, r.mt5_login, r.label, r.phase, r.status, r.challenge_id`,
+    [String(days)],
+  );
+  return rows.map((r) => ({
+    userId: Number(r.user_id),
+    accountId: Number(r.mt5_login),
+    label: r.label,
+    phase: r.phase,
+    status: r.status,
+    challengeId: Number(r.challenge_id),
+  }));
 }
 
 /**

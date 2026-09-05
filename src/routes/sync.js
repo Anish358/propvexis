@@ -24,6 +24,9 @@ import {
   syncableAccounts,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
+import { sweepAutoAcknowledged } from '../domain/prop/challengeGroups.js';
+import { insertNotifications } from '../domain/alerts/notifications.js';
+import { accountAutoClosedAlert } from '../domain/alerts/alerts.js';
 import { recordBrokerAccount } from '../domain/sync/brokerAccount.js';
 import { freshAccessToken, markIdentityError } from '../domain/sync/ctraderIdentities.js';
 import {
@@ -56,7 +59,10 @@ import {
  * afterwards — app.requireAuth would be undefined and the global rate-limit hook
  * would not apply.
  */
-export default function syncRoutes(app) {
+export default function syncRoutes(app, ctx) {
+  // Only the auto-acknowledgement sweep on the lease tick needs it, and it is optional
+  // on purpose: a caller that wires no socket layer still gets working sync routes.
+  const { io } = ctx ?? {};
   // --- worker auth -----------------------------------------------------------
   // Timing-safe and closed when unconfigured — see domain/sync/workerAuth.js.
   const requireWorker = async (req, reply) => {
@@ -119,6 +125,35 @@ export default function syncRoutes(app) {
     // Scheduled syncs pause over the weekend; a manual "Sync now" is already in
     // the queue by the time we get here, so it is unaffected.
     const queued = isMarketOpen() ? await enqueueDue() : [];
+
+    /* THE AUTO-ACKNOWLEDGEMENT SWEEP rides this tick (owner spec 2026-09-05).
+     *
+     * WHY HERE, of all places. It has to run on a timer, and this app has no scheduler:
+     * the one thing that reliably comes round is the sync worker's poll, which is
+     * already where `enqueueDue` does exactly this kind of periodic write — on a POST,
+     * not on a read. Putting it on GET /api/accounts was the alternative and it is the
+     * mistake this codebase has already named once: that route is polled by every open
+     * tab, so the write would run on page loads instead of on events, and a mutating
+     * read cannot be cached.
+     *
+     * THE CATCH, STATED SO IT IS NOT DISCOVERED LATER: this ties the sweep to the sync
+     * farm running. A deployment with no worker never sweeps, and its traders' unanswered
+     * accounts wait indefinitely — degraded, not broken, because the strip is still there
+     * and closing by hand still works. sweepAutoAcknowledged() takes no arguments for
+     * that reason: it is one call, ready to move to a real scheduler or a cron entry the
+     * day there is one.
+     *
+     * It never throws into the lease response. A failed sweep must not stop a worker
+     * getting its jobs — that would trade a tidy-up for the actual product. */
+    try {
+      for (const closed of await sweepAutoAcknowledged()) {
+        const created = await insertNotifications(closed.userId, [accountAutoClosedAlert(closed)]);
+        for (const n of created) io?.to(`user:${closed.userId}`).emit('notification:new', n);
+        io?.to(`user:${closed.userId}`).emit('accounts:updated', { account_id: closed.accountId });
+      }
+    } catch (err) {
+      req.log?.warn?.({ err }, 'auto-acknowledge sweep failed');
+    }
     const leased = await leaseJobs(workerId, limit, undefined, requestedPlatforms(body));
     // ONE QUERY PER PLATFORM. The MT5 payload query INNER JOINs mt5_credentials,
     // which a cTrader account has no row in -- serving both through it returns no

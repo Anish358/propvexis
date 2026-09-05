@@ -266,6 +266,20 @@ export async function syncActiveChallengeRules(accountId, fields) {
     if (key in fields) { params.push(fields[key]); sets.push(`${col} = $${params.length}`); }
   }
   if (!sets.length) return;
+  /* AND CORRECTED RULES CLEAR A SUPPRESSED OUTCOME (migration 0033).
+   *
+   * When a trader presses "Not passed yet", the engine stops re-settling that phase —
+   * otherwise the next ingest reads the same equity against the same rules and reaches
+   * the same verdict within seconds. But suppression only buys time; it is not the fix.
+   * When someone says a pass is wrong, the engine has usually not miscounted — the rules
+   * it was given are wrong. Wrong target, wrong minimum days, wrong start balance, wrong
+   * start date (that one has bitten this project already: start_date defaulted to now(),
+   * which under-counted trading days on every account added mid-challenge).
+   *
+   * So fixing the rules is the actual repair, and re-judging against corrected rules is
+   * something we WANT to happen immediately. Clearing here is what makes the escape
+   * hatch a real one rather than a permanently muted account. */
+  sets.push('suppressed_outcome = NULL');
   params.push(accountId);
   await query(
     `UPDATE challenges SET ${sets.join(', ')}

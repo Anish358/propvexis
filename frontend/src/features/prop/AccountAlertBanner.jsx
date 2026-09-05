@@ -48,6 +48,7 @@ const ICON = {
  */
 export default function AccountAlertBanner({
   data, onLock = null, locking = false, onFixBalance = null, fixingBalance = false,
+  onCloseAccount = null, onReject = null, answering = false,
 }) {
   const alert = accountAlertFor(data);
   if (!alert) return null;
@@ -82,6 +83,35 @@ export default function AccountAlertBanner({
       <AccountBannerAction tone={alert.tone} onClick={onLock} disabled={locking}>
         {locking ? 'Locking…' : 'Lock account'}
       </AccountBannerAction>
+    );
+  } else if (onCloseAccount && onReject) {
+    /* THE STRIP THAT ENDS AN ACCOUNT'S LIFE (owner spec 2026-09-05).
+     *
+     * Shown only while the phase has SETTLED and the trader has not answered — the card
+     * decides that, because only it holds the account record that carries `closed_at`.
+     *
+     * WHY THERE IS A SECOND BUTTON AT ALL. The engine settles off the trades it has, and
+     * it can be wrong about a real account: a stale EA balance, a trade that arrives
+     * late, a firm that counts a technicality its own way, a breach the firm then
+     * reinstated. With only a confirm, a wrong verdict would move the account out of the
+     * dashboard with no way back — and on a pass, a wrong verdict tells someone to go and
+     * add a Phase 2 login their firm never issued, which is the one mistake in this app
+     * that costs real money. The negative is worded for what the trader means rather than
+     * for what the database does: they are saying "I am still trading this".
+     *
+     * THE PRIMARY SAYS "CLOSE ACCOUNT" AND NOT "OK" because it does something — it moves
+     * the account to the Closed tier and out of the dashboard's default scope. A button
+     * that changes what the next screen shows should name the change. */
+    const rejectLabel = data?.status === 'breached' ? 'Still trading' : 'Not passed yet';
+    action = (
+      <>
+        <AccountBannerAction tone={alert.tone} onClick={onCloseAccount} disabled={answering}>
+          {answering ? 'Closing…' : 'Close account'}
+        </AccountBannerAction>
+        <AccountBannerAction tone={alert.tone} onClick={onReject} disabled={answering}>
+          {rejectLabel}
+        </AccountBannerAction>
+      </>
     );
   } else if (alert.action === 'challenge') {
     // Good news points at the challenge it belongs to — the surface that can actually

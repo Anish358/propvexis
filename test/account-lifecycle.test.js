@@ -114,7 +114,7 @@ test('archiving is implemented ONLY by ownedLogins excluding the account', () =>
   // is written to the account's data to hide it.
   assert.match(
     accountsDomain,
-    /SELECT mt5_login FROM mt5_accounts WHERE user_id = \$1 AND is_active AND mt5_login IS NOT NULL/,
+    /SELECT mt5_login FROM mt5_accounts\s+WHERE user_id = \$1 AND is_active AND mt5_login IS NOT NULL/,
   );
   // No archive flag is stamped onto the rows anywhere in the domain.
   assert.ok(!/UPDATE trades SET/.test(accountsDomain), 'archiving must not write to trades');

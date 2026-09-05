@@ -26,9 +26,19 @@ const loginNum = (v) => (v == null ? null : Number(v));
 // A pending account (mt5_login IS NULL — an EA account that has never bound) is
 // excluded too. It has no login to filter trades by, and Number(null) is 0, which
 // would put a literal `0` in the ANY() list and scope onto nothing.
-export async function ownedLogins(userId) {
+//
+// `openOnly` NARROWS IT ONE FURTHER TIER, to the accounts the trader is still trading
+// (migration 0033). Closed is not archived and the difference is the whole point:
+// archiving takes an account's history out of every aggregate the trader has, closing
+// takes it out of the DASHBOARD'S DEFAULT and nothing else. So this is a scope the
+// caller asks for, not a filter applied everywhere — the Trade Log and Analytics
+// deliberately count closed accounts, because a trader's real record includes the
+// accounts they blew.
+export async function ownedLogins(userId, { openOnly = false } = {}) {
   const { rows } = await query(
-    'SELECT mt5_login FROM mt5_accounts WHERE user_id = $1 AND is_active AND mt5_login IS NOT NULL',
+    `SELECT mt5_login FROM mt5_accounts
+      WHERE user_id = $1 AND is_active AND mt5_login IS NOT NULL
+        ${openOnly ? 'AND closed_at IS NULL' : ''}`,
     [userId],
   );
   return rows.map((r) => Number(r.mt5_login));
@@ -44,8 +54,16 @@ export async function ownedLogins(userId) {
  * exactly the same rows and the second one is gone: every scope is a list of
  * logins, filtered by account_id.
  *
- * `requested` is null/''/'all' for every ACTIVE account the user owns, a single
- * login, or a comma-separated list of logins (multi-select). Returns
+ * `requested` is 'open' for the accounts still being traded, null/''/'all' for every
+ * unarchived account the user owns (closed ones included), a single login, or a
+ * comma-separated list of logins (multi-select). Returns
+ *
+ * AN EXPLICIT LIST IS HONOURED WHATEVER TIER IT NAMES, and that is not an oversight —
+ * it is rule 3.2. A trader who ticks a breached account has said what they want, and a
+ * scope that quietly dropped it would be overriding a deliberate choice. Only the
+ * DEFAULTS differ per page; a named login is a named login everywhere. Archived is the
+ * one tier no list can reach, because its logins never enter `owned`.
+ *
  * `{ userId, logins, multi }`, or null when NONE of the requested logins are owned
  * and active (caller should 403/404).
  *
@@ -60,6 +78,19 @@ export async function ownedLogins(userId) {
  * Naming specific logins that are not yours still gets null, which is a 403.
  */
 export async function resolveScope(userId, requested) {
+  // 'open' — the accounts still being traded (migration 0033). The dashboard asks for
+  // this one; every other analytic asks for 'all'.
+  //
+  // AN UNSET SCOPE STILL MEANS 'all', AND THAT IS THE SAFE DIRECTION. The per-page
+  // default is the CLIENT's decision — only it knows which page is asking — so the
+  // server's job here is to honour what it is given and to fail towards showing too
+  // much rather than too little. A client that forgets to send a scope shows a trader
+  // every account they own, which is confusing; the other default would silently hide
+  // accounts, which is a support ticket that reads like data loss.
+  if (requested === 'open') {
+    const open = await ownedLogins(userId, { openOnly: true });
+    return { userId, logins: open, multi: open.length > 1 };
+  }
   const owned = await ownedLogins(userId);
   if (requested == null || requested === '' || requested === 'all') {
     return { userId, logins: owned, multi: owned.length > 1 };
@@ -95,6 +126,11 @@ export async function listAccounts(userId) {
             a.firm_id, a.firm_name,
             a.product_id, a.capital_kind, a.platform, a.import_method,
             a.ingest_token, a.kind, a.is_active, a.created_at,
+            -- THE TIER (migration 0033). The switcher groups on these two and must not
+            -- have to join challenges to do it: a funded account retired by hand is
+            -- closed with its challenge row still active, so the challenge's status is
+            -- not the answer to "which group does this account go in".
+            a.closed_at, a.closed_reason,
             -- The challenge this account is a phase of (migration 0027). It rides on
             -- the account list on purpose: every client already holds that list, so
             -- grouping accounts into challenges costs no second request.
@@ -140,7 +176,7 @@ export async function listAccounts(userId) {
 // Exported so provisionQueries.js returns the same shape and test/provision-tx
 // can assert the new columns are actually reachable through the API.
 export const ACCOUNT_COLUMNS =
-  'id, mt5_login, platform_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, consistency_pct, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, created_at, challenge_group_id';
+  'id, mt5_login, platform_login, label, broker, currency, start_balance, account_type, daily_dd_pct, max_dd_pct, profit_target_pct, payout_split_pct, payout_cycle_days, payout_anchor_date, dd_type, min_trading_days, consistency_pct, firm_id, firm_name, product_id, capital_kind, platform, import_method, ingest_token, kind, is_active, closed_at, closed_reason, created_at, challenge_group_id';
 const ACCT_COLS = ACCOUNT_COLUMNS;
 
 // Create an account. A 'synced' account is pending (no login yet) and carries a
@@ -215,6 +251,31 @@ export async function updateAccount(userId, id, fields) {
   const params = [];
   for (const f of allowed) {
     if (f in fields) { params.push(fields[f]); sets.push(`${f} = $${params.length}`); }
+  }
+
+  /* RETIRING AN ACCOUNT BY HAND (migration 0033) — `closed: true|false`, a boolean in
+   * and two columns out, which is why it cannot ride the loop above.
+   *
+   * A FUNDED ACCOUNT HAS NO OTHER WAY OUT, and that is the whole reason this exists. A
+   * funded phase never auto-passes — profitTargetState returns null when a challenge
+   * carries no target and every funded row stores NULL there, because that journey ends
+   * in payouts rather than in a pass. So before this, a trader who stopped trading a
+   * funded account had exactly two options: breach it, or ARCHIVE it — and archiving
+   * takes the account's whole history out of every aggregate they have, which is the
+   * opposite of what someone wants for an account that made them money. Without this,
+   * retired funded accounts would sit in `open` forever, dragging a dead account through
+   * the dashboard of every trader who ever got funded.
+   *
+   * 'retired' rather than 'passed'/'breached': the switcher groups on this column, and a
+   * hand-retired account did not pass or breach — its challenge row may well still be
+   * active. Reopening is the same field with `false`. */
+  if ('closed' in fields) {
+    if (fields.closed) {
+      params.push('retired');
+      sets.push(`closed_at = COALESCE(closed_at, now()), closed_reason = $${params.length}`);
+    } else {
+      sets.push('closed_at = NULL, closed_reason = NULL');
+    }
   }
   if (!sets.length) {
     const { rows } = await query(

@@ -169,6 +169,14 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS, perPlatform = PL
                     ON ci.id = a.ctrader_identity_id AND ci.revoked_at IS NULL
              LEFT JOIN intervals i ON i.platform = a.platform
             WHERE a.is_active
+              -- A CLOSED ACCOUNT LEAVES THE ROTATION (migration 0033), and this line has
+              -- money attached. The farm runs a serial worker slot per poll; a blown
+              -- account left in the schedule spends one every few hours forever, on a
+              -- login that will never report another trade. enqueueQuery is untouched,
+              -- so "Sync now" still works — a trader may legitimately want one final pull
+              -- after closing, and that is a request they made rather than a cost we
+              -- chose. Archived accounts have never been in here for the same reason.
+              AND a.closed_at IS NULL
               AND a.kind = 'synced'
               -- "Can this account actually sync", asked per platform rather than
               -- assumed to mean one table. Loosening the join must not loosen the

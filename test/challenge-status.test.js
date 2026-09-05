@@ -30,7 +30,7 @@ const state = (over = {}) => ({
 
 test('an ordinary running phase settles nothing', () => {
   const out = resolveChallengeOutcome({ challenge: challenge(), state: state() });
-  assert.deepEqual(out, { status: 'active', reason: null });
+  assert.deepEqual(out, { status: 'active', reason: null, day: null });
 });
 
 test('the target alone is NOT a pass while trading days are outstanding', () => {
@@ -53,7 +53,7 @@ test('target AND trading days met passes the phase', () => {
       tradingDays: { met: true, completed: 3, required: 3, cycleStart: '2026-08-20T00:00:00Z' },
     }),
   });
-  assert.deepEqual(out, { status: 'passed', reason: null });
+  assert.deepEqual(out, { status: 'passed', reason: null, day: null });
 });
 
 test('no day requirement passes on the target alone — with no special case for it', () => {
@@ -82,7 +82,10 @@ test('a breach beats a target reached on the same tick, and carries its reason',
       breach: { breached: true, reason: 'daily_dd' },
     }),
   });
-  assert.deepEqual(out, { status: 'breached', reason: 'daily_dd' });
+  // The day rides along for a daily-loss breach and only for that one: it is what a
+  // later "Still trading" silences, and silencing "today" instead of the breach's own
+  // day would leave the real breach live and pre-silence tomorrow's.
+  assert.deepEqual(out, { status: 'breached', reason: 'daily_dd', day: '2026-08-27' });
 });
 
 test('a funded phase never auto-passes — it has no target to cross', () => {
@@ -195,7 +198,7 @@ test('the ingest path is where status is written — not a read handler', () => 
   // resolver that returned 'passed' forever plus an UPDATE with no status guard would
   // re-stamp the row — and re-announce it — on every trade that followed.
   const groups = readBackend('domain/prop/challengeGroups.js');
-  assert.match(groups, /UPDATE challenges[\s\S]*?WHERE mt5_account_id = \$3 AND status = 'active'/);
+  assert.match(groups, /UPDATE challenges[\s\S]*?WHERE mt5_account_id = \$4 AND status = 'active'/);
   assert.match(groups, /UPDATE challenge_groups[\s\S]*?AND g\.status = 'active'/);
 });
 

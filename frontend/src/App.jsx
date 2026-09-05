@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { fetchTrades, fetchAccount, fetchAccounts, fetchPayouts, fetchFees, fetchStrategies, connectSocket, tagTrade, deleteTrade, createManualTrade, fetchNotifications, markNotificationsRead, fetchViewState, saveViewState, fetchMe } from './lib/api.js';
 import { useAuth } from './app/AuthContext.jsx';
 import { scopeKey, readScopeConfig, defaultConfig, DEFAULT_UNIT, emptyFilters, sanitizeFilters, filterTrades, availableOptions } from './features/filters/filters.js';
@@ -43,6 +43,7 @@ import FirmStep from './features/accounts/steps/FirmStep.jsx';
 import AccountStep from './features/accounts/steps/AccountStep.jsx';
 import PlatformStep from './features/accounts/steps/PlatformStep.jsx';
 import { LEGACY_REDIRECTS } from './app/nav.js';
+import { defaultScopeFor, effectiveScope } from './lib/scope.js';
 
 // The Add Account wizard. A SIBLING of <Layout> on purpose (spec §8.1): eleven
 // full-bleed pages with no sidebar and no filter bar, so it cannot nest inside the
@@ -83,7 +84,19 @@ function wizardRoutes({ accounts, reloadAccounts, setAccountId, firstRun, onOnbo
   ];
 }
 
-const ACCT_KEY = 'amey.accountId';   // 'all' or a comma-joined list of mt5 logins (per-device nav state)
+/* THE SELECTED SCOPE: 'open', 'all', or a comma-joined list of mt5 logins. ABSENT means
+ * the trader has not chosen, and each page then uses its own default (lib/scope.js).
+ *
+ * THE KEY IS VERSIONED BECAUSE THE OLD VALUES CANNOT BE READ ANY MORE. Before the
+ * lifecycle work, 'all' was both the default AND the only value anyone had — it meant
+ * "every account I own" because no other option existed. It now means "including the
+ * closed ones" specifically, so every value cached under the old key would be read as a
+ * deliberate choice to include closed accounts and would hand every returning user a
+ * dashboard full of blown accounts on their next load. A new key reads as unset, which
+ * is the truth: nobody chose a value under semantics that did not exist yet. The
+ * server's copy in user_view_state is dropped by migration 0033 for the same reason —
+ * this is the second half of that migration, on the device. */
+const ACCT_KEY = 'amey.accountId.v2';
 const defaultTradeSettings = () => ({ beRounding: false, columns: {} });
 
 // Legacy localStorage keys (view state now lives server-side). Read once on the
@@ -119,17 +132,37 @@ export default function App() {
   const [unread, setUnread] = useState(0);
   const [toasts, setToasts] = useState([]);
   const toastSeq = useRef(0);
-  const [accountId, setAccountIdState] = useState(() => localStorage.getItem(ACCT_KEY) || 'all');
+  // null = not chosen. Kept distinct from 'all' — see ACCT_KEY and lib/scope.js.
+  const [accountId, setAccountIdState] = useState(() => localStorage.getItem(ACCT_KEY) || null);
   const [connected, setConnected] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [flashId, setFlashId] = useState(null);
   const flashTimer = useRef(null);
-  const accountIdRef = useRef(accountId);
-  useEffect(() => { accountIdRef.current = accountId; }, [accountId]);
+  /* THE SCOPE THE API ACTUALLY GETS. An unset selection resolves against the route the
+     trader is on, so the Dashboard opens on their live accounts and every analytic opens
+     on all of them — without either page holding its own selection, which would be two
+     sources of truth for one question. An explicit pick short-circuits the whole thing
+     and is honoured everywhere (rule 3.2). */
+  const { pathname } = useLocation();
+  const scope = effectiveScope(accountId, pathname);
+  const accountIdRef = useRef(scope);
+  useEffect(() => { accountIdRef.current = scope; }, [scope]);
 
+  /* Only ever called from the switcher, which is what makes a stored value a CHOICE.
+     Landing on a page whose default happens to be 'all' must not record one — otherwise
+     visiting Analytics would silently switch the Dashboard to include closed accounts,
+     and the trader would never know which click did it. */
   function setAccountId(id) {
-    localStorage.setItem(ACCT_KEY, id);
-    setAccountIdState(id);
+    /* PICKING THE ROW THAT WAS ALREADY SELECTED IS NOT A CHOICE (rule 3.3). Analytics
+       lands on "All accounts, incl. closed" by default; if opening that menu and clicking
+       the highlighted row counted as a decision, a trader who was only checking what was
+       selected would have silently switched their DASHBOARD to include closed accounts,
+       with nothing on screen connecting the two. Recording only an actual change keeps a
+       deliberate pick sovereign without letting navigation impersonate one. */
+    const next = accountId == null && id === defaultScopeFor(pathname) ? null : id;
+    if (next == null) localStorage.removeItem(ACCT_KEY);
+    else localStorage.setItem(ACCT_KEY, next);
+    setAccountIdState(next ?? null);
   }
 
   // View state (the selected account, the global display unit, per-scope data
@@ -184,7 +217,7 @@ export default function App() {
   const setColumnVisible = (id, visible) => setTradeSettings((s) => ({ ...s, columns: { ...s.columns, [id]: visible } }));
   const resetColumns = () => setTradeSettings((s) => ({ ...s, columns: {} }));
 
-  const sk = scopeKey(accountId);
+  const sk = scopeKey(scope);
   // Merge over defaults so configs persisted before a field existed (e.g. the
   // pre-widget Phase A configs) still get sane values.
   const config = { ...defaultConfig(), ...(readScopeConfig(viewConfigs, sk) || {}) };
@@ -310,10 +343,18 @@ export default function App() {
       .then((list) => {
         setAccounts(list);
         setAccountIdState((cur) => {
-          if (cur === 'all') return cur;
+          // The named scopes name no logins, so nothing can go stale in them. An unset
+          // selection has even less to check — it is resolved per page at render.
+          if (cur == null || cur === 'all' || cur === 'open') return cur;
           const live = selectable(list);
           const kept = String(cur).split(',').filter((l) => live.some((a) => String(a.mt5_login) === l));
-          return kept.length ? kept.join(',') : 'all';
+          /* AN EMPTIED SELECTION FALLS BACK TO UNSET, not to 'all'. The trader picked
+             accounts that no longer exist; they did not pick "every account including the
+             closed ones", and recording that as their choice would carry closed accounts
+             onto the dashboard as a side effect of an account being archived. Unset puts
+             each page back on its own default, which is what someone with no valid
+             selection actually wants. */
+          return kept.length ? kept.join(',') : null;
         });
         return list;
       })
@@ -416,21 +457,21 @@ export default function App() {
     // so firing the loads for one would 403 four times before reloadAccounts resets
     // the selection. Waiting is the correct move — the reset is one tick away.
     const live = selectable(accounts);
-    const owned = accountId === 'all'
-      || String(accountId).split(',').every((l) => live.some((a) => String(a.mt5_login) === l));
+    const owned = scope === 'all' || scope === 'open'
+      || String(scope).split(',').every((l) => live.some((a) => String(a.mt5_login) === l));
     if (!owned) return; // accounts not loaded yet, or selection about to reset
     setLoadError(null);
     setTradesLoading(true);
     // finally, not then: a failed load must stop claiming to be loading, or the page
     // shows a skeleton for ever with the error banner sitting above it.
-    fetchTrades(accountId)
+    fetchTrades(scope)
       .then(setTrades)
       .catch((e) => setLoadError(e.message))
       .finally(() => setTradesLoading(false));
-    fetchAccount(accountId).then(setAccount).catch(() => {});
-    fetchPayouts(accountId).then(setPayouts).catch(() => {});
-    fetchFees(accountId).then(setFees).catch(() => {});
-  }, [user, accountId, accounts]);
+    fetchAccount(scope).then(setAccount).catch(() => {});
+    fetchPayouts(scope).then(setPayouts).catch(() => {});
+    fetchFees(scope).then(setFees).catch(() => {});
+  }, [user, scope, accounts]);
 
   // One socket per session. Handlers read the live selection via ref so we don't
   // reconnect on every account switch.
@@ -538,7 +579,7 @@ export default function App() {
                 strategies={strategies}
                 reloadStrategies={reloadStrategies}
                 reloadTrades={reloadTrades}
-                accountId={accountId}
+                accountId={scope}
                 setAccountId={setAccountId}
                 reloadAccounts={reloadAccounts}
                 notifications={notifications}

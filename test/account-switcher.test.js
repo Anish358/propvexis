@@ -95,9 +95,25 @@ test('the phases show for EVERY selection, a single account included', () => {
    * an answer, and matters most, when exactly one account is in scope: a P1 evaluation
    * and a funded account are read completely differently, and the label beside it says
    * only which broker. */
-  assert.match(filterBar, /const scopeSummary = accountId === ALL\s*\n\s*\? summaryOf\(bound\)\s*\n\s*: summaryOf\(bound\.filter\(\(a\) => isSel\(a\.mt5_login\)\)\);/);
+  assert.match(filterBar, /: summaryOf\(bound\.filter\(\(a\) => isSel\(a\.mt5_login\)\)\);/);
+  assert.match(filterBar, /accountId === ALL \? summaryOf\(bound\)/);
+  assert.match(filterBar, /accountId === OPEN \? summaryOf\(openAccounts\)/);
   assert.ok(!/selected\.length > 1 \? summaryOf/.test(filterBar),
     'the summary is gated on a count again — a single account loses its phase');
+});
+
+test('when closed accounts are in scope, the bar says so before it says anything else', () => {
+  /* THE SAFETY NET FOR THE WHOLE LIFECYCLE FEATURE (rule 3.4). Analytics counts closed
+   * accounts by default and a trader can tick one in anywhere, so a month's P&L can
+   * legitimately include three blown accounts — and without this the figures just look
+   * wrong, which is the one support conversation this design could create.
+   *
+   * It OUTRANKS the phase summary deliberately: knowing the numbers include dead
+   * accounts matters more than knowing which phases those accounts are. */
+  assert.match(filterBar, /const scopeSummary = closedInScope/);
+  assert.match(filterBar, /\? `\$\{closedInScope\} closed`/);
+  // And it is counted from the actual selection, not assumed from the named scope alone.
+  assert.match(filterBar, /closedAccounts\.filter\(\(a\) => selected\.includes\(String\(a\.mt5_login\)\)\)\.length/);
 });
 
 test('the switcher gives its three parts room to be three parts', () => {
