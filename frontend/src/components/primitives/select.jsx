@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { CheckIcon } from 'lucide-react';
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { Select as SelectPrimitive } from '@base-ui/react/select';
 import {
   SelectTrigger as UISelectTrigger,
@@ -70,12 +70,15 @@ import { cn } from '@/lib/utils';
  *    browser: `item: disp=table minW=1012px`. It cannot be fixed with a className,
  *    because a layered utility loses to that rule no matter how specific; the element
  *    has to stop carrying the name. So the row is rendered here from the Base UI parts
- *    with a FLEX layout, and the indicator sits in a fixed 1rem box that is present
- *    whether or not the row is the selected one — the reserved column the grid was for.
+ *    with a FLEX layout. The indicator TRAILS the label rather than leading it — an owner
+ *    decision, and the reason the grid's reserved first column is not reproduced at all;
+ *    see the note on `SelectItem`.
  *
- *    The scroll arrows are deliberately not carried over. They exist for a list taller
- *    than the viewport; `overflow-y-auto` inside `--available-height` scrolls without
- *    them, and no list in this app is long enough to need a chrome affordance for it.
+ *    The scroll arrows ARE carried over, as of the owner's ruling that the list opens on
+ *    the trigger. They were dropped while it opened downwards, where `overflow-y-auto`
+ *    inside `--available-height` was the whole story and no list in this app was long
+ *    enough to want an affordance. Aligned to the trigger, a long list scrolls in place
+ *    instead of flipping, and the arrows are what say so. See `SelectPopup`.
  */
 
 /* Matched to `ui/input.jsx` line for line: h-8, rounded-2xl, border-transparent,
@@ -106,6 +109,50 @@ const SURFACE = [
   'origin-(--transform-origin) text-foreground outline-none',
 ].join(' ');
 
+/* The arrows overlay the first and last rows and fade them out underneath themselves,
+ * which is what tells you the list continues. Copied from the generated component with
+ * two changes, both because ours sit INSIDE the surface rather than beside it: the
+ * z-index is local to the popup rather than a raw 50 (§19 owns the app's layer order and
+ * a bare 50 is outside it), and the inner rounding follows OUR panel radius —
+ * `--radius-2xl` less the 1px border — rather than the `--radius-lg` the generated panel
+ * is built on. Two constants rather than one parameterised by a data attribute: Base UI
+ * does not label these by direction, and inventing an attribute it does not set is how a
+ * class list silently applies to nothing. */
+const SCROLL_ARROW = 'z-1 flex h-6 w-full cursor-default items-center justify-center '
+  + 'before:pointer-events-none before:absolute before:inset-x-px before:h-[200%] '
+  + 'before:from-50% before:from-popover [&>svg]:relative';
+const SCROLL_UP = `${SCROLL_ARROW} top-0 before:top-px before:bg-linear-to-b `
+  + 'before:rounded-t-[calc(var(--radius-2xl)-1px)]';
+const SCROLL_DOWN = `${SCROLL_ARROW} bottom-0 before:bottom-px before:bg-linear-to-t `
+  + 'before:rounded-b-[calc(var(--radius-2xl)-1px)]';
+
+/* THE LIST OPENS OVER THE FIELD (owner, 2026-09-07 — reversing my own call).
+ *
+ * This read `alignItemWithTrigger={false}`, against the library's default, with the
+ * argument that a panel which lands somewhere different depending on what is selected
+ * reads as the panel jumping. The owner reviewed both on the Test page and chose the
+ * library's behaviour — the selected row settles ON the trigger, the way a native
+ * dropdown does — so the override is DELETED rather than re-valued. It was mine, not a
+ * constraint, and it was the biggest of the differences from the shipped component.
+ *
+ * WHAT COMES BACK WITH IT, and neither is optional in this mode:
+ *
+ *   · THE SCROLL ARROWS. They exist FOR this mode: aligned to the trigger, a list longer
+ *     than the space above or below it is scrolled in place rather than flipped, and the
+ *     arrows are the only thing that says so. They were dropped when the panel opened
+ *     downwards, where `overflow-y-auto` inside `--available-height` was the whole story.
+ *     Base UI renders each one only when that direction can actually scroll, so a short
+ *     list is unchanged. They sit INSIDE our surface rather than beside it — the
+ *     generated component puts them next to an inner <div> it never exposes, which is the
+ *     div we cannot reach and the reason this popup is hand-built at all.
+ *   · THE ROW'S `side=none` WIDTH. Aligned to the trigger, the positioner reports
+ *     `data-side="none"`, and the generated row widens itself by 1.25rem so the panel
+ *     overhangs the field by 10px a side. Without it the panel is exactly the trigger's
+ *     width and the rows sit tight against the edge. It is arithmetic, not taste, so it
+ *     is copied verbatim.
+ *
+ * `side`, `sideOffset` and `align` stay as props: Base UI falls back to ordinary
+ * anchored positioning when the aligned form does not fit, and those are what it uses. */
 function SelectPopup({
   className, children, side = 'bottom', sideOffset = 4, align = 'start', ...rest
 }) {
@@ -116,20 +163,21 @@ function SelectPopup({
         side={side}
         sideOffset={sideOffset}
         align={align}
-        // FALSE, unlike the generated default. `alignItemWithTrigger` opens the list with
-        // the SELECTED row on top of the trigger, which for a field that already shows
-        // its value reads as the panel jumping somewhere different each time it is
-        // opened. Anchored under the field, it opens where it was left.
-        alignItemWithTrigger={false}
         data-slot="select-positioner"
       >
         <SelectPrimitive.Popup className={SURFACE} data-overlay-surface="" data-slot="select-popup" {...rest}>
+          <SelectPrimitive.ScrollUpArrow className={SCROLL_UP} data-slot="select-scroll-up-arrow">
+            <ChevronUpIcon aria-hidden="true" className="size-4" />
+          </SelectPrimitive.ScrollUpArrow>
           <SelectPrimitive.List
             className={cn('max-h-(--available-height) overflow-y-auto p-1', className)}
             data-slot="select-list"
           >
             {children}
           </SelectPrimitive.List>
+          <SelectPrimitive.ScrollDownArrow className={SCROLL_DOWN} data-slot="select-scroll-down-arrow">
+            <ChevronDownIcon aria-hidden="true" className="size-4" />
+          </SelectPrimitive.ScrollDownArrow>
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
     </SelectPrimitive.Portal>
@@ -156,12 +204,37 @@ function SelectPopup({
  * The RADIUS is deliberately left alone and is a review question, not a bug: this is
  * `rounded-sm` (6px) and a dropdown row is `rounded-xl` (14px) — a split the PRESET
  * itself makes between its select and its menu, so closing it is an owner decision.
- * PrimitiveReview.jsx puts the two side by side for that call. */
+ * PrimitiveReview.jsx puts the two side by side for that call.
+ *
+ * ── THE TICK IS ON THE RIGHT (owner, 2026-09-07) ──────────────────────────────────────
+ *
+ * It was on the LEFT, in a reserved 16px column, and that is what both shadcn and @coss
+ * ship — `grid-cols-[1rem_1fr]` with the indicator in column 1. This row is hand-built
+ * (see 3 above) and the arrangement was preserved along with everything else.
+ *
+ * THE COST WAS VISIBLE AND NOBODY HAD NAMED IT. A reserved indicator column indents every
+ * label past it, so the value sat at one x-position in the closed trigger and jumped ~24px
+ * right the moment the list opened — on a control whose entire job is to show you the
+ * thing you picked, in the place you picked it. The owner spotted it from a screenshot
+ * before this file could explain it away.
+ *
+ * With the tick trailing, the label starts at the row's own padding and the panel's
+ * `side=none` overhang lands it within a pixel or two of where the trigger draws it. The
+ * indicator no longer needs a reserved box either — nothing sits after it, so it can come
+ * and go without moving anything, and the `size-4` span is kept only to stop the row
+ * height changing between a ticked and an unticked row.
+ *
+ * `px-2` rather than `ps-2 pe-4`: the trailing 16px existed to balance the leading tick
+ * column, and with the tick moved it was simply a hole on the right. */
 function SelectItem({ className, children, ...rest }) {
   return (
     <SelectPrimitive.Item
       className={cn(
-        'flex min-h-8 cursor-default items-center gap-2 rounded-sm py-1 ps-2 pe-4 text-base outline-none sm:min-h-7 sm:text-sm',
+        'flex min-h-8 cursor-default items-center gap-2 rounded-sm px-2 py-1 text-base outline-none sm:min-h-7 sm:text-sm',
+        // The panel overhangs the trigger by 10px a side when it opens ON it, which is
+        // what puts a row's label over the trigger's value. Verbatim from the generated
+        // row; `data-side="none"` is what the positioner reports in that mode.
+        'in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)]',
         'data-highlighted:bg-accent data-highlighted:text-accent-foreground',
         'data-disabled:pointer-events-none data-disabled:opacity-64',
         className,
@@ -169,14 +242,12 @@ function SelectItem({ className, children, ...rest }) {
       data-slot="select-item"
       {...rest}
     >
-      {/* The box is always here; only the tick inside it comes and goes. Rendering the
-          indicator alone would left-shift every unselected label by 24px. */}
+      <SelectPrimitive.ItemText className="min-w-0 flex-1 truncate">{children}</SelectPrimitive.ItemText>
       <span className="flex size-4 shrink-0 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
           <CheckIcon aria-hidden="true" className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText className="min-w-0 truncate">{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   );
 }

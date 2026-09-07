@@ -121,7 +121,7 @@ test('the hand-copied select row keeps every responsive step of the row it was c
      is what falls behind. Whatever `sm:` steps the generated row declares, ours declares
      too. */
   const generated = classesContaining(ui('select.jsx'), 'grid-cols-[1rem_1fr]', 'ui/select.jsx SelectItem');
-  const ours = classesContaining(prim('select.jsx'), 'ps-2 pe-4', 'select.jsx SelectItem');
+  const ours = classesContaining(prim('select.jsx'), 'rounded-sm px-2', 'select.jsx SelectItem');
 
   const steps = [...generated.matchAll(/(?:^|\s)(sm:[^\s'"`]+)/g)].map((m) => m[1]);
   assert.ok(steps.length >= 2, 'expected the generated select row to carry sm: steps');
@@ -144,7 +144,7 @@ test('an option row and a dropdown row are the same height', () => {
      against 14px, a split the preset itself makes between its select and its menu) and is
      an open review question rather than a bug; the HEIGHT is not, and 32px rows beside
      28px ones is what the missing `sm:` step produced. */
-  const ours = classesContaining(prim('select.jsx'), 'ps-2 pe-4', 'select.jsx SelectItem');
+  const ours = classesContaining(prim('select.jsx'), 'rounded-sm px-2', 'select.jsx SelectItem');
   const menuRow = classesContaining(ui('dropdown-menu.jsx'), 'group/dropdown-menu-item', 'ui/dropdown-menu.jsx');
 
   assert.ok(has(menuRow, 'min-h-7'), 'the dropdown row is no longer min-h-7');
@@ -152,6 +152,52 @@ test('an option row and a dropdown row are the same height', () => {
     has(ours, 'sm:min-h-7'),
     'a select option must settle at the same height as a dropdown row (§6 — the overlays '
       + 'were locked as a family)',
+  );
+});
+
+/* ── the two owner rulings on the picker (2026-09-07) ──────────────────────────────────
+ *
+ * Both reverse a choice this wrapper had made on its own, and both are the kind that gets
+ * quietly restored by the next person who reads the library docs, sees our code disagree
+ * with the default, and "fixes" it. They are pinned for the same reason button.jsx's
+ * per-variant open state is: preset parity is not automatically right, and neither is
+ * departing from it — the owner decides which, and the decision has to survive. */
+
+test('the picker opens on the field, not under it', () => {
+  const src = stripComments(prim('select.jsx'));
+  assert.doesNotMatch(
+    src,
+    /alignItemWithTrigger\s*=\s*\{\s*false\s*\}/,
+    'select.jsx is overriding alignItemWithTrigger back to false. The owner reviewed both '
+      + 'and chose the library behaviour — the selected row settles ON the trigger, the way '
+      + 'a native dropdown does. The `false` was this wrapper\'s own call, not a constraint.',
+  );
+  /* The arrows are not decoration: aligned to the trigger, a long list scrolls in place
+     rather than flipping, and they are the only thing that says so. Base UI renders each
+     one only when that direction can scroll, so a short list is unaffected. */
+  for (const part of ['ScrollUpArrow', 'ScrollDownArrow']) {
+    assert.match(
+      src, new RegExp(`SelectPrimitive\\.${part}`),
+      `select.jsx must render ${part} — it opens on the trigger now, and a list too long `
+        + 'for the space scrolls in place with no other affordance',
+    );
+  }
+});
+
+test('the tick trails the label, so the value does not move when the list opens', () => {
+  /* THE POINT IS THE ORDER, and it is the whole reason for the ruling. A leading
+     indicator needs a reserved column, a reserved column indents every label past it, and
+     the selected value then sits at one x-position closed and ~24px right of it open. The
+     owner caught that from a screenshot. Asserting the order is asserting that. */
+  const src = stripComments(prim('select.jsx'));
+  const text = src.indexOf('SelectPrimitive.ItemText');
+  const indicator = src.indexOf('SelectPrimitive.ItemIndicator');
+  assert.ok(text > 0 && indicator > 0, 'select.jsx no longer renders both row parts');
+  assert.ok(
+    text < indicator,
+    'the tick has moved back in front of the label. Both shadcn and @coss ship it that '
+      + 'way, so this reads as parity — but it indents every label past a reserved column '
+      + 'and makes the selected value jump right as the list opens. Owner ruling, 2026-09-07.',
   );
 });
 
