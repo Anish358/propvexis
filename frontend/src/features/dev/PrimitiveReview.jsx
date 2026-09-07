@@ -1553,20 +1553,15 @@ function ConsentSpecimen() {
   );
 }
 
-/* WHAT I AM NOT DECIDING FOR YOU. Each of these is a live difference that is defensible
+/* CLOSED ON 7 SEP, and recorded rather than deleted: the option corner. It was 6px
+ * against the dropdown row's 14px — a split shadcn itself makes between its select and
+ * its menu, which is why it was put here instead of quietly matched. The owner compared
+ * the two highlights and closed it: the option row takes the menu's 14px.
+ *
+ * WHAT I AM NOT DECIDING FOR YOU. Each of these is a live difference that is defensible
  * either way, so changing it silently would be exactly the "it looks better" the design
  * language forbids. They are written in the order I would ask them. */
 const OPEN_QUESTIONS = [
-  {
-    q: 'A dropdown option has squarer corners than a menu row.',
-    detail:
-      'An option in the picker is a 6px corner; a row in the dropdown menu you locked '
-      + 'yesterday is 14px. Both are rows inside a floating panel, so on a page with both '
-      + 'open the highlight is a different shape in each. This split is the preset’s '
-      + 'own — shadcn draws its select and its menu differently — which is why I '
-      + 'left it rather than quietly matching them. Open the picker above and the menu in '
-      + 'Batch 1 together.',
-  },
   {
     q: 'Field labels are full-strength white, not the muted label colour.',
     detail:
@@ -1599,7 +1594,7 @@ function OpenQuestions() {
     <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
       <div style={S.cardHead}>
         <span style={S.cardName}>Open questions</span>
-        <span style={S.mono}>four decisions, none of them urgent</span>
+        <span style={S.mono}>three decisions, none of them urgent</span>
         <span style={{ flex: 1 }} />
         <Tag tone="open">need your call</Tag>
       </div>
