@@ -23,7 +23,7 @@
  *
  * This page is deleted when nothing is left `@design unreviewed`.
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Filter, MoreHorizontal, Trash2 } from 'lucide-react';
 /* THE REGISTRY COMPONENTS, IMPORTED RAW. Every other specimen on this page goes through
  * `@/components/primitives` — our wrapper layer, which is exactly what re-means shadcn's
@@ -35,13 +35,26 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button as RawButton } from '@/components/ui/button';
+/* AND THE FORM FAMILY, for Batch 2's parity pane. Same argument as the dialog above:
+ * `ui/select.jsx` is the registry component with none of our layer, so whatever it draws
+ * beside ours is attributable to `primitives/select.jsx` and nothing else. The other six
+ * in the batch need no raw import — `input`, `textarea`, `checkbox` and `label` ARE
+ * straight re-exports, and `field` re-exports everything but its error, so a
+ * registry-vs-ours pane for any of them would render the same element twice. */
+import {
+  SelectContent as RawSelectPopup, SelectItem as RawSelectItem,
+  SelectTrigger as RawSelectTrigger, SelectValue as RawSelectValue,
+} from '@/components/ui/select';
 import {
   Badge,
-  Button, ButtonLabel, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Button, ButtonLabel, Checkbox, ConsentField, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input,
+  Label,
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Modal,
   OverlayContainerContext, Popover, PopoverContent,
-  PopoverTrigger, Switch, ToggleGroupExclusive, ToggleGroupItem,
+  PopoverTrigger, Select, SelectItem, SelectPopup, SelectTrigger, SelectValue,
+  Switch, Textarea, ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
 
 /* ---------------------------------------------------------------- scaffolding --- */
@@ -1153,14 +1166,468 @@ function PopoverSpecimen() {
   );
 }
 
+/* =================================================================== BATCH 2 ===
+ * FORM CONTROLS — input · textarea · select · checkbox · label · field · consent-field.
+ *
+ * SEVEN, NOT EIGHT. The plan lists `switch` in this family and it is already approved —
+ * it came through the variant matrix on 2026-09-07, because an on/off control is one of
+ * the things you cannot judge from a still. It is rendered in the geometry row below
+ * anyway: it has to keep AGREEING with the six being reviewed, and a locked part is
+ * exactly the part a batch can drift away from without anyone noticing.
+ *
+ * WHAT THIS BATCH IS ACTUALLY DECIDING, and it is not "does a text box look nice". These
+ * seven appear on one form, in one row, at the same moment — PRIMITIVE-REVIEW-PLAN §5 is
+ * the whole reason they are locked together. So the panes below are built to answer
+ * agreement questions rather than beauty questions: same height, same corner, same text
+ * size, same edge when focused, same behaviour when wrong.
+ *
+ * WHAT THE AUDIT FOUND BEFORE YOU LOOKED (2026-09-07), because Batch 1's lesson was that
+ * three of its four findings were in the review apparatus rather than the components:
+ *
+ *   · FOUR OF THE SEVEN ARE PASS-THROUGHS. `input`, `textarea`, `checkbox` and `label`
+ *     re-export the generated component with no change at all, and all four are
+ *     byte-identical to what the registry serves for base-rhea today (fetched and
+ *     diffed, per the method in the preset-parity note). So for those four, "ours" and
+ *     "the preset" are the same object, and there is no parity pane to draw.
+ *   · `field` is the @coss one, also byte-identical, with ONE difference: our
+ *     `FieldError` forces `match` and re-colours to `text-destructive`. Both are
+ *     recorded in field.jsx and neither is a look decision you need to make.
+ *   · `select` HAD A REAL BUG, now fixed: its option rows had been copied from the
+ *     generated component minus the `sm:` steps, back when those compiled to nothing.
+ *     The breakpoints came back on 2026-09-07 and the rows did not, so the value read
+ *     14px in the closed trigger and 16px in the open list — it changed size as you
+ *     opened it — and the rows stood 32px against the dropdown's 28px.
+ *
+ * ONE THING IS DELIBERATELY LEFT WRONG-LOOKING FOR YOU TO RULE ON: the select's option
+ * corner. See "Open questions" at the end of the batch.
+ */
+
+/* THE LABEL MAPS. Base UI's Select renders a VALUE, not a label, unless the root is told
+ * how the two relate — `items` is that mapping, and AccountStep.jsx passes it on every
+ * one of its three pickers. Without it a trigger reads "2step" while the option under it
+ * reads "2 Step", which would make the one comparison this batch turns on (is the closed
+ * trigger the same size as the open list?) harder to make, not easier. */
+const TYPES = { '1step': '1 Step', '2step': '2 Step', '3step': '3 Step', instant: 'Instant Funding' };
+const SIZES = { 25000: '$25,000', 50000: '$50,000', 100000: '$100,000', 200000: '$200,000' };
+
+/* Reads what the browser actually computed, rather than what the class says. The whole
+ * batch turns on four numbers agreeing, and "they look the same height" is the kind of
+ * judgement this page exists to replace. Measures the wrapper's first element child, so
+ * each probe wraps exactly one control. */
+function useProbe() {
+  const ref = useRef(null);
+  const [m, setM] = useState(null);
+  useEffect(() => {
+    const el = ref.current?.firstElementChild;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    setM({
+      h: Math.round(el.getBoundingClientRect().height),
+      r: Math.round(parseFloat(cs.borderTopLeftRadius)),
+      fs: Math.round(parseFloat(cs.fontSize)),
+    });
+  }, []);
+  return [ref, m];
+}
+
+function Probe({ label, expect, children }) {
+  const [ref, m] = useProbe();
+  const agrees = m && (!expect || (m.h === expect.h && m.r === expect.r && m.fs === expect.fs));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 150 }}>
+      <span style={S.specimenLabel}>{label}</span>
+      <div ref={ref} style={{ display: 'flex', alignItems: 'center', minHeight: 40 }}>
+        {children}
+      </div>
+      <span style={{
+        ...S.mono,
+        fontSize: 11,
+        color: agrees === false ? 'var(--loss)' : 'var(--text-3)',
+      }}
+      >
+        {m ? `${m.h}px tall · ${m.r}px corner · ${m.fs}px text` : '—'}
+      </span>
+    </div>
+  );
+}
+
+/* THE POINT OF THE BATCH, IN ONE ROW. Every control that can sit on the same line of the
+ * same form, measured. The button is here as the fixed reference — it is locked, it is
+ * what a form's Save is, and a field that does not match it is the mismatch you would
+ * see first. The switch is here because it is already approved and still has to agree.
+ *
+ * `expect` is the shape a 32px control is supposed to be — h-8, `rounded-2xl` at the
+ * preset's 16px, and 14px text once `md:`/`sm:` resolve. Anything that misses it turns
+ * its readout red rather than relying on you to spot four pixels. */
+const CONTROL_SHAPE = { h: 32, r: 16, fs: 14 };
+
+function FormGeometry() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Do they agree?</span>
+        <span style={S.mono}>height · corner · text size, measured in the browser</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="open">the reason this is one batch</Tag>
+      </div>
+      <div style={S.specimens}>
+        <Probe label="Button (locked)" expect={CONTROL_SHAPE}>
+          <Button variant="secondary">Save</Button>
+        </Probe>
+        <Probe label="Input" expect={CONTROL_SHAPE}>
+          <Input defaultValue="FTMO-8842291" style={{ width: 190 }} />
+        </Probe>
+        <Probe label="Select trigger" expect={CONTROL_SHAPE}>
+          <Select defaultValue="2step" items={TYPES}>
+            <SelectTrigger style={{ width: 190 }}><SelectValue /></SelectTrigger>
+            <SelectPopup>
+              <SelectItem value="1step">1 Step</SelectItem>
+              <SelectItem value="2step">2 Step</SelectItem>
+            </SelectPopup>
+          </Select>
+        </Probe>
+        <Probe label="Switch (approved)">
+          <Switch defaultChecked />
+        </Probe>
+        <Probe label="Checkbox">
+          <Checkbox defaultChecked />
+        </Probe>
+        <Probe label="Textarea">
+          <Textarea defaultValue="Held it through the retest." style={{ width: 220 }} />
+        </Probe>
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
+        whether the first three are the same height and the same roundness — they are the
+        three that sit side by side on the Add Account form. The switch and the tick box
+        are deliberately smaller; the question there is whether they look like they belong
+        to the same family, not whether they match. A red readout means a control missed
+        the shape the other three hold.
+      </div>
+    </div>
+  );
+}
+
+/* STATES, NOT STILLS — the Batch 1 lesson, applied before you ask for it. Three of the
+ * four findings in the overlays batch were things a forced-open specimen could not show,
+ * and a form control has more states than an overlay does: empty, typed in, focused,
+ * switched off, and rejected. The last two are the ones that ship broken, because nobody
+ * screenshots a disabled field.
+ *
+ * `aria-invalid` is passed by hand here. Nothing in the app sets it yet — the account
+ * page renders a FieldError and leaves the input alone — so this pane is showing you the
+ * treatment the preset ships, to decide whether the app should start using it. */
+function FormStates() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Every state</span>
+        <span style={S.mono}>click into them — focus is not a screenshot</span>
+        <span style={{ flex: 1 }} />
+        <Tag>awaiting sign-off</Tag>
+      </div>
+      <div style={S.specimens}>
+        {[
+          { label: 'Empty', node: <Input placeholder="Account name" /> },
+          { label: 'Typed in', node: <Input defaultValue="FTMO-8842291" /> },
+          { label: 'Switched off', node: <Input defaultValue="FTMO-8842291" disabled /> },
+          { label: 'Rejected', node: <Input defaultValue="FTMO-8842291" aria-invalid="true" /> },
+        ].map((s) => (
+          <div key={s.label} style={S.specimen}>
+            <span style={S.specimenLabel}>{s.label}</span>
+            <div style={{ ...S.stage, width: 210 }}>
+              {React.cloneElement(s.node, { style: { width: '100%' } })}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ ...S.specimens, borderTop: '1px solid var(--line-inset)' }}>
+        {[
+          { label: 'Tick box — off', node: <Checkbox /> },
+          { label: 'Tick box — on', node: <Checkbox defaultChecked /> },
+          { label: 'Tick box — off, disabled', node: <Checkbox disabled /> },
+          { label: 'Tick box — on, disabled', node: <Checkbox defaultChecked disabled /> },
+          { label: 'Long text — empty', node: <Textarea placeholder="What did you see?" style={{ width: 200 }} /> },
+          { label: 'Long text — grows', node: <Textarea defaultValue={'Entered on the retest of the 15m level.\nSized down because the spread was wide.\nHeld it to target.'} style={{ width: 200 }} /> },
+        ].map((s) => (
+          <div key={s.label} style={S.specimen}>
+            <span style={S.specimenLabel}>{s.label}</span>
+            <div style={S.stage}>{s.node}</div>
+          </div>
+        ))}
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
+        whether an empty box is clearly different from a switched-off one — both are pale,
+        and if they read the same, a user will type into something that cannot take it.
+        Then click into each field and watch the ring that appears: it should be the same
+        ring on the text box, the dropdown and the tick box. The long box grows as you
+        type rather than scrolling; tell me if you would rather it scrolled.
+      </div>
+    </div>
+  );
+}
+
+/* THE ONE PARITY PANE THIS BATCH NEEDS. `ui/select.jsx` is the registry component with
+ * none of our layer — its own trigger (a bordered, shadowed, `rounded-lg` field) and its
+ * own popup (`rounded-lg`, `shadow-lg/5`, two `before:` hairlines). Ours corrects both,
+ * for the reasons written in select.jsx: the trigger has to look like the Input beside
+ * it, and §6/§7 give a floating panel the app's own radius and elevation.
+ *
+ * The registry one is UNUSABLE in the app, by the way, and not for looks — its option
+ * rows carry `grid`, which legacy/app.css claims unlayered for the Trade Log, so every
+ * row renders as a 1012px table. Expect the right-hand list to blow out to the width of
+ * the page. That is the bug being demonstrated, not a broken specimen. */
+function SelectParity() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Dropdown picker — registry vs ours</span>
+        <span style={S.mono}>ui/select.jsx · primitives/select.jsx</span>
+        <span style={{ flex: 1 }} />
+        <Tag>awaiting sign-off</Tag>
+      </div>
+      <div style={{ ...S.specimens, alignItems: 'flex-start' }}>
+        <div style={{ ...S.specimen, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Registry — no corrections</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start', overflow: 'hidden' }}>
+            <Select defaultValue="2step" items={TYPES}>
+              <RawSelectTrigger style={{ width: 220 }}><RawSelectValue /></RawSelectTrigger>
+              <RawSelectPopup>
+                <RawSelectItem value="1step">1 Step</RawSelectItem>
+                <RawSelectItem value="2step">2 Step</RawSelectItem>
+                <RawSelectItem value="instant">Instant Funding</RawSelectItem>
+              </RawSelectPopup>
+            </Select>
+          </div>
+        </div>
+        <div style={{ ...S.specimen, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Ours</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start' }}>
+            <Select defaultValue="2step" items={TYPES}>
+              <SelectTrigger style={{ width: 220 }}><SelectValue /></SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="1step">1 Step</SelectItem>
+                <SelectItem value="2step">2 Step</SelectItem>
+                <SelectItem value="instant">Instant Funding</SelectItem>
+              </SelectPopup>
+            </Select>
+          </div>
+        </div>
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
+        open both. The left one is what shadcn ships: a field with a visible border and a
+        faint shadow, and a panel with squarer corners than every other panel in this app.
+        Ours is a filled field matching the text box, on the same panel shape as the
+        dropdown menu you locked yesterday. The left list may also fly out to the width of
+        the page — that is a real collision with the old Trade Log CSS, and it is the
+        reason we cannot simply use the shipped component.
+      </div>
+    </div>
+  );
+}
+
+/* THE LABEL PAIR. Two things called a label exist, and until this batch nobody had put
+ * them next to each other: `Label` (the shadcn one — a plain <label>, `text-sm
+ * font-medium`) and `FieldLabel` (the @coss one, inside a Field, which is what every
+ * form in the app actually uses). They read 14px/500 each today, which they did NOT four
+ * days ago — the coss one is `text-base/4.5 sm:text-sm/4`, so it stood at 16px for as
+ * long as `sm:` was dead. The pair is drawn together so the next time one moves, it is
+ * visible rather than derived. */
+function LabelPair() {
+  return (
+    <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={S.specimenLabel}>Label — used with a bare control</span>
+        <Label htmlFor="pr-label-a">Account Name</Label>
+        <Input id="pr-label-a" defaultValue="FTMO-8842291" style={{ width: 220 }} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={S.specimenLabel}>FieldLabel — what forms actually use</span>
+        <Field>
+          <FieldLabel htmlFor="pr-label-b">Account Name</FieldLabel>
+          <Input id="pr-label-b" defaultValue="FTMO-8842291" style={{ width: 220 }} />
+          <FieldDescription>The name you will see in the switcher.</FieldDescription>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/* THE REAL FORM, not an arrangement invented for this page. Field for field this is
+ * AccountStep.jsx — two even columns, a label over every control, the same questions in
+ * the same order — because a control approved in isolation is a control approved in a
+ * vacuum, and this specific layout is where all six of these parts meet.
+ *
+ * The error line is forced on, which is the only lie in the pane: on the real page it
+ * appears when the name is already taken. It is here because inline validation copy is a
+ * look decision and it cannot be judged from a form that is not wrong. */
+function FormInContext() {
+  const [size, setSize] = useState('100000');
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, width: '100%',
+    }}
+    >
+      <Field>
+        <FieldLabel htmlFor="pr-type">Account Type</FieldLabel>
+        <Select defaultValue="2step" items={TYPES}>
+          <SelectTrigger id="pr-type"><SelectValue placeholder="Select account type" /></SelectTrigger>
+          <SelectPopup>
+            <SelectItem value="1step">1 Step</SelectItem>
+            <SelectItem value="2step">2 Step</SelectItem>
+            <SelectItem value="3step">3 Step</SelectItem>
+            <SelectItem value="instant">Instant Funding</SelectItem>
+          </SelectPopup>
+        </Select>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="pr-size">Account Size</FieldLabel>
+        <Select value={size} onValueChange={setSize} items={SIZES}>
+          <SelectTrigger id="pr-size"><SelectValue placeholder="Select account size" /></SelectTrigger>
+          <SelectPopup>
+            <SelectItem value="25000">$25,000</SelectItem>
+            <SelectItem value="50000">$50,000</SelectItem>
+            <SelectItem value="100000">$100,000</SelectItem>
+            <SelectItem value="200000">$200,000</SelectItem>
+          </SelectPopup>
+        </Select>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="pr-name">Account Name</FieldLabel>
+        <Input id="pr-name" defaultValue="FTMO 100k — Phase 2" />
+        <FieldError>You already have an account with this name.</FieldError>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="pr-daily">Daily Drawdown (%)</FieldLabel>
+        <Input id="pr-daily" inputMode="decimal" defaultValue="5" />
+      </Field>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Field>
+          <FieldLabel htmlFor="pr-notes">Notes</FieldLabel>
+          <Textarea id="pr-notes" placeholder="Anything you want to remember about this account." />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/* THE CONSENT GATE, in its own pane, because it is the one place in this batch where the
+ * look has a consequence. An unticked box is what stops a trade-capable password being
+ * submitted — consent-field.jsx says so at length — so "did you notice you had to tick
+ * it" is a real question about this specimen, not a stylistic one. The sentence is the
+ * live copy from platformCatalog.js, not filler; its length is the reason the primitive
+ * exists at all (a three-line label centred against a 16px box is what the composition
+ * is correcting). */
+function ConsentSpecimen() {
+  const [ok, setOk] = useState(false);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 460 }}>
+      <Field>
+        <FieldLabel htmlFor="pr-cred">Investor password</FieldLabel>
+        <Input id="pr-cred" type="password" defaultValue="hunter2hunter2" />
+        <FieldDescription>Read-only if your broker offers one.</FieldDescription>
+      </Field>
+      <ConsentField id="pr-consent" checked={ok} onCheckedChange={(v) => setOk(v === true)}>
+        I understand this password can place trades on my account, and I authorise
+        PropVexis to use it to read my trade history.
+      </ConsentField>
+      <div>
+        <Button variant="primary" disabled={!ok}>Connect account</Button>
+      </div>
+    </div>
+  );
+}
+
+/* WHAT I AM NOT DECIDING FOR YOU. Each of these is a live difference that is defensible
+ * either way, so changing it silently would be exactly the "it looks better" the design
+ * language forbids. They are written in the order I would ask them. */
+const OPEN_QUESTIONS = [
+  {
+    q: 'A dropdown option has squarer corners than a menu row.',
+    detail:
+      'An option in the picker is a 6px corner; a row in the dropdown menu you locked '
+      + 'yesterday is 14px. Both are rows inside a floating panel, so on a page with both '
+      + 'open the highlight is a different shape in each. This split is the preset’s '
+      + 'own — shadcn draws its select and its menu differently — which is why I '
+      + 'left it rather than quietly matching them. Open the picker above and the menu in '
+      + 'Batch 1 together.',
+  },
+  {
+    q: 'Field labels are full-strength white, not the muted label colour.',
+    detail:
+      'You locked --text-2 as the standard for label and metadata text on the dashboard '
+      + '(the KPI labels, the "Payout" caption). A form label here is --text, the same '
+      + 'brightness as the value typed underneath it. That may well be right — a form '
+      + 'label is a question you must read, not a caption — but it is a knowing '
+      + 'difference from a locked ruling, so it should be a decision.',
+  },
+  {
+    q: 'The tick box corner is 5px, which is not on our scale.',
+    detail:
+      'Our corners are 6 / 8 / 10 / 14 / 16. The tick box is a literal 5px, straight from '
+      + 'the preset. It is one pixel and nobody will see it; the reason to raise it is '
+      + 'that everything else in the app is on the scale, and an off-scale value is how '
+      + 'the scale stops meaning anything.',
+  },
+  {
+    q: 'Nothing marks a rejected field except the sentence under it.',
+    detail:
+      'The "Rejected" specimen above is the preset’s treatment — a red edge and a '
+      + 'red ring — and the app does not use it: the account page prints the red '
+      + 'sentence and leaves the box looking normal. Two ways of saying the same thing, '
+      + 'and we currently use neither consistently.',
+  },
+];
+
+function OpenQuestions() {
+  return (
+    <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Open questions</span>
+        <span style={S.mono}>four decisions, none of them urgent</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="open">need your call</Tag>
+      </div>
+      {OPEN_QUESTIONS.map((o, i) => (
+        <div
+          key={o.q}
+          style={{
+            padding: '14px 18px',
+            borderTop: i === 0 ? 'none' : '1px solid var(--line-inset)',
+            display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}
+        >
+          <span style={{ ...S.mono, minWidth: 14, paddingTop: 2 }}>{i + 1}</span>
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 550, color: 'var(--text)' }}>{o.q}</div>
+            <div style={{
+              fontSize: 12.5, lineHeight: '20px', color: 'var(--text-2)', marginTop: 4,
+            }}
+            >
+              {o.detail}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------- the page --- */
 
+/* THE COUNTS MOVE AS THINGS GET SIGNED OFF, and two of them moved on 2026-09-07 without
+ * this list being told. Batch 4 read "2 parts · wizard · toggle-group" after the toggle
+ * had already cleared the variant matrix, and Batch 6 still counted `badge`, which left
+ * legacy CSS the same day and is approved. A queue that overstates what is left is the
+ * one thing this page must not do — it is the only place anyone reads how much is
+ * outstanding. */
 const LATER_BATCHES = [
-  { n: 2, name: 'Form controls', qty: 8, parts: 'input · textarea · select · checkbox · switch · label · field · consent-field' },
   { n: 3, name: 'Feedback', qty: 4, parts: 'alert · skeleton · spinner · progress' },
-  { n: 4, name: 'Flows', qty: 2, parts: 'wizard (21 pieces) · toggle-group', dep: 'after Batch 2 — the wizard is built from those controls' },
+  { n: 4, name: 'Flows', qty: 1, parts: 'wizard (21 pieces)', dep: 'after Batch 2 — the wizard is built from those controls. toggle-group was signed off early, on the variant matrix' },
   { n: 5, name: 'Small pieces', qty: 3, parts: 'avatar · separator · count-badge' },
-  { n: 6, name: 'Rebuild first, then review', qty: 4, parts: 'badge · empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
+  { n: 6, name: 'Rebuild first, then review', qty: 3, parts: 'empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
 ];
 
 /* ===== VARIANT MATRIX - the states you can only check by using them =====
@@ -1317,13 +1784,65 @@ export default function PrimitiveReview() {
         the switch and the unit toggle. The dropdown was the first through — and it is the
         one that made this page necessary: it had reached 30 screens while nobody had said
         whether they liked it.
+        {' '}
+        <strong style={{ color: 'var(--text)' }}>Batch 2 is open — start there.</strong>
+        {' '}
+        It is at the top of the page, ahead of the locked batch, because the open one is
+        what you came for.
       </p>
 
+      {/* ================================================================ BATCH 2 === */}
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>Batch 2 — Form controls</span>
+        <Tag tone="open">open · 6 to sign off</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          the text box, the long box, the picker, the tick box, the labels and the consent
+          gate — locked together, because they share a form
+        </span>
+      </div>
+
+      <FormGeometry />
+      <FormStates />
+      <SelectParity />
+
+      <Spec
+        name="Field, label and help text"
+        file="primitives/field.jsx · label.js"
+        ask={
+          'whether the label is the right size and brightness against the value typed '
+          + 'under it — the label should be readable without competing with the answer. '
+          + 'Then the gap between the label and its box, and between one field and the '
+          + 'next. Two components are drawn here on purpose: the plain label on the left '
+          + 'is what a bare control uses, the Field on the right is what every form in '
+          + 'the app actually uses. They should not look like two different systems.'
+        }
+        states={[{ label: 'The two labels, side by side', render: <LabelPair /> }]}
+        contextLabel="the Add Account form — the real layout, field for field"
+        context={<FormInContext />}
+      />
+
+      <Spec
+        name="Consent tick box"
+        file="primitives/consent-field.jsx"
+        ask={
+          'whether it is obvious that you have to tick it. This is the one control in the '
+          + 'batch with a consequence: until it is ticked the button underneath will not '
+          + 'submit, and the box is a 16px square against a three-line sentence. Check '
+          + 'that the box lines up with the FIRST line rather than floating in the middle '
+          + 'of the paragraph, that the sentence does not read as a heading, and that '
+          + 'clicking anywhere in the sentence ticks it.'
+        }
+        states={[{ label: 'The credential step', render: <ConsentSpecimen /> }]}
+      />
+
+      <OpenQuestions />
+
+      {/* ================================================================ BATCH 1 === */}
       <div style={S.batchHead}>
         <span style={S.batchTitle}>Batch 1 — Overlays</span>
         <Tag tone="ok">🔒 locked 7 Sep 2026</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          all four signed off · new screens may use them · Batch 2 is next
+          all four signed off · new screens may use them · kept below for comparison
         </span>
       </div>
 

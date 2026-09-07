@@ -29,12 +29,23 @@ import { cn } from '@/lib/utils';
  *    once, rather than at each call site. `cn()` is tailwind-merge, so each utility
  *    REPLACES the generated one instead of racing it on specificity.
  *
- *    THE HEIGHT IS EXPLICIT BECAUSE `sm:` IS DEAD IN THIS BUILD. bridge.css clears
- *    Tailwind's min-width breakpoints (`--breakpoint-*: initial`), so the trigger's
- *    `sm:min-h-8` compiles to nothing and only its `min-h-9` survives — a select 4px
- *    taller than the input beside it, from a rule that looks responsive and is inert.
- *    Same reason the Input's own `md:text-sm` never applies and both render at
- *    `text-base`.
+ *    THE HEIGHT IS EXPLICIT SO THE TWO CANNOT DRIFT APART — and the reason written here
+ *    before was a different one, which has since expired. It read "`sm:` IS DEAD IN THIS
+ *    BUILD": bridge.css cleared Tailwind's min-width breakpoints, so the trigger's
+ *    `sm:min-h-8` emitted nothing, only `min-h-9` survived, and the select stood 4px
+ *    taller than the input beside it. THAT IS NO LONGER TRUE. bridge.css re-declared
+ *    `--breakpoint-sm: 40rem` and `--breakpoint-md: 900px` on 2026-09-07 for exactly
+ *    this class of bug (the alert-dialog was stuck in its phone layout), so the
+ *    generated `sm:min-h-8` and the Input's own `md:text-sm` both apply now.
+ *
+ *    The override stays, for a smaller reason than the one it was written for: Input
+ *    sets a FIXED `h-8` and the trigger only ever sets a MINIMUM, so a tall value or a
+ *    stray line-height grows one and not the other. Same number, stated the same way.
+ *
+ *    WHAT DID NOT SURVIVE THE EXPIRY IS THE ROW, three paragraphs down — it was written
+ *    under the old paragraph, dropped the generated `sm:` steps as dead weight, and has
+ *    been rendering its options at 16px under a trigger at 14px ever since the
+ *    breakpoints came back. See the note on `SelectItem`.
  *
  * 2. THE POPUP IS OURS, rendered from the Base UI primitives rather than from the
  *    generated `SelectPopup`. Not a preference: that component hardcodes its surface —
@@ -125,14 +136,32 @@ function SelectPopup({
   );
 }
 
-/* Row geometry from the generated item, minus the `grid` (see 3 above): 32px rows, the
- * smaller-chrome radius §6 gives a menu row, and a neutral highlight — `bg-accent` is
- * `--surface-hover`, which is the same hover surface every menu row in the app uses. */
+/* Row geometry from the generated item, minus the `grid` (see 3 above): the smaller-
+ * chrome radius §6 gives a menu row, and a neutral highlight — `bg-accent` is
+ * `--surface-hover`, which is the same hover surface every menu row in the app uses.
+ *
+ * THE `sm:` STEPS ARE BACK, AND DROPPING THEM WAS A REAL BUG (2026-09-07, found in the
+ * Batch 2 audit). The generated item is `min-h-8 text-base sm:min-h-7 sm:text-sm`. This
+ * row was copied from it while `sm:` compiled to nothing — so the two variants looked
+ * like dead weight and were left out, correctly, at the time. bridge.css then restored
+ * `--breakpoint-sm`, which revived them everywhere EXCEPT here, and the visible result
+ * is a select whose value is 14px in the closed trigger and 16px in the open list: the
+ * text changes size as the panel opens. It also left the rows 32px against the
+ * dropdown's 28px, and §6 locked the overlays as a family precisely so a menu and a
+ * select opening on the same page do not disagree about a row.
+ *
+ * Restored as `sm:`, not flattened to the resolved value, so this row keeps following
+ * the generated component instead of freezing a number the way menu.jsx's literals did.
+ *
+ * The RADIUS is deliberately left alone and is a review question, not a bug: this is
+ * `rounded-sm` (6px) and a dropdown row is `rounded-xl` (14px) — a split the PRESET
+ * itself makes between its select and its menu, so closing it is an owner decision.
+ * PrimitiveReview.jsx puts the two side by side for that call. */
 function SelectItem({ className, children, ...rest }) {
   return (
     <SelectPrimitive.Item
       className={cn(
-        'flex min-h-8 cursor-default items-center gap-2 rounded-sm py-1 ps-2 pe-4 text-base outline-none',
+        'flex min-h-8 cursor-default items-center gap-2 rounded-sm py-1 ps-2 pe-4 text-base outline-none sm:min-h-7 sm:text-sm',
         'data-highlighted:bg-accent data-highlighted:text-accent-foreground',
         'data-disabled:pointer-events-none data-disabled:opacity-64',
         className,
