@@ -1421,25 +1421,20 @@ function SelectParity() {
       </div>
       <div style={S.note}>
         <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
-        open both. The left one is what shadcn ships: a field with a visible border and a
-        faint shadow, and a panel with squarer corners than every other panel in this app.
-        Ours is a filled field matching the text box, on the same panel shape as the
-        dropdown menu you locked yesterday. The left list may also fly out to the width of
-        the page — that is a real collision with the old Trade Log CSS, and it is the
-        reason we cannot simply use the shipped component.
+        open both — and expect them to look almost identical, which is the point. The
+        left one is the shipped shadcn component with nothing of ours applied. The right
+        one is the same component plus two classes: the field fills its column instead of
+        hugging its text, and its padding matches the text box beside it. Everything else
+        you asked for on 7 Sep — the field shape, the single chevron, the tick on the
+        right, the 14px highlight, opening on the field — is what shadcn now ships.
       </div>
-      {/* WHAT CHANGED AFTER THE FIRST LOOK. Recorded on the page rather than only in the
-          file, because the next person to open this pane is comparing against a preview
-          somewhere and needs to know which differences are settled and which are still
-          up for debate. */}
       <div style={{ ...S.note, borderTop: '1px solid var(--line-inset)' }}>
-        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Decided 7 Sep: </strong>
-        two things you flagged are now in. The list <strong style={{ color: 'var(--text)' }}>opens on
-        the field</strong> rather than dropping below it — the library&rsquo;s own behaviour,
-        which I had turned off on my own judgement — and the <strong style={{ color: 'var(--text)' }}>tick
-        moved to the right</strong>, so the selected value stays where it is instead of
-        jumping ~24px right as the list opens. The field itself is unchanged: it still
-        matches the text box beside it, which is what the geometry pane at the top measures.
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>What this pane used to say: </strong>
+        that the left one draws a bordered, shadowed field and a panel with squarer
+        corners than everything else, and that its list flies out to the width of the page
+        because of a collision with the old Trade Log CSS. All of that was true of the
+        version we had been holding since install, and none of it is true of the one
+        shadcn ships today. Re-installing it deleted about 150 lines of ours.
       </div>
     </div>
   );

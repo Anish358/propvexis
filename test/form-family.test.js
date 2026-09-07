@@ -64,38 +64,54 @@ const has = (list, cls) => new RegExp(`(^|\\s)${cls.replace(/[.*+?^${}()|[\]\\]/
 
 /* ── the four that sit on one row ─────────────────────────────────────────────────────
  *
- * Input and Textarea are pass-throughs — `primitives/input.js` re-exports the generated
- * component untouched — so the generated file IS ours and is read directly. The select
- * trigger is the only one of the four our layer restates, which is why it is the only one
- * that can disagree. */
+ * ALL FOUR ARE NOW THE GENERATED COMPONENT, and that is the change this file exists to
+ * record. Input and Textarea always were pass-throughs. The SELECT TRIGGER became one on
+ * 2026-09-07: `shadcn add select` brought a rewritten component whose trigger is
+ * `rounded-2xl border-transparent bg-input/50 h-8 text-sm` — our Input's shape, line for
+ * line — so the re-skin this file was written to police is deleted. The wrapper keeps two
+ * form-specific classes (`w-full`, because the generated trigger is `w-fit` and a form
+ * cell is not a toolbar; `px-2.5`, to match the Input's padding to the pixel).
+ *
+ * So the assertions move with it: agreement is now checked between GENERATED files, and
+ * separately that our wrapper still supplies the two things a form needs. That is a
+ * stronger position than before — there is no copy left to fall behind. */
 
 const INPUT = classesContaining(ui('input.jsx'), 'rounded-2xl', 'ui/input.jsx');
 const TEXTAREA = classesContaining(ui('textarea.jsx'), 'rounded-2xl', 'ui/textarea.jsx');
-const TRIGGER = classesContaining(prim('select.jsx'), 'rounded-2xl', 'select.jsx TRIGGER');
+const TRIGGER = classesContaining(ui('select.jsx'), 'data-[size=default]:h-8', 'ui/select.jsx trigger');
 const BUTTON = classesContaining(ui('button.jsx'), 'rounded-2xl', 'ui/button.jsx');
+const ROW = classesContaining(ui('select.jsx'), 'pr-8 pl-2', 'ui/select.jsx item');
+const MENU_ROW = classesContaining(ui('dropdown-menu.jsx'), 'group/dropdown-menu-item', 'ui/dropdown-menu.jsx');
 
 test('the select trigger draws the same field as the input beside it', () => {
   /* THE READING IS "same field", not "same class list": the trigger is a button and the
-     input is an input, so they will never share every utility. These five are the ones a
-     user sees when the two sit on one line of the Add Account form — and each of them was
-     a real difference in the generated trigger before this wrapper corrected it
-     (`border-input bg-background rounded-lg` with a shadow, 36px tall). */
-  for (const cls of ['rounded-2xl', 'border-transparent', 'bg-input/50', 'px-2.5']) {
+     input is an input, so they will never share every utility. These are the ones a user
+     sees when the two sit on one line of the Add Account form — and every one of them
+     used to be a difference our wrapper corrected by hand. */
+  for (const cls of ['rounded-2xl', 'border-transparent', 'bg-input/50']) {
     assert.ok(has(INPUT, cls), `ui/input.jsx no longer declares ${cls} — the family moved without the select`);
-    assert.ok(has(TRIGGER, cls), `select.jsx's trigger dropped ${cls}; it must match the Input it sits beside`);
+    assert.ok(has(TRIGGER, cls), `the generated select trigger dropped ${cls}; it must match the Input it sits beside`);
   }
   assert.ok(has(INPUT, 'h-8'), 'ui/input.jsx is no longer h-8');
   assert.ok(
-    has(TRIGGER, 'h-8') && has(TRIGGER, 'min-h-8'),
-    'select.jsx must pin BOTH — Input sets a fixed height and the generated trigger only a '
-      + 'minimum, so a stray line-height grows one and not the other',
+    has(TRIGGER, 'data-[size=default]:h-8'),
+    'the generated trigger must still settle at 32px in its default size, like the Input',
   );
-  /* The generated trigger writes its own shadow and its own hairline. §7 says elevation
-     comes from the ladder and no component writes its own; a field on a form is level 0. */
-  assert.ok(
-    has(TRIGGER, 'shadow-none') && has(TRIGGER, 'before:hidden'),
-    'select.jsx must keep killing the generated shadow and hairline (§7)',
-  );
+  /* The OLD generated trigger wrote its own shadow and its own hairline, and the wrapper
+     spent two classes killing them (§7: elevation comes from the ladder, and a field on a
+     form is level 0). The rewritten one writes neither. If either comes back, the wrapper
+     has to as well — so this asserts the absence rather than our old correction. */
+  assert.ok(!/\bshadow-xs\b|\bshadow-sm\b/.test(TRIGGER), 'the generated trigger grew a shadow again (§7)');
+  assert.ok(!/before:shadow-/.test(TRIGGER), 'the generated trigger grew a hairline again (§7)');
+});
+
+test('the wrapper still gives the trigger the two things a form needs', () => {
+  /* The only two overrides left, and both are about forms rather than taste — a toolbar
+     wants `w-fit` and a two-column grid does not. If these are ever dropped, the Add
+     Account page gets two pickers of different widths, neither of them the column's. */
+  const wrapper = classesContaining(prim('select.jsx'), 'w-full', 'select.jsx TRIGGER');
+  assert.ok(has(wrapper, 'w-full'), 'the trigger must fill its form cell — the generated one is w-fit');
+  assert.ok(has(wrapper, 'px-2.5'), "the trigger's padding must match the Input's, not the generated px-3");
 });
 
 test('the whole family takes the preset control radius, and the button with it', () => {
@@ -111,102 +127,81 @@ test('the whole family takes the preset control radius, and the button with it',
     stripComments(prim('button.jsx')),
     /\brounded-lg\b/,
     'button.jsx re-introduced a radius override; §6 was amended so the button takes the '
-      + 'preset\'s `rounded-2xl`, which is what makes it agree with the fields beside it',
+      + "preset's `rounded-2xl`, which is what makes it agree with the fields beside it",
   );
 });
 
-test('the hand-copied select row keeps every responsive step of the row it was copied from', () => {
-  /* THE ACTUAL REGRESSION GUARD. `SelectItem` is rendered from the Base UI parts rather
-     than the generated component — it has to be, because the generated row carries `grid`
-     and legacy/app.css claims that name unlayered — so it is a hand-copy, and a hand-copy
-     is what falls behind. Whatever `sm:` steps the generated row declares, ours declares
-     too. */
-  const generated = classesContaining(ui('select.jsx'), 'grid-cols-[1rem_1fr]', 'ui/select.jsx SelectItem');
-  const ours = classesContaining(prim('select.jsx'), 'rounded-xl px-2', 'select.jsx SelectItem');
+test('an option row and a dropdown row are the same shape', () => {
+  /* §6 locked the overlays as a family, and a select popup is one — it opens on the same
+     page as the menu, often from the same toolbar. Both of these used to be corrections
+     in our layer: the row was hand-built at 6px and 32px while the menu sat at 14px and
+     28px. The rewritten registry component agrees with the menu on its own, so this now
+     asserts that the two GENERATED rows keep agreeing rather than that we keep fixing one. */
+  assert.ok(has(MENU_ROW, 'min-h-7') && has(ROW, 'min-h-7'), 'an option row and a menu row must settle at the same height');
+  assert.ok(has(MENU_ROW, 'rounded-xl') && has(ROW, 'rounded-xl'), 'an option row and a menu row must share a corner');
+  assert.ok(has(MENU_ROW, 'text-sm') && has(ROW, 'text-sm'), 'an option row and a menu row must share a text size');
+});
 
-  const steps = [...generated.matchAll(/(?:^|\s)(sm:[^\s'"`]+)/g)].map((m) => m[1]);
-  assert.ok(steps.length >= 2, 'expected the generated select row to carry sm: steps');
+/* ── the two owner rulings on the picker, now upstream (2026-09-07) ───────────────────
+ *
+ * Both reverse a choice this wrapper had made on its own, and both were pinned here
+ * because a departure from the library and a return to it are equally easy to "fix" back
+ * by someone reading the docs. What changed hours later is WHERE they live: re-installing
+ * `@shadcn/select` brought a rewritten component that already does both, so the wrapper
+ * that expressed them is deleted and these assertions moved onto the generated file.
+ *
+ * That is a stronger guarantee, not a weaker one — there is no copy of ours left to drift
+ * — but it is a guarantee about someone else's component, so it has to be checked rather
+ * than assumed. If a future `shadcn add select` walks either of them back, this fails and
+ * the wrapper comes back with a reason. */
 
-  for (const step of steps) {
-    if (step.includes('[&_svg')) continue; // icon sizing; our row draws its own indicator
-    assert.ok(
-      has(ours, step),
-      `select.jsx's SelectItem is missing ${step}. It was copied from the generated row `
-        + 'while `sm:` compiled to nothing; bridge.css has re-declared --breakpoint-sm, so '
-        + 'dropping a step now means the option list renders at a different size from the '
-        + 'trigger above it.',
-    );
+test('the picker opens on the field, not under it', () => {
+  const generated = stripComments(ui('select.jsx'));
+  assert.match(
+    generated, /alignItemWithTrigger\s*=\s*true/,
+    'the generated SelectContent no longer defaults alignItemWithTrigger to true. The '
+      + 'owner reviewed both and chose that behaviour — the selected row settles ON the '
+      + 'trigger, the way a native dropdown does.',
+  );
+  assert.doesNotMatch(
+    stripComments(prim('select.jsx')),
+    /alignItemWithTrigger\s*=\s*\{\s*false\s*\}/,
+    'select.jsx is overriding alignItemWithTrigger back to false. That was this wrapper\'s '
+      + 'own call before the owner ruled against it, not a constraint.',
+  );
+  /* The scroll arrows matter in this mode: aligned to the trigger, a list too long for
+     the space scrolls in place rather than flipping, and they are the only thing that
+     says so. A hand-built popup dropped them silently once already. */
+  for (const part of ['SelectScrollUpButton', 'SelectScrollDownButton']) {
+    assert.match(generated, new RegExp(part), `the generated popup must still render ${part}`);
   }
 });
 
-test('an option row and a dropdown row are the same height', () => {
-  /* §6 locked the overlays as a family, and a select popup is one — it opens on the same
-     page as the menu, often from the same toolbar. The RADIUS is knowingly different (6px
-     against 14px, a split the preset itself makes between its select and its menu) and is
-     an open review question rather than a bug; the HEIGHT is not, and 32px rows beside
-     28px ones is what the missing `sm:` step produced. */
-  const ours = classesContaining(prim('select.jsx'), 'rounded-xl px-2', 'select.jsx SelectItem');
-  const menuRow = classesContaining(ui('dropdown-menu.jsx'), 'group/dropdown-menu-item', 'ui/dropdown-menu.jsx');
-
-  assert.ok(has(menuRow, 'min-h-7'), 'the dropdown row is no longer min-h-7');
-  assert.ok(
-    has(ours, 'sm:min-h-7'),
-    'a select option must settle at the same height as a dropdown row (§6 — the overlays '
-      + 'were locked as a family)',
-  );
-});
-
-/* ── the two owner rulings on the picker (2026-09-07) ──────────────────────────────────
- *
- * Both reverse a choice this wrapper had made on its own, and both are the kind that gets
- * quietly restored by the next person who reads the library docs, sees our code disagree
- * with the default, and "fixes" it. They are pinned for the same reason button.jsx's
- * per-variant open state is: preset parity is not automatically right, and neither is
- * departing from it — the owner decides which, and the decision has to survive. */
-
-test('the picker opens on the field, not under it', () => {
-  const src = stripComments(prim('select.jsx'));
-  assert.doesNotMatch(
-    src,
-    /alignItemWithTrigger\s*=\s*\{\s*false\s*\}/,
-    'select.jsx is overriding alignItemWithTrigger back to false. The owner reviewed both '
-      + 'and chose the library behaviour — the selected row settles ON the trigger, the way '
-      + 'a native dropdown does. The `false` was this wrapper\'s own call, not a constraint.',
-  );
-  /* AND THE PANEL IS THE SHIPPED ONE, which guarantees the rest of this mode better than
-     any assertion here could. The scroll arrows matter — aligned to the trigger, a list
-     too long for the space scrolls in place rather than flipping, and they are the only
-     thing that says so — and a hand-built popup dropped them silently once already.
-     Rendering the generated component is how they cannot be dropped again. */
-  assert.match(
-    src, /UISelectPopup/,
-    'select.jsx must render the generated SelectPopup. It was re-implemented once, from '
-      + 'the Base UI parts, because the panel surface sits on an inner div with no prop '
-      + 'reaching it — but Base UI MERGES a `render` element\'s className, so a wrapper '
-      + 'can reach it. The copy lost the scroll arrows and drifted on row size.',
-  );
-  assert.doesNotMatch(
-    src, /SelectPrimitive\.(Portal|Positioner|List)\b/,
-    'select.jsx is hand-building the popup again — see the note above `PANEL`. §1 build '
-      + 'order is shadcn -> @coss -> composition -> hand-written, and the panel is the '
-      + 'third step: one `render` className, two locked properties.',
-  );
-});
-
 test('the tick trails the label, so the value does not move when the list opens', () => {
-  /* THE POINT IS THE ORDER, and it is the whole reason for the ruling. A leading
+  /* THE POINT IS THE ORDER, and it is the whole reason for the ruling. A LEADING
      indicator needs a reserved column, a reserved column indents every label past it, and
      the selected value then sits at one x-position closed and ~24px right of it open. The
-     owner caught that from a screenshot. Asserting the order is asserting that. */
-  const src = stripComments(prim('select.jsx'));
-  const text = src.indexOf('SelectPrimitive.ItemText');
-  const indicator = src.indexOf('SelectPrimitive.ItemIndicator');
-  assert.ok(text > 0 && indicator > 0, 'select.jsx no longer renders both row parts');
+     owner caught that from a screenshot of the version we were shipping.
+
+     The rewritten component does better than our fix did: the indicator is absolutely
+     positioned at `right-2` and takes no part in layout at all, so it cannot move a label
+     whether it is mounted or not. Base UI unmounts it on unselected rows — that fact is
+     what made this impossible to express as a className on the OLD generated row, and is
+     why the row was hand-built for a day. */
+  const generated = stripComments(ui('select.jsx'));
+  const text = generated.indexOf('SelectPrimitive.ItemText');
+  const indicator = generated.indexOf('SelectPrimitive.ItemIndicator');
+  assert.ok(text > 0 && indicator > 0, 'ui/select.jsx no longer renders both row parts');
   assert.ok(
     text < indicator,
-    'the tick has moved back in front of the label. Both shadcn and @coss ship it that '
-      + 'way, so this reads as parity — but it indents every label past a reserved column '
-      + 'and makes the selected value jump right as the list opens. Owner ruling, 2026-09-07.',
+    'the tick has moved back in front of the label in the generated row. It indents every '
+      + 'label past a reserved column and makes the selected value jump right as the list '
+      + 'opens. Owner ruling, 2026-09-07 — bring the wrapper back rather than accept it.',
+  );
+  assert.match(
+    generated, /absolute right-2/,
+    'the indicator must stay out of the row\'s layout flow, so mounting and unmounting it '
+      + 'cannot move the label',
   );
 });
 

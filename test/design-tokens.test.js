@@ -383,17 +383,22 @@ test('an edge is opaque where we own the ground, alpha where we do not', () => {
    * ring, in the generated component and in ours — a border sits ON the element and knows
    * its ground, so the contextual token is right there and the ramp still applies. If this
    * ever becomes a ring, it joins the alpha side of the table. */
-  /* THE CLASS MOVED, THE RULE DID NOT (2026-09-07). This read `/border border-border/`,
-     matching the hand-built popup's own surface string. The popup is the GENERATED one
-     now — re-implementing it was justified by a CSS collision that had been fixed weeks
-     earlier — and the generated panel supplies the `border` WIDTH itself, on an inner div
-     the wrapper reaches with a descendant selector. So the colour is all that is left for
-     us to state, and stating it is not optional: Tailwind v4's `border` sets width only,
-     preflight leaves the colour at currentColor, and this project has no global
-     `* { @apply border-border }`. Without the class the panel draws a near-white edge,
-     which is what this assertion caught on that commit. */
-  assert.match(selectJsx, /:border-border/,
-    'the select popup is border-drawn, so it keeps the contextual edge — §4 decides by construction');
+  /* AND THE SELECT POPUP JOINED THEM (2026-09-07). This block used to be the exception:
+     "the select popup draws a `border`, not a ring, in the generated component and in
+     ours — a border sits ON the element and knows its ground, so the contextual token is
+     right there", and it ended "if this ever becomes a ring, it joins the alpha side of
+     the table". It became a ring. Re-installing `@shadcn/select` brought a rewritten
+     component whose panel is `shadow-lg ring-1 ring-foreground/5` on the Popup itself —
+     the same construction as the menu and the popover, and no inner div to reach around,
+     which is what let our whole hand-built popup be deleted.
+
+     So the rule did not change and the component moved across it, which is exactly what
+     "§4 decides by construction" was written to mean. The select is now held to the same
+     thing the other two are: an OUTSET ring may not pin an opaque edge. */
+  assert.doesNotMatch(selectJsx, /ring-\[var\(--overlay-line\)\]/,
+    'the select panel draws an OUTSET ring now — an opaque edge there cannot follow the page behind it');
+  assert.doesNotMatch(selectJsx, /:border-border/,
+    'the select panel is ring-drawn; a border override on it is left over from the hand-built popup');
 });
 
 test('the ramp is wide enough to see — page to overlay clears 12 steps', () => {

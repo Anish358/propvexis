@@ -241,6 +241,34 @@ test('legacy CSS is imported into the lowest cascade layer', () => {
   );
 });
 
+test('every generated component gets cn from our lib, not from a package', () => {
+  /* THE SILENT ONE THE CLI SHIPPED, 2026-09-07. `npx shadcn add select` wrote
+   * `import { cn } from "cn"` into the generated file — the registry source's own import
+   * path, unrewritten — and helpfully installed an npm package called `cn` to satisfy it.
+   * Nothing failed. The build succeeded, the component rendered, and the tests passed.
+   *
+   * WHAT IT WOULD HAVE COST. `@/lib/utils`'s cn is clsx + tailwind-merge, and
+   * tailwind-merge is the entire mechanism by which this layer works: a wrapper passing
+   * `px-2.5` REPLACES the generated `px-3` instead of appending to it and losing on source
+   * order. Under a different cn, every override in every wrapper becomes a coin flip
+   * decided by the order Tailwind happened to emit two utilities — which is not a bug you
+   * find by looking, it is a bug you find months later on one component.
+   *
+   * The import path is not a style difference, so fixing it in place does not violate
+   * "generated components are not edited" — there is nothing for a wrapper to absorb. */
+  for (const f of readdirSync(uiDir).filter((n) => /\.jsx?$/.test(n))) {
+    const src = readFileSync(`${uiDir}/${f}`, 'utf8');
+    if (!/\bcn\s*\(/.test(src)) continue;
+    assert.match(
+      src, /import\s*\{[^}]*\bcn\b[^}]*\}\s*from\s*["']@\/lib\/utils["']/,
+      `ui/${f} does not import cn from @/lib/utils. The shadcn CLI leaves the registry's `
+        + 'own `from "cn"` in place and installs an unrelated package for it; that cn is '
+        + 'not tailwind-merge, so every wrapper override silently stops replacing and '
+        + 'starts racing. Fix the import and uninstall the package.',
+    );
+  }
+});
+
 test('generated components hardcode no colours', () => {
   const src = readDir(uiDir);
   const literals = src.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\boklch\(|\bhsla?\(/g) || [];
