@@ -6,9 +6,10 @@
  */
 
 import React from 'react';
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
+import { CheckIcon } from 'lucide-react';
 import { Select as SelectPrimitive } from '@base-ui/react/select';
 import {
+  SelectPopup as UISelectPopup,
   SelectTrigger as UISelectTrigger,
   SelectValue as UISelectValue,
 } from '@/components/ui/select';
@@ -47,38 +48,58 @@ import { cn } from '@/lib/utils';
  *    been rendering its options at 16px under a trigger at 14px ever since the
  *    breakpoints came back. See the note on `SelectItem`.
  *
- * 2. THE POPUP IS OURS, rendered from the Base UI primitives rather than from the
- *    generated `SelectPopup`. Not a preference: that component hardcodes its surface —
- *    `rounded-lg` with `shadow-lg/5` and two `before:` hairlines — on an inner <div>
- *    it does not expose, so there is no prop that reaches it. §6 is 🔒 LOCKED and
- *    assigns floating overlays `--r-2xl` ("an overlay is a card that floats", which is
- *    what every menu and popover in this app already draws), and §7 assigns them
- *    `--sh-2`, from the ladder, with no component writing its own. A 7px dropdown
- *    beside 13px menus is the visible cost of accepting it.
+ * 2. THE PANEL TAKES §6 AND §7, AND THAT IS THE ONLY THING WE CHANGE ABOUT IT.
+ *    The generated `SelectPopup` draws its surface on an inner <div> it does not expose
+ *    — `rounded-lg` with `shadow-lg/5` and two `before:` hairlines — so there is no prop
+ *    that reaches it. §6 is LOCKED and assigns floating overlays `--r-2xl` ("an overlay
+ *    is a card that floats", which is what every menu and popover in this app already
+ *    draws), and §7 assigns them `--sh-2`, from the ladder, with no component writing
+ *    its own. A 10px dropdown beside 16px menus is the visible cost of accepting it.
  *
- *    index.js prescribes this exact escape hatch for this exact case — "render the Base
- *    UI primitive directly in that wrapper and reuse the generated variants, rather
- *    than hand-edit generated code that the next `shadcn add` would overwrite" — which
- *    is how button.jsx already handles refs.
+ *    THIS USED TO BE A REASON TO RE-IMPLEMENT THE WHOLE POPUP from the Base UI parts —
+ *    Portal, Positioner, Popup, List and the scroll arrows, by hand. It is not. Base UI
+ *    merges the `render` element's className with the component's own (mergeProps
+ *    concatenates `className`; it does not replace it), so a wrapper can reach that
+ *    inner div with a descendant selector and change exactly the two properties a
+ *    locked rule requires. The build order in DESIGN-LANGUAGE §1 is shadcn → @coss →
+ *    composition → hand-written, and this is the third step, not the fourth.
  *
- * 3. THE ROW CANNOT CARRY THE `grid` CLASS, and this one is not a preference either. The
- *    generated SelectItem lays itself out with `grid grid-cols-[1rem_1fr]`, and
- *    legacy/app.css declares an UNLAYERED `.grid { display: table; min-width:
- *    calc(var(--grid-cols, 11) * 92px) }` for the Trade Log. Unlayered wins over
- *    anything Tailwind emits, so every option rendered as a 1012px-wide TABLE row and
- *    dragged the whole dropdown to the full width of the viewport — measured, in a
- *    browser: `item: disp=table minW=1012px`. It cannot be fixed with a className,
- *    because a layered utility loses to that rule no matter how specific; the element
- *    has to stop carrying the name. So the row is rendered here from the Base UI parts
- *    with a FLEX layout. The indicator TRAILS the label rather than leading it — an owner
- *    decision, and the reason the grid's reserved first column is not reproduced at all;
- *    see the note on `SelectItem`.
+ *    WHAT RE-IMPLEMENTING COST, since it is the argument for not doing it again: the
+ *    hand-built popup silently dropped the scroll arrows (they matter — aligned to the
+ *    trigger, a long list scrolls in place rather than flipping), and the row that came
+ *    with it dropped two responsive steps and rendered its options a size bigger than
+ *    the trigger above them. Neither was a decision anyone made. Both are the ordinary
+ *    cost of maintaining a copy.
  *
- *    The scroll arrows ARE carried over, as of the owner's ruling that the list opens on
- *    the trigger. They were dropped while it opened downwards, where `overflow-y-auto`
- *    inside `--available-height` was the whole story and no list in this app was long
- *    enough to want an affordance. Aligned to the trigger, a long list scrolls in place
- *    instead of flipping, and the arrows are what say so. See `SelectPopup`.
+ *    `:not([data-slot])` is what picks the surface out: the arrows are its siblings and
+ *    they are the ones that carry a slot name, so the unlabelled div is the panel. It
+ *    survives the arrows unmounting, which `nth-child` would not.
+ *
+ * 3. THE ROW IS THE ONE PART STILL BUILT BY HAND, and the reason it gives has changed
+ *    completely — the ORIGINAL reason is gone, and it is worth recording what it was.
+ *
+ *    IT USED TO BE A CSS COLLISION. The generated SelectItem lays itself out with `grid
+ *    grid-cols-[1rem_1fr]`, and legacy/app.css declared an unlayered `.grid { display:
+ *    table; min-width: calc(var(--grid-cols, 11) * 92px) }` for the Trade Log — so every
+ *    option rendered as a 1012px-wide TABLE row and dragged the dropdown to the width of
+ *    the viewport. Measured in a browser: `item: disp=table minW=1012px`.
+ *
+ *    THAT WAS FIXED ON 2026-08-28, BEFORE THIS FILE WAS WRITTEN, and this paragraph
+ *    went on citing it for another ten days. The table is `.log-grid` now — a name
+ *    Tailwind will never emit — AND legacy/app.css moved into `layer(legacy)`, the
+ *    lowest layer, so it outranks nothing at any specificity. Either fix alone closes
+ *    the collision; both are in, and `utility-collisions.test.js` holds them ("the
+ *    `grid` collision is gone, not merely mitigated"). Second expired justification
+ *    found in this one file, after the `sm:` paragraph above — see the note there.
+ *
+ *    WHAT KEEPS THE ROW HAND-BUILT IS AN OWNER RULING, not a constraint: the tick
+ *    TRAILS the label here, and the generated row puts it in a reserved leading column.
+ *    Flipping that from the outside means overriding `grid-cols` on the row AND
+ *    re-pointing both children's `col-start`, and Base UI unmounts the indicator when
+ *    the row is not selected — so `:first-child` and `:last-child` become the same
+ *    element and the two overrides land on top of each other. The generated component
+ *    pins each child's column explicitly for exactly that reason. A four-selector
+ *    override that breaks on the unselected rows is worse than a nine-line row.
  */
 
 /* Matched to `ui/input.jsx` line for line: h-8, rounded-2xl, border-transparent,
@@ -92,95 +113,60 @@ function SelectTrigger({ className, ...rest }) {
   return <UISelectTrigger className={cn(TRIGGER, className)} {...rest} />;
 }
 
-/* §6 overlay radius + §7 level 2 elevation, and `bg-popover` = `--surface-2`, which is
- * what menus and popovers already sit on. `z-dropdown` is the token utility from
- * bridge.css rather than the generated `z-50`: §19 fixes the ORDER of the layers, and a
- * raw 50 is outside it — the value happens to agree today and would not survive a
- * change to the scale.
+/* THE PANEL, AS THE GENERATED COMPONENT DRAWS IT, with two properties corrected.
  *
- * THE LIST IS NOT OPTIONAL. Dropping `Select.List` and putting the items straight in the
- * Popup renders a full-width panel pinned to the left of the viewport with the rows
- * mis-laid-out: it is the listbox container Base UI positions and scrolls, so the
- * Positioner has nothing to size against without it. Verified by screenshotting both. */
-/* `border-border` is right again: `--color-border` is contextual, and the popup declares
- * `data-overlay-surface`, so it resolves to the panel's edge. See tokens.css. */
-const SURFACE = [
-  'min-w-(--anchor-width) rounded-2xl border border-border bg-popover shadow-2',
-  'origin-(--transform-origin) text-foreground outline-none',
+ * `render` is Base UI's composition hook and the coss reference names it as the
+ * supported one ("where composition is needed, prefer documented coss/Base UI `render`
+ * patterns"). Its className is MERGED with the component's own — mergeProps concatenates
+ * className rather than replacing it — so this adds to the popup without touching the
+ * generated file.
+ *
+ * The two overrides are the two a LOCKED rule requires and nothing else: §6 gives a
+ * floating overlay `--r-2xl` (16px, what every menu and popover here already draws) and
+ * §7 gives it `--sh-2` from the ladder, with no component writing its own — which is why
+ * the generated `before:` hairlines go too. Everything else about the panel is the
+ * preset's, including the row highlight, the padding and the scroll arrows.
+ *
+ * `data-overlay-surface` is what makes `--color-border` resolve to a PANEL's edge rather
+ * than a card's; it sits on the popup and the inner div inherits the custom property.
+ *
+ * `z-dropdown` is deliberately NOT applied. The generated Positioner hardcodes `z-50`,
+ * and tokens.css sets `--z-dropdown: 50` to match it on purpose — reaching the
+ * Positioner would mean re-implementing it, and the value is already the one §19 wants.
+ *
+ * NOT PASSED, AND WORTH KNOWING WHY: `alignItemWithTrigger`. The generated component
+ * defaults it to true and the owner chose that behaviour (the selected row settles on
+ * the trigger, the way a native dropdown does). The coss reference agrees — "use
+ * `alignItemWithTrigger={false}` ONLY when the default causes layout issues". This
+ * wrapper used to pass `false`; that was its own call and it is gone. */
+const PANEL = [
+  '[&>div:not([data-slot])]:rounded-2xl',
+  '[&>div:not([data-slot])]:shadow-2',
+  '[&>div:not([data-slot])]:before:hidden',
+  /* AND THE EDGE COLOUR, WHICH IS NOT A DESIGN OVERRIDE — it is the third thing this app
+     has to supply that a stock shadcn install supplies for it. The generated panel asks
+     for a bare `border`, which in Tailwind v4 sets WIDTH only; preflight's `border: 0
+     solid` leaves the colour at `currentColor`, and shadcn's own starter closes that with
+     a global `* { @apply border-border }` that this project does not have (bridge.css
+     lists the three other preflight gaps it patches for the same reason — the outset
+     button frame, the heading margins, the UA control border). Without this line the
+     select panel draws a near-WHITE 1px edge. Caught by design-tokens.test.js on the
+     commit that adopted the generated popup, which is the test doing its job.
+
+     `border-border` is the right token rather than a frozen grey: `--color-border` is
+     contextual and the popup carries `data-overlay-surface`, so it resolves to a panel's
+     edge here and a card's elsewhere (§4, and tokens.css "CHROME IS CONTEXTUAL"). */
+  '[&>div:not([data-slot])]:border-border',
 ].join(' ');
 
-/* The arrows overlay the first and last rows and fade them out underneath themselves,
- * which is what tells you the list continues. Copied from the generated component with
- * two changes, both because ours sit INSIDE the surface rather than beside it: the
- * z-index is local to the popup rather than a raw 50 (§19 owns the app's layer order and
- * a bare 50 is outside it), and the inner rounding follows OUR panel radius —
- * `--radius-2xl` less the 1px border — rather than the `--radius-lg` the generated panel
- * is built on. Two constants rather than one parameterised by a data attribute: Base UI
- * does not label these by direction, and inventing an attribute it does not set is how a
- * class list silently applies to nothing. */
-const SCROLL_ARROW = 'z-1 flex h-6 w-full cursor-default items-center justify-center '
-  + 'before:pointer-events-none before:absolute before:inset-x-px before:h-[200%] '
-  + 'before:from-50% before:from-popover [&>svg]:relative';
-const SCROLL_UP = `${SCROLL_ARROW} top-0 before:top-px before:bg-linear-to-b `
-  + 'before:rounded-t-[calc(var(--radius-2xl)-1px)]';
-const SCROLL_DOWN = `${SCROLL_ARROW} bottom-0 before:bottom-px before:bg-linear-to-t `
-  + 'before:rounded-b-[calc(var(--radius-2xl)-1px)]';
-
-/* THE LIST OPENS OVER THE FIELD (owner, 2026-09-07 — reversing my own call).
- *
- * This read `alignItemWithTrigger={false}`, against the library's default, with the
- * argument that a panel which lands somewhere different depending on what is selected
- * reads as the panel jumping. The owner reviewed both on the Test page and chose the
- * library's behaviour — the selected row settles ON the trigger, the way a native
- * dropdown does — so the override is DELETED rather than re-valued. It was mine, not a
- * constraint, and it was the biggest of the differences from the shipped component.
- *
- * WHAT COMES BACK WITH IT, and neither is optional in this mode:
- *
- *   · THE SCROLL ARROWS. They exist FOR this mode: aligned to the trigger, a list longer
- *     than the space above or below it is scrolled in place rather than flipped, and the
- *     arrows are the only thing that says so. They were dropped when the panel opened
- *     downwards, where `overflow-y-auto` inside `--available-height` was the whole story.
- *     Base UI renders each one only when that direction can actually scroll, so a short
- *     list is unchanged. They sit INSIDE our surface rather than beside it — the
- *     generated component puts them next to an inner <div> it never exposes, which is the
- *     div we cannot reach and the reason this popup is hand-built at all.
- *   · THE ROW'S `side=none` WIDTH. Aligned to the trigger, the positioner reports
- *     `data-side="none"`, and the generated row widens itself by 1.25rem so the panel
- *     overhangs the field by 10px a side. Without it the panel is exactly the trigger's
- *     width and the rows sit tight against the edge. It is arithmetic, not taste, so it
- *     is copied verbatim.
- *
- * `side`, `sideOffset` and `align` stay as props: Base UI falls back to ordinary
- * anchored positioning when the aligned form does not fit, and those are what it uses. */
-function SelectPopup({
-  className, children, side = 'bottom', sideOffset = 4, align = 'start', ...rest
-}) {
+function SelectPopup({ className, ...rest }) {
   return (
-    <SelectPrimitive.Portal>
-      <SelectPrimitive.Positioner
-        className="z-dropdown select-none"
-        side={side}
-        sideOffset={sideOffset}
-        align={align}
-        data-slot="select-positioner"
-      >
-        <SelectPrimitive.Popup className={SURFACE} data-overlay-surface="" data-slot="select-popup" {...rest}>
-          <SelectPrimitive.ScrollUpArrow className={SCROLL_UP} data-slot="select-scroll-up-arrow">
-            <ChevronUpIcon aria-hidden="true" className="size-4" />
-          </SelectPrimitive.ScrollUpArrow>
-          <SelectPrimitive.List
-            className={cn('max-h-(--available-height) overflow-y-auto p-1', className)}
-            data-slot="select-list"
-          >
-            {children}
-          </SelectPrimitive.List>
-          <SelectPrimitive.ScrollDownArrow className={SCROLL_DOWN} data-slot="select-scroll-down-arrow">
-            <ChevronDownIcon aria-hidden="true" className="size-4" />
-          </SelectPrimitive.ScrollDownArrow>
-        </SelectPrimitive.Popup>
-      </SelectPrimitive.Positioner>
-    </SelectPrimitive.Portal>
+    <UISelectPopup
+      className={className}
+      data-overlay-surface=""
+      render={<div className={PANEL} />}
+      {...rest}
+    />
   );
 }
 
@@ -201,10 +187,20 @@ function SelectPopup({
  * Restored as `sm:`, not flattened to the resolved value, so this row keeps following
  * the generated component instead of freezing a number the way menu.jsx's literals did.
  *
- * The RADIUS is deliberately left alone and is a review question, not a bug: this is
- * `rounded-sm` (6px) and a dropdown row is `rounded-xl` (14px) — a split the PRESET
- * itself makes between its select and its menu, so closing it is an owner decision.
- * PrimitiveReview.jsx puts the two side by side for that call.
+ * ── THE HIGHLIGHT IS THE DROPDOWN'S, NOT THE SELECT'S (owner, 2026-09-07) ────────────
+ *
+ * This was `rounded-sm` — 6px — and was parked as an open review question rather than
+ * changed, because the split is the PRESET'S OWN: shadcn draws its select row at
+ * `rounded-sm` and its menu row at `rounded-xl`, so matching them was a decision to put
+ * to the owner rather than make. The owner put the two side by side and closed it: the
+ * option row takes `rounded-xl`, the same 14px the dropdown menu locked in Batch 1.
+ *
+ * TWO THINGS AGREED, WHICH IS WHY IT IS NOT "it looks better". §6 locked the overlays as
+ * a FAMILY on the argument that a menu and a select opening on the same page must not
+ * disagree about a row — the row height was already held to that (`sm:min-h-7`, 28px in
+ * both) and the corner was the one property still out. And the reference the owner was
+ * comparing against draws a rounder highlight than 6px too, so preset parity and our own
+ * locked rule pointed the same way for once.
  *
  * ── THE TICK IS ON THE RIGHT (owner, 2026-09-07) ──────────────────────────────────────
  *
@@ -230,7 +226,7 @@ function SelectItem({ className, children, ...rest }) {
   return (
     <SelectPrimitive.Item
       className={cn(
-        'flex min-h-8 cursor-default items-center gap-2 rounded-sm px-2 py-1 text-base outline-none sm:min-h-7 sm:text-sm',
+        'flex min-h-8 cursor-default items-center gap-2 rounded-xl px-2 py-1 text-base outline-none sm:min-h-7 sm:text-sm',
         // The panel overhangs the trigger by 10px a side when it opens ON it, which is
         // what puts a row's label over the trigger's value. Verbatim from the generated
         // row; `data-side="none"` is what the positioner reports in that mode.

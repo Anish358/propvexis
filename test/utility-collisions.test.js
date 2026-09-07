@@ -175,6 +175,72 @@ test('the `grid` collision is gone, not merely mitigated', () => {
   assert.match(rule[1], /display:\s*table/, '.log-grid must still declare display: table');
 });
 
+/* THE SQUAT COUNT IS ZERO, AND THAT IS A STRONGER CLAIM THAN THE TWO TESTS ABOVE.
+ *
+ * Those compare legacy class names against the utilities the library uses TODAY. That is
+ * the right check for a live bug, and it is blind to the one that hurts: a legacy rule
+ * sitting on a utility name NOTHING currently uses. It costs nothing and reports nothing
+ * — right up to the day someone adds `hidden` or `truncate` to a wrapper, at which point
+ * a rule written years earlier for an unrelated page starts competing with it.
+ *
+ * `.grid` is the worked example. It was a <table> in the Trade Log for months before the
+ * generated dialog started using `grid`, and the collision arrived with the DIALOG, not
+ * with the table. Nobody touching the dialog had any reason to look in app.css.
+ *
+ * So this asserts the property directly: legacy CSS styles NO bare Tailwind utility name,
+ * used or not. Two have ever existed and both are closed — `.grid` became `.log-grid`
+ * (2026-08-28) and `.sr-only` became `.visually-hidden` (2026-09-07).
+ *
+ * THERE IS NO ALLOWLIST HERE ON PURPOSE. `ACCOUNTED_FOR` above is a debt register for
+ * collisions that already exist; this is a rule with no debt outstanding, and adding the
+ * first exemption is how it becomes a config knob. Renaming the legacy class is always
+ * available and always cheap — legacy names are ours, utility names are not.
+ *
+ * The list is Tailwind's bare (value-less) utilities. A hyphenated legacy name cannot be
+ * emitted by Tailwind unless it is a complete utility, and `legacyStyledClassNames`
+ * already feeds the two tests above for that case. */
+const BARE_UTILITIES = new Set([
+  'absolute', 'antialiased', 'block', 'capitalize', 'collapse', 'contents', 'container',
+  'fixed', 'flex', 'grid', 'hidden', 'inline', 'invisible', 'isolate', 'italic',
+  'lowercase', 'ordinal', 'overline', 'relative', 'resize', 'sr-only', 'static',
+  'sticky', 'table', 'transform', 'truncate', 'underline', 'uppercase', 'visible',
+]);
+
+test('legacy CSS squats no bare Tailwind utility name, whether or not we use it yet', () => {
+  const squatted = [...legacyStyledClassNames()].filter((n) => BARE_UTILITIES.has(n)).sort();
+  assert.deepEqual(
+    squatted, [],
+    `legacy/app.css styles Tailwind utility name(s): ${squatted.join(', ')}. Rename the `
+      + 'LEGACY class — it is ours and the utility name is not. `.grid` became `.log-grid` '
+      + 'and `.sr-only` became `.visually-hidden` for exactly this. Do not wait for a '
+      + 'component to start using the utility: the collision arrives with the component, '
+      + 'and whoever adds it has no reason to read app.css.',
+  );
+});
+
+/* AND THE OTHER HALF OF THE SAME GUARANTEE, which is what makes the rename a belt rather
+ * than the only strap. legacy/app.css is imported into `layer(legacy)`, declared FIRST in
+ * tailwind.css, so it loses to every later layer at any specificity with no !important —
+ * a squat could not outrank a utility even if one got through. Both fixes are in, and
+ * either alone closes the hole; the test above is the one that also stops the app.css rule
+ * being the thing that silently wins when the layer order is next revisited. */
+test('legacy CSS is imported into the lowest cascade layer', () => {
+  const index = readFileSync(at('../frontend/src/styles/index.css'), 'utf8');
+  assert.match(
+    index, /@import\s+"\.\/legacy\/app\.css"\s+layer\(legacy\)/,
+    'legacy/app.css must be imported into layer(legacy). Unlayered, it outranks every '
+      + 'Tailwind, shadcn and @coss rule, and every one of the 1000 class names in it '
+      + 'becomes a live hazard rather than a dead one.',
+  );
+  const tw = readFileSync(at('../frontend/src/tailwind.css'), 'utf8');
+  const order = tw.match(/@layer\s+([^;{]+);/);
+  assert.ok(order, 'tailwind.css must declare the layer order');
+  assert.equal(
+    order[1].trim().split(',')[0].trim(), 'legacy',
+    `legacy must be the FIRST layer declared, so it loses to all the others (got "${order?.[1].trim()}")`,
+  );
+});
+
 test('generated components hardcode no colours', () => {
   const src = readDir(uiDir);
   const literals = src.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\boklch\(|\bhsla?\(/g) || [];

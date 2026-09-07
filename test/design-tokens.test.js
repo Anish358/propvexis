@@ -383,7 +383,16 @@ test('an edge is opaque where we own the ground, alpha where we do not', () => {
    * ring, in the generated component and in ours — a border sits ON the element and knows
    * its ground, so the contextual token is right there and the ramp still applies. If this
    * ever becomes a ring, it joins the alpha side of the table. */
-  assert.match(selectJsx, /border border-border/,
+  /* THE CLASS MOVED, THE RULE DID NOT (2026-09-07). This read `/border border-border/`,
+     matching the hand-built popup's own surface string. The popup is the GENERATED one
+     now — re-implementing it was justified by a CSS collision that had been fixed weeks
+     earlier — and the generated panel supplies the `border` WIDTH itself, on an inner div
+     the wrapper reaches with a descendant selector. So the colour is all that is left for
+     us to state, and stating it is not optional: Tailwind v4's `border` sets width only,
+     preflight leaves the colour at currentColor, and this project has no global
+     `* { @apply border-border }`. Without the class the panel draws a near-white edge,
+     which is what this assertion caught on that commit. */
+  assert.match(selectJsx, /:border-border/,
     'the select popup is border-drawn, so it keeps the contextual edge — §4 decides by construction');
 });
 

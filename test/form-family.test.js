@@ -121,7 +121,7 @@ test('the hand-copied select row keeps every responsive step of the row it was c
      is what falls behind. Whatever `sm:` steps the generated row declares, ours declares
      too. */
   const generated = classesContaining(ui('select.jsx'), 'grid-cols-[1rem_1fr]', 'ui/select.jsx SelectItem');
-  const ours = classesContaining(prim('select.jsx'), 'rounded-sm px-2', 'select.jsx SelectItem');
+  const ours = classesContaining(prim('select.jsx'), 'rounded-xl px-2', 'select.jsx SelectItem');
 
   const steps = [...generated.matchAll(/(?:^|\s)(sm:[^\s'"`]+)/g)].map((m) => m[1]);
   assert.ok(steps.length >= 2, 'expected the generated select row to carry sm: steps');
@@ -144,7 +144,7 @@ test('an option row and a dropdown row are the same height', () => {
      against 14px, a split the preset itself makes between its select and its menu) and is
      an open review question rather than a bug; the HEIGHT is not, and 32px rows beside
      28px ones is what the missing `sm:` step produced. */
-  const ours = classesContaining(prim('select.jsx'), 'rounded-sm px-2', 'select.jsx SelectItem');
+  const ours = classesContaining(prim('select.jsx'), 'rounded-xl px-2', 'select.jsx SelectItem');
   const menuRow = classesContaining(ui('dropdown-menu.jsx'), 'group/dropdown-menu-item', 'ui/dropdown-menu.jsx');
 
   assert.ok(has(menuRow, 'min-h-7'), 'the dropdown row is no longer min-h-7');
@@ -172,16 +172,24 @@ test('the picker opens on the field, not under it', () => {
       + 'and chose the library behaviour — the selected row settles ON the trigger, the way '
       + 'a native dropdown does. The `false` was this wrapper\'s own call, not a constraint.',
   );
-  /* The arrows are not decoration: aligned to the trigger, a long list scrolls in place
-     rather than flipping, and they are the only thing that says so. Base UI renders each
-     one only when that direction can scroll, so a short list is unaffected. */
-  for (const part of ['ScrollUpArrow', 'ScrollDownArrow']) {
-    assert.match(
-      src, new RegExp(`SelectPrimitive\\.${part}`),
-      `select.jsx must render ${part} — it opens on the trigger now, and a list too long `
-        + 'for the space scrolls in place with no other affordance',
-    );
-  }
+  /* AND THE PANEL IS THE SHIPPED ONE, which guarantees the rest of this mode better than
+     any assertion here could. The scroll arrows matter — aligned to the trigger, a list
+     too long for the space scrolls in place rather than flipping, and they are the only
+     thing that says so — and a hand-built popup dropped them silently once already.
+     Rendering the generated component is how they cannot be dropped again. */
+  assert.match(
+    src, /UISelectPopup/,
+    'select.jsx must render the generated SelectPopup. It was re-implemented once, from '
+      + 'the Base UI parts, because the panel surface sits on an inner div with no prop '
+      + 'reaching it — but Base UI MERGES a `render` element\'s className, so a wrapper '
+      + 'can reach it. The copy lost the scroll arrows and drifted on row size.',
+  );
+  assert.doesNotMatch(
+    src, /SelectPrimitive\.(Portal|Positioner|List)\b/,
+    'select.jsx is hand-building the popup again — see the note above `PANEL`. §1 build '
+      + 'order is shadcn -> @coss -> composition -> hand-written, and the panel is the '
+      + 'third step: one `render` className, two locked properties.',
+  );
 });
 
 test('the tick trails the label, so the value does not move when the list opens', () => {

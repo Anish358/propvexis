@@ -56,17 +56,17 @@ test('the live region stays in the accessibility tree', () => {
 
   // display:none / visibility:hidden would remove the node from the a11y tree,
   // so the region would never announce anything at all. Clip-rect is the point.
-  assert.match(appCss, /\.sr-only \{[\s\S]*?clip: rect\(0 0 0 0\)/);
-  const srOnly = appCss.slice(appCss.indexOf('.sr-only {'), appCss.indexOf('.sr-only {') + 260);
+  assert.match(appCss, /\.visually-hidden \{[\s\S]*?clip: rect\(0 0 0 0\)/);
+  const srOnly = appCss.slice(appCss.indexOf('.visually-hidden {'), appCss.indexOf('.visually-hidden {') + 260);
   assert.ok(!/display:\s*none/.test(srOnly) && !/visibility:\s*hidden/.test(srOnly));
 });
 
-test('sr-only is real CSS, not a Tailwind class that compiles to nothing', () => {
+test('the hidden live region is real CSS, not a Tailwind class that compiles to nothing', () => {
   // Utilities generate for components/{ui,primitives} ONLY. Announcer.jsx lives
   // in components/, where a Tailwind class silently emits no CSS — no build
   // error, no failing test, just an invisible-to-everyone live region.
-  assert.match(announcer, /className="sr-only"/);
-  assert.match(appCss, /\.sr-only \{/, 'sr-only must be declared in the app stylesheet');
+  assert.match(announcer, /className="visually-hidden"/);
+  assert.match(appCss, /\.visually-hidden \{/, 'visually-hidden must be declared in the app stylesheet');
 });
 
 test('announcements describe the change, not the state', () => {
