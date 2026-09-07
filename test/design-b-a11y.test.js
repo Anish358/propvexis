@@ -183,7 +183,10 @@ test('touch targets on the drawer meet the 44px floor', () => {
    * So the guarantee is unchanged where it means something, and the test says which
    * width it applies at rather than asserting a number that had stopped having a
    * reason. */
-  assert.match(rail, /'h-10 max-\[900px\]:h-11 gap-3 rounded-\[10px\]/,
+  // The radius moved from `rounded-[10px]` to `rounded-lg` (same 10px, now bound to
+  // --r-lg) on 2026-09-07. It was never what this test is about — the height is — so it
+  // is out of the pattern rather than re-pinned in its new spelling.
+  assert.match(rail, /'h-10 max-\[900px\]:h-11 gap-3 /,
     'rail rows must be 44px tall wherever they are touched');
   assert.match(block, /\.sb-collapse \{ min-width: 44px; min-height: 44px; \}/);
   // dvh, not vh: vh ignores mobile browser chrome, so the drawer's last item

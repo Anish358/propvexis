@@ -115,7 +115,7 @@ test('a day cell is ONE top-aligned stack, and the slack falls beneath it', () =
    * resolves off whatever font actually loads; a 2px drift per line is invisible once
    * and obvious across forty-two cells, so 15px/12px get their metrics written down. */
   assert.match(decl, /text-\[15px\] leading-\[18px\]/);
-  assert.match(decl, /text-\[12px\] leading-\[15px\]/);
+  assert.match(decl, /text-xs leading-\[15px\]/);
 });
 
 test('a quiet weekend number is a step below a quiet weekday', () => {

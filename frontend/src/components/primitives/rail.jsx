@@ -41,7 +41,7 @@ import {
  *
  *   width       16rem / 3rem  ->  248px / 70px, via --sidebar-width* on the provider
  *   breakpoint  md = 768      ->  900 (bridge.css + use-mobile.js), our rail number
- *   row         h-8 rounded-md -> h-11 rounded-[10px], Rhea's 44px nav row
+ *   row         h-8 rounded-md -> h-11 rounded-lg, Rhea's 44px nav row at --r-lg
  *   colours     already correct — bridge.css maps every sidebar-* slot at tokens
  *
  * NOTHING ABOUT THE INFORMATION ARCHITECTURE MOVES. Same NAV config, same accordion,
@@ -49,10 +49,26 @@ import {
  * it; this file holds presentation and re-exports the provider so app code has one
  * import path (DESIGN-LANGUAGE §1: primitives are the entry point).
  *
- * ARBITRARY VALUES ON PURPOSE. `text-[14.5px]` rather than `text-sm`: the bridge
- * repoints Tailwind's ladder at our older scale, so named steps land a pixel or two
- * off Rhea and the drift would be invisible in review. Colour always goes through
- * tokens — a hex in a component is what the token layer exists to prevent.
+ * NAMED STEPS, NOT ARBITRARY ONES (2026-09-07). This file used to carry `text-[14.5px]`,
+ * `text-[16.5px]`, `text-[12.5px]` and `text-[11.5px]`, and the reason was written here:
+ * the bridge repointed Tailwind's ladder at our OLDER scale, so a named step landed a
+ * pixel or two off Rhea and the drift would have been invisible in review.
+ *
+ * That reason is gone. The owner moved the type roles onto preset b2qLMFPP6, which takes
+ * its ramp from Tailwind's own, so `text-sm` IS 14 and `text-base` IS 16 — the half-pixel
+ * values were correcting a gap that no longer exists, and correcting it in a way no test
+ * could see. Named steps now follow a role change in tokens.css for free.
+ *
+ * The one survivor is `RailSoon` at 10px, argued at its own definition below: it is a
+ * STATE, not a label, and the scale has no step under 12.
+ *
+ * Radius likewise goes through the ramp — with one explicit exception. `rounded-xl` is
+ * 14px in this app (bridge.css), NOT `--r-xl`'s 12px, so the nudge card spells its token
+ * out. That is DESIGN-LANGUAGE §25 in one line: shadcn's names do not mean here what
+ * they mean in the registry.
+ *
+ * Colour always goes through tokens — a hex in a component is what the token layer
+ * exists to prevent.
  */
 
 /* THE LIST RESET, AND WHY IT IS NOT OPTIONAL HERE.
@@ -139,7 +155,7 @@ export function RailBrand({ mark, action, children, className, ...rest }) {
             nothing at all and the wordmark would still be there, clipped, at 70px.
             That is a real bug this repo has already paid for once. */}
         {!collapsed && (
-          <span className="truncate text-[16.5px] leading-6 font-[650] tracking-[-0.25px] text-[var(--text)]">
+          <span className="truncate text-base leading-6 font-[650] tracking-[-0.25px] text-[var(--text)]">
             {children}
           </span>
         )}
@@ -206,7 +222,7 @@ export function RailCta({ render, icon, className, children, ...rest }) {
        rather than to the navigation below. */
     'my-2 flex shrink-0 items-center justify-center gap-2 rounded-full',
     'bg-[var(--action)] text-[var(--on-action)] no-underline',
-    'text-[12.5px] leading-4 font-semibold',
+    'text-xs leading-4 font-semibold',
     'transition-colors hover:bg-[var(--action-2)]',
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2',
     'focus-visible:ring-offset-[var(--rail-bg)] focus-visible:outline-none',
@@ -295,7 +311,7 @@ export function RailItem({
              45px apart instead of 50 and is the difference the design shows. The 44px
              floor exists for TOUCH targets, so it is kept exactly where touch happens
              rather than applied to a pointer-driven desktop rail. */
-          'h-10 max-[900px]:h-11 gap-3 rounded-[10px] px-3 text-[14.5px] leading-5 font-medium',
+          'h-10 max-[900px]:h-11 gap-3 rounded-lg px-3 text-sm leading-5 font-medium',
           'transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0',
           active
             ? 'bg-[var(--sel-bg)] font-[550] text-[var(--text)]'
@@ -325,7 +341,7 @@ export function RailSoon({ className, ...rest }) {
     <span
       data-slot="rail-soon"
       className={cn(
-        'shrink-0 rounded-[6px] border border-[var(--line-strong)] bg-[var(--zinc-900)] px-1.5 py-0.5',
+        'shrink-0 rounded-sm border border-[var(--line-strong)] bg-[var(--zinc-900)] px-1.5 py-0.5',
         'text-[10px] leading-[14px] font-[550] tracking-[0.04em] text-[var(--text-3)] uppercase',
         className,
       )}
@@ -382,7 +398,7 @@ export function RailSubItem({ render, active = false, badge, className, children
         isActive={active}
         data-slot="rail-sub-item"
         className={cn(
-          'h-9 gap-2 rounded-[8px] px-2 text-[13px] leading-5 transition-colors',
+          'h-9 gap-2 rounded-md px-2 text-sm leading-5 transition-colors',
           active
             ? 'bg-[var(--sel-bg)] font-medium text-[var(--text)]'
             : 'font-normal text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)]',
@@ -420,11 +436,11 @@ export function RailNudge({ title, className, children, ...rest }) {
   return (
     <div
       data-slot="rail-nudge"
-      className={cn('flex flex-col gap-2 rounded-[12px] bg-[var(--nudge-bg)] p-4', className)}
+      className={cn('flex flex-col gap-2 rounded-[var(--r-xl)] bg-[var(--nudge-bg)] p-4', className)}
       {...rest}
     >
-      <span className="text-[14px] leading-5 font-medium text-[var(--warning)]">{title}</span>
-      <span className="text-[12px] leading-5 font-normal text-[var(--muted)]">{children}</span>
+      <span className="text-sm leading-5 font-medium text-[var(--warning)]">{title}</span>
+      <span className="text-xs leading-5 font-normal text-[var(--muted)]">{children}</span>
     </div>
   );
 }
@@ -445,7 +461,7 @@ export function RailUser({ render, avatar, name, meta, trailing, className, ...r
           size="lg"
           tooltip={collapsed && typeof name === 'string' ? name : undefined}
           className={cn(
-            'h-12 gap-2.5 rounded-[10px] px-2 hover:bg-[var(--surface-hover)]',
+            'h-12 gap-2.5 rounded-lg px-2 hover:bg-[var(--surface-hover)]',
             collapsed && 'justify-center px-0',
             className,
           )}
@@ -454,8 +470,8 @@ export function RailUser({ render, avatar, name, meta, trailing, className, ...r
           {avatar}
           {!collapsed && (
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-[14.5px] leading-5 font-[550] text-[var(--text-body)]">{name}</span>
-              <span className="truncate text-[12px] leading-4 font-normal text-[var(--text-4)]">{meta}</span>
+              <span className="truncate text-sm leading-5 font-[550] text-[var(--text-body)]">{name}</span>
+              <span className="truncate text-xs leading-4 font-normal text-[var(--text-4)]">{meta}</span>
             </span>
           )}
           {!collapsed && trailing}
@@ -484,7 +500,7 @@ export function RailAvatar({ src, alt = '', className, children, ...rest }) {
       data-slot="rail-avatar"
       className={cn(
         'flex size-7 shrink-0 items-center justify-center rounded-full',
-        'bg-[var(--rail-avatar-bg)] text-[11.5px] leading-4 font-semibold tracking-[0.02em] text-[var(--rail-avatar-ink)]',
+        'bg-[var(--rail-avatar-bg)] text-xs leading-4 font-semibold tracking-[0.02em] text-[var(--rail-avatar-ink)]',
         className,
       )}
       {...rest}

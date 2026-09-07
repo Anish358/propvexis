@@ -172,7 +172,7 @@ test('a page never writes a column width or an alignment', () => {
 test('the list is a list, and its rows are divided between rather than under', () => {
   // `last:border-b-0` — a border under the final row reads as a list cut off mid-scroll
   // that continues below the card, which is the one thing a "recent" list must not imply.
-  assert.match(panel, /py-2 text-\[13px\] leading-5 last:border-b-0/);
+  assert.match(panel, /py-2 text-sm leading-5 last:border-b-0/);
   assert.ok(!recentCode.includes('<table'), 'three single values a row is a list, not a table');
 });
 

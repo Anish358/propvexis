@@ -170,7 +170,7 @@ export function AccountTab({
       <span className="flex flex-col gap-[3px]">
         <span
           className={cn(
-            'flex items-center gap-2.5 text-[14.5px] leading-5 font-semibold tracking-[-0.1px]',
+            'flex items-center gap-2.5 text-sm leading-5 font-semibold tracking-[-0.1px]',
             selected ? 'text-[var(--text)]' : 'text-[var(--text-2)]',
           )}
         >
@@ -180,7 +180,7 @@ export function AccountTab({
               the two states that need attention visible. */}
           {alert && <span className="flex [&_svg]:size-3.5" style={{ color: hue }}>{alert}</span>}
         </span>
-        <span className={cn('text-[12px] leading-4 font-[450]', selected ? 'text-[var(--muted)]' : 'text-[var(--text-4)]')}>
+        <span className={cn('text-xs leading-4 font-[450]', selected ? 'text-[var(--muted)]' : 'text-[var(--text-4)]')}>
           {phase}
         </span>
       </span>
@@ -198,7 +198,7 @@ export function AccountTabMore({ className, children, ...rest }) {
       data-slot="account-tab-more"
       className={cn(
         'flex shrink-0 items-center gap-1.5 rounded-[12px] border border-dashed border-[var(--line-strong)] px-4 py-3',
-        'text-[12.5px] leading-4 font-[550] whitespace-nowrap text-[var(--text-3)]',
+        'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--text-3)]',
         HOVER_MOTION,
         'hover:border-[var(--line-hover)] hover:text-[var(--text)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
@@ -325,7 +325,7 @@ export function AccountBanner({ icon, label, action, tone = 'breach', className,
       <span className={cn('text-[12.5px] leading-4 font-[650] tracking-[0.02em] uppercase', t.label)}>
         {label}
       </span>
-      <span className={cn('text-[12.5px] leading-4', t.body)}>{children}</span>
+      <span className={cn('text-xs leading-4', t.body)}>{children}</span>
       <div className="flex-1" />
       {action}
     </div>
@@ -341,7 +341,7 @@ export function AccountBannerAction({ tone = 'breach', render, className, childr
   const t = BANNER_TONE[tone] ?? BANNER_TONE.breach;
   const classes = cn(
     'flex h-7 shrink-0 items-center gap-1 rounded-full border px-[11px] whitespace-nowrap',
-    'text-[12px] leading-4 font-semibold no-underline',
+    'text-xs leading-4 font-semibold no-underline',
     HOVER_MOTION,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-60',
@@ -486,7 +486,7 @@ export function Meter({
         >
           {value}
         </span>
-        {limit && <span className="text-[13.5px] leading-5 text-[var(--text-5)]">/ {limit}</span>}
+        {limit && <span className="text-sm leading-5 text-[var(--text-5)]">/ {limit}</span>}
       </p>
 
       {/* The track is a real surface, not a tint of the fill: a track washed in the
@@ -511,7 +511,7 @@ export function Meter({
         )}
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4">
         <span className={cn('font-mono font-semibold', STATE_MOTION)} style={{ color: hue || 'var(--risk-2)' }}>
           {(fill).toFixed(1)}%
         </span>
@@ -535,7 +535,7 @@ export function AccountCardFoot({ action, className, children, ...rest }) {
       )}
       {...rest}
     >
-      <span className="flex items-center gap-2 text-[13px] leading-5 text-[var(--muted)] [&_svg]:size-4 [&_svg]:text-[var(--text-4)]">
+      <span className="flex items-center gap-2 text-sm leading-5 text-[var(--muted)] [&_svg]:size-4 [&_svg]:text-[var(--text-4)]">
         {children}
       </span>
       <div className="flex-1" />
@@ -589,7 +589,7 @@ export function AccountFootRule() {
  * action this card wants you to take — reading the meters is. */
 export function AccountCardLink({ render, className, children, ...rest }) {
   const classes = cn(
-    'flex shrink-0 items-center gap-1.5 rounded-[6px] text-[13px] leading-5 font-[550] no-underline',
+    'flex shrink-0 items-center gap-1.5 rounded-sm text-sm leading-5 font-[550] no-underline',
     'text-[var(--text-link)] hover:text-[var(--text)]',
     HOVER_MOTION,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',

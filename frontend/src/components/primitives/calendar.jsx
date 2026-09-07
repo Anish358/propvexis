@@ -209,7 +209,7 @@ export function CalDayNum({ idle = false, weekend = false, className, children, 
     <div
       data-slot="cal-daynum"
       className={cn(
-        'flex items-center justify-between font-mono text-[12.5px] leading-4 font-semibold tabular-nums',
+        'flex items-center justify-between font-mono text-xs leading-4 font-semibold tabular-nums',
         // Three steps, which is the prototype's: a traded day is --muted, a quiet
         // weekday --text-dim, and a quiet WEEKEND one step below that again. A Saturday
         // with no trades is not the same absence as a Tuesday with none, and the cell's
@@ -256,7 +256,7 @@ export function CalCellBody({ tone, value, sub, className, ...rest }) {
       >
         {value}
       </span>
-      {sub && <span className="truncate text-[12px] leading-[15px] text-[var(--text-3)]">{sub}</span>}
+      {sub && <span className="truncate text-xs leading-[15px] text-[var(--text-3)]">{sub}</span>}
     </div>
   );
 }
@@ -309,7 +309,7 @@ export function CalWeek({ tone, label, value, sub, className, ...rest }) {
         >
           {value}
         </span>
-        {sub && <span className="truncate text-[12px] leading-[15px] text-[var(--text-3)]">{sub}</span>}
+        {sub && <span className="truncate text-xs leading-[15px] text-[var(--text-3)]">{sub}</span>}
       </div>
     </div>
   );

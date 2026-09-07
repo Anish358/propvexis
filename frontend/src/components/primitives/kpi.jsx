@@ -161,7 +161,7 @@ export function KpiLabel({ info, trailing, className, children, ...rest }) {
       className={cn('flex items-center gap-1.5', className)}
       {...rest}
     >
-      <span className="text-[13.5px] leading-5 font-[550] whitespace-nowrap text-[var(--muted)]">
+      <span className="text-sm leading-5 font-[550] whitespace-nowrap text-[var(--muted)]">
         {children}
       </span>
       {info}
@@ -179,7 +179,7 @@ export function KpiPill({ className, children, ...rest }) {
       data-slot="kpi-pill"
       className={cn(
         'shrink-0 rounded-[6px] border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
-        'text-[11px] leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
+        'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
         className,
       )}
       {...rest}
@@ -200,7 +200,7 @@ export function KpiValue({ tone = 'flat', className, children, ...rest }) {
     <div
       data-slot="kpi-value"
       className={cn(
-        'font-mono text-[25px] leading-[1.1] font-semibold tracking-[-0.6px] tabular-nums',
+        'font-mono text-primary-metric leading-[1.1] font-semibold tracking-[-0.6px] tabular-nums',
         className,
       )}
       style={{ color: hue || 'var(--text)' }}

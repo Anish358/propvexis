@@ -233,13 +233,19 @@ function DialogParity() {
 
 /* --------------------------------------------------------- palette reference --- */
 
-/* THE LIVE RAMP, as a swatch strip. Not a before/after: the ramp settled on 2026-09-07
- * and DESIGN-LANGUAGE §4 carries the rule, so keeping the supersended proposals here
- * would be the accumulating history §21 tells the rulebook not to keep.
+/* THE COMPLETE LOCKED PALETTE, and the preset it was aligned to.
  *
- * Every swatch reads the real token, so this card is also a check: if one of these looks
- * wrong, the token is wrong, not the page. */
-const RAMP = [
+ * Not a before/after: the ramp settled on 2026-09-07 and DESIGN-LANGUAGE §4 carries the
+ * rule, so keeping the superseded proposals here would be the accumulating history §21
+ * tells the rulebook not to keep.
+ *
+ * EVERY VALUE ON THIS CARD IS READ FROM THE LIVE STYLESHEET at mount, never typed in.
+ * A hardcoded swatch strip is a second opinion that drifts from the tokens silently —
+ * this one cannot: if a value here looks wrong, tokens.css is wrong, not this page. The
+ * two contextual tokens are read TWICE, once from :root and once from inside a real
+ * [data-overlay-surface] subtree, which is the only honest way to show a relative token.
+ */
+const SURFACES = [
   ['page', '--bg'],
   ['rail', '--rail-bg'],
   ['sunken — footer, meter cell', '--surface-sunken'],
@@ -250,6 +256,8 @@ const RAMP = [
   ['a filled quiet button', '--control-bg-strong'],
   ['a row hover ON A CARD', '--surface-hover'],
   ['a quiet active fill', '--sel-bg'],
+  ['a selected account chip', '--sel-well'],
+  ['the strongest quiet fill', '--sel-bg-strong'],
 ];
 
 const OVERLAY = [
@@ -265,62 +273,215 @@ const LINES = [
   ['standard visible border', '--line-strong'],
   ["a chip's edge", '--line-chip'],
   ['selected chip', '--line-selected'],
+  ['a hover edge', '--line-hover'],
 ];
 
-function Swatches({ rows }) {
+const TEXT = [
+  ['primary', '--text'],
+  ["the page's base colour", '--text-body'],
+  ['links, the clock', '--text-link'],
+  ['table heads, event names', '--text-2'],
+  ['SECONDARY — the most used', '--muted'],
+  ['tertiary — descriptions', '--text-3'],
+  ['eyebrows, quiet metadata', '--text-4'],
+  ['faintest readable', '--text-5'],
+  ['not-really-text', '--text-dim'],
+];
+
+const MEANING = [
+  ['ACTION — a primary button', '--action'],
+  ['its hover, the brand tile', '--action-2'],
+  ['BRAND — a fill, never text', '--accent'],
+  ['brand as text (AA)', '--accent-on-surface'],
+];
+
+const MONEY = [
+  ['PROFIT — structural', '--profit'],
+  ['profit on a tint', '--profit-bright'],
+  ['LOSS — structural, a figure', '--loss'],
+  ['loss on a tint', '--loss-bright'],
+  ['breakeven — the third outcome', '--be'],
+];
+
+const SYSTEM = [
+  ['DESTRUCTIVE — a dangerous action', '--destructive'],
+  ['success glyph / edge', '--success'],
+  ['info glyph / edge', '--info'],
+  ['warning', '--warning'],
+];
+
+const CONTEXTUAL = ['--chrome-line', '--chrome-hover'];
+
+const ALL_TOKENS = [
+  ...SURFACES, ...OVERLAY, ...LINES, ...TEXT, ...MEANING, ...MONEY, ...SYSTEM,
+].map(([, t]) => t).concat(CONTEXTUAL, ['--input-line']);
+
+/* Read the tokens as the browser resolved them. A custom property's computed value has
+ * its var() references already substituted, so `--chrome-line: var(--line)` comes back
+ * as the hex — which is exactly what makes the contextual pair demonstrable. */
+function useResolvedTokens() {
+  const overlayRef = React.useRef(null);
+  const [vals, setVals] = React.useState({});
+  React.useEffect(() => {
+    const root = getComputedStyle(document.documentElement);
+    const out = {};
+    ALL_TOKENS.forEach((t) => { out[t] = root.getPropertyValue(t).trim(); });
+    if (overlayRef.current) {
+      const ov = getComputedStyle(overlayRef.current);
+      CONTEXTUAL.forEach((t) => { out[`overlay${t}`] = ov.getPropertyValue(t).trim(); });
+    }
+    setVals(out);
+  }, []);
+  return [vals, overlayRef];
+}
+
+function Swatch({ token }) {
+  return (
+    <span style={{
+      width: 22,
+      height: 22,
+      flex: 'none',
+      borderRadius: 6,
+      background: `var(${token})`,
+      border: '1px solid var(--line-chip)',
+    }}
+    />
+  );
+}
+
+function Swatches({ rows, vals }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       {rows.map(([role, token]) => (
         <div
-          key={token}
+          key={token + role}
           style={{
             display: 'grid',
-            gridTemplateColumns: '28px 1fr 190px',
+            gridTemplateColumns: '22px minmax(0, 1fr) auto',
             alignItems: 'center',
-            gap: 12,
-            padding: '7px 0',
+            gap: 10,
+            padding: '5px 0',
           }}
         >
-          <span style={{
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            background: `var(${token})`,
-            border: '1px solid var(--line-chip)',
-          }}
-          />
-          <span style={{ fontSize: 12.5, color: 'var(--text)' }}>{role}</span>
-          <span style={S.mono}>{token}</span>
+          <Swatch token={token} />
+          <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <span style={{
+              fontSize: 12,
+              color: 'var(--text)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            >
+              {role}
+            </span>
+            <span style={{ ...S.mono, fontSize: 10.5 }}>{token}</span>
+          </span>
+          <span style={{ ...S.mono, fontSize: 10.5, whiteSpace: 'nowrap' }}>
+            {vals[token] || ''}
+          </span>
         </div>
       ))}
     </div>
   );
 }
 
+/* The two relative tokens, each shown resolving on BOTH grounds. This is the card's one
+ * piece of live proof rather than live reporting: the right-hand swatches sit inside a
+ * real [data-overlay-surface] element, so they are not asserting that the override works
+ * — they are the override working. */
+function ContextualPair({ vals, overlayRef }) {
+  const row = (token, over) => (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <Swatch token={token} />
+      <span style={{ ...S.mono, fontSize: 10.5, whiteSpace: 'nowrap' }}>
+        {(over ? vals[`overlay${token}`] : vals[token]) || ''}
+      </span>
+    </span>
+  );
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingBottom: 2 }}>
+        <span style={{ ...S.mono, fontSize: 10 }}>on a CARD</span>
+        <span style={{ ...S.mono, fontSize: 10 }}>in an OVERLAY</span>
+      </div>
+      {CONTEXTUAL.map((token, i) => (
+        <div key={token} style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '3px 0' }}>
+          <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>{token}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {row(token, false)}
+            <span data-overlay-surface ref={i === 0 ? overlayRef : null}>
+              {row(token, true)}
+            </span>
+          </div>
+        </div>
+      ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingTop: 8 }}>
+        <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>--input-line</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Swatch token="--input-line" />
+          <span style={{ ...S.mono, fontSize: 10.5 }}>{vals['--input-line'] || ''}</span>
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.45 }}>
+          The one translucent value, and the only one needing no context — an alpha
+          re-reads on any ground.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Group({ label, children }) {
+  return (
+    <div style={{ flex: '1 1 268px', minWidth: 250 }}>
+      <span style={S.specimenLabel}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
 function PaletteReference() {
+  const [vals, overlayRef] = useResolvedTokens();
   return (
     <div style={S.card}>
       <div style={S.cardHead}>
-        <span style={S.cardName}>Palette — the live ramp</span>
+        <span style={S.cardName}>Palette — the complete locked set</span>
         <span style={S.mono}>tokens.css · DESIGN-LANGUAGE §4</span>
         <span style={{ flex: 1 }} />
         <Tag tone="ok">locked 7 Sep 2026</Tag>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 32, padding: 18 }}>
-        <div style={{ flex: 1, minWidth: 300 }}>
-          <span style={S.specimenLabel}>Surfaces — the order is the design</span>
-          <Swatches rows={RAMP} />
-        </div>
-        <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', gap: 22 }}>
-          <div>
-            <span style={S.specimenLabel}>An overlay is not a card</span>
-            <Swatches rows={OVERLAY} />
-          </div>
-          <div>
-            <span style={S.specimenLabel}>Borders — six graded weights</span>
-            <Swatches rows={LINES} />
-          </div>
-        </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 28, padding: 18 }}>
+        <Group label="Surfaces — the order is the design">
+          <Swatches rows={SURFACES} vals={vals} />
+        </Group>
+        <Group label="An overlay is not a card">
+          <Swatches rows={OVERLAY} vals={vals} />
+          <div style={{ height: 18 }} />
+          <span style={S.specimenLabel}>Chrome is contextual</span>
+          <ContextualPair vals={vals} overlayRef={overlayRef} />
+        </Group>
+        <Group label="Borders — seven graded weights">
+          <Swatches rows={LINES} vals={vals} />
+        </Group>
+        <Group label="Text — nine tiers">
+          <Swatches rows={TEXT} vals={vals} />
+        </Group>
+        <Group label="Action and brand">
+          <Swatches rows={MEANING} vals={vals} />
+          <div style={{ height: 18 }} />
+          <span style={S.specimenLabel}>Money — outcomes only</span>
+          <Swatches rows={MONEY} vals={vals} />
+        </Group>
+        <Group label="System message colour — §17">
+          <Swatches rows={SYSTEM} vals={vals} />
+          <span style={{
+            display: 'block', marginTop: 10, fontSize: 11, color: 'var(--text-4)', lineHeight: 1.5,
+          }}
+          >
+            A glyph and a 1px edge only — never body text, never a wash, and never inside a
+            data surface, where red and green mean money.
+          </span>
+        </Group>
       </div>
       <div style={S.note}>
         Values come from the owner&rsquo;s
@@ -337,7 +498,158 @@ function PaletteReference() {
         Asking one token to serve a card and a floating panel broke the panel, its row
         highlight and its edge at once — the most expensive mistake in this palette&rsquo;s
         history, and what the original &ldquo;the dropdown doesn&rsquo;t stand out&rdquo;
-        complaint actually was.
+        complaint actually was. The contextual pair above is the permanent fix: one name,
+        and the surface underneath supplies the value.
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------- ours against the preset --- */
+
+/* WHAT THIS CARD MAY CLAIM. Every preset value below was read off preset b2qLMFPP6
+ * itself — its dark block, converted from oklch — and the same six are hardcoded in the
+ * dropdown reference above, from the same source. Roles whose preset value nobody has
+ * verified are ABSENT rather than guessed: a comparison table that quietly infers half
+ * its left-hand column is worse than a shorter one, because it reads identical.
+ *
+ * `ours` is read live, so the right-hand column cannot drift out of agreement with
+ * tokens.css the way a typed one would. */
+const VS_COLOUR = [
+  ['A floating panel', '--popover', '#18181b', '--surface-2', true],
+  ['A row highlighted in it', '--accent', '#27272a', '--overlay-hover', true],
+  ['Primary text', '--foreground', '#fafafa', '--text', true],
+  ['Secondary text', '--muted-foreground', '#a1a1aa', '--muted', true],
+  ['A dangerous action', '--destructive', '#ff6467', '--destructive', true],
+  ["A control's edge and fill", '--input', 'rgba(255,255,255,.15)', '--input-line', true],
+  ['Brand fill, dark theme', '--primary', '#193cb8', '--accent', true],
+  ["A floating panel's edge", '--border', '#2f2f31 *', '--overlay-line', true],
+  ["A card's edge", '--border', '#26262a *', '--line', false],
+  ['CARD', '--card', '#18181b', '--surface', false],
+];
+
+const VS_SHAPE = [
+  ['Smallest chrome', 'radius sm', '6px', '--r-sm', true],
+  ['Icon buttons, menu rows', 'radius md', '8px', '--r-md', true],
+  ['BUTTONS, inputs, nav rows', 'radius lg', '10px', '--r-lg', true],
+  ['CARDS and floating overlays', 'radius xl', '14px', '--r-2xl', true],
+  ['Body, a menu item', 'text-sm', '14px', '--fs-body', true],
+  ['A label, a shortcut', 'text-xs', '12px', '--fs-label', true],
+];
+
+function VsRow({ role, presetName, presetValue, token, same, vals, colour }) {
+  const ours = vals[token] || '';
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) 150px 150px 96px',
+      alignItems: 'center',
+      gap: 12,
+      padding: '9px 0',
+      borderTop: '1px solid var(--line-inset)',
+    }}
+    >
+      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <span style={{ fontSize: 12.5, color: 'var(--text)' }}>{role}</span>
+        <span style={{ ...S.mono, fontSize: 10.5 }}>{token}</span>
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {colour ? (
+          <span style={{
+            width: 20,
+            height: 20,
+            flex: 'none',
+            borderRadius: 6,
+            background: presetValue.replace(' *', ''),
+            border: '1px solid var(--line-chip)',
+          }}
+          />
+        ) : null}
+        <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>{presetValue}</span>
+          <span style={{ ...S.mono, fontSize: 10 }}>{presetName}</span>
+        </span>
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {colour ? <Swatch token={token} /> : null}
+        <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>{ours}</span>
+      </span>
+      <Tag tone={same ? 'ok' : 'open'}>{same ? 'same' : 'ours, on purpose'}</Tag>
+    </div>
+  );
+}
+
+function PresetComparison() {
+  const [vals] = useResolvedTokens();
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Ours against preset b2qLMFPP6</span>
+        <span style={S.mono}>the left column is the preset, the right is live</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">2 deliberate differences</Tag>
+      </div>
+      <div style={{ padding: '4px 18px 18px' }}>
+        <span style={S.specimenLabel}>Colour</span>
+        {VS_COLOUR.map((r) => (
+          <VsRow
+            key={r[0] + r[3]}
+            role={r[0]}
+            presetName={r[1]}
+            presetValue={r[2]}
+            token={r[3]}
+            same={r[4]}
+            vals={vals}
+            colour
+          />
+        ))}
+        <div style={{ height: 22 }} />
+        <span style={S.specimenLabel}>Shape and type</span>
+        {VS_SHAPE.map((r) => (
+          <VsRow
+            key={r[0] + r[3]}
+            role={r[0]}
+            presetName={r[1]}
+            presetValue={r[2]}
+            token={r[3]}
+            same={r[4]}
+            vals={vals}
+            colour={false}
+          />
+        ))}
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>
+          Fourteen of sixteen roles are now the preset&rsquo;s own value.
+        </strong>
+        {' '}
+        The two that are not are both the mockup&rsquo;s doing, and both are decisions
+        rather than drift. A card
+        {' '}
+        (<span style={S.mono}>--surface</span>)
+        {' '}
+        is #111114 where the preset draws #18181b, because the mockup separates a card
+        from a floating panel and the preset does not — that separation is the whole
+        reason the dropdown reads now. And a
+        {' '}
+        <span style={S.mono}>card&rsquo;s edge</span>
+        {' '}
+        is one of seven graded opaque weights where the preset has a single white alpha:
+        one alpha gets stronger as the surface under it lightens, which is the opposite
+        of what the mockup asks for.
+        {' '}
+        <span style={{ color: 'var(--text-4)' }}>
+          * The preset draws every border as white at 10%, so it has no fixed hex — the
+          two starred values are what that composites to over a panel and over a card.
+        </span>
+        {' '}
+        Worth noting: the
+        {' '}
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>
+          card radius exception turned out not to be needed
+        </strong>
+        {' '}
+        — 14px was already the preset&rsquo;s xl step, so nothing had to be reserved.
       </div>
     </div>
   );
@@ -787,6 +1099,7 @@ export default function PrimitiveReview() {
       <DropdownParity />
       <DialogParity />
       <PaletteReference />
+      <PresetComparison />
 
       <Spec
         name="Dropdown menu"

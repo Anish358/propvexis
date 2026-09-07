@@ -86,8 +86,8 @@ test('the card carries the frame\'s geometry', () => {
      * 14px short of it. */
     ['card', /overflow-hidden rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
     ['header inset', /px-\[26px\] pt-\[22px\] pb-3.5/],
-    ['title', /text-\[18\.5px\] leading-7 font-\[650\] tracking-\[-0\.25px\]/],
-    ['date', /text-\[13px\] leading-5 font-\[450\] text-\[var\(--muted\)\]/],
+    ['title', /text-lg leading-7 font-\[650\] tracking-\[-0\.25px\]/],
+    ['date', /text-sm leading-5 font-\[450\] text-\[var\(--muted\)\]/],
     ['two columns, wider left', /grid-cols-\[minmax\(0,1\.25fr\)_minmax\(0,1fr\)\] gap-11/],
     ['event row', /grid h-\[33px\] shrink-0 grid-cols-\[64px_max-content_auto_66px\]/],
     /* `shrink-0` MOVED OFF THIS ROW ON 2026-09-03 and the row's own geometry is
@@ -120,7 +120,7 @@ test('the clock is mono, 24-hour, and ticks without re-filtering the feed', () =
    *
    * MONO IS NOT COSMETIC HERE: a proportional face makes the whole header jitter
    * sideways as the digits change width, once a second, forever. */
-  assert.match(brief, /font-mono text-\[13px\] leading-5 tabular-nums/);
+  assert.match(brief, /font-mono text-sm leading-5 tabular-nums/);
   assert.match(dash, /function useBriefClock\(\)/);
   assert.match(dash, /setInterval\(\(\) => setNow\(new Date\(\)\), 1000\)/);
   assert.match(dash, /minute: Math\.floor\(now\.getTime\(\) \/ 60_000\)/);

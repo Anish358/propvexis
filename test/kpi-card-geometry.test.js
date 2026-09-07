@@ -74,6 +74,32 @@ test('the gauge centres on the card, not on the label stack', () => {
     'KpiMain must not centre itself — that is the bug this row already had');
 });
 
+test('the hero figure takes the metric ROLE, not a hardcoded size', () => {
+  /* IT WAS HARDCODED AT 25px AND THE TOKEN SAID 28 (fixed 2026-09-07).
+   *
+   * `--fs-primary-metric` moved 25 -> 28 when the owner put the type scale on preset
+   * b2qLMFPP6, for a stated reason: at 25 the app's biggest number was one pixel larger
+   * than a 24px page title, so the hero did not read as the hero. The token moved and
+   * this component did not, because it spelled the number out.
+   *
+   * `text-primary-metric` is the utility bridge.css builds from that token, and until
+   * this change nothing in the app used it — the whole "part 1" role block was dead.
+   * Asserting the ROLE rather than the pixels is the point: the next re-valuation
+   * reaches the hero on its own.
+   *
+   * The mono, the tabular figures and the tight tracking are unchanged and still
+   * asserted, because they are what make a changing number stop jittering. */
+  const kpi = readSrc('components/primitives/kpi.jsx');
+  // Bounded at the NEXT export, not at end-of-file: KpiDelta below carries a legitimate
+  // 10px mono chip, and an unbounded slice would fail this on a value it does not own.
+  const from = kpi.indexOf('export function KpiValue');
+  const value = kpi.slice(from, kpi.indexOf('export function', from + 30));
+  assert.match(value, /font-mono text-primary-metric leading-\[1\.1\]/,
+    'the hero figure must take --fs-primary-metric through its role utility');
+  assert.match(value, /tracking-\[-0\.6px\] tabular-nums/);
+  assert.ok(!/text-\[\d/.test(value), 'no hardcoded font size may return to the hero figure');
+});
+
 test('the outcome pair is ASYMMETRIC: structural green, one step lighter red', () => {
   /* THIS TEST HAS BEEN WRITTEN THREE WAYS AND THE HISTORY IS THE POINT.
    *

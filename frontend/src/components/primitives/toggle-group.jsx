@@ -68,7 +68,7 @@ const PILL = 'h-9 rounded-full border border-[var(--line-control)] bg-[var(--con
    a near-black bar is the strongest thing that can be drawn — so "which unit am I
    reading" is answerable from across a desk. */
 const PILL_ITEMS = [
-  '[&>*]:h-full [&>*]:rounded-full [&>*]:px-3 [&>*]:text-[13px] [&>*]:font-semibold',
+  '[&>*]:h-full [&>*]:rounded-full [&>*]:px-3 [&>*]:text-sm [&>*]:font-semibold',
   '[&>*[data-pressed]]:bg-[var(--action)] [&>*[data-pressed]]:text-[var(--on-action)]',
   '[&>*:not([data-pressed])]:text-[var(--text-3)]',
 ].join(' ');

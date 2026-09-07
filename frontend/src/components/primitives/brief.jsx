@@ -149,13 +149,13 @@ export function BriefHeader({ title, date, clock, action, className, ...rest }) 
       className={cn('flex flex-wrap items-center gap-2.5 px-[26px] pt-[22px] pb-3.5', className)}
       {...rest}
     >
-      <h2 className="m-0 text-[18.5px] leading-7 font-[650] tracking-[-0.25px] text-[var(--text)]">
+      <h2 className="m-0 text-lg leading-7 font-[650] tracking-[-0.25px] text-[var(--text)]">
         {title}
       </h2>
       {date && (
         <>
           <span className="text-[var(--line-hover)]" aria-hidden="true">·</span>
-          <span className="text-[13px] leading-5 font-[450] text-[var(--muted)]">{date}</span>
+          <span className="text-sm leading-5 font-[450] text-[var(--muted)]">{date}</span>
         </>
       )}
       {clock && (
@@ -177,7 +177,7 @@ export function BriefClock({ className, children, ...rest }) {
     <span
       data-slot="brief-clock"
       className={cn(
-        'font-mono text-[13px] leading-5 tabular-nums text-[var(--text-link)]',
+        'font-mono text-sm leading-5 tabular-nums text-[var(--text-link)]',
         className,
       )}
       {...rest}
@@ -359,7 +359,7 @@ export function BriefSection({
         <span className="text-[11px] leading-4 font-semibold tracking-[0.09em] text-[var(--text-4)] uppercase">
           {label}
         </span>
-        {note && <span className="text-[11px] leading-4 text-[var(--text-5)]">{note}</span>}
+        {note && <span className="text-xs leading-4 text-[var(--text-5)]">{note}</span>}
         <div className="flex-1" />
         {action}
       </div>
@@ -491,7 +491,7 @@ export function BriefRange({ value, onChange = () => {}, options = [], className
             aria-pressed={on}
             onClick={() => onChange(o.id)}
             className={cn(
-              'relative rounded-full px-2.5 py-[3px] text-[11.5px] leading-4 font-semibold whitespace-nowrap',
+              'relative rounded-full px-2.5 py-[3px] text-xs leading-4 font-semibold whitespace-nowrap',
               HOVER_MOTION,
               'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
               /* NO BACKGROUND ON THE ACTIVE BUTTON ANY MORE — the pill behind it is the
@@ -735,23 +735,23 @@ export function BriefEvent({
     >
       <span className="flex items-center gap-2">
         <Flag code={currency} />
-        <span className="font-mono text-[11px] leading-4 font-semibold tracking-[0.05em] text-[var(--text-3)]">
+        <span className="font-mono text-xs leading-4 font-semibold tracking-[0.05em] text-[var(--text-3)]">
           {currency}
         </span>
       </span>
       <span
         className={cn(
-          'truncate text-[13.5px] leading-5',
+          'truncate text-sm leading-5',
           loud ? 'font-semibold text-[var(--text)]' : 'font-[450] text-[var(--text-2)]',
         )}
         title={title}
       >
         {title}
       </span>
-      <span className="font-mono text-[12px] leading-4 tabular-nums text-[var(--text-3)]">{time}</span>
+      <span className="font-mono text-xs leading-4 tabular-nums text-[var(--text-3)]">{time}</span>
       {impactLabel && (
         <span
-          className="flex items-center gap-1.5 text-[11.5px] leading-4 font-[550]"
+          className="flex items-center gap-1.5 text-xs leading-4 font-[550]"
           style={{ color: hue }}
         >
           <span className="size-[5px] shrink-0 rounded-full" style={{ background: hue }} aria-hidden="true" />
@@ -845,7 +845,7 @@ export function BriefAlert({
           </span>
           <div className="flex min-w-0 flex-col gap-0.5">
             <div className="flex items-center gap-[7px]">
-              <span className="text-[13px] leading-5 font-semibold text-[var(--text)]">{title}</span>
+              <span className="text-sm leading-5 font-semibold text-[var(--text)]">{title}</span>
               {/* The severity WORD, not just the hue. This is what keeps escalation legible
                   on a greyscale screen and to a reader who cannot separate amber from red —
                   §14, and the reason the row itself stays neutral. */}
@@ -856,7 +856,7 @@ export function BriefAlert({
                 {severity}
               </span>
             </div>
-            <span className="text-[12.5px] leading-[1.45] text-pretty text-[var(--muted)]">{children}</span>
+            <span className="text-xs leading-[1.45] text-pretty text-[var(--muted)]">{children}</span>
           </div>
           <div className="flex-1" />
           {onClear && (
@@ -865,7 +865,7 @@ export function BriefAlert({
               onClick={onClear}
               className={cn(
                 'flex h-[27px] shrink-0 items-center gap-1.5 rounded-full px-2.5 whitespace-nowrap',
-                'border border-[var(--line-chip)] bg-[var(--sel-bg)] text-[12px] leading-4 font-[550] text-[var(--text-2)]',
+                'border border-[var(--line-chip)] bg-[var(--sel-bg)] text-xs leading-4 font-[550] text-[var(--text-2)]',
                 'opacity-0 hover:bg-[var(--sel-bg-strong)] hover:text-[var(--text)]',
                 FADE_MOTION,
                 'group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100',
@@ -896,7 +896,7 @@ export function BriefNote({ className, children, ...rest }) {
       data-slot="brief-note"
       className={cn(
         'm-0 rounded-[10px] border border-dashed border-[var(--line-strong)] p-3.5',
-        'text-[12.5px] leading-5 text-pretty text-[var(--text-4)]',
+        'text-xs leading-5 text-pretty text-[var(--text-4)]',
         swapped && SWAP_MOTION,
         className,
       )}

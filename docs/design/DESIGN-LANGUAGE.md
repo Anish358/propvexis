@@ -184,6 +184,11 @@ own.
 `--fs-primary-metric` **28** is the one value with no preset equivalent — it is what the
 dashboard mockup draws the Net P&L at.
 
+- **A figure fitted to a fixed cell is off the scale, and may stay there.** The calendar's
+  day P&L is 15px mono inside an 82px cell and the KPI delta chip is 10px — both sized to
+  a container the design fixes, not to a role. Everything that is not this or an eyebrow
+  takes a role token: **43 hardcoded sizes across six primitives were moved onto the scale
+  on 2026-09-07**, and a literal in a primitive should now be read as a bug.
 - **Geist + Geist Mono**, self-hosted via `@fontsource-variable/*`. **Never the Google
   CDN** — offline-safe, no third-party request, no CSP exception.
 - **Numerics are mono.** Every figure — P&L, R, drawdown, percentages, times, dates in a
@@ -297,6 +302,12 @@ component resolves against whatever surface it actually sits on, with no wrapper
 Any floating panel declares `data-overlay-surface` — menu, submenu, popover, select and
 modal all do. **A seventh instance of this bug is an attribute you forgot, not a token you
 need.**
+
+**THE RAIL IS THE ONE NAMED EXCEPTION** (owner, 2026-09-07). It is a third ground — it
+sits on `--rail-bg` (#0b0b0d), below a card — and it deliberately keeps `--surface-hover`
+rather than taking a rail-relative value, so a nav row lights up harder than a row inside
+a card. Navigation should answer a pointer more loudly than content does. This is a
+decision, not the bug above: do not "fix" the rail onto `--chrome-hover`.
 
 `--input-line` (`rgba(255,255,255,.15)`) is the one deliberate alpha in the palette: every
 consumer reduces it further (`bg-input/30`, `/50`, `/64`), and reducing an opaque grey

@@ -33,18 +33,33 @@ const railCode = stripComments(rail);
 const sidebar = readSrc('app/Sidebar.jsx');
 
 test('the rail carries Rhea\'s geometry, to the pixel', () => {
-  // Every one of these is measured off the Rhea prototype rather than chosen. They are
-  // written as arbitrary values on purpose — the bridge repoints Tailwind's named scale
-  // at this app's own one (text-sm is 13px here, not 14), so `text-sm` would land a
-  // pixel off the design and nothing would say so.
+  /* Every one of these is measured off the Rhea prototype rather than chosen.
+   *
+   * RHEA'S NUMBERS DID NOT MOVE; THE WAY TO WRITE FOUR OF THEM DID (2026-09-07). They
+   * used to be pinned as arbitrary values — `text-[14.5px]`, `text-[16.5px]`,
+   * `rounded-[10px]` — and the note here gave the reason: the bridge repointed Tailwind's
+   * ladder at this app's older scale, where `text-sm` was 13px, so a named step would
+   * have landed a pixel off the design with nothing to say so.
+   *
+   * The owner moved the type roles onto preset b2qLMFPP6, whose ramp IS Tailwind's, so
+   * `text-sm` is 14 and `text-base` is 16 — exactly what the half-pixel literals were
+   * approximating. Pinning the old spelling would now fail the rail for being right.
+   *
+   * So this asserts the pixels through the names that carry them, which is also what
+   * makes it a stronger test than before: a named step follows a role change in
+   * tokens.css, where a literal silently would not.
+   *
+   * Still spelled out, because they have no named step: the heights and gaps. And the
+   * Soon badge at 10px, the one value in this file under the scale's floor — argued at
+   * its definition, and pinned here so it stays an exception rather than a precedent. */
   const geometry = [
-    ['row height (44px)', /h-11 gap-3 rounded-\[10px\]/],
-    ['row label', /text-\[14\.5px\] leading-5 font-medium/],
-    ['wordmark', /text-\[16\.5px\] leading-6 font-\[650\] tracking-\[-0\.25px\]/],
-    ['soon badge', /text-\[10px\] leading-\[14px\]/],
-    ['sub row', /h-9 gap-2 rounded-\[8px\] px-2 text-\[13px\]/],
+    ['row height (40px pointer / 44px touch)', /h-10 max-\[900px\]:h-11 gap-3 rounded-lg/],
+    ['row label (14px)', /text-sm leading-5 font-medium/],
+    ['wordmark (16px)', /text-base leading-6 font-\[650\] tracking-\[-0\.25px\]/],
+    ['soon badge (10px — the one value under the floor)', /text-\[10px\] leading-\[14px\]/],
+    ['sub row', /h-9 gap-2 rounded-md px-2 text-sm/],
     ['avatar', /size-7 shrink-0 rounded-full/],
-    ['identity row', /h-12 gap-2\.5 rounded-\[10px\]/],
+    ['identity row', /h-12 gap-2\.5 rounded-lg/],
   ];
   for (const [what, re] of geometry) {
     assert.match(rail, re, `${what} has drifted from the Rhea design`);

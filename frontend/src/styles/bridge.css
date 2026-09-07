@@ -279,23 +279,34 @@
   --text-card-title: var(--fs-card-title);
   --text-primary-metric: var(--fs-primary-metric);
 
-  /* Type scale, part 2 — TAILWIND'S LADDER, REPOINTED AT OUR SCALE.
-     This is the one mapping that changes every generated component at once, and
-     without it they are all a step too large: `text-sm` is 14px in Tailwind but
-     13px in this app, so a migrated button sat 1px above every unmigrated one and
-     a migrated card title 1px above every `.panel h3`. Since the preset defines
-     no font sizes (Q9), the defaults were what was showing through.
+  /* Type scale, part 2 — TAILWIND'S LADDER, BOUND TO OUR ROLE TOKENS.
+     This is the one mapping that reaches every generated component at once: a registry
+     component asks for `text-sm` and gets whatever `--fs-body` is here, so it never
+     names a pixel and never needs editing.
 
-     Only the four steps generated components actually use are repointed, plus
-     2xl because we own that value already. `xl` and anything above 2xl keep
-     Tailwind's defaults: we have no token for them, and inventing one here would
-     be inventing design (AI-2).
+     IT NO LONGER CHANGES ANY VALUE (2026-09-07), and that is worth stating plainly
+     because the comment here claimed the opposite for a day. This used to be a
+     CORRECTION — our scale ran 11/13/15/16 against Tailwind's 12/14/16/18, so every
+     generated component rendered a step smaller than it previewed at until these lines
+     repointed it. Moving the roles onto preset b2qLMFPP6 moved them onto Tailwind's own
+     ramp, which is where the preset takes them from, and all five steps now agree to
+     the pixel.
 
-         xs   11px  --fs-label          (Tailwind 12px)  badges, pills
-         sm   13px  --fs-body           (Tailwind 14px)  buttons, controls, body
-         base 15px  --fs-card-title     (Tailwind 16px)  CardTitle
-         lg   16px  --fs-section-title  (Tailwind 18px)  section headings
-         2xl  24px  --fs-page-title     (Tailwind 24px)  same value, our token
+     KEEP IT ANYWAY: it is a BINDING now rather than a correction. tokens.css stays the
+     single place a type size is decided, and a generated component follows a role change
+     for free. Delete these five lines and the two scales are merely equal today and free
+     to drift apart tomorrow, silently, in every registry component at once.
+
+         xs   12px  --fs-label          badges, pills, shortcuts
+         sm   14px  --fs-body           buttons, controls, menu items, body
+         base 16px  --fs-card-title     CardTitle
+         lg   18px  --fs-section-title  section headings
+         2xl  24px  --fs-page-title     the page's H1
+
+     `xl` and anything above 2xl keep Tailwind's defaults: we have no token for them, and
+     inventing one here would be inventing design (AI-2). So `text-xl` is 20px and
+     `text-2xl` is 24px — two different steps again, after a spell when the page title
+     was also 20px and the two collided.
 
      The `--text-*--line-height` companions are deliberately NOT overridden:
      Tailwind expresses them as unitless ratios, so they follow the new sizes on

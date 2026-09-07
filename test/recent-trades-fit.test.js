@@ -44,7 +44,7 @@ test('ROW_H is derived from the row primitive, not asserted beside it', () => {
   const pad = Number(/py-\[(\d+)px\]/.exec(row)?.[1]);
   // The cell owns the line-height; the row owns the padding.
   const cell = panel.slice(panel.indexOf('export function PanelTableCell'));
-  const lead = Number(/: 'text-\[12\.5px\] leading-\[(\d+)px\]'/.exec(cell)?.[1]);
+  const lead = Number(/: 'text-xs leading-\[(\d+)px\]'/.exec(cell)?.[1]);
   assert.ok(pad && lead, 'the row padding or the cell line-height is no longer readable here');
   assert.equal(pad * 2 + lead, rowH, `ROW_H should be ${pad * 2 + lead}, not ${rowH}`);
   assert.equal(rowH, 41);
