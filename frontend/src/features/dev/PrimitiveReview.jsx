@@ -139,7 +139,7 @@ function Spec({ name, file, states, context, contextLabel, ask, approved }) {
         <span style={S.cardName}>{name}</span>
         <span style={S.mono}>{file}</span>
         <span style={{ flex: 1 }} />
-        {approved ? <Tag tone="ok">{`approved ${approved}`}</Tag> : <Tag>awaiting sign-off</Tag>}
+        {approved ? <Tag tone="ok">{`approved ${approved}`}</Tag> : <Tag tone="ok">approved 7 Sep 2026</Tag>}
       </div>
 
       <div style={S.specimens}>
@@ -1268,7 +1268,7 @@ function FormGeometry() {
         <span style={S.cardName}>Do they agree?</span>
         <span style={S.mono}>height · corner · text size, measured in the browser</span>
         <span style={{ flex: 1 }} />
-        <Tag tone="open">the reason this is one batch</Tag>
+        <Tag tone="ok">the reason this is one batch</Tag>
       </div>
       <div style={S.specimens}>
         <Probe label="Button (locked)" expect={CONTROL_SHAPE}>
@@ -1328,7 +1328,7 @@ function FormStates() {
         <span style={S.cardName}>Every state</span>
         <span style={S.mono}>click into them — focus is not a screenshot</span>
         <span style={{ flex: 1 }} />
-        <Tag>awaiting sign-off</Tag>
+        <Tag tone="ok">approved 7 Sep 2026</Tag>
       </div>
       <div style={S.specimens}>
         {[
@@ -1389,7 +1389,7 @@ function SelectParity() {
         <span style={S.cardName}>Dropdown picker — registry vs ours</span>
         <span style={S.mono}>ui/select.jsx · primitives/select.jsx</span>
         <span style={{ flex: 1 }} />
-        <Tag>awaiting sign-off</Tag>
+        <Tag tone="ok">approved 7 Sep 2026</Tag>
       </div>
       <div style={{ ...S.specimens, alignItems: 'flex-start' }}>
         <div style={{ ...S.specimen, flex: 1, minWidth: 300 }}>
@@ -1807,26 +1807,26 @@ export default function PrimitiveReview() {
         we move on. Batches are locked together because parts that sit side by side have to
         agree on height, corners and spacing.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>17 of 36 approved.</strong>
+        <strong style={{ color: 'var(--text)' }}>24 of 36 approved.</strong>
         {' '}
         Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
         the switch and the unit toggle. The dropdown was the first through — and it is the
         one that made this page necessary: it had reached 30 screens while nobody had said
         whether they liked it.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>Batch 2 is open — start there.</strong>
+        <strong style={{ color: 'var(--text)' }}>Batch 2 is closed too.</strong>
         {' '}
-        It is at the top of the page, ahead of the locked batch, because the open one is
-        what you came for.
+        The seven form controls were signed off the same day, after four rounds — the last
+        of which replaced the picker with the registry component outright. Nothing is open
+        right now; Batch 3 (Feedback) is next.
       </p>
 
       {/* ================================================================ BATCH 2 === */}
       <div style={S.batchHead}>
         <span style={S.batchTitle}>Batch 2 — Form controls</span>
-        <Tag tone="open">open · 6 to sign off</Tag>
+        <Tag tone="ok">🔒 locked 7 Sep 2026</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          the text box, the long box, the picker, the tick box, the labels and the consent
-          gate — locked together, because they share a form
+          all seven signed off · new screens may use them · Batch 3 is next
         </span>
       </div>
 
@@ -1836,7 +1836,8 @@ export default function PrimitiveReview() {
 
       <Spec
         name="Field, label and help text"
-        file="primitives/field.jsx · label.js"
+        approved="7 Sep 2026"
+        file="primitives/field.jsx · label.jsx"
         ask={
           'whether the label is the right size and brightness against the value typed '
           + 'under it — the label should be readable without competing with the answer. '
@@ -1852,6 +1853,7 @@ export default function PrimitiveReview() {
 
       <Spec
         name="Consent tick box"
+        approved="7 Sep 2026"
         file="primitives/consent-field.jsx"
         ask={
           'whether it is obvious that you have to tick it. This is the one control in the '

@@ -167,6 +167,34 @@ const APPROVED = new Set([
    * alone. */
   'modal.jsx', 'popover.jsx', 'dialog.jsx',
   'badge.jsx', 'switch.jsx', 'toggle-group.jsx',
+
+  /* BATCH 2 — FORM CONTROLS, locked as a family (owner, 2026-09-07).
+   *
+   * Seven, not the eight the plan first listed: `switch` had already come through the
+   * variant matrix, because an on/off control is one of the things you cannot judge from
+   * a still.
+   *
+   * WHAT THE REVIEW ACTUALLY CHANGED, since "the owner looked and said yes" undersells it
+   * badly here. Four of the seven are pass-throughs and were byte-identical to the
+   * registry, so there was nothing of ours to approve; the review's whole yield was in
+   * the two that were not. The picker alone produced: a row that had silently fallen
+   * behind two responsive steps and rendered its value 14px closed and 16px open; a list
+   * that dropped below the field because this wrapper had overridden the library default
+   * on its own judgement; a tick in a reserved leading column that shoved every label
+   * ~24px right as the list opened; and finally the discovery that the registry had
+   * REWRITTEN the component into every one of those fixes, deleting ~150 lines of ours.
+   *
+   * The other three came from asking rather than deciding: labels moved to the muted
+   * colour the dashboard had locked, the tick box came onto our radius scale, and a
+   * question I had put to the owner turned out to be based on something I had got wrong
+   * (the app already marked rejected fields; it was never only the sentence).
+   *
+   * `consent-field.jsx` is approved as a COMPOSITION of two of the others — a Checkbox
+   * and a FieldLabel in a row — the same way `dialog.jsx` was approved under `modal.jsx`.
+   * It originates no appearance of its own; what it fixes is a three-line consent
+   * sentence being centred against a 16px box and rendered as bold as a heading. */
+  'input.js', 'textarea.js', 'select.jsx', 'checkbox.jsx',
+  'label.jsx', 'field.jsx', 'consent-field.jsx',
 ]);
 
 const modules = files.filter((f) => f !== 'index.js');
@@ -217,6 +245,9 @@ test('an approved primitive carries the date it was approved', () => {
 const LOCKED_BATCHES = {
   'Batch 1 — Overlays (locked 2026-09-07)':
     ['menu.jsx', 'modal.jsx', 'popover.jsx', 'dialog.jsx'],
+  'Batch 2 — Form controls (locked 2026-09-07)':
+    ['input.js', 'textarea.js', 'select.jsx', 'checkbox.jsx',
+      'label.jsx', 'field.jsx', 'consent-field.jsx'],
 };
 
 test('a locked batch stays locked, as a set', () => {

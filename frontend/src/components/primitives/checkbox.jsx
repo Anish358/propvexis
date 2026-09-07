@@ -1,8 +1,8 @@
 /* checkbox.jsx
  *
- * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
- *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
- *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ * @design approved 2026-09-07 — owner signed off Batch 2 (Form controls) as a family
+ *   on the Test page. Locked WITH the other six: they share a height, a corner and a
+ *   text size, and re-opening one re-opens all. See test/primitives-status.test.js.
  */
 
 import React from 'react';
