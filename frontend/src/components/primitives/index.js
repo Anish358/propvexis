@@ -62,10 +62,10 @@ export {
 } from './dialog.jsx';
 export { EmptyState } from './empty-state.jsx';
 export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './field.jsx';
-export { Checkbox } from './checkbox.js';
+export { Checkbox } from './checkbox.jsx';
 export { ConsentField } from './consent-field.jsx';
 export { Input } from './input.js';
-export { Label } from './label.js';
+export { Label } from './label.jsx';
 export { LoadingBlock } from './loading-block.jsx';
 export {
   ContentArrival, PageEntrance, SECTION_STEP, useSectionEntrance,

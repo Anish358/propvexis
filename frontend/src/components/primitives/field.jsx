@@ -7,7 +7,8 @@
 
 import React from 'react';
 import {
-  Field, FieldDescription, FieldError as UIFieldError, FieldItem, FieldLabel,
+  Field, FieldDescription, FieldError as UIFieldError, FieldItem,
+  FieldLabel as UIFieldLabel,
 } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +55,25 @@ import { cn } from '@/lib/utils';
  * and dark-is-default-via-data-theme. Reverted. token-bridge.test.js catches both halves
  * now; it caught only the `.dark` one before.
  */
+/* THE LABEL COLOUR IS THE MUTED ONE (owner, 2026-09-07), and this is the wrapper that
+ * used to say "label and description are straight re-exports". One of them no longer is.
+ *
+ * `--text-2` at full opacity is the locked standard for label text — decided on the
+ * dashboard, against the KPI captions — and the @coss FieldLabel ships `text-foreground`,
+ * so every form label in the app rendered as bright as the value typed under it. The
+ * owner was shown both readings and chose one colour for every label in the app rather
+ * than one for captions and another for questions.
+
+ * It is the same token `FieldDescription` already uses, on purpose: a label and its help
+ * text differ by SIZE here (14 against 12), not by brightness. `label.jsx` carries the
+ * matching change and the longer version of this note — the two must not drift, because
+ * the review page draws them side by side precisely to catch that.
+ *
+ * tailwind-merge means this REPLACES `text-foreground`; a caller can still pass its own. */
+function FieldLabel({ className, ...rest }) {
+  return <UIFieldLabel className={cn('text-muted-foreground', className)} {...rest} />;
+}
+
 function FieldError({ className, ...rest }) {
   return (
     <UIFieldError

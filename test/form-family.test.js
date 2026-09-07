@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appFiles, readSrc } from './helpers/src-files.js';
 
 /* THE FORM FAMILY AGREES — the ratchet behind Batch 2 of the primitive review.
  *
@@ -206,6 +207,43 @@ test('the tick trails the label, so the value does not move when the list opens'
     'the tick has moved back in front of the label. Both shadcn and @coss ship it that '
       + 'way, so this reads as parity — but it indents every label past a reserved column '
       + 'and makes the selected value jump right as the list opens. Owner ruling, 2026-09-07.',
+  );
+});
+
+/* ── the rejected field says so twice (owner, 2026-09-07) ─────────────────────────────
+ *
+ * The owner chose "the box AND the sentence" over "only the sentence" for a field that
+ * fails validation. That was not a change: this app has exactly ONE validated field
+ * today, AccountStep's account name, and it already sets `aria-invalid` beside its
+ * `FieldError` — a fact I got wrong when I put the question, and worth recording because
+ * the wrong version reached the owner as an open decision.
+ *
+ * So what the answer buys is not a fix, it is a rule, and the rule has to bite on the
+ * SECOND one. The failure mode is obvious once written down and invisible in review: a
+ * new form renders the red sentence, forgets the attribute, and the field beside it looks
+ * perfectly fine while being rejected. The preset already ships the styling
+ * (`aria-invalid:border-destructive aria-invalid:ring-3` on Input, Textarea and
+ * Checkbox); nothing has to be built, only remembered.
+ *
+ * BASE UI OFFERS A WAY TO MAKE IT UNFORGETTABLE, and the next caller should prefer it:
+ * `<Field invalid>` propagates to the control on its own — `Field.Root` computes
+ * `valid = !invalid && ...` and `useFieldValidation` then puts `aria-invalid` on the
+ * control, because Base UI's `Input` IS `Field.Control`. One prop instead of two that
+ * can disagree. This test accepts either spelling. */
+test('a field that renders an error also marks itself invalid', () => {
+  const offenders = [];
+  for (const f of appFiles({ ext: /\.jsx$/ })) {
+    const src = stripComments(readSrc(f));
+    if (!/<FieldError\b/.test(src)) continue;
+    if (/aria-invalid=/.test(src) || /<Field\b[^>]*\binvalid\b/.test(src)) continue;
+    offenders.push(f);
+  }
+  assert.deepEqual(
+    offenders, [],
+    'a form renders <FieldError> but never marks the field invalid, so the box looks '
+      + 'normal while being rejected. Set aria-invalid on the control, or invalid on '
+      + 'the Field and let Base UI propagate it. Owner ruling 2026-09-07: the box AND '
+      + 'the sentence.',
   );
 });
 

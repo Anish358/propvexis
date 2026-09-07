@@ -1314,9 +1314,13 @@ function FormGeometry() {
  * switched off, and rejected. The last two are the ones that ship broken, because nobody
  * screenshots a disabled field.
  *
- * `aria-invalid` is passed by hand here. Nothing in the app sets it yet — the account
- * page renders a FieldError and leaves the input alone — so this pane is showing you the
- * treatment the preset ships, to decide whether the app should start using it. */
+ * `aria-invalid` is passed by hand here, and an earlier version of this note claimed
+ * "nothing in the app sets it yet — the account page renders a FieldError and leaves the
+ * input alone". That was WRONG, and it went in front of the owner as an open question
+ * before anyone checked. AccountStep passes `aria-invalid` on the one validated field
+ * this app has, so the red edge and ring below are exactly what already ships. The
+ * question the pane really answers is whether the SECOND validated field will do the
+ * same; form-family.test.js now makes sure it does. */
 function FormStates() {
   return (
     <div style={S.card}>
@@ -1509,7 +1513,9 @@ function FormInContext() {
       </Field>
       <Field>
         <FieldLabel htmlFor="pr-name">Account Name</FieldLabel>
-        <Input id="pr-name" defaultValue="FTMO 100k — Phase 2" />
+        {/* MARKED INVALID, not just accompanied by red prose (owner ruling). The real
+            page does the same thing on this exact field. */}
+        <Input id="pr-name" defaultValue="FTMO 100k — Phase 2" aria-invalid="true" />
         <FieldError>You already have an account with this name.</FieldError>
       </Field>
       <Field>
@@ -1553,39 +1559,58 @@ function ConsentSpecimen() {
   );
 }
 
-/* CLOSED ON 7 SEP, and recorded rather than deleted: the option corner. It was 6px
- * against the dropdown row's 14px — a split shadcn itself makes between its select and
- * its menu, which is why it was put here instead of quietly matched. The owner compared
- * the two highlights and closed it: the option row takes the menu's 14px.
+/* THE LIST IS EMPTY, AND THAT IS THE POINT OF IT.
  *
- * WHAT I AM NOT DECIDING FOR YOU. Each of these is a live difference that is defensible
- * either way, so changing it silently would be exactly the "it looks better" the design
- * language forbids. They are written in the order I would ask them. */
-const OPEN_QUESTIONS = [
+ * Four questions were parked here on 7 Sep rather than decided, because each was a
+ * defensible-either-way call on the owner's own product. All four were put to them the
+ * same day and all four came back. They are kept as a CLOSED list rather than deleted:
+ * the next round is read from this page, and a question that vanishes looks like one
+ * that was never asked — which is how the same argument gets had twice.
+ *
+ * ONE OF THEM I HAD GOT WRONG, and it is recorded here rather than quietly corrected.
+ * The "rejected field" question claimed the app ships the red sentence and leaves the box
+ * looking normal. It does not: AccountStep already passes `aria-invalid`, the preset's
+ * red edge and ring already apply, and there is exactly one validated field in the app,
+ * which already does both. The owner picked "the box AND the sentence" — the behaviour
+ * that was already there. What the answer buys is not a change; it is a RULE, and
+ * form-family.test.js now holds it, because the risk was never the first call site.
+ */
+const DECIDED = [
   {
-    q: 'Field labels are full-strength white, not the muted label colour.',
+    q: 'A dropdown option had squarer corners than a menu row.',
+    a: 'Matched to the menu — 14px.',
     detail:
-      'You locked --text-2 as the standard for label and metadata text on the dashboard '
-      + '(the KPI labels, the "Payout" caption). A form label here is --text, the same '
-      + 'brightness as the value typed underneath it. That may well be right — a form '
-      + 'label is a question you must read, not a caption — but it is a knowing '
-      + 'difference from a locked ruling, so it should be a decision.',
+      'An option was a 6px corner against the dropdown menu’s 14px. The split is '
+      + 'shadcn’s own, which is why it was asked rather than tidied; §6 locked the '
+      + 'overlays as a family, so one row shape now wins wherever something floats.',
   },
   {
-    q: 'The tick box corner is 5px, which is not on our scale.',
+    q: 'Field labels were full-strength white, not the muted label colour.',
+    a: 'Muted — one label colour in the app.',
     detail:
-      'Our corners are 6 / 8 / 10 / 14 / 16. The tick box is a literal 5px, straight from '
-      + 'the preset. It is one pixel and nobody will see it; the reason to raise it is '
-      + 'that everything else in the app is on the scale, and an off-scale value is how '
-      + 'the scale stops meaning anything.',
+      'You locked --text-2 for labels on the dashboard, and the form labels were '
+      + 'rendering as bright as the value typed under them. There was a real argument '
+      + 'for keeping them bright — a form label is a question you must read, not a '
+      + 'caption — and you chose consistency. The label and its help text now differ '
+      + 'by size, not by brightness.',
   },
   {
-    q: 'Nothing marks a rejected field except the sentence under it.',
+    q: 'What marks a rejected field.',
+    a: 'The box and the sentence — which it already did.',
     detail:
-      'The "Rejected" specimen above is the preset’s treatment — a red edge and a '
-      + 'red ring — and the app does not use it: the account page prints the red '
-      + 'sentence and leaves the box looking normal. Two ways of saying the same thing, '
-      + 'and we currently use neither consistently.',
+      'I told you the app printed the sentence and left the box alone. That was wrong: '
+      + 'the one validated field in the app already sets both, and the preset’s red '
+      + 'edge and ring already apply to it. So nothing changed — what your answer '
+      + 'bought is a test that pairs them, so the SECOND validated field cannot ship '
+      + 'with only half.',
+  },
+  {
+    q: 'The tick box corner was 5px, off our scale.',
+    a: 'Rounded to 6px.',
+    detail:
+      'One pixel, and you were told so. Our steps are 6 / 8 / 10 / 14 / 16 and the '
+      + 'generated tick box asked for an arbitrary 5. A knowing divergence from the '
+      + 'preset, taken because a single arbitrary value is how a scale stops being one.',
   },
 ];
 
@@ -1593,12 +1618,12 @@ function OpenQuestions() {
   return (
     <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
       <div style={S.cardHead}>
-        <span style={S.cardName}>Open questions</span>
-        <span style={S.mono}>three decisions, none of them urgent</span>
+        <span style={S.cardName}>Decisions</span>
+        <span style={S.mono}>four asked, four answered — nothing outstanding</span>
         <span style={{ flex: 1 }} />
-        <Tag tone="open">need your call</Tag>
+        <Tag tone="ok">all settled 7 Sep</Tag>
       </div>
-      {OPEN_QUESTIONS.map((o, i) => (
+      {DECIDED.map((o, i) => (
         <div
           key={o.q}
           style={{
@@ -1610,6 +1635,7 @@ function OpenQuestions() {
           <span style={{ ...S.mono, minWidth: 14, paddingTop: 2 }}>{i + 1}</span>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 550, color: 'var(--text)' }}>{o.q}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--profit)', marginTop: 2 }}>{o.a}</div>
             <div style={{
               fontSize: 12.5, lineHeight: '20px', color: 'var(--text-2)', marginTop: 4,
             }}

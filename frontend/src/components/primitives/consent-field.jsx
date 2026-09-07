@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Checkbox } from './checkbox.js';
+import { Checkbox } from './checkbox.jsx';
 import { Field, FieldItem, FieldLabel } from './field.jsx';
 
 /* ConsentField — a tick-box the user must actively affirm, with its sentence beside it.
