@@ -1,6 +1,6 @@
 /* modal.jsx
  *
- * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ * @design approved 2026-09-07 — the owner has not signed off how this LOOKS. It is not a
  *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
  *   adopt it until it is reviewed. See test/primitives-status.test.js.
  */
@@ -146,8 +146,27 @@ const POPUP_MOTION = 'overlay-motion data-open:animate-in data-open:fade-in-0 da
  *   · `relative` not `fixed top-1/2 left-1/2 -translate-1/2`. The shell centres by
  *     containment, so the popup must not position itself. This is the row the old
  *     dialog.jsx note called load-bearing.
- *   · `ring-[var(--overlay-line)]` not `ring-foreground/5`. The skin's readable value is
- *     behind `dark:`, a variant this app can never match — see §25.
+ *   · `ring-[var(--detached-line)]` not `ring-foreground/10`. Same value, ours by name.
+ *
+ *     WHAT THIS ROW USED TO SAY, BECAUSE THE CORRECTION IS THE USEFUL PART: it read
+ *     `ring-[var(--overlay-line)]` (an OPAQUE #2f2f33) and justified it with "the skin's
+ *     readable value is behind `dark:`, a variant this app can never match". That reason
+ *     is false, and was false when it was written — `bridge.css` declares
+ *     `@custom-variant dark (&)`, so `dark:` matches EVERYWHERE here precisely so that
+ *     generated components do not silently lose their dark styling. The skin's value was
+ *     always reachable.
+ *
+ *     What the opaque value cost: `ring-1` is an OUTSET box-shadow, painted outside the
+ *     popup on the blurred backdrop rather than on our own panel. An opaque grey there is
+ *     the same weight all the way round whatever the page behind it is doing; the
+ *     preset's alpha brightens where the page is light and recedes where it is dark. Set
+ *     side by side that is the whole difference between the two dialogs, and it is the
+ *     one place in the app where an alpha edge is correct — see `--detached-line` in
+ *     tokens.css and §4.
+ *
+ *     It is still spelled as OUR token rather than `foreground/10`, so the exception to
+ *     §4's opaque-borders rule is visible in the token layer where that rule lives,
+ *     instead of as a bare alpha inside one component.
  *
  * `surface` and `backdrop` stay PROPS because ReplayModal passes its own pair, and its
  * surface deliberately declares no padding. */
@@ -160,7 +179,7 @@ const SURFACE = [
   'modal',
   'relative w-full max-w-md max-h-[86vh] overflow-hidden overflow-y-auto',
   'rounded-[24px] bg-popover p-6 text-sm text-popover-foreground',
-  'shadow-xl ring-1 ring-border outline-none',
+  'shadow-xl ring-1 ring-[var(--detached-line)] outline-none',
 ].join(' ');
 
 const BACKDROP = [

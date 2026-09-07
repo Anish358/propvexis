@@ -1,6 +1,6 @@
 /* switch.jsx
  *
- * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ * @design approved 2026-09-07 — the owner has not signed off how this LOOKS. It is not a
  *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
  *   adopt it until it is reviewed. See test/primitives-status.test.js.
  */
@@ -15,27 +15,34 @@ import { cn } from '@/lib/utils';
  * role="switch", the keyboard contract, the thumb's translate/scale animation and the
  * track geometry. None of that is touched here.
  *
- * WHAT IS TOUCHED IS ONE COLOUR PAIR, AND IT IS A BUG RATHER THAN A PREFERENCE — the
- * same standing as FieldError's red in field.jsx. The preset's switch is authored
- * light-first, and its two slots resolve like this through bridge.css:
+ * WHAT IS TOUCHED IS ONE COLOUR — THE UNCHECKED THUMB — AND THE TRACK OVERRIDE IS GONE
+ * (owner, 2026-09-07, against the preset's own switch shown side by side).
  *
- *   checked track   bg-primary    -> --action  -> --zinc-50   (#fafafa, near-white)
- *   unchecked track bg-input      -> --line    -> #1a1a1d
- *   thumb           bg-background -> --bg      -> --zinc-950  (#09090b)
+ * The preset's switch is authored light-first, and its three slots resolve like this
+ * through bridge.css TODAY:
  *
- * A dark thumb on a near-white track is right, and is why the thumb is dark. The
- * SAME dark thumb on a #1a1a1d track is a 1.05:1 contrast ratio — the off switch has
- * no visible thumb at all, so it reads as an empty pill and the control loses the
- * only thing that says which way it is set. Off is the DEFAULT state of the first
- * switch in this app, so the invisible half is the half a trader sees first.
+ *   checked track   bg-primary    -> --action     -> --zinc-50 (#fafafa, near-white)
+ *   unchecked track bg-input      -> --input-line -> rgba(255,255,255,.15) = #3b3b3d on a card
+ *   thumb           bg-background -> --bg         -> --zinc-950 (#09090b)
  *
- * The fix keeps the checked half exactly as the preset draws it and gives the
- * unchecked half the two values the app's own switch has always used (legacy
- * `.switch` / `.switch-knob`, still live in Prop OS): a visible mid-grey track with a
- * lighter knob on it. `--line-strong` is the token documented as THE standard visible
- * border and `--text-4` as quiet metadata — an off switch should be legible and
- * quiet, which is what that pair says. No new value is introduced and the preset's
- * on-state is untouched, so this is not a foundation change.
+ * THE TRACK OVERRIDE WAS FIXING A MAPPING THAT NO LONGER EXISTS. What stood here forced
+ * `data-unchecked:bg-[var(--line-strong)]`, and the note explaining it read
+ * `bg-input -> --line -> #1a1a1d` — true when it was written. The bridge now points
+ * `--color-input` at `--input-line`, a white alpha, which is the preset's own
+ * `oklch(1 0 0 / 15%)` exactly. So the generated track is already right and the override
+ * was restating a value one shade DIMMER (#29292c opaque) than what it replaced. Deleted:
+ * the unchecked track is the preset's, and it composites on its ground the way an alpha
+ * should. That is the seventh time a stale mapping outlived the fix written for it — see
+ * menu.jsx's edge note for the same shape of mistake.
+ *
+ * THE THUMB IS STILL OURS, AND ON PURPOSE. A dark thumb on a near-white checked track is
+ * right and is why the thumb is dark. The same dark #09090b on the #3b3b3d unchecked
+ * track is about 1.6:1 — legible only if you know it is there, and OFF is the default
+ * state of the first switch a trader meets. So the unchecked thumb inverts to `--text`
+ * (#fafafa) and the checked half is left exactly as the preset draws it. The owner
+ * confirmed this against the preset's own screenshot, where the off switch shows a WHITE
+ * thumb on a grey track — which is the reading this produces and the one strict parity
+ * does not.
  *
  * THE THUMB IS REACHED FROM THE ROOT, by the root's OWN state rather than the thumb's.
  * ui/switch.jsx hard-codes the thumb's className and is not edited in place (§1), so
@@ -44,10 +51,9 @@ import { cn } from '@/lib/utils';
  * the one this file can see, so the selector cannot quietly stop matching if the
  * generated thumb's attributes change under a registry update.
  *
- * tailwind-merge leaves both halves standing: it only drops a class whose modifier set
- * MATCHES, so `data-unchecked:bg-*` replaces the generated `data-unchecked:bg-input`
- * and touches neither the bare `bg-*` nor `data-checked:bg-*`. That asymmetry has cost
- * this repo a day before (the top bar pills' hover) — it is what makes this work.
+ * tailwind-merge leaves the generated track standing: it only drops a class whose
+ * modifier set MATCHES, and nothing here declares a bare `bg-*` or a `data-unchecked:bg-*`
+ * any more. That asymmetry has cost this repo a day before (the top bar pills' hover).
  *
  * LABEL IT. A switch with no visible text beside it must carry an `aria-label`; a
  * switch inside a FieldLabel (the registry's own p-field-15 composition, which is what
@@ -56,8 +62,7 @@ export function Switch({ className, ...rest }) {
   return (
     <UISwitch
       className={cn(
-        'data-unchecked:bg-[var(--line-strong)]',
-        'data-unchecked:[&_[data-slot=switch-thumb]]:bg-[var(--text-4)]',
+        'data-unchecked:[&_[data-slot=switch-thumb]]:bg-[var(--text)]',
         className,
       )}
       {...rest}

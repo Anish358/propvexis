@@ -13,6 +13,30 @@ const themeJs = readFileSync(
   fileURLToPath(new URL('../frontend/src/lib/theme.js', import.meta.url)),
   'utf8',
 );
+const buttonJsx = readFileSync(
+  fileURLToPath(new URL('../frontend/src/components/primitives/button.jsx', import.meta.url)),
+  'utf8',
+);
+/* COMMENTS STRIPPED, because these files argue with themselves on purpose: modal.jsx
+ * quotes the opaque ring it replaced, in full, so a reader knows why it is not that any
+ * more. A \`doesNotMatch\` over the raw source reads that history as the current value. */
+const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const modalJsx = code(readFileSync(
+  fileURLToPath(new URL('../frontend/src/components/primitives/modal.jsx', import.meta.url)),
+  'utf8',
+));
+const menuJsx = code(readFileSync(
+  fileURLToPath(new URL('../frontend/src/components/primitives/menu.jsx', import.meta.url)),
+  'utf8',
+));
+const popoverJsx = code(readFileSync(
+  fileURLToPath(new URL('../frontend/src/components/primitives/popover.jsx', import.meta.url)),
+  'utf8',
+));
+const selectJsx = code(readFileSync(
+  fileURLToPath(new URL('../frontend/src/components/primitives/select.jsx', import.meta.url)),
+  'utf8',
+));
 
 // Pull the :root block so we assert against declarations, not usages.
 const root = css.slice(css.indexOf(':root'), css.indexOf('}', css.indexOf(':root')) + 1);
@@ -273,6 +297,94 @@ test('the border ramp climbs too, in five deliberate weights', () => {
     ['line-inset', 'line', 'line-control', 'line-strong', 'line-chip', 'line-selected'],
     'border ramp',
   );
+});
+
+test("a control's edge is CONTEXTUAL — it keeps its contrast on a floating panel", () => {
+  /* THE SEVENTH card-vs-overlay bug, and the first one caught by comparing our modal
+   * with the preset's own rather than by using the app.
+   *
+   * `--line-control` (#252528) is tuned to a CARD exactly the way `--line` is: +20 over
+   * #111114, which is where it reads. `button.jsx` wrote that token as a LITERAL to stop
+   * an outline button drawing a card's edge — correct in intent, but a literal cannot
+   * follow the surface, so on a #18181b panel the same edge is +13 and the Cancel button
+   * in a dialog receded into the dialog. `[data-overlay-surface]` had already fixed the
+   * same button's HOVER contextually on the same day; only the border missed the memo.
+   *
+   * THE INVARIANT IS THE CONTRAST, NOT THE HEX. Whatever the two values become, an
+   * outline control must separate from a floating panel by at least as much as it
+   * separates from a card — otherwise the control is quieter inside the surface that is
+   * meant to be carrying it, which is the bug in one sentence. */
+  /* THE RULE, not the four comments that name it — anchored at column 0, because
+     `indexOf` found the mention inside :root's own comment and happily read :root's
+     declarations as the overlay's. That made the first run of this test pass the wrong
+     value and fail for the right reason, which is the only reason it was noticed. */
+  const block = css.match(/^\[data-overlay-surface\]\s*\{([^}]*)\}/m);
+  assert.ok(block, 'the overlay context block must exist');
+  const overlay = block[1];
+
+  const overlayRef = overlay.match(/--chrome-line-control:\s*var\(\s*--([\w-]+)\s*\)/);
+  assert.ok(overlayRef, 'a floating panel must give --chrome-line-control its own value');
+  assert.match(root, /--chrome-line-control:\s*var\(--line-control\)/,
+    'on a card the job resolves to the ramp step §4 assigns a pill control');
+
+  const onCard = depthOf('line-control') - depthOf('surface');
+  const onPanel = depthOf(overlayRef[1]) - depthOf('surface-2');
+  assert.ok(
+    onPanel >= onCard,
+    `an outline control's edge is +${onCard} on a card but only +${onPanel} on a panel `
+    + '— it must not get quieter on the louder surface',
+  );
+
+  /* AND THE CONSUMER, because the token only helps if the component asks for it. A
+   * literal --line-control here is the exact regression this test is named for. */
+  assert.match(buttonJsx, /const OUTLINE_EDGE = 'border-\[var\(--chrome-line-control\)\]'/,
+    "the outline variant's edge must come from the contextual token");
+  assert.doesNotMatch(buttonJsx, /const OUTLINE_EDGE = 'border-\[var\(--line-control\)\]'/,
+    'a literal ramp step cannot follow the surface — that is what broke it');
+});
+
+test('an edge is opaque where we own the ground, alpha where we do not', () => {
+  /* §4's exception, and the ONLY one. The six-weight ramp is opaque because every step
+   * is tuned against a surface we control. A modal's outer ring is not: `ring-1` is an
+   * OUTSET box-shadow, so it lands on the blurred backdrop, over whatever the page is
+   * showing. An opaque grey there is one weight everywhere — too heavy over a dark page,
+   * too light over a bright one — and that is the whole visible difference between our
+   * dialog and the preset's when they are set side by side.
+   *
+   * `--overlay-line` was COMPUTED from this value (white/10 over #18181b) and frozen.
+   * This is the same edge, left to composite. */
+  const detached = resolveToken('detached-line');
+  assert.ok(detached, '--detached-line must be declared');
+  const alpha = detached.match(/^rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*([\d.]+)\s*\)$/);
+  assert.ok(alpha, `--detached-line must stay a white alpha to composite at all (got \)`);
+  assert.ok(Number(alpha[1]) > 0 && Number(alpha[1]) < 0.2,
+    'a detached edge lightens what is behind it; at full strength it is a border again');
+
+  assert.match(modalJsx, /ring-1 ring-\[var\(--detached-line\)\]/,
+    'the modal shell must draw its outer ring with the alpha, not a frozen grey');
+  assert.doesNotMatch(modalJsx, /ring-border|ring-\[var\(--overlay-line\)\]/,
+    'an opaque ring cannot respond to the page behind it — that is what this replaced');
+
+  /* THE RULE IS BY CONSTRUCTION, NOT BY COMPONENT, and these two assertions replaced a
+   * pair that had it exactly backwards — they required the SUBMENU to carry
+   * `ring-[var(--overlay-line)]` on the reasoning that a menu "owns its ground". It does
+   * not: `MenuContent` carries no edge override at all, so the parent panel wears the
+   * generated `ring-foreground/10`, and the submenu's opaque #2f2f33 sat about fourteen
+   * units brighter than the panel it hung off — the mismatch the override was written to
+   * prevent. A ring is OUTSET; whether the thing floats is not the question.
+   *
+   * So no menu panel may pin an opaque edge. What they must NOT do is reintroduce one. */
+  assert.doesNotMatch(menuJsx, /ring-\[var\(--overlay-line\)\]/,
+    'a menu panel draws an OUTSET ring — an opaque edge there cannot follow the page behind it');
+  assert.doesNotMatch(popoverJsx, /ring-\[var\(--overlay-line\)\]/,
+    'same for the popover — it is the same construction');
+
+  /* AND THE ONE THAT LEGITIMATELY STAYS OPAQUE. The select popup draws a `border`, not a
+   * ring, in the generated component and in ours — a border sits ON the element and knows
+   * its ground, so the contextual token is right there and the ramp still applies. If this
+   * ever becomes a ring, it joins the alpha side of the table. */
+  assert.match(selectJsx, /border border-border/,
+    'the select popup is border-drawn, so it keeps the contextual edge — §4 decides by construction');
 });
 
 test('the ramp is wide enough to see — page to overlay clears 12 steps', () => {

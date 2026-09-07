@@ -104,6 +104,26 @@
      hover, and now edge). If a fourth appears, it is the same fault. */
   --overlay-line: #2f2f33;       /* a floating panel's edge */
 
+  /* THE SAME EDGE, UNFROZEN — for a surface that does NOT OWN ITS GROUND (owner,
+     2026-09-07). Read the paragraph above again: `--overlay-line` is white-at-10%
+     over #18181b, computed once and spelled opaquely. That is one point on a gradient,
+     frozen. It is the right call for an edge drawn ON our own panel, where we know the
+     ground and §4 wants six graded weights.
+
+     A MODAL'S OUTER RING IS THE OTHER CASE, and it is the only one in the app. `ring-1`
+     is an OUTSET box-shadow, so it is painted outside the popup, on the blurred backdrop
+     — over whatever the page happens to be showing. There is no ground to tune against,
+     so an alpha is not a compromise there, it is the only thing that can be right: the
+     edge catches light where the page behind it is light and recedes where it is dark,
+     which is what makes the preset's dialog read as floating rather than pasted on.
+
+     THIS IS AN EXCEPTION TO "BORDERS ARE OPAQUE AND GRADED", NOT A REVERSAL OF IT. The
+     2026-09-07 revert stands for every edge on a known surface; §4 states the split.
+     Second translucent value in the palette after `--input-line`, and spelled the same
+     way — the preset writes `foreground/10` (#fafafa), half a unit off pure white at
+     this alpha, which is below anything the eye or the ramp can hold. */
+  --detached-line: rgba(255,255,255,0.10);
+
   /* A CONTROL'S OWN EDGE AND FILL — a white alpha, matching the preset's
      `--input: oklch(1 0 0 / 15%)`. It is the ONE place the palette keeps a translucent
      value, and the reason is arithmetic: every consumer reduces it further
@@ -132,6 +152,16 @@
      deleted. */
   --chrome-line: var(--line);          /* an edge drawn ON the current surface */
   --chrome-hover: var(--surface-hover);/* a row hovering ON the current surface */
+  /* AND A CONTROL'S EDGE ON IT — the SEVENTH instance of the fault above, found
+     2026-09-07 by looking at a modal beside the preset's own. `--line-control` (#252528)
+     is tuned to a card exactly the way `--line` is: +20 over #111114, where it reads.
+     On a #18181b panel it is +13, so an outline button inside a dialog or a menu drew a
+     quieter edge than the panel containing it — the control receded into its own
+     container. The overlay value keeps the +20 the card case was tuned for (+21, at
+     `--line-chip`), which is why it is an existing ramp step and not a new value.
+     `button.jsx` is the only consumer: every other `--line-control` in the app is a
+     top-bar or brief pill that carries its own `--control-bg` fill and never floats. */
+  --chrome-line-control: var(--line-control);
   --sel-bg: #1e1e21;             /* a quiet active fill: active rail item, count chips */
   --sel-well: #1b1b1e;           /* a selected account chip — LIGHTER than its card */
   --sel-bg-strong: #29292c;
@@ -232,6 +262,28 @@
      drawdown meter would be the app congratulating a trader for surviving. ===== */
   --risk-1:#facc15; --risk-2:#f97316; --risk-3:var(--loss);
   --risk-ramp: linear-gradient(90deg, var(--risk-1), var(--risk-2) 55%, var(--risk-3));
+
+  /* ===== THE BADGE TINT, one formula for six tones (2026-09-07) =====
+     The preset draws a custom-colour badge as `dark:bg-<hue>-950 dark:text-<hue>-300`
+     with NO border — an opaque, very dark fill of the hue under a light step of the same
+     hue. (Confirmed from the docs' own `BadgeCustomColors` source, pasted by the owner;
+     an earlier read of that page inferred the wrong classes, which is why this says where
+     it came from.)
+     Tailwind's `-950` is not a step we hold, and importing five of them would put a
+     SECOND palette beside the domain ring. So the fill is derived from the hue we already
+     own, with one formula for every tone rather than five literals: 22% of the hue over
+     the page black lands within a few units of Tailwind's own -950 (green -> #0e321d
+     against its #052e16). The text takes the `-bright` step, which tokens.css already
+     documents as the on-a-tint value.
+     ONE JUDGEMENT CALL, NAMED: the preset's demo hues are Tailwind's; three of ours are
+     the same families (green-500, red-500, amber-500) but the BRAND blue is bespoke
+     (#2b7fff, not #3b82f6), so deriving beats importing or the brand badge would drift
+     off the brand. */
+  --badge-tint-profit: color-mix(in oklab, var(--profit) 22%, var(--zinc-950));
+  --badge-tint-loss:   color-mix(in oklab, var(--loss) 22%, var(--zinc-950));
+  --badge-tint-warn:   color-mix(in oklab, var(--warning) 22%, var(--zinc-950));
+  --badge-tint-ai:     color-mix(in oklab, var(--ai) 22%, var(--zinc-950));
+  --badge-tint-brand:  color-mix(in oklab, var(--blue-500) 22%, var(--zinc-950));
 
   /* ===== ACCENT / STATUS ===== */
   --warning:#f59e0b;             /* a gauge under 50% */
@@ -479,6 +531,7 @@
 [data-overlay-surface] {
   --chrome-line: var(--overlay-line);
   --chrome-hover: var(--overlay-hover);
+  --chrome-line-control: var(--line-chip);
 }
 
 

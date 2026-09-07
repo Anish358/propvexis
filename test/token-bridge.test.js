@@ -100,7 +100,18 @@ test('the --accent collision stays resolved in our favour', () => {
 
 test('the --muted collision stays resolved in our favour', () => {
   // Theirs is a surface, ours is a text colour.
-  assert.match(bridgeCode, /--color-muted:\s*var\(--sel-bg\)/);
+  /* THE FILL MOVED, THE COLLISION DID NOT (2026-09-07). This asserted
+     `--color-muted: var(--sel-bg)`. That mapping was replaced by `var(--chrome-hover)`
+     when an open dropdown trigger came out a different colour from the preset's: shadcn
+     declares `--muted` and `--accent` as the SAME colour in dark, and we had them on two
+     different tokens, so `focus:bg-accent` and `aria-expanded:bg-muted` disagreed. It
+     also put a SELECTION colour (--sel-bg is "a quiet active fill: active rail item,
+     count chips") under every quiet surface in the library.
+     What this test is about is untouched and is the line below it: THEIR `muted` is a
+     surface, OURS is a text colour, and serving their name must never redefine our token.
+     Which surface serves their name is `topbar-overlays.test.js`'s business — it pins
+     muted and accent to one contextual token. */
+  assert.match(bridgeCode, /--color-muted:\s*var\(--chrome-hover\)/);
   assert.match(bridgeCode, /--color-muted-foreground:\s*var\(--text-2\)/);
   // WAS var(--slate-400). The slate primitives went with the Rhea foundation; --muted
   // is zinc-400 now. The COLLISION is what this test is about and it is unchanged.

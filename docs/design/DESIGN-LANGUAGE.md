@@ -211,6 +211,15 @@ dashboard mockup draws the Net P&L at.
   with a `USD` chip, never "Daily net cumulative P&L".)
 - **Breakeven is written `BE`**, never a dash — a dash reads as missing data.
 - Prose fields (the journal note) get 1.6 leading and a ~68ch measure.
+- **A dialog header takes the ALERT dialog's treatment**, not the plain dialog's — title
+  `text-lg` (18px) on a 28px line box, description at `--muted` (#a1a1aa), not
+  `--text-2`. (Owner, 2026-09-07.) The registry styles its two confirm surfaces
+  differently and `Modal` is built on the quieter one, so every dialog was 2px small with
+  a line box 12px short — which reads as *density*, not as type, and was reported as
+  spacing. It is not spacing: `--spacing` is 4px, Tailwind's own base, so every padding
+  and gap already matches the preset exactly. The override lives in
+  `primitives/dialog.jsx`, never in the bridge — `--text-2` stays the locked colour for
+  labels and metadata, and a description is body copy. Held by `modal-shell.test.js`.
 
 Tests: `typography.test.js`, `token-bridge.test.js`, `dash-brief.test.js`.
 
@@ -271,6 +280,38 @@ in the middle is what causes it. `design-tokens.test.js` asserts the order.
 weight that *strengthens* as the surface beneath it lightens, which is the opposite of
 what six deliberate weights are for.
 
+**The exception, and its test: an edge is opaque where we OWN THE GROUND, alpha where we
+do not.** (Owner, 2026-09-07.) The revert above is about edges drawn on our own surfaces —
+a card, a row, a panel, a control — where the ground is known, so the weight can and must
+be tuned per surface. **A floating panel's OUTER RING is not one of those.** `ring-1` is
+an outset box-shadow, painted outside the element on whatever the page happens to be
+showing, so there is no ground to tune against and a frozen value is wrong in both
+directions — too heavy over a dark page, too light over a bright one. Every outer ring
+takes a white alpha at 10%: `--detached-line` where we write the edge ourselves, and the
+generated `ring-foreground/10` where the component already writes it — the same value,
+left alone rather than renamed.
+
+**Decide this by CONSTRUCTION, not by component.** Whether a surface floats is not the
+question; which property draws its edge is:
+
+| | draws its edge with | so it takes |
+|---|---|---|
+| modal, menu panel, submenu, popover | an outset `ring` | the white alpha |
+| select popup | a `border` | `--color-border`, contextual → `--overlay-line` |
+| a card, a chip, an outline control | a `border` | the graded ramp |
+
+A `border` sits ON the element and knows its ground. A `ring` sits outside it and does
+not. Held by `design-tokens.test.js`.
+
+*This replaced a wrong paragraph written the same day,* and the way it was wrong is the
+warning. It said a menu, popover and select all "keep `--overlay-line`" and that exactly
+one surface did not own its ground. In fact three of the four ring-drawn panels were
+already on the preset's alpha and always had been — the modal was the exception, not the
+rule. The one real divergence was the SUBMENU, forced to `--overlay-line` so that it would
+"match its parent panel". Its parent was on the alpha, so the override produced the
+mismatch it was written to prevent: roughly fourteen units brighter than the panel it hung
+off. **Reasoning about the component instead of the property is what made both errors.**
+
 ### An overlay is not a card — 🔒 LOCKED
 
 **A floating panel needs its own surface, its own hover and its own edge.** This is the
@@ -296,6 +337,20 @@ job; the surface supplies the value:
 |---|---|---|
 | `--chrome-line` | `--line` | `--overlay-line` |
 | `--chrome-hover` | `--surface-hover` | `--overlay-hover` |
+| `--chrome-line-control` | `--line-control` | `--line-chip` |
+
+**A control's edge is contextual too, and a literal is not a fix.** `--line-control`
+`#252528` is tuned to a card the same way `--line` is — +20 over `#111114`. Written as a
+literal into a component it becomes +13 on a `#18181b` panel, so an outline button inside
+a dialog drew a QUIETER edge than the dialog around it. The overlay value keeps the +20
+the card case was tuned for (+21, at `--line-chip`), which is why it is an existing ramp
+step rather than a seventh weight. Held by `design-tokens.test.js`.
+
+This was the seventh instance of the fault above, and its shape is the warning: the
+outline button's HOVER was fixed contextually and its BORDER, one property away, was
+fixed with a literal on the same day. **A hard-coded token reference beats a contextual
+one by never asking.** When a component names a `--line-*` or `--surface-*` step
+directly, check whether it can float.
 
 `bridge.css` points `--color-border` and `--color-accent` at them, so a **generated**
 component resolves against whatever surface it actually sits on, with no wrapper override.

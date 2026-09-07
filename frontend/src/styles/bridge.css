@@ -47,8 +47,36 @@
 
   /* COLLISION 1 — "muted". Theirs is a subtle SURFACE; our --muted is a TEXT
      colour (an alias of --text-2). Their name is served from our neutral fill and
-     our --muted token is left completely alone. */
-  --color-muted: var(--sel-bg);
+     our --muted token is left completely alone.
+
+     AND IT IS THE SAME FILL AS `accent`, WHICH IS WHY THIS NOW POINTS WHERE ACCENT
+     POINTS (owner, 2026-09-07). This read `var(--sel-bg)` — a flat #1e1e21 — and that
+     was wrong three ways at once, found by putting the preset's own dropdown beside
+     ours and asking why an open trigger was a different colour:
+
+       THE PRESET TREATS THE TWO NAMES AS ONE COLOUR. In its dark palette `--muted` and
+       `--accent` are both oklch(0.274 0.006 286.033) = #27272a, the same declaration
+       twice. Ours mapped them to two different tokens, so a generated component asking
+       for `bg-muted` and one asking for `bg-accent` — a menu row's `focus:bg-accent` and
+       a button's `aria-expanded:bg-muted`, side by side — got two different fills for
+       what the preset draws identically.
+
+       --sel-bg IS THE WRONG IDEA, not merely the wrong number. tokens.css documents it
+       as "a quiet ACTIVE fill: active rail item, count chips" — a SELECTION. Feeding a
+       selection colour to every `bg-muted` made hover and open states read as "this is
+       selected" rather than "this is a quiet surface".
+
+       AND IT COULD NOT BE FIXED WITH THE PRESET'S LITERAL. #27272a is tuned against the
+       preset's #18181b card; our card is #111114, so a flat #27272a over-brightens every
+       card hover. `--chrome-hover` is the contextual token that already solves this for
+       `accent`: --surface-hover (#1c1c1f) on a card, --overlay-hover (#27272a) inside
+       [data-overlay-surface] — the preset's exact value on the ground the preset tuned
+       it for. See tokens.css "CHROME IS CONTEXTUAL".
+
+     `--color-muted-foreground` is NOT part of this and stays on --text-2: the preset's
+     muted-foreground is a text colour (#a1a1aa) with its own separate job, and menu.jsx
+     already overrides it where preset parity was asked for. */
+  --color-muted: var(--chrome-hover);
   --color-muted-foreground: var(--text-2);
 
   /* COLLISION 2 — "accent". The one the migration plan flagged. Theirs means a
@@ -523,6 +551,37 @@
      remove a browser default. */
   :where(button[data-slot], [data-slot] button) {
     border-width: 0;
+  }
+
+  /* THE FOURTH — 2026-09-07, found by putting our dialog beside the preset's and being
+     told the gap under the title was wrong. It was, and it was not typography.
+     
+     Preflight sets `margin: 0` on every heading and paragraph. Without it the UA sheet's
+     `h2 { margin-block: 0.83em }` and `p { margin-block: 1em }` stand — and Base UI's
+     `Dialog.Title` renders an `h2`, its `Description` a `p`. So a dialog description
+     arrived carrying a 14px margin ON TOP of `DialogHeader`'s 6px flex gap: 20px where
+     the reference has 6. A flex gap does not absorb a margin, so the two simply added.
+     
+     WHAT MADE IT EXPENSIVE TO FIND: it looks exactly like a type or spacing bug and is
+     neither. The header's gap, the type scale and the spacing base all measured correct
+     against the preset — the extra space was a browser default nobody declared. Two
+     rounds went into the title's font-size and line-height before the `p` was suspected.
+     
+     `.modal h2 { margin: 0 }` in legacy hid half of it: OUR dialogs zero the heading by
+     accident, so only the paragraph showed, and the REGISTRY pane on the Test page — which
+     carries no `.modal` class — was silently wrong on both. A parity pane that is itself
+     mis-rendered is worse than none, which is the real cost of leaving this out.
+     
+     SCOPED TO ELEMENTS THAT ARE A `data-slot`, not to `[data-slot] p`. Preflight would
+     have zeroed app prose too, but this app has never run it and legacy content may lean
+     on those defaults — so the reset reaches generated parts only. Same `:where()` zero
+     specificity as the three above: every author rule still wins, and this can only ever
+     remove a browser default. */
+  :where(
+    h1[data-slot], h2[data-slot], h3[data-slot],
+    h4[data-slot], h5[data-slot], h6[data-slot], p[data-slot]
+  ) {
+    margin: 0;
   }
 }
 

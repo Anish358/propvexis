@@ -2610,18 +2610,16 @@ label.full { margin-bottom: 16px; }
 .u-card--hover { transition: border-color var(--dur-fast) var(--ease); }
 .u-card--hover:hover { border-color: var(--line-strong); }
 
-/* ---- Badge ---- */
-.u-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  font: 600 11px/1 var(--font-sans);
-  padding: 4px 8px; border-radius: var(--r-full); border: 1px solid transparent;
-}
-.u-badge--neutral { background: var(--surface-2); color: var(--text-2); border-color: var(--line); }
-.u-badge--brand { background: var(--accent-bg); color: var(--accent-on-surface); border-color: var(--accent-border); }
-.u-badge--profit { background: var(--profit-bg); color: var(--profit); border-color: var(--profit-border); }
-.u-badge--loss { background: var(--loss-bg); color: var(--loss); border-color: var(--loss-strong); }
-.u-badge--warn { background: var(--tint-warn-4); color: var(--warning); border-color: var(--tint-warn-6); }
-.u-badge--ai { background: var(--ai-bg); color: var(--ai); border-color: var(--tint-ai-2); }
+/* ---- Badge — DELETED 2026-09-07, moved to the generated component ----
+   `.u-badge` and its six `.u-badge--<tone>` rules lived here. `primitives/badge.jsx`
+   now renders `ui/badge.jsx` and carries the six tones as Tailwind classes; the colour
+   tokens are the same ones these rules named, except `warn`'s background and `ai`'s
+   border, which had reached for the fenced `--tint-*` legacy tints and are now
+   `--warning-bg` / `--ai-border` in tokens.css.
+   ONE CASUALTY, NAMED SO IT IS NOT A SURPRISE: `ui.jsx` — the dead Phase-1 layer kept
+   as a kill switch — still writes `u-badge` on line 49, and its Badge is now unstyled.
+   Nothing imports `ui.jsx`, so nothing renders it; the switch simply no longer covers
+   this one component. */
 
 /* ---- Tabs — design-system standard for any multi-view/filter/category
    switcher (Recent Trades/Open Positions, the Dashboard account selector,

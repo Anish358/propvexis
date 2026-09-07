@@ -88,6 +88,13 @@ function MenuTrigger(props) {
 // right edges flush — because that is where all of its menus sit. Anything else
 // passes its own.
 //
+// `sideOffset` IS THE PRESET'S 4, NOT 8 (2026-09-07). It had been 8 — double — with no
+// comment and no rule behind it, which by §21 makes it a preference rather than an
+// override, and it read as the panel detaching from the button that opened it. The
+// submenu's went 4 -> 0 for the same reason: the generated default sits it flush against
+// its parent, and a gap there reads as two unrelated panels. Both numbers are now the
+// generated component's own, so the menu hangs where the preset hangs it.
+//
 // `w-auto` is not cosmetic: it cancels the generated `w-(--anchor-width)` so the menu
 // sizes to its content instead of to its trigger button. See the header.
 //
@@ -102,7 +109,7 @@ function MenuTrigger(props) {
  * `data-overlay-surface` on the panel is the whole fix and the generated class is right.
  * The same deletion happened in popover.jsx and select.jsx. */
 function MenuContent({
-  className, align = 'end', side = 'bottom', sideOffset = 8, ...rest
+  className, align = 'end', side = 'bottom', sideOffset = 4, ...rest
 }) {
   const container = useOverlayContainer();
   return (
@@ -121,10 +128,10 @@ function MenuContent({
 /* PRESET PARITY FOR THE MENU ONLY (owner, 2026-09-07).
  *
  * The generated item styles itself with `text-sm rounded-xl text-muted-foreground` —
- * shadcn's own names, which in preset b2qLMFPP6 mean 14px, 14px and #a1a1aa. OUR bridge
- * repoints all three for the app at large: `text-sm` -> 13px, `text-xs` -> 11px,
- * `--radius-xl` -> 12px, `--color-muted-foreground` -> #c9c9d1. So the same component
- * renders smaller and brighter here than in the preset preview.
+ * shadcn's own names, which in preset b2qLMFPP6 mean 14px, 14px and #a1a1aa. When this
+ * was written OUR bridge re-meant all four for the app at large: `text-sm` -> 13px,
+ * `text-xs` -> 11px, `--radius-xl` -> 12px, `--color-muted-foreground` -> #c9c9d1. So the
+ * same component rendered smaller and brighter here than in the preset preview.
  *
  * The owner asked for the DROPDOWN to match the preset exactly and for nothing else to
  * move, so the difference is absorbed here rather than in the bridge — changing those
@@ -132,8 +139,24 @@ function MenuContent({
  * the job of the wrapper seam: the generated file stays untouched and one file carries
  * the divergence.
  *
- * `--muted` is zinc-400 (#a1a1aa), which is the preset's muted-foreground exactly, so
- * the colour is a token rather than a literal. */
+ * THREE OF THE FOUR ARE NO LONGER DIVERGENCES (checked 2026-09-07, hours after this was
+ * written). The type scale moved onto the preset the same day: `--text-sm` is `--fs-body`
+ * = 14px, `--text-xs` is `--fs-label` = 12px, and `--radius-xl` is 14px. The bridge now
+ * MEANS what the preset means for all three, so the two literals below restate the tokens
+ * instead of correcting them. Only `--muted` is still load-bearing: `muted-foreground`
+ * resolves to `--text-2` (#c9c9d1), and `--muted` is zinc-400 (#a1a1aa), the preset's
+ * value exactly — a token rather than a literal.
+ *
+ * THEY ARE LEFT AS LITERALS ON PURPOSE, PENDING THE OWNER. Correct today, frozen
+ * tomorrow: bound to numbers rather than to the scale, this menu will not follow the next
+ * scale move. Swapping them for `text-sm rounded-xl` / `text-xs` is not a pure no-op
+ * either — an arbitrary `text-[14px]` sets font-size ALONE, while `text-sm` also brings
+ * Tailwind's paired line-height, and tailwind-merge drops the generated `text-sm`
+ * wholesale today. So the change is a line-height change on a component the owner has
+ * already signed off, which is a review decision, not a cleanup. (Phrased without the
+ * tag word on purpose: `primitives-status.test.js` counts every occurrence of it in the
+ * file and a second one reads as a second status.) `PrimitiveReview.jsx` MENU_PARITY
+ * carries this for the next review round. */
 const ITEM = 'text-[14px] rounded-[14px]';
 const LABEL = 'text-[12px] text-[var(--muted)]';
 /* §8's divider needs no override either: the generated `bg-border/50` is a divider at
@@ -177,15 +200,28 @@ function MenuGroupLabel({ className, ...rest }) {
  * SubTrigger is an ITEM — same type size and radius as any other row, plus the chevron
  * and the open-state highlight the generated component already handles.
  *
- * SUBCONTENT DRAWS A RING, NOT A BORDER, so the contextual `--color-border` does not
- * reach it — `ring-foreground/10` is a white alpha, not the surface's edge. It takes
- * `--overlay-line` explicitly so a submenu and its parent panel are outlined identically.
+ * SUBCONTENT NEEDS NO EDGE OVERRIDE, and the one it had was making the exact mismatch it
+ * claimed to prevent (deleted 2026-09-07). What stood here forced
+ * `ring-[var(--overlay-line)]` — an opaque #2f2f33 — reasoning that SubContent draws a
+ * RING rather than a border, so the contextual `--color-border` cannot reach it, and that
+ * the opaque token was therefore needed "so a submenu and its parent panel are outlined
+ * identically".
  *
- * (An earlier version of this note claimed `dark:ring-foreground/10` was dead because no
- * `@custom-variant dark` existed. That was wrong — bridge.css declares
- * `@custom-variant dark (&)` and always has, so `dark:` matches unconditionally. The
- * override stands on the ring-vs-border point alone.) */
-const SUB_SURFACE = 'ring-[var(--overlay-line)]';
+ * The ring-vs-border half was right. The premise was not: `MenuContent` carries NO edge
+ * override either, so the parent panel is wearing the generated `ring-foreground/10` — a
+ * white alpha, not the surface's edge. A ring is OUTSET, so the parent's edge composites
+ * against whatever is behind it (~#212123 over the page) while the submenu's was a flat
+ * #2f2f33 — about fourteen units brighter than the panel it hangs off. The two were
+ * outlined identically only in the comment.
+ *
+ * Deleting it is the whole fix: both panels now take the generated alpha, which is also
+ * what §4 asks for — a floating panel's outer ring is drawn on a ground we do not own,
+ * so it composites rather than freezing one value. Nothing here needs to say that,
+ * because saying nothing is what gets it.
+ *
+ * (An earlier version of this note also claimed `dark:ring-foreground/10` was dead
+ * because no `@custom-variant dark` existed. That was wrong too — bridge.css declares
+ * `@custom-variant dark (&)`, so `dark:` matches unconditionally.) */
 
 function MenuSub(props) {
   return <DropdownMenuSub {...props} />;
@@ -195,14 +231,14 @@ function MenuSubTrigger({ className, ...rest }) {
   return <DropdownMenuSubTrigger className={cn(ITEM, className)} {...rest} />;
 }
 
-function MenuSubContent({ className, sideOffset = 4, ...rest }) {
+function MenuSubContent({ className, sideOffset = 0, ...rest }) {
   const container = useOverlayContainer();
   return (
     <DropdownMenuSubContent
       sideOffset={sideOffset}
       container={container}
       data-overlay-surface=""
-      className={cn(SUB_SURFACE, MOTION, className)}
+      className={cn(MOTION, className)}
       {...rest}
     />
   );

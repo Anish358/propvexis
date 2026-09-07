@@ -23,7 +23,6 @@ import { fileURLToPath } from 'node:url';
 const DIR = fileURLToPath(new URL('../frontend/src/components/primitives/', import.meta.url));
 
 const PROVISIONAL = {
-  'badge.jsx': 'blocked on §4, the domain ring — a six-value domain `tone`',
   'empty-state.jsx': 'moved verbatim from ui.jsx; replace with @shadcn empty',
   'loading-block.jsx': 'moved verbatim; rebuild on @shadcn skeleton per §15',
   'tabs.jsx': 'replace with @shadcn tabs',
@@ -102,7 +101,6 @@ test('a provisional primitive stays exported, because call sites must not churn'
   // implementation, so migrating one of these touches one file and not thirty.
   const barrel = readFileSync(`${DIR}index.js`, 'utf8');
   const names = {
-    'badge.jsx': 'Badge',
     'empty-state.jsx': 'EmptyState',
     'loading-block.jsx': 'LoadingBlock',
     'tabs.jsx': 'Tabs',
@@ -111,6 +109,12 @@ test('a provisional primitive stays exported, because call sites must not churn'
     assert.ok(file in PROVISIONAL, `${file} should be in PROVISIONAL`);
     assert.match(barrel, new RegExp(`\\b${name}\\b`), `${name} must stay exported from the barrel`);
   }
+  /* AND THE ONE THAT GRADUATED. `badge.jsx` was in the map above until 2026-09-07,
+     when it moved onto the generated component and its legacy rules were deleted. The
+     export assertion is the half that OUTLIVES a migration — the whole promise of this
+     seam is that finishing one touches this file and not the thirty screens that import
+     the name — so it is kept here rather than deleted with the provisional entry. */
+  assert.match(barrel, /Badge/, 'Badge must stay exported after leaving PROVISIONAL');
 });
 
 /* ===== The second axis: design sign-off =====
@@ -145,6 +149,24 @@ const APPROVED = new Set([
    * it had reached 30 screens, second only to wizard.jsx, while nobody had said whether
    * they liked it. This entry is what "the queue drains" looks like. */
   'menu.jsx',
+
+  /* AND THE REST OF BATCH 1, PLUS THREE FROM THE VARIANT MATRIX (owner, 2026-09-07).
+   *
+   * The overlays were held back from the dashboard inheritance above on the grounds that
+   * "you do not scrutinise a menu that is usually closed". They have now been scrutinised
+   * — each one beside the registry component with none of our layer applied, which is
+   * what the Test page's registry-vs-ours panes exist for — so the reason for holding
+   * them no longer applies. `dialog.jsx` is approved as the layer UNDERNEATH `modal.jsx`:
+   * every one of the app's modals is a Modal and Modal is built on Dialog, so approving
+   * the Modal is approving what Dialog renders. It has no separate appearance to judge.
+   *
+   * The last three came from the variant matrix, where the owner exercised the states
+   * rather than looked at a still: `badge.jsx` on its first render off legacy and on the
+   * preset's own custom-colour recipe, `switch.jsx` with its off half rebuilt against the
+   * preset's track, and `toggle-group.jsx` which the preset audit deliberately left
+   * alone. */
+  'modal.jsx', 'popover.jsx', 'dialog.jsx',
+  'badge.jsx', 'switch.jsx', 'toggle-group.jsx',
 ]);
 
 const modules = files.filter((f) => f !== 'index.js');

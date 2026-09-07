@@ -490,13 +490,24 @@ test('the amber tone is a PROP on the primitive, because a page cannot write a c
 
 test('the switch primitive fixes the OFF state the preset draws invisibly', () => {
   /* The generated switch is authored light-first: its thumb is bg-background
-     (--zinc-950) and its unchecked track is bg-input (--line, #1a1a1d) — a 1.05:1
-     contrast, so the off switch has no visible thumb in our dark theme. Off is the
-     DEFAULT state of the first switch in this app, so the invisible half is the half a
-     trader sees first. */
+     (--zinc-950), which against the unchecked track is barely legible in our dark theme.
+     Off is the DEFAULT state of the first switch in this app, so the invisible half is
+     the half a trader sees first.
+
+     NARROWED TO THE THUMB ALONE (owner, 2026-09-07). This also pinned a TRACK override,
+     `data-unchecked:bg-[var(--line-strong)]`, written when `bg-input` resolved through
+     the bridge to `--line` (#1a1a1d) and the pair really was 1.05:1. The bridge now
+     points `--color-input` at `--input-line` — rgba(255,255,255,.15), the preset's own
+     `oklch(1 0 0 / 15%)` — so the generated track reads #3b3b3d on a card and the
+     override was restating a value one shade DIMMER than the thing it replaced. The
+     override is deleted and the track is the preset's; only the thumb inverts, to
+     --text, which is what the preset's own screenshot shows for an off switch.
+     So this asserts the track is NOT overridden — the failure it now guards is the
+     override coming back on a stale reading of the mapping. */
   const sw = readCode('components/primitives/switch.jsx');
-  assert.match(sw, /data-unchecked:bg-\[var\(--line-strong\)\]/);
-  assert.match(sw, /data-unchecked:\[&_\[data-slot=switch-thumb\]\]:bg-\[var\(--text-4\)\]/);
+  assert.doesNotMatch(sw, /data-unchecked:bg-\[/,
+    'the unchecked TRACK is the preset’s bg-input, not an override');
+  assert.match(sw, /data-unchecked:\[&_\[data-slot=switch-thumb\]\]:bg-\[var\(--text\)\]/);
   // The ON state is the preset's, untouched — this is a legibility fix, not a
   // foundation change, and bg-primary/bg-background stay where they are.
   assert.match(readSrc('components/ui/switch.jsx'), /data-checked:bg-primary/);

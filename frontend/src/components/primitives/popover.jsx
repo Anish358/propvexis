@@ -1,6 +1,6 @@
 /* popover.jsx
  *
- * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ * @design approved 2026-09-07 — the owner has not signed off how this LOOKS. It is not a
  *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
  *   adopt it until it is reviewed. See test/primitives-status.test.js.
  */
@@ -89,10 +89,16 @@ function PopoverTrigger(props) {
 
 // `align`/`side` default to the top bar's shape — a panel hanging below its trigger,
 // right edges flush — because that is where both of its popovers sit.
+//
+// `sideOffset` IS THE PRESET'S 4, NOT 6 (2026-09-07). Same finding as `menu.jsx`: an
+// undocumented number sitting the panel further from its trigger than the reference
+// does. Two pixels rather than the menu's four, so it was never the one you noticed —
+// but a popover and a menu opening off the same top bar at different distances is the
+// kind of difference that reads as sloppiness without being nameable.
 /* No edge override here: `--color-border` is contextual, so `data-overlay-surface` on the
  * panel is the whole fix — see tokens.css "CHROME IS CONTEXTUAL". */
 function PopoverContent({
-  className, align = 'end', side = 'bottom', sideOffset = 6, surface = 'panel', ...rest
+  className, align = 'end', side = 'bottom', sideOffset = 4, surface = 'panel', ...rest
 }) {
   return (
     <UiPopoverContent

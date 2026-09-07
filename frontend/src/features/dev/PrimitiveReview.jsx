@@ -36,10 +36,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button as RawButton } from '@/components/ui/button';
 import {
-  Button, ButtonLabel, Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
+  Badge,
+  Button, ButtonLabel, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Modal,
   OverlayContainerContext, Popover, PopoverContent,
-  PopoverTrigger,
+  PopoverTrigger, Switch, ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
 
 /* ---------------------------------------------------------------- scaffolding --- */
@@ -264,6 +266,7 @@ const OVERLAY = [
   ['FLOATING PANEL', '--surface-2'],
   ['a row highlighted in it', '--overlay-hover'],
   ['its edge', '--overlay-line'],
+  ["a MODAL's outer ring — alpha", '--detached-line'],
 ];
 
 const LINES = [
@@ -310,7 +313,10 @@ const SYSTEM = [
   ['warning', '--warning'],
 ];
 
-const CONTEXTUAL = ['--chrome-line', '--chrome-hover'];
+/* THREE, not two, since 2026-09-07: a control's edge is contextual as well. This card
+   exists to show relative tokens honestly, so a missing row is the one failure it cannot
+   afford. */
+const CONTEXTUAL = ['--chrome-line', '--chrome-hover', '--chrome-line-control'];
 
 const ALL_TOKENS = [
   ...SURFACES, ...OVERLAY, ...LINES, ...TEXT, ...MEANING, ...MONEY, ...SYSTEM,
@@ -423,8 +429,13 @@ function ContextualPair({ vals, overlayRef }) {
           <span style={{ ...S.mono, fontSize: 10.5 }}>{vals['--input-line'] || ''}</span>
         </span>
         <span style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.45 }}>
-          The one translucent value, and the only one needing no context — an alpha
-          re-reads on any ground.
+          One of TWO translucent values, and neither needs a context — an alpha re-reads
+          on any ground. This one is a control&rsquo;s edge and fill;
+          {' '}
+          <span style={S.mono}>--detached-line</span>
+          {' '}
+          above is the other, and §4 says when each is allowed: opaque and graded where we
+          own the ground, alpha where we do not.
         </span>
       </div>
     </div>
@@ -528,11 +539,25 @@ const VS_COLOUR = [
   ['CARD', '--card', '#18181b', '--surface', false],
 ];
 
+/* REWRITTEN 2026-09-07 TO MIRROR §6, WHICH THIS HAD FALLEN A WHOLE AMENDMENT BEHIND.
+ * Two rows were describing the system as it was before the owner amended §6 the same
+ * day, and both were wrong in a way that matters on a page about OVERLAYS:
+ *
+ *   "BUTTONS, inputs, nav rows — radius lg — 10px"   Buttons are `rounded-2xl` = 16px
+ *                                                    now; the wrapper's 10px override is
+ *                                                    deleted. `--r-lg` is nav rows only.
+ *   "CARDS and floating overlays — 14px"             The card is 14px. The three overlays
+ *                                                    in front of you are 16 / 24 / 24.
+ *
+ * The second one is the trap: it reads as a rule being kept while the menu, the popover
+ * and the modal on this very page each disagree with it. They are not wrong — §6 gives a
+ * menu `rounded-2xl` and a popover and a dialog `rounded-3xl` — the TABLE was. */
 const VS_SHAPE = [
-  ['Smallest chrome', 'radius sm', '6px', '--r-sm', true],
-  ['Icon buttons, menu rows', 'radius md', '8px', '--r-md', true],
-  ['BUTTONS, inputs, nav rows', 'radius lg', '10px', '--r-lg', true],
-  ['CARDS and floating overlays', 'radius xl', '14px', '--r-2xl', true],
+  ['Small chrome, menu rows', 'radius sm / md', '6 / 8px', '--r-md', true],
+  ['Nav rows, list rows, day cells', 'radius lg', '10px', '--r-lg', true],
+  ['Tiles and chips — and the CARD', 'radius xl', '14px', '--r-2xl', true],
+  ['CONTROLS — button, input, badge, menu panel', 'radius 2xl', '16px', '--radius-2xl', true],
+  ['Popovers, and dialogs at min(4xl, 24px)', 'radius 3xl', '24px', '--radius-3xl', true],
   ['Body, a menu item', 'text-sm', '14px', '--fs-body', true],
   ['A label, a shortcut', 'text-xs', '12px', '--fs-label', true],
 ];
@@ -664,7 +689,8 @@ function PresetComparison() {
  * our tokens — the whole point is to have something our live menu can be wrong against.
  *
  *   panel      --popover              oklch(0.21  0.006 285.885)  #18181b
- *   edge       --border               oklch(1 0 0 / 10%)          ~#2f2f31 over #18181b
+ *   edge       --border               oklch(1 0 0 / 10%)          AN ALPHA — see below
+ *   divider    --border/50            oklch(1 0 0 / 5%)           half of it, as the registry draws it
  *   text       --popover-foreground   oklch(0.985 0 0)            #fafafa
  *   muted      --muted-foreground     oklch(0.705 0.015 286.067)  #a1a1aa
  *   highlight  --accent               oklch(0.274 0.006 286.033)  #27272a
@@ -677,9 +703,29 @@ function PresetComparison() {
  * --color-muted-foreground) for the app at large. That happened once and menu.jsx now
  * absorbs it.
  */
+/* THE EDGE IS AN ALPHA AND THE DIVIDER IS HALF OF IT (corrected 2026-09-07, by the owner
+ * looking at the real preset zoomed in). Both values here were the single literal
+ * `#2f2f31` — white/10 pre-composited over the #18181b panel and then frozen. Two things
+ * were wrong with that, and together they are the whole "borders and dividers" mismatch:
+ *
+ *   THE EDGE IS DRAWN ON THE GROUND, NOT ON THE PANEL. The preset's dropdown carries
+ *   `ring-1 ring-foreground/10`, and a ring is an OUTSET box-shadow — it lands just
+ *   outside the panel, so it composites against whatever is BEHIND. That is exactly what
+ *   the owner saw: the same edge reads brighter where it crosses a card and dimmer over
+ *   the page. A pre-composited grey cannot do that; it is the same colour everywhere.
+ *   So this pane drew a #2f2f31 edge over the dark page (~#212124 in the real thing) and
+ *   our live menu, which is CORRECT, looked too faint beside it.
+ *
+ *   THE DIVIDER IS `bg-border/50`, NOT `border`. This pane reused the edge literal for
+ *   both, so its dividers were drawn at double strength.
+ *
+ * Our menu was right on both counts and the REFERENCE was wrong — which is the one
+ * failure a reference pane cannot have, because every comparison against it points at
+ * the wrong file. Matching our menu to it would have moved us away from the preset. */
 const P = {
   panel: '#18181b',
-  edge: '#2f2f31',
+  edge: 'rgba(250,250,250,.10)',
+  divider: 'rgba(250,250,250,.05)',
   text: '#fafafa',
   muted: '#a1a1aa',
   hi: '#27272a',
@@ -729,13 +775,12 @@ function PresetSubmenu() {
       padding: 4,
       borderRadius: 14,
       background: P.panel,
-      border: `1px solid ${P.edge}`,
-      boxShadow: '0 10px 30px rgba(0,0,0,.5)',
+      boxShadow: `0 0 0 1px ${P.edge}, 0 10px 30px rgba(0,0,0,.5)`,
     }}
     >
       <PresetRow icon={ico('M22 7 13.03 12.7a2 2 0 0 1-2.06 0L2 7', <rect x="2" y="4" width="20" height="16" rx="2" />)}>Email</PresetRow>
       <PresetRow icon={ico('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z')}>Message</PresetRow>
-      <div style={{ height: 1, background: P.edge, margin: '4px -4px' }} />
+      <div style={{ height: 1, background: P.divider, margin: '4px -4px' }} />
       <PresetRow icon={ico('M12 8v8M8 12h8', <circle cx="12" cy="12" r="10" />)}>More…</PresetRow>
     </div>
   );
@@ -749,8 +794,7 @@ function PresetMenuReference() {
       padding: 4,
       borderRadius: 14,
       background: P.panel,
-      border: `1px solid ${P.edge}`,
-      boxShadow: '0 10px 30px rgba(0,0,0,.5)',
+      boxShadow: `0 0 0 1px ${P.edge}, 0 10px 30px rgba(0,0,0,.5)`,
       fontFamily: 'inherit',
     }}
     >
@@ -759,7 +803,7 @@ function PresetMenuReference() {
       <PresetRow icon={ico('M3 10h18M5 6h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z')} shortcut="⌘B">Billing</PresetRow>
       <PresetRow icon={ico('M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.2a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.2a2 2 0 0 1 1 1.7V20a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.2a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.2a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z', <circle cx="12" cy="12" r="3" />)} shortcut="⌘S">Settings</PresetRow>
 
-      <div style={{ height: 1, background: P.edge, margin: '4px -4px' }} />
+      <div style={{ height: 1, background: P.divider, margin: '4px -4px' }} />
 
       <div style={{ padding: '4px 8px', fontSize: 12, color: P.muted }}>View</div>
       <PresetRow
@@ -770,7 +814,7 @@ function PresetMenuReference() {
       </PresetRow>
       <PresetRow icon={ico('M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 15h18')}>Status Bar</PresetRow>
 
-      <div style={{ height: 1, background: P.edge, margin: '4px -4px' }} />
+      <div style={{ height: 1, background: P.divider, margin: '4px -4px' }} />
 
       <PresetRow
         highlighted
@@ -799,7 +843,14 @@ function LiveMenuOpen() {
             Complex Menu
             <ChevronDown aria-hidden="true" />
           </MenuTrigger>
-          <MenuContent align="start" sideOffset={6}>
+          {/* NO `sideOffset` HERE ON PURPOSE (2026-09-07). This read `sideOffset={6}`,
+              a number that matched neither the old default (8) nor the preset (4), and it
+              is why the offset change could not be seen on the page built to review it:
+              the specimen was overriding the very default it exists to show. This pane is
+              labelled THE REAL COMPONENT — a prop passed here is our scaffolding being
+              approved as the primitive's behaviour. Every other specimen on this page
+              already passes none. */}
+          <MenuContent align="start">
             <MenuGroup>
               <MenuGroupLabel>My Account</MenuGroupLabel>
               <MenuItem>Profile</MenuItem>
@@ -837,17 +888,28 @@ function LiveMenuOpen() {
   );
 }
 
+/* THIS TABLE HAD GONE OUT OF DATE IN THE SAME HOUR THE MENU WAS APPROVED, and the way it
+ * went out of date is the finding: it listed the four things our BRIDGE re-meant, and
+ * three of the four stopped being true when the type scale moved onto the preset later
+ * the same day. `text-sm` is 14px, `text-xs` is 12px and `--radius-xl` is 14px — the
+ * preset's own values. Only the muted colour is still ours.
+ *
+ * So three of `menu.jsx`'s overrides now restate what the tokens already say. They are
+ * CORRECT today and FROZEN — pinned to literals rather than bound to the scale, so the
+ * next scale move leaves the menu behind. That is an owner call on an approved
+ * primitive, not a silent cleanup, so it is written here rather than done. */
 const MENU_PARITY = [
   ['panel', '#18181b', '--surface-2'],
   ['highlighted row', '#27272a', '--overlay-hover'],
-  ['panel edge', '~#2f2f31', '--overlay-line #2f2f33'],
-  ['item text', '14px', 'menu.jsx ITEM — our text-sm is 13px'],
-  ['label + shortcut', '12px', 'menu.jsx LABEL — our text-xs is 11px'],
-  ['muted text', '#a1a1aa', 'menu.jsx LABEL — our muted-foreground is #c9c9d1'],
-  ['item radius', '14px', 'menu.jsx ITEM — our --radius-xl is 12px'],
-  ['separator', 'visible', 'menu.jsx SEP — bg-border/50 was invisible on a panel'],
+  ['panel edge', 'white/10, on the GROUND', 'MATCHED — the generated ring-foreground/10; a ring is outset, so it composites'],
+  ['item text', '14px', 'MATCHED — text-sm is 14px now; ITEM still pins text-[14px]'],
+  ['label + shortcut', '12px', 'MATCHED — text-xs is 12px now; LABEL still pins text-[12px]'],
+  ['muted text', '#a1a1aa', 'STILL OURS — muted-foreground is #c9c9d1, so LABEL sets --muted'],
+  ['item radius', '14px', 'MATCHED — rounded-xl is 14px now; ITEM still pins rounded-[14px]'],
+  ['separator', 'white/5 — half the edge', 'MATCHED — the generated bg-border/50; this pane drew it at DOUBLE until 2026-09-07'],
   ['destructive', '#ff6467', '--destructive (shipped earlier)'],
-  ['submenu edge', '~#2f2f31', 'menu.jsx SUB_SURFACE — it draws a RING, and its readable value sat behind a dead dark: variant'],
+  ['submenu edge', 'white/10, on the GROUND', 'MATCHED — the override is deleted; both panels wear the generated ring'],
+  ['distance from trigger', '4px', 'MATCHED — the default was 8, and THIS SPECIMEN overrode it to 6 until the prop was deleted'],
 ];
 
 function DropdownParity() {
@@ -903,19 +965,33 @@ function DropdownParity() {
       </div>
 
       <div style={S.note}>
-        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Five of these were invisible until measured. </strong>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Five of these were invisible until measured &mdash; and three have since fixed themselves. </strong>
         The generated item asks for
         {' '}
         <span style={S.mono}>text-sm rounded-xl text-muted-foreground</span>
         {' '}
-        — shadcn&rsquo;s own names, which in the preset mean 14px, 14px and #a1a1aa. Our
-        bridge repoints all three for the app at large, so the same component rendered
-        smaller and brighter here. Fixed in
+        — shadcn&rsquo;s own names, which in the preset mean 14px, 14px and #a1a1aa. When
+        this menu was approved our bridge re-meant all three, so the same component
+        rendered smaller and brighter here, and
         {' '}
         <span style={S.mono}>menu.jsx</span>
         {' '}
-        rather than the bridge, because changing them globally would re-size and
-        re-colour every screen — and you asked for the dropdown only.
+        absorbed the difference rather than the bridge. Later the same day the type scale
+        moved ONTO the preset, so
+        {' '}
+        <span style={S.mono}>text-sm</span>
+        {' '}
+        is 14px,
+        {' '}
+        <span style={S.mono}>text-xs</span>
+        {' '}
+        is 12px and
+        {' '}
+        <span style={S.mono}>--radius-xl</span>
+        {' '}
+        is 14px on their own. Only the muted colour still needs us. The three redundant
+        pins are correct today but frozen as literals — un-pinning them is a change to an
+        approved component, so it is your call, not a tidy-up.
       </div>
     </div>
   );
@@ -1011,23 +1087,40 @@ function ModalSpecimen() {
   return (
     <>
       <Button variant="secondary" onClick={() => setOpen(true)}>Open modal</Button>
+      {/* THE SKIN'S `gap-6`, SUPPLIED BELOW, because the shell deliberately does not carry
+          it: `modal.jsx` adopts `bg-popover p-6 text-sm shadow-xl ring-1 max-w-md` and
+          stops there, so each of the 13 dialogs spaces its own content. That is a real
+          difference from the registry pane on the left, where `DialogContent` is
+          `grid gap-6`, and it belongs in the specimen rather than hidden by it.
+          (It sits out here, not inside the ternary: a lone `{...}` in a consequent's
+          parentheses parses as an object literal, not a comment, and the build says so.) */}
       {open ? (
-        <Modal open onClose={() => setOpen(false)} label="Close account">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 16, fontWeight: 550, color: 'var(--text)' }}>
-              Close FTMO-8842291?
-            </div>
-            <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--text-2)' }}>
+        <Modal open onClose={() => setOpen(false)} label="Close account" style={{ display: 'grid', gap: 24 }}>
+          {/* THE REAL PARTS, NOT HAND-TYPED NUMBERS (2026-09-07). This read
+              `fontSize: 16, fontWeight: 550` and `fontSize: 13, lineHeight: 20` as inline
+              styles — 13px is not even on the scale (12/14/16/18/24/28), and the whole
+              charter of this page is that "the appearance being approved is the one that
+              ships". Hand-typing it meant the parity card attributed OUR OWN scaffolding
+              to "our layer". `DialogTitle` is `text-base font-medium` (16/500) and
+              `DialogDescription` is `text-sm text-muted-foreground` — the primitives.
+
+              WORTH KNOWING BEFORE YOU APPROVE THIS: no shipping dialog uses these two
+              parts yet. All 13 draw their own header through legacy `.modal h2`, which is
+              17px — off the scale, and the reason this specimen never matched anything.
+              Approving the specimen is approving the direction the legacy rule moves to. */}
+          <DialogHeader>
+            <DialogTitle>Close FTMO-8842291?</DialogTitle>
+            <DialogDescription>
               Its 412 trades stay in your history and keep counting toward your all-account
               analytics. You will stop seeing it in the switcher.
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-              <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-              {/* `primary` explicitly: this Button's default variant is `secondary`, so a
-                  bare <Button> is an OUTLINE one and the confirm read as plain text. */}
-              <Button variant="primary" onClick={() => setOpen(false)}>Close account</Button>
-            </div>
-          </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+            {/* `primary` explicitly: this Button's default variant is `secondary`, so a
+                bare <Button> is an OUTLINE one and the confirm read as plain text. */}
+            <Button variant="primary" onClick={() => setOpen(false)}>Close account</Button>
+          </DialogFooter>
         </Modal>
       ) : null}
     </>
@@ -1042,11 +1135,15 @@ function PopoverSpecimen() {
         Brief settings
       </PopoverTrigger>
       <PopoverContent align="start">
+        {/* ON THE SCALE (2026-09-07). These read 13px and 12.5px, neither of which is a
+            step — the scale is 12/14/16/18/24 plus the 28px metric. A specimen typed a
+            half-pixel off the system is the owner approving something the system cannot
+            reproduce. Bound to the tokens now, so the next scale move carries it. */}
         <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 200 }}>
-          <div style={{ fontSize: 13, fontWeight: 550, color: 'var(--text)' }}>
+          <div style={{ fontSize: 'var(--fs-body)', fontWeight: 550, color: 'var(--text)' }}>
             What to show
           </div>
-          <div style={{ fontSize: 12.5, lineHeight: '19px', color: 'var(--text-2)' }}>
+          <div style={{ fontSize: 'var(--fs-label)', lineHeight: '18px', color: 'var(--text-2)' }}>
             A popover holds controls you change and then dismiss. A menu holds actions
             you pick one of.
           </div>
@@ -1066,6 +1163,139 @@ const LATER_BATCHES = [
   { n: 6, name: 'Rebuild first, then review', qty: 4, parts: 'badge · empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
 ];
 
+/* ===== VARIANT MATRIX - the states you can only check by using them =====
+ *
+ * Built 2026-09-07, at the owner's request, after three state bugs in a row that no
+ * screenshot could have caught: a blanket `aria-expanded` override that painted a
+ * PRIMARY button grey while its menu was open, a pill that held its fill where the preset
+ * lets go, and a switch whose off-state was tuned against a token mapping that had moved
+ * months earlier.
+ *
+ * WHY EVERY OTHER SPECIMEN ON THIS PAGE MISSED THEM. The panes above render one variant
+ * each, usually forced open (`defaultOpen`) so the panel can be compared without a
+ * pointer. That is right for comparing SURFACES and useless for comparing STATES: rest,
+ * hover, press, open, and open-then-move-away are five different pictures and a forced
+ * specimen shows one. The primary-button bug survived precisely because no specimen on
+ * this page had ever opened a menu from a primary button.
+ *
+ * So this section is deliberately NOT forced open. Use it: hover each one, click it, then
+ * move the cursor onto the panel and watch the trigger. button.jsx's open-state note
+ * carries the table of what each variant is supposed to do.
+ *
+ * The scaffolding is inline styles, per this file's header: Tailwind compiles only under
+ * components/{ui,primitives}, so a utility written here would emit nothing, silently. */
+
+/* THE FOUR REAL VARIANTS, in our vocabulary. `tinted` and `chrome` are deliberately NOT
+ * in this list and get their own row below: neither is a generated variant - `VARIANTS`
+ * has no key for either - so `buttonVariants({ variant: 'tinted' })` asks cva for a
+ * variant it does not define and compiles to NOTHING. Both are real only with `pill`,
+ * which is what supplies their surface. Putting them in this row would render two
+ * unstyled buttons and read as a bug in the matrix rather than a misuse of the API. */
+const TRIGGER_VARIANTS = ['primary', 'secondary', 'ghost', 'danger'];
+
+function MenuInVariant({ variant, pill = false }) {
+  const ref = useRef(null);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <span style={S.specimenLabel}>{pill ? `${variant} - pill` : variant}</span>
+      {/* The container seam again: without it the popup escapes to document.body and
+          leaves the row, which makes "move the cursor onto the panel" impossible to do
+          without losing the trigger off the edge of the card. */}
+      <div ref={ref} style={{ position: 'relative' }}>
+        <OverlayContainerContext.Provider value={ref}>
+          <Menu>
+            <MenuTrigger render={<Button variant={variant} pill={pill} />}>
+              {variant}
+              <ChevronDown aria-hidden="true" />
+            </MenuTrigger>
+            <MenuContent align="start">
+              <MenuItem>Open in chart replay</MenuItem>
+              <MenuItem>Tag a setup</MenuItem>
+              <MenuSeparator />
+              <MenuItem variant="destructive">Delete trade</MenuItem>
+            </MenuContent>
+          </Menu>
+        </OverlayContainerContext.Provider>
+      </div>
+    </div>
+  );
+}
+
+const TONES = ['neutral', 'brand', 'profit', 'loss', 'warn', 'ai'];
+
+function VariantMatrix() {
+  const [on, setOn] = useState(true);
+  const [unit, setUnit] = useState('R');
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Variant matrix</span>
+        <span style={S.mono}>hover / click / move onto the panel</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="open">manual check</Tag>
+      </div>
+
+      <div style={{ ...S.specimens, gap: 26 }}>
+        {TRIGGER_VARIANTS.map((v) => <MenuInVariant key={v} variant={v} />)}
+        <MenuInVariant variant="tinted" pill />
+        <MenuInVariant variant="chrome" pill />
+      </div>
+
+      <div style={{ ...S.specimens, borderTop: '1px solid var(--line-inset)' }}>
+        <div style={{ ...S.specimen, flex: 1 }}>
+          <span style={S.specimenLabel}>Badge - all six tones, first render off legacy</span>
+          <div style={{ ...S.stage, flexWrap: 'wrap' }}>
+            {TONES.map((t) => <Badge key={t} tone={t}>{t}</Badge>)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...S.specimens, borderTop: '1px solid var(--line-inset)' }}>
+        <div style={S.specimen}>
+          <span style={S.specimenLabel}>Switch - click it; the OFF half is what changed</span>
+          <div style={S.stage}>
+            <Switch checked={on} onCheckedChange={setOn} aria-label="Demo switch" />
+            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{on ? 'on' : 'off'}</span>
+          </div>
+        </div>
+        <div style={S.specimen}>
+          <span style={S.specimenLabel}>Toggle group - pill, left as it was by the audit</span>
+          <div style={S.stage}>
+            <ToggleGroupExclusive pill value={unit} onValueChange={setUnit}>
+              <ToggleGroupItem value="R">R</ToggleGroupItem>
+              <ToggleGroupItem value="$">$</ToggleGroupItem>
+            </ToggleGroupExclusive>
+          </div>
+        </div>
+      </div>
+
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>What to watch on the triggers. </strong>
+        Hover brightens. Click opens, and the colour should not jump. Then move the cursor
+        onto the panel:
+        {' '}
+        <span style={S.mono}>primary</span>
+        {' '}
+        and
+        {' '}
+        <span style={S.mono}>danger</span>
+        {' '}
+        fall back to rest, while
+        {' '}
+        <span style={S.mono}>secondary</span>
+        {' '}
+        and
+        {' '}
+        <span style={S.mono}>ghost</span>
+        {' '}
+        hold a fill. That split is the preset&rsquo;s rather than ours - it is what you
+        chose over our stricter reading of &sect;14, and the two halves disagreeing on
+        purpose is exactly what this row exists to make visible.
+      </div>
+    </div>
+  );
+}
+
 export default function PrimitiveReview() {
   const menu = MenuSpecimens();
 
@@ -1081,22 +1311,24 @@ export default function PrimitiveReview() {
         we move on. Batches are locked together because parts that sit side by side have to
         agree on height, corners and spacing.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>11 of 36 approved.</strong>
+        <strong style={{ color: 'var(--text)' }}>17 of 36 approved.</strong>
         {' '}
-        The dropdown was the first to clear review, on 7 Sep — and it is the one that made
-        this page necessary: it had reached 30 screens while nobody had said whether they
-        liked it.
+        Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
+        the switch and the unit toggle. The dropdown was the first through — and it is the
+        one that made this page necessary: it had reached 30 screens while nobody had said
+        whether they liked it.
       </p>
 
       <div style={S.batchHead}>
         <span style={S.batchTitle}>Batch 1 — Overlays</span>
-        <Tag tone="open">1 of 4 approved</Tag>
+        <Tag tone="ok">4 of 4 approved</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          the dropdown is locked · modal, popover and dialog still need a look
+          locked 7 Sep · dropdown, modal, popover and dialog
         </span>
       </div>
 
       <DropdownParity />
+      <VariantMatrix />
       <DialogParity />
       <PaletteReference />
       <PresetComparison />
@@ -1142,6 +1374,7 @@ export default function PrimitiveReview() {
 
       <Spec
         name="Modal"
+        approved="7 Sep 2026"
         file="primitives/modal.jsx"
         ask={
           'how dark the background behind it goes; the width for a short message like this '
@@ -1153,6 +1386,7 @@ export default function PrimitiveReview() {
 
       <Spec
         name="Popover"
+        approved="7 Sep 2026"
         file="primitives/popover.jsx"
         ask={
           'whether it reads as a different kind of thing from the dropdown above — it '
@@ -1167,7 +1401,7 @@ export default function PrimitiveReview() {
           <span style={S.cardName}>Dialog</span>
           <span style={S.mono}>primitives/dialog.jsx</span>
           <span style={{ flex: 1 }} />
-          <Tag>locks with Modal</Tag>
+          <Tag tone="ok">approved 7 Sep 2026 — with Modal</Tag>
         </div>
         <div style={S.note}>
           Dialog is the layer <em>underneath</em> Modal — every one of the app’s 11 modals is

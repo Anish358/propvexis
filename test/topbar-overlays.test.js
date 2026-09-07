@@ -301,6 +301,51 @@ test('a menu item that is a LINK is not browser-default blue', () => {
     'if Preflight is ever imported globally, revisit this reset — it may be redundant');
 });
 
+test("an overlay hangs at the preset's own distance from its trigger", () => {
+  /* THREE UNDOCUMENTED NUMBERS, corrected 2026-09-07 after the owner said the dropdown
+   * "opens closer to the button in the preset". It did:
+   *
+   *     dropdown   generated 4   ours was 8   double
+   *     popover    generated 4   ours was 6
+   *     submenu    generated 0   ours was 4   a gap between a sub and its parent
+   *
+   * None carried a comment or cited a rule, which by §21 makes them preferences rather
+   * than overrides. The menu is the one you can see — at 8 the panel reads as detached
+   * from the button that opened it — but the popover mattered too: a menu and a popover
+   * opening off the SAME top bar at different distances is the kind of difference that
+   * reads as sloppiness without ever being nameable.
+   *
+   * PINNED AS "the generated default", not as the number 4, so this follows the preset if
+   * the registry ever moves it. A wrapper may still raise one — it just has to say why. */
+  for (const [name, src] of [['menu', menu], ['popover', popover]]) {
+    const m = src.match(/sideOffset = (\d+)/);
+    assert.ok(m, `${name}.jsx must state a sideOffset default`);
+    assert.equal(m[1], '4',
+      `${name}.jsx opens at the preset's 4 — a larger gap detaches the panel from its trigger`);
+  }
+  assert.match(menu, /function MenuSubContent\(\{ className, sideOffset = 0/,
+    'a submenu sits flush against its parent, as the generated component does');
+});
+
+/* THE DEFAULTS ABOVE ARE ONLY WORTH PINNING IF THE REVIEW PAGE ACTUALLY SHOWS THEM.
+ * Added 2026-09-07, after the owner reported the offset change was not visible on the
+ * page. It was not: the Complex Menu specimen passed `sideOffset={6}` — a number matching
+ * neither the old default (8) nor the preset (4) — so the primitive moved 8 -> 4 while
+ * the pane labelled "OURS — THE REAL COMPONENT" went on rendering 6, unchanged, and the
+ * parity table above it claimed the fix had landed.
+ *
+ * That is the failure mode this whole page exists to prevent, so it gets a test rather
+ * than a comment: a specimen that overrides the thing being reviewed is approving our own
+ * scaffolding as the component's behaviour. Positioning props are the ones that matter —
+ * `align` is a content choice a caller legitimately makes, but an OFFSET is the preset
+ * parity itself. */
+test('the review page shows the primitives own offsets, not its own', () => {
+  const review = code(read('../frontend/src/features/dev/PrimitiveReview.jsx'));
+  const stray = [...review.matchAll(/<(MenuContent|MenuSubContent|PopoverContent)[^>]*sideOffset[^>]*>/g)];
+  assert.deepEqual(stray.map((m) => m[0]), [],
+    'a PrimitiveReview specimen must not pass sideOffset — it would hide the default it is there to review');
+});
+
 test('all four top-bar overlays take the preset skin', () => {
   // THIS TEST'S PREMISE REVERSED ON 2026-08-05. It used to require that the primitives
   // contribute NO appearance — the caller's legacy class was the whole surface, because
@@ -367,6 +412,70 @@ test('stacking: the preset owns the menu\'s z-index, and the token agrees with i
 
 // ── The two chrome pills' hover — Filters and the bell ───────────────────────
 
+/* THE OPEN STATE BELONGS TO THE VARIANT, NOT TO THE WRAPPER (owner, 2026-09-07).
+ *
+ * `button.jsx` used to append `dark:aria-[expanded=true]:hover:bg-[var(--sel-bg)]` to
+ * EVERY variant, so an open trigger would hold its fill instead of dimming under the
+ * cursor (DESIGN-LANGUAGE §14). The owner chose preset parity per variant instead, and
+ * the half that made it easy to decide is the half nobody had noticed: `default` and
+ * `destructive` carry no `aria-expanded:` rule in the preset, so that one line was the
+ * only open styling they had — it painted a primary CTA and a destructive button a
+ * neutral --sel-bg for as long as the cursor sat on one with its menu open.
+ *
+ * Pinned as "the wrapper states no open rule of its own", not as the absence of one
+ * string: the file already records three other spellings that were tried, so the next
+ * attempt at the §14 argument will not look like the last one. The PILL is exempt and is
+ * pinned the other way by the test below — the top bar's capsule is our own shape, not a
+ * preset variant. */
+test('the button wrapper adds no open-state fill of its own', () => {
+  const btn = read('../frontend/src/components/primitives/button.jsx');
+  const body = code(btn);
+  // Everything the wrapper hands to `cn()`, up to the branch where PILL legitimately
+  // supplies its own open state.
+  const applied = body.slice(body.indexOf('buttonVariants({'));
+  const beforePill = applied.split('pill &&')[0];
+  assert.doesNotMatch(
+    beforePill,
+    /aria-\[?expanded/,
+    'an open trigger takes the aria-expanded rule of its own variant, not a blanket one',
+  );
+});
+
+/* `muted` AND `accent` ARE ONE COLOUR IN THE PRESET, SO THEY ARE ONE TOKEN HERE.
+ *
+ * Pinned 2026-09-07, after an open dropdown trigger came out a different colour from the
+ * preset's and the cause turned out to be the bridge rather than the button. In shadcn's
+ * dark palette `--muted` and `--accent` are the SAME declaration —
+ * oklch(0.274 0.006 286.033) — so a generated component asking for `bg-muted` and one
+ * asking for `bg-accent` are asking for the same fill. Ours pointed them at two different
+ * tokens: accent at `--chrome-hover`, muted at `--sel-bg`. A menu row lit by
+ * `focus:bg-accent` and a button lit by `aria-expanded:bg-muted` therefore disagreed,
+ * and only one of them was the preset.
+ *
+ * WHY IT IS PINNED AS "the same token" AND NOT AS A VALUE. The preset's #27272a is tuned
+ * against its #18181b card; ours is #111114, so the literal over-brightens every card
+ * hover. `--chrome-hover` is contextual — --surface-hover on a card, --overlay-hover
+ * (#27272a, the preset's exact value) inside [data-overlay-surface] — so the right
+ * assertion is that both names resolve through the SAME contextual token, whatever that
+ * token is worth on a given ground.
+ *
+ * `--color-muted-foreground` is deliberately NOT included: the preset's muted-foreground
+ * is a text colour with its own job, and this is about the fill. */
+test('shadcn muted and accent resolve through one contextual token, as the preset has them', () => {
+  const decl = (name) => {
+    const m = bridgeCss.match(new RegExp(`^\\s*--color-${name}:\\s*([^;]+);`, 'm'));
+    assert.ok(m, `bridge.css must map --color-${name}`);
+    return m[1].trim();
+  };
+  assert.equal(decl('muted'), decl('accent'),
+    'the preset declares --muted and --accent as the same colour; the bridge must not split them');
+  assert.equal(decl('muted'), 'var(--chrome-hover)',
+    'both resolve through the contextual hover token, not a frozen literal or a selection fill');
+  // The selection fill is a different idea and must not be the quiet surface again.
+  assert.notEqual(decl('muted'), 'var(--sel-bg)',
+    '--sel-bg is a quiet ACTIVE fill (rail item, count chip), not a muted surface');
+});
+
 test('the chrome pill answers every one of ghost\'s background classes in its own modifier set', () => {
   /* THE BUG THIS PINS, and it shipped invisible for a week (fixed 2026-09-02).
    *
@@ -422,8 +531,16 @@ test('the chrome pill answers every one of ghost\'s background classes in its ow
   assert.match(pill[1], /dark:hover:bg-\[var\(--surface-hover\)\]/,
     '`dark` is `&` in this app, so ghost\'s dark hover must be answered, not inherited');
   assert.match(pill[1], /aria-expanded:bg-\[var\(--sel-bg\)\]/, 'an open control says so');
-  // The one that is about direction rather than colour: without it, hovering an OPEN
-  // control takes it back down from --sel-bg to --surface-hover, which is §14 in reverse.
-  assert.match(pill[1], /aria-expanded:hover:bg-\[var\(--sel-bg\)\]/,
-    'an open control must not dim under the pointer — DESIGN-LANGUAGE §14');
+  /* AND THE ONE THAT REVERSED (owner, 2026-09-07). This asserted the OPPOSITE until the
+     owner asked for preset parity on the open state everywhere: `aria-expanded:hover:`
+     held --sel-bg so an open pill could not dim under the pointer, on §14's reading that
+     hover intensifies what an element already wears.
+     The preset does not do that — the generated variants let `dark:hover:` outsort
+     `aria-expanded:`, so an open control DOES fall to its hover fill — and the owner
+     chose parity over our stricter reading, on the pill too, even though the capsule is
+     our own shape and the preset ships nothing like it.
+     So the hold is now pinned ABSENT rather than present. It is one class to restore in
+     `button.jsx` if §14 wins again; what must not happen is it coming back silently. */
+  assert.doesNotMatch(pill[1], /aria-expanded:hover:/,
+    'an open pill follows the preset and dims to its hover fill — the §14 hold was dropped');
 });

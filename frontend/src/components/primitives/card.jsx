@@ -103,9 +103,16 @@ function Card({ hover = false, flush = false, spacing = 'md', gap = false, class
         // Clipping rides with `flush`, per the header — everything else must be free
         // to show a popover that overhangs its edge.
         flush ? '[--card-spacing:0px] overflow-hidden p-0' : 'overflow-visible px-(--card-spacing)',
-        // `.u-card--hover` brightened the border on hover. The library card has a
-        // ring rather than a border, so the equivalent is to brighten the ring.
-        hover && 'transition-[box-shadow] hover:ring-foreground/20',
+        /* NO HOVER STATE (owner, 2026-09-07, preset parity). This carried
+           `hover && 'transition-[box-shadow] hover:ring-foreground/20'` — a port of
+           legacy `.u-card--hover`, which brightened the border, translated to brightening
+           the ring the library card wears instead. The preset's card has no hover state
+           at all, and NO CALLER IN THIS APP EVER PASSED `hover`, so the rule was carried
+           forward from a vocabulary rather than from a need.
+           The prop is still SWALLOWED rather than deleted: it stays in `ui.jsx`'s
+           vocabulary (see the header), and a `hover` that fell through to `...rest` would
+           reach the DOM as an unknown attribute and warn. It now does nothing, which is
+           the preset's behaviour. */
         className,
       ].filter(Boolean).join(' ')}
       {...rest}

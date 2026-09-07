@@ -111,46 +111,79 @@ const SIZES = { sm: 'sm', md: 'default', lg: 'lg' };
  * a file no test reads.
  */
 
-/* THE OUTLINE EDGE — a control's, not a card's (2026-09-07).
+/* THE OUTLINE EDGE — a control's, not a card's, AND CONTEXTUAL (2026-09-07, revised the
+ * same day).
  *
  * The generated `outline` variant draws `border-border`, which `bridge.css` maps to
- * `--line` — A CARD'S EDGE (#1b1b1e). §4's border ramp is explicit that a pill control
- * takes `--line-control` (#252528) instead, one step louder, and the two exist precisely
- * because a control has to read against surfaces a card never sits on.
+ * `--chrome-line` — A CARD'S EDGE (#1b1b1e) at `:root`. §4's border ramp is explicit
+ * that a pill control takes a louder step instead, and the two exist precisely because a
+ * control has to read against surfaces a card never sits on. So this override stays: a
+ * bare `border-border` would put a card's edge on a control.
  *
- * The bug this fixes: an outline button inside a dialog or a menu drew a #1b1b1e edge on
- * an #18181b panel — THREE UNITS — so Cancel buttons looked like plain text. On a card
- * it was +10 and merely quiet, which is why it survived this long.
+ * WHAT IT WAS, AND WHY THAT WAS ONLY HALF A FIX. This read `border-[var(--line-control)]`
+ * — a FIXED #252528 — to stop an outline button inside a dialog or a menu drawing a
+ * #1b1b1e edge on an #18181b panel (three units; Cancel buttons looked like plain text).
+ * It worked, and it was written the same day as the `[data-overlay-surface]` rule, which
+ * fixes the same bug properly. Two fixes for one bug, and the fixed one won, because a
+ * literal beats a contextual token by simply not asking.
  *
- * Fifth instance of one token asked to serve a card and an overlay at once, after the
- * panel, the row highlight, the panel edge and the submenu ring. See §25. */
-const OUTLINE_EDGE = 'border-[var(--line-control)]';
+ * The cost showed up beside the preset's own dialog: `--line-control` is tuned to a CARD
+ * (+20 over #111114) exactly the way `--line` is, so on a panel it is +13 — QUIETER than
+ * the panel's own `--overlay-line` edge (#2f2f33). The Cancel button receded into the
+ * modal containing it, which is the reverse of the ramp this override exists to honour.
+ *
+ * `--chrome-line-control` is the same token pattern as `--chrome-line` and
+ * `--chrome-hover`: it names the job and the surface underneath supplies the value —
+ * `--line-control` on a card, `--line-chip` (#2d2d31, +21) on a panel, so the control
+ * keeps the contrast it was tuned for wherever it lands.
+ *
+ * SEVENTH instance of one token asked to serve a card and an overlay at once, after the
+ * panel, the row highlight, the panel edge, the submenu ring, the modal surface and the
+ * outline button's HOVER — which was fixed contextually while its BORDER, one property
+ * away, was fixed literally. See §25, and tokens.css "CHROME IS CONTEXTUAL". */
+const OUTLINE_EDGE = 'border-[var(--chrome-line-control)]';
 
-/* AN OPEN TRIGGER MUST NOT GET QUIETER WHEN YOU HOVER IT (§14).
+/* THE OPEN STATE IS THE PRESET'S, ONE VARIANT AT A TIME (owner, 2026-09-07 — reversing a
+ * ruling made earlier the same day).
  *
- * The generated variants carry both `aria-expanded:bg-muted` and `dark:hover:bg-input/30`,
- * and Tailwind sorts the compound `dark:hover:` AFTER the plain `aria-expanded:`. So while
- * the cursor sits on an OPEN trigger, hover wins — and hover is the weaker of the two
- * (a 4.5% white wash against an opaque #1e1e21). The open state only appeared when you
- * moved the cursor AWAY, which reads as the button brightening on mouse-out.
+ * What stood here was OPEN_HOVER:
  *
- * §14 is explicit that hover INTENSIFIES what the element already wears. Here it was
- * REDUCING it, which is the actual bug. The fix HOLDS rather than intensifies —
- * open+hover is the same `--sel-bg` as open (owner, 2026-09-07) — because an open
- * trigger already has its feedback: the panel hanging off it. Brightening further just
- * made the trigger compete with the menu it opened.
+ *     const OPEN_HOVER = 'dark:aria-[expanded=true]:hover:bg-[var(--sel-bg)]';
  *
- * So the ladder is rest → hover → open, and open does not move once you are on it.
+ * added to EVERY variant, so an open trigger held --sel-bg instead of dimming under the
+ * cursor. The §14 reading behind it was sound and is still true: the generated variants
+ * carry both `aria-expanded:bg-muted` and `dark:hover:bg-input/30`, Tailwind sorts the
+ * compound `dark:hover:` AFTER the plain `aria-expanded:`, so hovering an OPEN outline
+ * trigger really does make it quieter and the open state only arrives once the cursor
+ * leaves. The preset has the same quirk. We were deliberately stricter than it.
  *
- * The preset has the same quirk — same classes, same sort order — so this is one place we
- * are deliberately stricter than it, on our own locked rule. */
-/* THE FORM MATTERS, and three did not work before this one:
- *   `aria-expanded:hover:`            compiles, but sorts BEFORE `dark:hover:` and loses.
- *   `[&[aria-expanded=true]:hover]:`  does not compile at all.
- *   `dark:aria-expanded:hover:`       does not compile at all.
- * `dark:aria-[expanded=true]:hover:` compiles AND sorts after the rule it must beat,
- * because the arbitrary-aria form lands in the same late bucket as `dark:hover:`. */
-const OPEN_HOVER = 'dark:aria-[expanded=true]:hover:bg-[var(--sel-bg)]';
+ * TWO THINGS DECIDED AGAINST KEEPING IT.
+ *
+ * It was unconditional, and only two variants have an open state at all. `default` and
+ * `destructive` carry no `aria-expanded:` rule in the preset, so this line was the ONLY
+ * open styling they had — and it painted a primary CTA and a destructive button
+ * --sel-bg, a neutral grey, for as long as the cursor sat on one with its menu open. A
+ * blue button going grey on hover was never the intent; it is what applying the fix
+ * everywhere bought, and no specimen on the review page opens a menu from a primary
+ * button, so nothing showed it.
+ *
+ * And the owner chose preset parity per variant over our stricter reading, with the
+ * trade stated. So the open state is now exactly what each variant asks for:
+ *
+ *     default / destructive / link    no rule                     open reads as REST
+ *     secondary (shadcn's own)        aria-expanded:bg-secondary   its own REST fill
+ *     outline / ghost                 aria-expanded:bg-muted       holds a fill
+ *
+ * WHAT IT COSTS, so this is not rediscovered later as a bug: on `outline` and `ghost` —
+ * which is what our `secondary` maps to, and so what every menu trigger in this app
+ * wears — hovering an OPEN trigger still reduces it to the `input/30` wash, and moving
+ * the cursor off onto the menu BRIGHTENS it to --muted. §14 says hover intensifies what
+ * is already there; here it does not. That is the preset's behaviour, adopted knowingly.
+ *
+ * THE PILL FOLLOWS TOO (same ruling). Its `aria-expanded:hover:` hold is gone as well,
+ * so the top bar's capsule dims under the pointer exactly as `ghost` does — the owner
+ * asked for parity even on the shapes the preset does not ship. `topbar-overlays.test.js`
+ * pins the new direction and records the old one. */
 
 /* `pill` — the top bar's shape, added 2026-08-28 with the Figma redesign.
  *
@@ -232,8 +265,16 @@ const TINTED = [
  *   dark:hover:         the same, because `dark` is `&` here (bridge §THEMING) and the
  *                       generated dark hover is a mix this app never wanted
  *   aria-expanded:      one step further to --sel-bg while the popover is open, so the
- *                       control says so with the pointer elsewhere
- *   aria-expanded:hover: HOLDS that step. Without it an open control DIMS under the
+ *                       control says it owns the panel hanging off it.
+ *   aria-expanded:hover: GONE (owner, 2026-09-07). It held that step so an open pill
+ *                       would not dim under the pointer — §14 — and it was the last
+ *                       place we were stricter than the preset on the open state.
+ *                       The owner asked for preset parity everywhere, including the
+ *                       shapes the preset does not itself ship, so hovering an open
+ *                       pill now falls to --surface-hover the way the generated
+ *                       `ghost` falls to its own hover. ONE LINE TO PUT BACK if the
+ *                       §14 reading wins again; `topbar-overlays.test.js` states
+ *                       which way it is pinned and why.
  *                       pointer — hover would take it back down to --surface-hover,
  *                       which is §14 backwards. It wins on specificity (class + attr +
  *                       pseudo-class), not on order. */
@@ -242,7 +283,7 @@ const PILL = [
   'text-[13.5px] font-medium text-[var(--text-2)]',
   'hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
   'dark:hover:bg-[var(--surface-hover)]',
-  'aria-expanded:bg-[var(--sel-bg)] aria-expanded:hover:bg-[var(--sel-bg)]',
+  'aria-expanded:bg-[var(--sel-bg)]',
 ].join(' ');
 const PILL_ICON = 'w-9';
 
@@ -273,7 +314,6 @@ const Button = React.forwardRef(function Button({
       className={cn(
         buttonVariants({ variant: VARIANTS[variant] ?? variant, size: SIZES[size] ?? size }),
         (VARIANTS[variant] ?? variant) === 'outline' && OUTLINE_EDGE,
-        OPEN_HOVER,
         isChrome && CHROME,
         // An engaged control keeps the hover but not the muted rest, so the two states
         // stay distinguishable — hence only the resting half is conditional.

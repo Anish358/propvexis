@@ -37,6 +37,8 @@ const shell = src('components/primitives/modal.jsx');
 const dialog = src('components/primitives/dialog.jsx');
 const barrel = src('components/primitives/index.js');
 const css = appCss;
+const bridge = readSrc('styles/bridge.css');
+const bridgeSpacing = bridge;
 
 // Strip comments before asserting on code. These files explain at length WHY the
 // hand-rolled backdrops, portals and stopPropagation calls are gone, so a naive grep
@@ -149,6 +151,81 @@ test('the popup is a CHILD of the backdrop — centring and dismissal both depen
     "the caller's backdrop class must still reach the overlay");
   assert.match(s, /<DialogOverlay[^>]*\bforceRender\b[^>]*>/,
     'the backdrop must forceRender, or a nested dialog would take its popup down with it');
+});
+
+test("a dialog header takes the ALERT dialog's treatment, not the plain one's", () => {
+  /* §3, amended 2026-09-07. The registry ships two confirm surfaces and styles their
+   * headers differently — `AlertDialogTitle` is `text-lg font-medium`, `DialogTitle` is
+   * `text-base leading-none font-medium`. `Modal` is built on `Dialog` and is the shell
+   * for all 13 dialogs, every one of which is the ALERT shape, so it inherited the
+   * quieter of the two: 2px smaller AND a line box 12px shorter.
+   *
+   * BOTH HALVES MATTER, which is why both are pinned. Fixing the size alone leaves
+   * `leading-none` collapsing the title's line box, and it is the line box — not the
+   * font size — that supplies the ~5px of optical space under the title that made the
+   * preset's header look twice as open. That difference was reported as SPACING, and it
+   * is not: `--spacing` is 4px, Tailwind's own base, so every padding and gap in the two
+   * dialogs already resolves identically. Asserted below so the diagnosis cannot be
+   * mislaid the next time someone reaches for a gap.
+   *
+   * AND THE OVERRIDES STAY IN THE WRAPPER. `--text-2` is the owner-locked colour for
+   * labels and metadata app-wide; a dialog description is body copy, so it takes the
+   * preset's `--muted` (#a1a1aa) HERE rather than by repointing the bridge, which would
+   * re-colour every screen. Same call `menu.jsx` already made for menu labels. */
+  const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
+  const wrapper = code(dialog);
+
+  assert.match(wrapper, /const TITLE = 'text-lg leading-7'/,
+    'a dialog title is 18px on a 28px line box — leading-7 is that line box exactly');
+  assert.doesNotMatch(wrapper, /const TITLE = '[^']*leading-none/,
+    'leading-none is what collapsed the header; replacing the size alone does not fix it');
+  assert.match(wrapper, /const DESCRIPTION = '[^']*text-\[var\(--muted\)\]/,
+    "a description takes the preset's grey, not --text-2");
+  assert.match(wrapper, /DialogTitle|DialogDescription/,
+    'both parts must be wrapped, not re-exported bare');
+
+  /* THE OVERRIDE MUST NOT HAVE LEAKED INTO THE BRIDGE. If someone "fixes" this by
+   * repointing muted-foreground globally, the wrapper above goes quiet and every screen
+   * in the app changes colour instead. */
+  assert.match(bridge, /--color-muted-foreground:\s*var\(--text-2\)/,
+    'muted-foreground stays on --text-2 app-wide; the dialog is the exception, not the rule');
+
+  /* AND THE DIAGNOSIS: spacing was never the difference. */
+  assert.match(bridgeSpacing, /--spacing:\s*var\(--s-1\)/,
+    "the spacing base is the preset's own 4px — a density complaint is not a gap bug");
+});
+
+test("a generated heading or paragraph carries no browser margin", () => {
+  /* THE FOURTH MISSING-PREFLIGHT RESET, and the one that cost the most to find because
+   * it does not look like what it is.
+   *
+   * This app does not import Preflight (tailwind.css says why), so the UA sheet's
+   * `h2 { margin-block: .83em }` and `p { margin-block: 1em }` stand. Base UI renders
+   * `Dialog.Title` as an h2 and `Dialog.Description` as a p, so a dialog description
+   * arrived with a 14px margin ON TOP of DialogHeader's 6px flex gap — 20px where the
+   * reference has 6. A flex gap does not absorb a margin; they add.
+   *
+   * It was reported as spacing, then chased through the type scale, and it was neither:
+   * the gap, the sizes and the 4px spacing base all measured correct. The space came
+   * from a default nobody declared.
+   *
+   * PINNED AS A RULE, NOT AS THIS DIALOG. Any generated part that renders a heading or a
+   * paragraph has the same hole — Card, Alert, Sheet, AlertDialog — so the assertion is
+   * that the reset EXISTS and stays at zero specificity, which is what lets any author
+   * rule still win over it. */
+  assert.match(bridge, /:where\(\s*h1\[data-slot\]/,
+    'the Preflight margin substitute must cover generated headings');
+  assert.match(bridge, /p\[data-slot\]\s*\)\s*\{\s*margin:\s*0/,
+    "and paragraphs — Dialog.Description is a <p>, which is where this was found");
+  assert.doesNotMatch(bridge, /\[data-slot\] (p|h[1-6])/,
+    'it must not reach into app prose inside a generated container — this app never ran Preflight');
+
+  /* AND THE HALF THAT WAS HIDDEN. `.modal h2 { margin: 0 }` zeroed the heading for OUR
+   * dialogs by accident, so only the paragraph showed and the registry parity pane —
+   * which carries no `.modal` class — was wrong on both. If that legacy rule is ever
+   * deleted (it should be), the reset above is what keeps the heading right. */
+  assert.ok(css.includes('.modal h2 { margin: 0'),
+    'if this legacy rule goes, confirm the bridge reset still zeroes the dialog heading');
 });
 
 test('the shell owns its surface — it leans on no legacy rule', () => {
