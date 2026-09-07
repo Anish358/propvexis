@@ -1321,9 +1321,9 @@ export default function PrimitiveReview() {
 
       <div style={S.batchHead}>
         <span style={S.batchTitle}>Batch 1 — Overlays</span>
-        <Tag tone="ok">4 of 4 approved</Tag>
+        <Tag tone="ok">🔒 locked 7 Sep 2026</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          locked 7 Sep · dropdown, modal, popover and dialog
+          all four signed off · new screens may use them · Batch 2 is next
         </span>
       </div>
 

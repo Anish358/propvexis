@@ -203,6 +203,40 @@ test('an approved primitive carries the date it was approved', () => {
   }
 });
 
+/* A LOCKED BATCH IS A SET, AND IT FAILS AS A SET (owner locked Batch 1, 2026-09-07).
+ *
+ * `APPROVED` above already pins every individual file, so this looks redundant until one
+ * of them regresses: that test fails with "a primitive gained or lost owner approval",
+ * which does not say that the thing you just broke was signed off as a FAMILY. The whole
+ * argument for reviewing in batches (PRIMITIVE-REVIEW-PLAN §5) is that these four have to
+ * agree with each other — a menu, a popover, a dialog and a modal share a radius, an
+ * elevation and an edge treatment, and unpicking one re-opens the other three.
+ *
+ * So the failure message names the lock. Add a batch here when the owner locks it; do not
+ * add one because its members happen to all be approved. */
+const LOCKED_BATCHES = {
+  'Batch 1 — Overlays (locked 2026-09-07)':
+    ['menu.jsx', 'modal.jsx', 'popover.jsx', 'dialog.jsx'],
+};
+
+test('a locked batch stays locked, as a set', () => {
+  for (const [batch, members] of Object.entries(LOCKED_BATCHES)) {
+    for (const f of members) {
+      assert.ok(
+        APPROVED.has(f),
+        `${f} left the approved set, but it is part of ${batch}. That batch was signed `
+          + 'off as a family — the four overlays share a radius, an elevation and an edge '
+          + 'treatment, so re-opening one re-opens all of them. Unlock the batch '
+          + 'deliberately or restore the approval.',
+      );
+      assert.match(
+        sources.get(f), /@design approved \d{4}-\d{2}-\d{2}/,
+        `${f} is in ${batch} but no longer carries its approval date`,
+      );
+    }
+  }
+});
+
 test('nothing provisional is also approved', () => {
   // Signing off the appearance of something still rendering legacy markup would be
   // signing off the thing that is about to be replaced.
