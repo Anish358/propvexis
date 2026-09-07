@@ -1,5 +1,8 @@
 /* EmptyState — PropVexis primitive.
  *
+ * @status provisional — moved verbatim from ui.jsx and still renders `.u-empty*`.
+ *   Replace with `@shadcn empty` (EmptyMedia/Title/Description/Content). Cycle 00.
+ *
  * The canonical "nothing here yet" / coming-soon block. Moved here verbatim from
  * `ui.jsx` so that no page has to import from two component layers at once; the
  * markup and the `.u-empty*` classes are unchanged, so this is a zero-visual-change
@@ -10,6 +13,10 @@
  * DESIGN-LANGUAGE §15 is where that gets settled (what an empty state must contain,
  * when it offers an action, how it differs from a filtered-to-nothing result). This
  * file is where that decision will land, and callers will not notice.
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
  */
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');

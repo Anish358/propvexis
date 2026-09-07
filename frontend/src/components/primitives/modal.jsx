@@ -1,3 +1,10 @@
+/* modal.jsx
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ */
+
 import { useRef } from 'react';
 
 import {
@@ -123,12 +130,50 @@ import { OverlayContainerContext } from './overlay-container.js';
 const BACKDROP_MOTION = 'overlay-motion data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0';
 const POPUP_MOTION = 'overlay-motion data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95';
 
+/* THE SHELL OWNS ITS SURFACE NOW (2026-09-07) — `.modal` and `.modal-backdrop` are
+ * deleted from legacy CSS and these two strings replace them, carrying the generated
+ * dialog's own values from `ui/dialog.jsx`:
+ *
+ *     bg-popover  p-6  text-sm  shadow-xl  ring-1  max-w-md  bg-black/30
+ *
+ * WHY THE CLASSES ARE INLINED HERE rather than importing `DialogContent`. That component
+ * renders its own Portal, its own Overlay as a SIBLING of the popup, and a close button.
+ * This shell needs the popup to be a CHILD of the backdrop — `overlay-container.js`
+ * explains why, and `modal-shell.test.js` pins it — and none of the 13 dialogs want a
+ * second close button. So the skin's values are adopted; its structure is not.
+ *
+ * TWO DEVIATIONS FROM THE SKIN, both deliberate:
+ *   · `relative` not `fixed top-1/2 left-1/2 -translate-1/2`. The shell centres by
+ *     containment, so the popup must not position itself. This is the row the old
+ *     dialog.jsx note called load-bearing.
+ *   · `ring-[var(--overlay-line)]` not `ring-foreground/5`. The skin's readable value is
+ *     behind `dark:`, a variant this app can never match — see §25.
+ *
+ * `surface` and `backdrop` stay PROPS because ReplayModal passes its own pair, and its
+ * surface deliberately declares no padding. */
+const SURFACE = [
+  /* `modal` STAYS, and it now declares NOTHING. The rule was deleted; the class remains
+     as the hook for nineteen CONTENT rules that still match on it — `.modal header`,
+     `.modal footer`, `.modal input`, `.modal button.primary` and the rest. Those style
+     what dialogs CONTAIN, not the shell, and they migrate with the screens that own
+     them. Dropping the class here would unstyle the inside of all 13 dialogs. */
+  'modal',
+  'relative w-full max-w-md max-h-[86vh] overflow-hidden overflow-y-auto',
+  'rounded-[24px] bg-popover p-6 text-sm text-popover-foreground',
+  'shadow-xl ring-1 ring-border outline-none',
+].join(' ');
+
+const BACKDROP = [
+  'fixed inset-0 z-[2147483000] flex items-center justify-center p-6',
+  'bg-black/30 supports-backdrop-filter:backdrop-blur-sm',
+].join(' ');
+
 function Modal({
   open = true,
   onClose,
   className,
-  surface = 'modal',
-  backdrop = 'modal-backdrop',
+  surface = SURFACE,
+  backdrop = BACKDROP,
   label,
   children,
   ...rest
@@ -149,6 +194,7 @@ function Modal({
         <DialogOverlay className={[backdrop, BACKDROP_MOTION].join(' ')} forceRender>
           <DialogPopup
             ref={popupRef}
+            data-overlay-surface=""
             className={[surface, 'select-text', POPUP_MOTION, className].filter(Boolean).join(' ')}
             aria-label={label}
             {...rest}

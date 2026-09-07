@@ -1,3 +1,9 @@
+/* button.jsx
+ *
+ * @design approved 2026-09-06 — visible on the locked dashboard (every button on that page).
+ *   The owner signed that page off and DESIGN-LANGUAGE was written from it.
+ */
+
 import React from 'react';
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { buttonVariants } from '@/components/ui/button';
@@ -88,23 +94,63 @@ const CHROME_REST = 'text-muted-foreground hover:text-foreground';
 
 const SIZES = { sm: 'sm', md: 'default', lg: 'lg' };
 
-/* RADIUS — a locked rule outranking the preset, which is the one case where this
- * wrapper corrects the generated component rather than translating it.
+/* RADIUS — THE OVERRIDE IS GONE (§6 amended 2026-09-07, owner).
  *
- * The generated Button draws `rounded-2xl` (--r-2xl, ~13px). DESIGN-LANGUAGE §5
- * "assignment by surface" is 🔒 LOCKED and assigns buttons `--r-lg` (~7px), giving
- * --r-2xl to cards and floating overlays instead. §"Legacy CSS is not a layer" is
- * explicit that 🔒 rules still outrank the preset's default appearance, so the rule
- * wins and the correction lives here.
+ * This wrapper forced `rounded-lg` (10px) over the generated `rounded-2xl`, because §6
+ * assigned buttons `--r-lg`. The owner amended §6 to match the preset everywhere, so the
+ * button now takes what the generated component asks for and this correction is deleted
+ * rather than re-valued — one fewer place where our layer silently re-means shadcn.
  *
- * It has to be a utility rather than a CSS override because Tailwind's own utility
- * would lose to any unlayered rule; passed through `cn()` (tailwind-merge) it
- * REPLACES `rounded-2xl` in the class string, so there is one radius on the element,
- * not two fighting. Same reason the icon-button radius is not set here: sizes
- * `icon*` are "smaller chrome" in the same table (--r-sm/--r-md) and each caller
- * says which it wants.
+ * `--radius-2xl` is 16px in bridge.css now, decoupled from `--r-2xl` (14px, the CARD
+ * radius). It had been pointed there, which under-rounded every control by two pixels
+ * before this override then took it to 10.
+ *
+ * WHAT THIS COST TO FIND: the numbers in this comment read "~13px" and "~7px" for two
+ * months after the Rhea re-valuation moved them to 14 and 10, and that drift is what
+ * made the scale look further from the preset than it was. A comment is the one part of
+ * a file no test reads.
  */
-const RADIUS = 'rounded-lg';
+
+/* THE OUTLINE EDGE — a control's, not a card's (2026-09-07).
+ *
+ * The generated `outline` variant draws `border-border`, which `bridge.css` maps to
+ * `--line` — A CARD'S EDGE (#1b1b1e). §4's border ramp is explicit that a pill control
+ * takes `--line-control` (#252528) instead, one step louder, and the two exist precisely
+ * because a control has to read against surfaces a card never sits on.
+ *
+ * The bug this fixes: an outline button inside a dialog or a menu drew a #1b1b1e edge on
+ * an #18181b panel — THREE UNITS — so Cancel buttons looked like plain text. On a card
+ * it was +10 and merely quiet, which is why it survived this long.
+ *
+ * Fifth instance of one token asked to serve a card and an overlay at once, after the
+ * panel, the row highlight, the panel edge and the submenu ring. See §25. */
+const OUTLINE_EDGE = 'border-[var(--line-control)]';
+
+/* AN OPEN TRIGGER MUST NOT GET QUIETER WHEN YOU HOVER IT (§14).
+ *
+ * The generated variants carry both `aria-expanded:bg-muted` and `dark:hover:bg-input/30`,
+ * and Tailwind sorts the compound `dark:hover:` AFTER the plain `aria-expanded:`. So while
+ * the cursor sits on an OPEN trigger, hover wins — and hover is the weaker of the two
+ * (a 4.5% white wash against an opaque #1e1e21). The open state only appeared when you
+ * moved the cursor AWAY, which reads as the button brightening on mouse-out.
+ *
+ * §14 is explicit that hover INTENSIFIES what the element already wears. Here it was
+ * REDUCING it, which is the actual bug. The fix HOLDS rather than intensifies —
+ * open+hover is the same `--sel-bg` as open (owner, 2026-09-07) — because an open
+ * trigger already has its feedback: the panel hanging off it. Brightening further just
+ * made the trigger compete with the menu it opened.
+ *
+ * So the ladder is rest → hover → open, and open does not move once you are on it.
+ *
+ * The preset has the same quirk — same classes, same sort order — so this is one place we
+ * are deliberately stricter than it, on our own locked rule. */
+/* THE FORM MATTERS, and three did not work before this one:
+ *   `aria-expanded:hover:`            compiles, but sorts BEFORE `dark:hover:` and loses.
+ *   `[&[aria-expanded=true]:hover]:`  does not compile at all.
+ *   `dark:aria-expanded:hover:`       does not compile at all.
+ * `dark:aria-[expanded=true]:hover:` compiles AND sorts after the rule it must beat,
+ * because the arbitrary-aria form lands in the same late bucket as `dark:hover:`. */
+const OPEN_HOVER = 'dark:aria-[expanded=true]:hover:bg-[var(--sel-bg)]';
 
 /* `pill` — the top bar's shape, added 2026-08-28 with the Figma redesign.
  *
@@ -226,7 +272,8 @@ const Button = React.forwardRef(function Button({
       // RADIUS correction and the chrome layer safe to state as utilities.
       className={cn(
         buttonVariants({ variant: VARIANTS[variant] ?? variant, size: SIZES[size] ?? size }),
-        RADIUS,
+        (VARIANTS[variant] ?? variant) === 'outline' && OUTLINE_EDGE,
+        OPEN_HOVER,
         isChrome && CHROME,
         // An engaged control keeps the hover but not the muted rest, so the two states
         // stay distinguishable — hence only the resting half is conditional.

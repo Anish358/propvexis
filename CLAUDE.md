@@ -32,7 +32,7 @@ https://journal.anishdevlops.xyz still served during migration).
   it. *"It looks better"* is not a justification. It holds RULES only; values live in
   `frontend/src/styles/tokens.css`, and the colour derivation in
   `docs/design/dashboard/COLOUR-INVENTORY.md`.
-- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qKmlY80`**, style
+- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qLMFPP6`**, style
   **Base Rhea** — 🔒 LOCKED. The preset owns the global layer: typography, sizing,
   spacing, radius, density, shadows, borders, colours, default component styling.
   **Never fall back to stock shadcn styling; never invent a new visual style.**
@@ -43,8 +43,16 @@ https://journal.anishdevlops.xyz still served during migration).
   the registry serves a different implementation per style, and this project is Base UI,
   not Radix (the default manifest's `radix-ui` dependency is not what you get).
   Customise the generated component's STYLING in a wrapper; never fork it.
-- **Build order** (DESIGN-LANGUAGE §1): existing `@/components/primitives` → registry →
-  a composition of those → hand-written last, with an argument in the file.
+- **Build order** (DESIGN-LANGUAGE §1): a **settled** primitive → `@shadcn` → `@coss`
+  (only for what shadcn does not ship) → a composition of those → hand-written last, with
+  an argument in the file. A primitive is only a stop if it is **neither
+  `@status provisional` nor `@design unreviewed`** — either one makes it a redirect to
+  `@shadcn`. Approval is an owner decision and is never inferred.
+- **A generated component does not arrive as previewed** (§25). The bridge re-means
+  shadcn's own names — `text-sm` is 14px but `rounded-2xl` is 16px here, `--color-border`
+  is contextual — and a variant this app does not define compiles to **nothing**, silently.
+  When a registry component looks wrong, read §25 before changing a token, and absorb the
+  difference in the WRAPPER, never in the bridge.
 - Generated components land in `components/ui/` and are **not edited in place** —
   differences go in a thin wrapper under `components/primitives/`, which is what
   application code imports.
@@ -62,6 +70,15 @@ https://journal.anishdevlops.xyz still served during migration).
   **silently** — so a caller-supplied dimension, alignment or column template is a
   PROP, not a class. This has cost real debugging time five times; §1 lists them.
   `hidden` also does nothing against an author `display` — conditionally render.
+- ⛔ **NEVER PATCH LEGACY CSS. REPLACE IT WITH SHADCN.** (Owner, 2026-09-07 — standing
+  rule, no exceptions.) When a component looks wrong and the cause is in
+  `styles/legacy/app.css`, the fix is **never** to edit that rule. Delete it and move the
+  component onto the generated shadcn one. **The goal is to remove `legacy/app.css`
+  from the app entirely** — every edit either moves toward zero or is wrong.
+  *Why this is written in capitals:* the modal was "fixed" three times by tuning legacy
+  values before anyone noticed `DialogPopup` was the BARE Base UI primitive and the
+  shadcn skin had never been applied at all. Patching legacy hides the real problem and
+  adds work that gets deleted later.
 - **Legacy CSS is the LOWEST cascade layer** (`layer(legacy)`), so it outranks nothing.
   `tokens.css` stays unlayered and still wins. It cannot be deleted yet: ~800 of its
   1,025 classes are still live, mostly Prop OS, the Trade Log and the Calendar page.

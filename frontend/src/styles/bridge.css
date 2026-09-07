@@ -56,18 +56,31 @@
      neutral hover token, which also satisfies the locked rule that chrome is
      grayscale and never brand-tinted (DESIGN-LANGUAGE N4). Our brand blue is
      exposed as `brand-*` in section 2. Our --accent token is never redefined. */
-  --color-accent: var(--surface-hover);
+  /* `accent` is `focus:bg-accent` on every generated menu, select and command item, and
+     also a ghost/outline button's hover. Both need the CURRENT surface's highlight, not
+     a fixed one — see tokens.css "CHROME IS CONTEXTUAL". */
+  --color-accent: var(--chrome-hover);
   --color-accent-foreground: var(--text);
 
-  /* Their single "destructive" means a failed action. A losing trade is NOT a
-     destructive action, so this maps to our loss colour only because the library
-     has no other slot — error-vs-loss is an open question (DESIGN-LANGUAGE §17).
-     Revisit when that is settled. */
-  --color-destructive: var(--loss);
+  /* Their single "destructive" means a failed action. §17 SETTLED THIS (2026-09-06):
+     red serves BOTH a losing trade and a dangerous action — the two are told apart by
+     where the colour lands, not by hue — but they take different SHADES of it, which
+     is a split the palette already makes: `--loss` for a figure, a lighter red for a
+     glyph or a label. `--destructive` is preset b2qLMFPP6's red-400, so a generated
+     component previews truthfully. It is deliberately NOT `--loss`; a P&L figure and a
+     Delete button are not the same red. */
+  --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--on-accent);
 
-  --color-border: var(--line);
-  --color-input: var(--line);
+  /* CONTEXTUAL — see tokens.css "CHROME IS CONTEXTUAL". `--chrome-line` is a card's edge
+     at :root and a panel's edge inside [data-overlay-surface], so `border` and
+     `bg-input/30` resolve against whatever surface the element actually sits on. Six
+     bugs came from these pointing at `--line` unconditionally. */
+  --color-border: var(--chrome-line);
+  /* NOT --chrome-line: `input` is a CONTROL's edge and fill, and the preset draws it as a
+     white alpha one step stronger than `border`. Every consumer reduces it further, and
+     an opaque grey reduced toward transparent darkens where an alpha lightens. */
+  --color-input: var(--input-line);
   --color-ring: var(--accent-ring);
 
   --color-sidebar: var(--sidebar-bg);
@@ -136,6 +149,13 @@
   --color-ai: var(--ai);
   --color-ai-bg: var(--ai-bg);
   --color-warning: var(--warning);
+  /* §17 AMENDED 2026-09-06 — a system message may colour its GLYPH and its EDGE.
+     These two were deliberately absent while §4 read "green and red are trade
+     outcomes only, never status". §4 now permits a glyph and a 1px edge, and the
+     generated alert spends them exactly there (border/32, bg/4, svg full), so the
+     variants compile without a fork. Do NOT reach for these to fill a surface. */
+  --color-success: var(--success);
+  --color-info: var(--info);
   --color-payout: var(--payout);
   --color-status-good: var(--status-good);
   --color-status-warn: var(--status-warn);
@@ -209,7 +229,7 @@
   --color-tint-ai-1: var(--tint-ai-1);
   --color-tint-ai-2: var(--tint-ai-2);
 
-  /* Chart categorical palette — from preset b2qKmlY80 (chartColor: green).
+  /* Chart categorical palette — from preset b2qLMFPP6 (chartColor: green).
      Adopted provisionally: green is this product's profit colour, so a
      categorical chart in these hues can read as an outcome. Revisit per
      DESIGN-LANGUAGE §12. --profit / --loss are untouched. */
@@ -235,14 +255,20 @@
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
   --radius-lg: var(--r-lg);
-  --radius-xl: var(--r-xl);
-  --radius-2xl: var(--r-2xl);
+  --radius-xl: 14px;      /* preset: calc(--radius + 4px) */
+  /* CONTROLS TAKE THE PRESET'S 2xl, NOT OUR CARD RADIUS (§6 amended 2026-09-07, owner).
+     `rounded-2xl` is what the generated button, input, textarea, badge, menu and
+     skeleton all ask for — every CONTROL — and in the preset it is Tailwind's 1rem.
+     Pointing it at `--r-2xl` (14px, our CARD radius) collapsed a distinction the preset
+     makes and left every control two pixels under-rounded before button.jsx then
+     overrode it to 10px on top. Surfaces keep their own step through `--radius-4xl`. */
+  --radius-2xl: 16px;
   /* Our scale stops at 2xl, so every larger library step resolves to our largest rather
      than inventing one — same reasoning as `--radius-4xl` further down. `3xl` is not
      hypothetical: the generated popover asks for `rounded-3xl`, and without this line it
      would silently fall back to Tailwind's 24px, putting two floating overlays on
      different radii and breaking DESIGN-LANGUAGE §6 (an overlay is a card that floats). */
-  --radius-3xl: var(--r-2xl);
+  --radius-3xl: 24px;     /* preset: Tailwind's 1.5rem */
   --radius-full: var(--r-full);
   --radius-input: var(--r-input);   /* our own step — inputs are their own shape */
 
@@ -390,12 +416,17 @@
   --foreground: var(--text);
   --secondary: var(--sel-bg);
 
-  /* Our radius scale stops at 2xl — 0.81rem, i.e. ~13px, NOT the 20px an earlier
-     version of this comment claimed. The preset replaced a px scale with a rem one
-     ~40% tighter (see tokens.css), and the old numbers outlived it in several
-     comments. The library's 4xl step has no equivalent, so it resolves to our
-     largest radius rather than inventing one. */
-  --radius-4xl: var(--r-2xl);
+  /* THE RADIUS SCALE IS THE PRESET'S (§6 amended 2026-09-07, owner): 6 / 8 / 10 / 14 /
+     16 / 24 / 32. It used to alias 2xl, 3xl and 4xl all onto `--r-2xl` (14px, our card
+     radius), which collapsed three distinct steps into one and left controls, popovers
+     and dialogs all rendering at a card's roundness.
+
+     THE CARD IS THE ONE EXCEPTION and it is pinned in `primitives/card.jsx`, not here:
+     the generated card asks for `min(--radius-4xl, 24px)` = 24px, and ours stays 14.
+     A single deviation belongs in the wrapper that owns it, which is the whole point of
+     that seam — putting it in the bridge would have dragged the dialog down with it,
+     since both components read the same token. */
+  --radius-4xl: 32px;     /* preset: Tailwind's 2rem — dialog reads min(4xl, 24px) = 24 */
 }
 
 /* ---------------------------------------------------------------------------
@@ -567,6 +598,19 @@
    to know about while generating.
 --------------------------------------------------------------------------- */
 @theme {
+  /* `sm` EXISTS FOR THE COMPONENT LIBRARY, NOT FOR APP LAYOUT (§22 amended 2026-09-07).
+     `--breakpoint-*: initial` above wipes Tailwind's defaults, which is right for app
+     layout — §22's three max-width numbers are the only places this app reorganises.
+     But it also silently killed every `sm:` INSIDE a generated component, and those are
+     not app breakpoints: they are the component's own stacked-vs-side-by-side switch.
+     The alert-dialog is the proof — its entire desktop form is behind `sm:`
+     (`sm:flex-row sm:justify-end`, `sm:text-left`, `sm:max-w-md`), so it rendered
+     permanently in its phone layout: centred text, buttons stacked full-width.
+     Third variant family found dead this way, after `dark:` and the preset's `.dark {}`.
+     The app never renders below 900px as a desktop layout, so `sm` is always true in
+     practice and this restores the component's intended form. App layout still uses the
+     three max-width numbers and nothing else. */
+  --breakpoint-sm: 40rem;
   --breakpoint-md: 900px;
 }
 

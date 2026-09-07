@@ -151,23 +151,27 @@ test('the popup is a CHILD of the backdrop — centring and dismissal both depen
     'the backdrop must forceRender, or a nested dialog would take its popup down with it');
 });
 
-test('the legacy CSS the shell leans on still declares what the shell assumes', () => {
-  // The shell restates none of this — it reuses the rule that already had it, so the
-  // 24px inset that `.modal`\'s `width: 100%` resolves against stays a single source of
-  // truth. Which means a change to these two rules is a change to every modal.
-  const rule = (sel) => {
-    const start = css.lastIndexOf(`${sel} {`);
-    assert.ok(start !== -1, `rule ${sel} exists`);
-    return css.slice(start, css.indexOf('}', start));
-  };
-  const backdrop = rule('.modal-backdrop');
-  for (const prop of ['position: fixed', 'inset: 0', 'align-items: center', 'justify-content: center']) {
-    assert.ok(backdrop.includes(prop), `.modal-backdrop must keep ${prop} — it centres the popup`);
+test('the shell owns its surface — it leans on no legacy rule', () => {
+  /* THIS TEST INVERTED ON 2026-09-07, and the inversion is the point. It used to assert
+   * that `.modal` and `.modal-backdrop` still declared what the shell assumed, because
+   * the shell restated none of it. Both rules are now DELETED and `modal.jsx` carries
+   * the generated dialog's own values instead — `bg-popover p-6 shadow-xl ring-1
+   * max-w-md`, with the overlay at `bg-black/30` rather than a 78% scrim.
+   *
+   * The old arrangement is what made every dialog render at the CARD colour behind a
+   * near-opaque scrim: an unlayered legacy rule beat the skin it was sitting on. */
+  assert.ok(!/^\.modal \{/m.test(css), '.modal must stay deleted — the shell owns its surface');
+  assert.ok(!/^\.modal-backdrop \{/m.test(css), '.modal-backdrop must stay deleted');
+
+  const shellCode = code(shell);
+  for (const util of ['bg-popover', 'p-6', 'shadow-xl', 'max-w-md', 'bg-black/30']) {
+    assert.ok(shellCode.includes(util), `the shell must carry ${util} itself now`);
   }
-  assert.match(backdrop, /padding: 24px/, '.modal-backdrop\'s padding is the modal\'s viewport gap');
-  // And the reason the popup cannot centre itself with utilities.
-  assert.match(rule('.modal'), /position: relative/,
-    '.modal is unlayered and declares position — a `fixed` utility on the popup would lose to it');
+  // Centring is still by CONTAINMENT, so the popup must not position itself.
+  assert.ok(shellCode.includes('relative w-full'),
+    'the popup stays `relative` — the backdrop centres it, per the test below');
+  assert.ok(!/fixed top-1\/2/.test(shellCode),
+    'the skin self-centres with fixed+translate; this shell must not, or it escapes the backdrop');
 });
 
 test('the shell cancels the inherited user-select that nesting introduced', () => {
@@ -178,17 +182,12 @@ test('the shell cancels the inherited user-select that nesting introduced', () =
   assert.match(code(shell), /'select-text'/, 'the popup must re-enable text selection');
 });
 
-test('Replay and the layout editor keep their OWN surface, and that is not cosmetic', () => {
-  // Both surfaces override most of what `.modal` declares — being later in the sheet —
-  // but each MISSES a different property, and inherits it if `.modal` is added
-  // alongside. Neither is a visual nitpick; both are A1 layout changes, which is why
-  // the base class is a prop with a default rather than a constant:
-  //
-  //   .rp-modal   declares no padding   -> would gain .modal's 24px, shrinking the chart
-  //
-  // `.dle-panel` was the second example (no max-width, and it was 620px against the
-  // .modal cap of 560). Its editor is gone; the rule it illustrates is not, so
-  // ReplayModal carries the argument alone now.
+test('Replay keeps its OWN surface, and that is still not cosmetic', () => {
+  /* `.rp-modal` declares no padding, so it must never carry a surface that supplies one.
+   * That was the argument when the default was `.modal` (24px padding). It survives the
+   * 2026-09-07 migration unchanged, because the default now supplies `p-6` — the same
+   * 24px, from the skin instead of from legacy CSS. The hazard is identical; only its
+   * source moved, which is why `surface` stays a prop rather than becoming a constant. */
   assert.match(code(src('ReplayModal.jsx')), /surface="rp-modal" backdrop="rp-backdrop"/);
   const body = (sel) => {
     const start = css.indexOf(`${sel} {`);
@@ -196,13 +195,9 @@ test('Replay and the layout editor keep their OWN surface, and that is not cosme
     return css.slice(start, css.indexOf('}', start));
   };
   assert.ok(!/padding:/.test(body('.rp-modal')),
-    '.rp-modal declares no padding — that is precisely why it must not carry .modal');
-  assert.ok(!/max-width:/.test(body('.dle-panel')),
-    '.dle-panel declares no max-width — that is precisely why it must not carry .modal');
-  // And the values it would inherit, so this test fails if .modal's own numbers move.
-  assert.match(css, /\.modal \{[^}]*padding: 24px/, '.modal still has the padding rp-modal would inherit');
-  assert.match(css, /\.modal \{[^}]*max-width: 560px/, '.modal still has the cap dle-panel would inherit');
-  assert.match(code(shell), /surface = 'modal'/, 'the shared surface stays the default');
+    '.rp-modal declares no padding — that is precisely why it must not carry the default surface');
+  assert.match(code(shell), /p-6/,
+    'and the default surface still supplies the padding it would inherit');
 });
 
 test('the shell composes its own overlay so the scrim stays a token', () => {
@@ -260,7 +255,10 @@ test('an overlay opened inside a modal portals INTO the modal, not beside its sc
   // The number that makes all of the above necessary. If this ever stops being the
   // largest value in the ladder, read the comment in overlay-container.js before
   // deleting anything here.
-  assert.match(css, /\.modal-backdrop \{[^}]*z-index: 2147483000/,
+  // The number moved from `.modal-backdrop` into the shell when that rule was deleted
+  // (2026-09-07). The invariant is unchanged: the scrim must outrank the dropdown tier,
+  // which is WHY overlays inside a modal are contained rather than raised.
+  assert.match(code(shell), /z-\[2147483000\]/,
     'the scrim outranks the dropdown tier — which is why overlays are contained, not raised');
 });
 

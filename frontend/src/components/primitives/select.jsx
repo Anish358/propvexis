@@ -1,3 +1,10 @@
+/* select.jsx
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ */
+
 import React from 'react';
 import { CheckIcon } from 'lucide-react';
 import { Select as SelectPrimitive } from '@base-ui/react/select';
@@ -81,6 +88,8 @@ function SelectTrigger({ className, ...rest }) {
  * Popup renders a full-width panel pinned to the left of the viewport with the rows
  * mis-laid-out: it is the listbox container Base UI positions and scrolls, so the
  * Positioner has nothing to size against without it. Verified by screenshotting both. */
+/* `border-border` is right again: `--color-border` is contextual, and the popup declares
+ * `data-overlay-surface`, so it resolves to the panel's edge. See tokens.css. */
 const SURFACE = [
   'min-w-(--anchor-width) rounded-2xl border border-border bg-popover shadow-2',
   'origin-(--transform-origin) text-foreground outline-none',
@@ -103,7 +112,7 @@ function SelectPopup({
         alignItemWithTrigger={false}
         data-slot="select-positioner"
       >
-        <SelectPrimitive.Popup className={SURFACE} data-slot="select-popup" {...rest}>
+        <SelectPrimitive.Popup className={SURFACE} data-overlay-surface="" data-slot="select-popup" {...rest}>
           <SelectPrimitive.List
             className={cn('max-h-(--available-height) overflow-y-auto p-1', className)}
             data-slot="select-list"

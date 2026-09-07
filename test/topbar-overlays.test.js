@@ -224,7 +224,10 @@ test('keyboard focus in a menu is VISIBLE — now the library\'s job, not a twin
   // `accent` means "subtle hover background", ours means "brand blue". If the bridge ever
   // stopped remapping it, `focus:bg-accent` would turn every menu row bright blue — the
   // §14 violation the migration plan flagged as R2, now reachable through the skin.
-  assert.match(bridgeCss, /--color-accent:\s*var\(--surface-hover\)/,
+  // Repointed at --overlay-hover 2026-09-07: a menu row sits on a #18181b PANEL, not on
+  // a #111114 card, and one hover value could not read on both. Still a neutral surface,
+  // which is the whole of what this line protects.
+  assert.match(bridgeCss, /--color-accent:\s*var\(--(chrome|overlay|surface)-hover\)/,
     'focus:bg-accent must resolve to a neutral surface — see DESIGN-LANGUAGE §14');
 });
 

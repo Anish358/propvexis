@@ -148,6 +148,19 @@ test('every day answers the pointer, and the hover edge can actually reach the c
   assert.match(decl, /!today && 'hover:border-\[var\(--line-hover\)\]'/);
   assert.ok(!/clickable && '[^']*hover:border/.test(decl),
     'the hover edge must not be conditional on the day having trades');
-  // --line-hover IS the prototype's #3f3f46, so this is the design's value.
-  assert.match(appCss, /--line-hover:\s*var\(--zinc-700\)/);
+  /* THE INVARIANT IS THAT THE HOVER EDGE OUT-READS THE RESTING ONE, not that it is
+   * spelled `var(--zinc-700)`. This pinned that spelling and failed when the ramp was
+   * re-valued against the dashboard mockup (2026-09-07, #3e3e45 — one unit off zinc-700
+   * and identical to the eye). A cell whose hover edge does not clearly beat its resting
+   * edge is the bug; which grey delivers that is the palette's business. */
+  const hex = (name) => {
+    const m = appCss.match(new RegExp(`(?<![\\w-])--${name}\\s*:\\s*(#[0-9a-f]{6}|var\\(--[\\w-]+\\))`, 'i'));
+    assert.ok(m, `--${name} must be declared`);
+    const v = m[1].startsWith('var(')
+      ? appCss.match(new RegExp(`(?<![\\w-])--${m[1].slice(6, -1)}\\s*:\\s*(#[0-9a-f]{6})`, 'i'))[1]
+      : m[1];
+    return parseInt(v.slice(1, 3), 16);
+  };
+  assert.ok(hex('line-hover') > hex('line') + 8,
+    'the hover edge must clearly out-read a cell\'s resting edge, or nothing appears to happen');
 });

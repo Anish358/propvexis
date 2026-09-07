@@ -74,7 +74,7 @@ export {
 export { Modal } from './modal.jsx';
 export {
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
-  MenuSeparator, MenuTrigger,
+  MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger,
 } from './menu.jsx';
 // Not a component — the seam that tells an overlay to render INSIDE the modal it was
 // opened from, instead of under its scrim. `Modal` provides it and `Menu` consumes it,

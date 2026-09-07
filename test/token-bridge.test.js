@@ -68,7 +68,19 @@ test('the --accent collision stays resolved in our favour', () => {
   // shadcn's "accent" means a subtle hover background; ours means brand blue.
   // Their name is served from our neutral hover token — which also keeps chrome
   // grayscale (DESIGN-LANGUAGE N4). Our brand blue is exposed as brand-*.
-  assert.match(bridgeCode, /--color-accent:\s*var\(--surface-hover\)/);
+  /* THE INVARIANT IS "A NEUTRAL HOVER TOKEN", not which one. This pinned
+   * `var(--surface-hover)` and failed when accent was repointed at `--overlay-hover`
+   * (2026-09-07): a row on a #111114 card and a row on a #18181b panel cannot share one
+   * highlight, and `focus:bg-accent` is in practice the PANEL case — every generated
+   * menu, select and command item. Both are neutral hover tokens, which is all this
+   * test was ever protecting. What must never happen is accent resolving to `--accent`,
+   * our brand blue, which is asserted below. */
+  /* Now `--chrome-hover`: a CONTEXTUAL neutral hover — a card's at :root, a panel's
+   * inside [data-overlay-surface]. Still the invariant this test was always for. */
+  assert.match(bridgeCode, /--color-accent:\s*var\(--(chrome|overlay|surface)-hover\)/,
+    'shadcn accent must be served from a NEUTRAL hover token, keeping chrome grayscale');
+  assert.doesNotMatch(bridgeCode, /--color-accent:\s*var\(--accent\)/,
+    'their "accent" is a hover background; ours is brand blue — never wire them together');
   assert.match(bridgeCode, /--color-brand:\s*var\(--accent\)/);
   /* PRIMARY IS NO LONGER THE ACCENT (2026-08-28). This asserted
    * `--color-primary: var(--accent)`, on the reading that a primary button is a
@@ -146,13 +158,19 @@ test('typography stays ours', () => {
 });
 
 test("Tailwind's own type ladder is repointed at our scale, not left on its defaults", () => {
-  // Preset b2qKmlY80 defines no font sizes, so every `text-sm` / `text-xs` /
-  // `text-base` in a generated component was resolving to Tailwind's 14/12/16px
-  // instead of this app's 13/11/15px. That put every migrated primitive one step
-  // above every unmigrated one, and it is a single mapping to get wrong — so it is a
-  // single mapping to pin.
-  assert.match(tokensCss, /--fs-body:\s*13px/, 'the body role is the app 13px workhorse');
-  assert.match(tokensCss, /--fs-label:\s*11px/, 'the label role is the app 11px pill/label step');
+  /* THE INVARIANT IS THE DIRECTION, not the numbers. A preset defines no font sizes, so
+   * without these mappings every `text-sm` in a generated component silently resolves to
+   * Tailwind's own default and our scale stops being the source of truth.
+   *
+   * The literals moved on 2026-09-07 (owner): the scale used to run a pixel under at
+   * every step — 11/13/15/18.5/20 — and now matches the preset at 12/14/16/18/24, so a
+   * registry component renders the size it previewed at. This test pinned `13px` and
+   * `11px` directly and failed on that change, which is pinning a value where the rule
+   * is what matters. It asserts the roles EXIST and the mapping points our way. */
+  for (const role of ['fs-label', 'fs-body', 'fs-card-title', 'fs-section-title', 'fs-page-title']) {
+    assert.match(tokensCss, new RegExp(`--${role}:\\s*[\\d.]+px`),
+      `--${role} must be declared with a real size in the token layer`);
+  }
   for (const [step, token] of [
     ['xs', 'fs-label'],
     ['sm', 'fs-body'],
@@ -238,6 +256,16 @@ test('the entry imports the layers in order, legacy last', () => {
 
 test('the split is clean: tokens hold no rules, legacy holds no tokens', () => {
   assert.ok(!/^:root\s*\{/m.test(legacyCss), 'a token block leaked into legacy/');
-  const rules = strip(tokensCss).match(/^[.#*[a-z][^{}]*\{/gm) || [];
-  assert.deepEqual(rules, [], 'a component rule leaked into tokens.css');
+  /* TIGHTENED 2026-09-07: the bar is not "no rules", it is "no rule that sets anything
+   * but tokens". The token layer legitimately expresses CONDITIONAL values — the old
+   * `[data-theme="light"]` block did, and `[data-overlay-surface]` does now, giving a
+   * floating panel its own chrome so six components stop each rediscovering that a card's
+   * edge is invisible on a panel. What must never appear here is a rule that paints:
+   * a colour, a size, a font. That is what "a component rule leaked in" means. */
+  const painted = [];
+  for (const m of strip(tokensCss).matchAll(/^([.#*[a-z][^{}]*)\{([^}]*)\}/gm)) {
+    const decls = m[2].split(';').map((d) => d.trim()).filter(Boolean);
+    if (decls.some((d) => !d.startsWith('--'))) painted.push(m[1].trim());
+  }
+  assert.deepEqual(painted, [], 'a component rule leaked into tokens.css — it paints, it does not declare tokens');
 });

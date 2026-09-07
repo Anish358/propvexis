@@ -1,3 +1,9 @@
+/* page-entrance.jsx
+ *
+ * @design approved 2026-09-06 — visible on the locked dashboard (the section cascade, decided separately).
+ *   The owner signed that page off and DESIGN-LANGUAGE was written from it.
+ */
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';

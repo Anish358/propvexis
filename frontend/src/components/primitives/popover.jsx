@@ -1,3 +1,10 @@
+/* popover.jsx
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ */
+
 import { PopoverContent as UiPopoverContent, Popover as UiPopover, PopoverTrigger as UiPopoverTrigger } from '@/components/ui/popover';
 
 /* Popover — PropVexis primitive, on the GENERATED shadcn component and carrying the
@@ -82,6 +89,8 @@ function PopoverTrigger(props) {
 
 // `align`/`side` default to the top bar's shape — a panel hanging below its trigger,
 // right edges flush — because that is where both of its popovers sit.
+/* No edge override here: `--color-border` is contextual, so `data-overlay-surface` on the
+ * panel is the whole fix — see tokens.css "CHROME IS CONTEXTUAL". */
 function PopoverContent({
   className, align = 'end', side = 'bottom', sideOffset = 6, surface = 'panel', ...rest
 }) {
@@ -90,6 +99,7 @@ function PopoverContent({
       align={align}
       side={side}
       sideOffset={sideOffset}
+      data-overlay-surface=""
       className={[UNSKIN, surface === 'none' && NO_SURFACE, MOTION, className]
         .filter(Boolean).join(' ')}
       {...rest}

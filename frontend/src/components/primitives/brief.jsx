@@ -1,3 +1,9 @@
+/* brief.jsx
+ *
+ * @design approved 2026-09-06 — visible on the locked dashboard (Today's Brief).
+ *   The owner signed that page off and DESIGN-LANGUAGE was written from it.
+ */
+
 import React, { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 

@@ -12,6 +12,7 @@ import ForgotPassword from './features/auth/ForgotPassword.jsx';
 import ResetPassword from './features/auth/ResetPassword.jsx';
 import VerifyEmail from './features/auth/VerifyEmail.jsx';
 import Dashboard from './features/dashboard/Dashboard.jsx';
+import PrimitiveReview from './features/dev/PrimitiveReview.jsx';
 import TradeLog from './features/trades/TradeLog.jsx';
 import Analytics from './features/analytics/Analytics.jsx';
 import Strategies from './features/strategies/Strategies.jsx';
@@ -616,6 +617,14 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
+
+            {/* DEV ONLY — the primitive review gallery (nav.js `dev: true`).
+                Vite resolves import.meta.env.DEV at build time, so this Route and the
+                page behind it are dropped from the production bundle rather than being
+                merely unlinked: the app is live with open signup, and an unlinked route
+                is still a reachable URL. Goes away when no primitive is `@design
+                unreviewed` — docs/architecture/PRIMITIVE-REVIEW-PLAN.md. */}
+            {import.meta.env.DEV && <Route path="test" element={<PrimitiveReview />} />}
 
             {/* Trade Journal module (IA in nav.js) */}
             <Route path="journal">

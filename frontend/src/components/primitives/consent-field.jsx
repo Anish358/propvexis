@@ -1,3 +1,10 @@
+/* consent-field.jsx
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ */
+
 import React from 'react';
 import { Checkbox } from './checkbox.js';
 import { Field, FieldItem, FieldLabel } from './field.jsx';

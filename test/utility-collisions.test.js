@@ -184,6 +184,16 @@ test('generated components hardcode no colours', () => {
 test('application code imports primitives, never generated components', () => {
   const offenders = [];
   for (const f of appFiles()) {
+    /* `features/dev/` IS EXEMPT, and narrowly. It holds the primitive review gallery,
+     * whose entire purpose is rendering the REGISTRY component with none of our layer
+     * applied, beside the wrapped one — so a reviewer can see what the wrapper changes.
+     * Importing through primitives there would defeat the pane.
+     *
+     * This exemption is why the rule survives rather than an argument against it: the
+     * gallery is dev-only (dropped from the production bundle by import.meta.env.DEV)
+     * and is deleted when the review finishes. If a SHIPPING page ever needs this
+     * exemption, the answer is a wrapper, not a wider regex. */
+    if (/features[\\/]dev[\\/]/.test(f)) continue;
     // Relative form is matched path-agnostically — a page nested under features/
     // reaches the generated layer as `../../components/ui/...`, not `./`.
     if (/from\s+['"](@\/components\/ui|[.\/]*(?:\.\.\/)*components\/ui)/.test(readSrc(f))) offenders.push(f);
@@ -246,7 +256,25 @@ test('every generated primitive is reachable — no dead generated code', () => 
       if (!reachable.has(other) && body.includes(`@/components/ui/${other}`)) queue.push(other);
     }
   }
+  /* REFERENCE-ONLY GENERATED FILES: reachable from the dev review gallery and from
+   * nowhere else. The invariant this test protects is that nothing is SILENTLY orphaned,
+   * and the cost it protects against is real — @source scans components/ui regardless of
+   * who imports it, so an unreachable file still emits its whole skin into the
+   * production bundle. Listing one here does not avoid that cost; it makes it a
+   * deliberate, reviewable line instead of an accident.
+   *
+   * `alert-dialog` is here because the gallery renders the REGISTRY component beside our
+   * wrapped one, which is the only honest way to see what our layer changes. It leaves
+   * this list one of two ways: a primitive wraps it and it becomes reachable properly,
+   * or the gallery is deleted at the end of the review and so is this file. */
+  const REFERENCE_ONLY = new Set(['alert-dialog']);
+  const devGallery = readSrc('features/dev/PrimitiveReview.jsx');
   for (const [name] of uiSources) {
+    if (REFERENCE_ONLY.has(name)) {
+      assert.ok(devGallery.includes(`@/components/ui/${name}`),
+        `ui/${name}.jsx is listed reference-only but the dev gallery does not import it — delete the file or the entry`);
+      continue;
+    }
     assert.ok(reachable.has(name),
       `ui/${name}.jsx is imported by nothing — Tailwind still emits its skin. Wire it or delete it.`);
   }

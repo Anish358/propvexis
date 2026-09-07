@@ -60,12 +60,17 @@ test('a capped list SHOWS its scrollbar — the only affordance the columns have
   assert.ok(css.includes('scrollbar-width: thin;'));
   assert.ok(css.includes('scrollbar-color: var(--line-chip) transparent;'));
   // Tokenised, not the prototype's literals — COLOUR-INVENTORY §6 rules that these
-  // become no new tokens. #2a2a30 is --line-chip.
+  // become no new tokens.
   // The DECLARATIONS only: the file's header quotes the prototype's rule verbatim, so
   // a raw scan would match the citation it exists to explain.
   const decls = css.replace(/[/][*][\s\S]*?[*][/]/g, '');
   assert.ok(!/#2a2a30|#26262b/.test(decls), 'the prototype literals must resolve to tokens');
-  assert.match(tokensCss, /--line-chip: #2a2a30/);
+  /* This used to pin `--line-chip: #2a2a30`. The invariant is that the token EXISTS and
+   * resolves to a real colour — the line above is what actually protects "tokenised, not
+   * literals". Pinning the hex only made a palette change fail here for no reason, which
+   * it duly did when the ramp was re-valued against the dashboard mockup (2026-09-07). */
+  assert.match(tokensCss, /--line-chip:\s*#[0-9a-f]{6}/i,
+    '--line-chip must resolve to a real colour, or the scrollbar thumb is invisible');
   // Always visible, then INTENSIFIED on hover (§7) — never conjured by it. You cannot
   // discover that a list scrolls by hovering a list you do not know scrolls.
   assert.ok(css.includes('background: var(--line-chip);'));

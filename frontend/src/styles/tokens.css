@@ -28,7 +28,7 @@
   --zinc-300:#d4d4d8; --zinc-200:#e4e4e7; --zinc-50:#fafafa;
 
   --blue-400:#51a2ff; --blue-500:#2b7fff; --blue-600:#155dfc; --blue-700:#1447e6;
-  --blue-800:#193cb8;   /* preset b2qKmlY80 uses this as the dark-theme brand fill */
+  --blue-800:#193cb8;   /* the preset's dark-theme brand fill */
   --purple-400:#a78bfa; --purple-500:#8b5cf6;
   --cyan-400:#38bdf8;
 
@@ -36,36 +36,129 @@
      Each step is a DEPTH and the design is consistent about which depth means
      what. See COLOUR-INVENTORY §1. No gradients: flat surfaces, generous
      whitespace, subtle shadows. ===== */
+  /* ===== THE RAMP, 2026-09-07 (owner). =====
+     Ten depths taken from the owner's `PropVexis Dashboard Zinc` mockup, which is the
+     authority for every value below. DESIGN-LANGUAGE §4 carries the table and the rule.
+
+     What it replaced: a ramp travelling #09090b -> #1c1c21, ten depths inside nineteen
+     RGB units, so no single step was legible. `--line` also sat ONE UNIT from
+     `--surface-hover`, which meant hovering a row painted it the colour of the border
+     around it.
+
+     THE ORDER IS THE DESIGN. A ramp cannot be lifted in the middle without its
+     neighbours following, and an inverted pair — a "raised" card below the cards it
+     sits on, a "strong" fill below the quiet one — is a bug you see rather than read.
+     `design-tokens.test.js` asserts it climbs.
+
+     AN OVERLAY IS NOT ON THIS RAMP. A floating panel has its own surface, hover and
+     edge below — see --surface-2. Asking one token to serve a #111114 card and a
+     #18181b panel is the most expensive mistake this palette has made. */
   --bg: var(--zinc-950);         /* the page */
   --rail-bg: #0b0b0d;            /* the rail; also a weekend / no-trade calendar cell */
   --sidebar-bg: var(--rail-bg);  /* legacy alias — same surface, older name */
-  --surface-sunken: #0d0d10;     /* a card's footer strip, a meter cell, an empty weekday */
-  --surface: #101013;            /* EVERY CARD. The most load-bearing value here. */
+  --surface-sunken: #0e0e11;     /* a card's footer strip, a meter cell, an empty weekday */
+  --surface: #111114;            /* EVERY CARD. The most load-bearing value here. */
   --panel: var(--surface);       /* legacy alias */
-  --surface-raised: #111115;     /* the ONE card that sits above the others (Net P&L) */
-  --row-bg: #121215;             /* an event or alert row inside a card */
-  --control-bg: #131316;         /* a pill control at rest — unit toggle, Filters, icon buttons */
-  --control-bg-strong: #16161a;  /* a FILLED quiet button — Sync Trades, This month, Import */
-  --surface-2: var(--control-bg);/* legacy alias: "one step above the card" */
+  --surface-raised: #131316;     /* the ONE card that sits above the others (Net P&L) */
+  --row-bg: #141417;             /* an event or alert row inside a card */
+  --control-bg: #151518;         /* a pill control at rest — unit toggle, Filters, the bell */
+  --control-bg-strong: #19191c;  /* a FILLED quiet button — Sync Trades, This month, Import */
 
-  /* Hover and selection. --sel-bg and --sel-well point in OPPOSITE directions and
-     both are right: #1c1c21 on the #0b0b0d rail is lighter than its ground, #17171c
-     on a #101013 card is darker. Selected reads as raised on the rail and recessed
-     on a card. Two roles, not one token used twice. */
-  --surface-hover: #1a1a1e;      /* any control's hover; also a row's, an icon button's */
-  --sel-bg: #1c1c21;             /* a quiet active fill: active rail item, count chips */
-  --sel-well: #17171c;           /* a selected account chip — a well, not a raise */
-  --sel-bg-strong: var(--zinc-800);
+  /* THE OVERLAY SURFACE IS ITS OWN VALUE NOW (owner, 2026-09-07). It was an alias for
+     --control-bg, so one number served a pill control in the top bar AND every floating
+     panel — and those sit on different grounds. A control sits on the PAGE or a card; a
+     menu floats above whatever is beneath it and has to separate from all of them.
+     #151518 works for the control and left a dropdown almost invisible, which is the
+     complaint that started this whole colour pass.
+     The mockup could not settle this: it contains no menu, popover or dropdown
+     anywhere, so #18181b comes from preset b2qLMFPP6, kept from the earlier pass.
+     `bridge.css` maps --color-popover here. */
+  --surface-2: #18181b;          /* EVERY FLOATING PANEL — menu, popover, select, combobox */
+
+  /* Hover and selection, from the mockup. Note it separates them again — hover #1c1c1f,
+     selected #1e1e21 — after they were briefly collapsed onto one value.
+
+     --sel-well IS NOW A RAISE, AND THE NAME IS WRONG. The mockup draws a selected
+     account chip LIGHTER than its card (#1b1b1e on #111114), where this token was built
+     on the opposite premise. The value follows the design; the name is left alone for
+     now because renaming a token touches every call site and that is a separate change.
+     Do not reason from the name here — read the value. */
+  --surface-hover: #1c1c1f;      /* a row's hover ON A CARD; a control's, an icon button's */
+
+  /* A ROW INSIDE AN OVERLAY HOVERS HARDER, and it has to. --surface-hover is tuned to a
+     #111114 card (+11, which is right there); on a #18181b panel the same value is +4
+     and reads as nothing. That single token serving both grounds IS the dropdown
+     complaint. The mockup makes the same split by hand — it uses three different hover
+     values on three different grounds (#121215 on an event row, #17171a on a trade row,
+     #1c1c1f on an alert row) rather than one.
+     #27272a on #18181b is +15, the same separation --surface-hover gives on a card.
+     `bridge.css` maps --color-accent here, which is what `focus:bg-accent` on every
+     generated menu, select and command item resolves to. */
+  --overlay-hover: #27272a;      /* a row's hover INSIDE a floating panel */
+  /* AND THE PANEL'S OWN EDGE, for the same reason. `--line` (#1b1b1e) is tuned to a
+     #111114 card, where it reads; on a #18181b panel it is +3 and disappears, so a menu
+     lost its outline entirely. The preset draws this edge as white at 10%, which over
+     #18181b computes to about #2f2f31 — this is that value, spelled opaquely to stay on
+     the graded border ramp the mockup uses.
+     THIRD TIME TODAY one token was asked to serve a card and a panel at once (surface,
+     hover, and now edge). If a fourth appears, it is the same fault. */
+  --overlay-line: #2f2f33;       /* a floating panel's edge */
+
+  /* A CONTROL'S OWN EDGE AND FILL — a white alpha, matching the preset's
+     `--input: oklch(1 0 0 / 15%)`. It is the ONE place the palette keeps a translucent
+     value, and the reason is arithmetic: every consumer reduces it further
+     (`bg-input/30`, `/32`, `/50`, `/64`), and reducing an OPAQUE grey pulls it toward the
+     background while reducing a translucent white keeps it a lightening overlay. Pointed
+     at `--chrome-line` (#2f2f33) the outline button's hover composited to #1f1f22 against
+     the preset's #222225 — duller, and duller again on every darker surface.
+     Being an alpha, it also needs no overlay context: it reads on any ground. */
+  --input-line: rgba(255,255,255,0.15);
+
+  /* ===== CHROME IS CONTEXTUAL — THE PERMANENT FIX FOR CARD-vs-OVERLAY =====
+     Six separate bugs had one cause: a token tuned for a CARD's ground (#111114) used on
+     an OVERLAY's ground (#18181b), where it is three or four units and invisible. The
+     panel, the row highlight, the panel edge, the submenu ring, the modal surface and the
+     outline button's hover each failed that way, and each was found by eye, late.
+
+     Absolute tokens cannot fix this — there is no single value that reads on both grounds.
+     So the two below are RELATIVE: they name a job, and the surface underneath supplies
+     the value. `:root` holds the card answer; a floating panel overrides them for its own
+     subtree via [data-overlay-surface] below, and everything inside it — borders, hovers,
+     an outline button's fill — follows automatically.
+
+     `bridge.css` points --color-border, --color-input and --color-accent here, so a
+     GENERATED component gets the right value with no wrapper override at all. That is the
+     test of whether this worked: the manual overrides in menu/popover/select could be
+     deleted. */
+  --chrome-line: var(--line);          /* an edge drawn ON the current surface */
+  --chrome-hover: var(--surface-hover);/* a row hovering ON the current surface */
+  --sel-bg: #1e1e21;             /* a quiet active fill: active rail item, count chips */
+  --sel-well: #1b1b1e;           /* a selected account chip — LIGHTER than its card */
+  --sel-bg-strong: #29292c;
 
   /* ===== LINES — seven roles, and the ramp is deliberate: a divider inside a card
      must not read as loud as the card's own edge. See COLOUR-INVENTORY §3. ===== */
-  --line-inset: #17171a;         /* a divider INSIDE a card (tab strip, footer rule) */
-  --line: #1a1a1d;               /* a card's edge; also the rail's and the top bar's */
-  --line-control: #232327;       /* a pill control's edge; the Net P&L card's edge */
-  --line-strong: var(--zinc-800);/* THE standard visible border — dashed empties, separators */
-  --line-chip: #2a2a30;          /* a chip's edge on a filled ground */
-  --line-selected: #3a3a42;      /* the selected account chip's edge */
-  --line-hover: var(--zinc-700); /* a hover edge; also the `·` glyph between header items */
+  /* BACK TO OPAQUE, AND GRADED (owner, 2026-09-07, second call the same day).
+     A translucent white edge was shipped earlier that day and then reverted: the
+     dashboard mockup this palette is taken from grades its borders across five opaque
+     steps, and one white alpha cannot express that — it produces a single edge weight
+     that gets stronger as the surface beneath it lightens, which is the opposite of the
+     mockup's intent. The alpha's real advantage (it re-reads at any depth) is not worth
+     losing five deliberate weights.
+
+     THE ONE THING THE ALPHA WAS SOLVING IS BACK: `--line` (#1b1b1e) and
+     `--surface-hover` (#1c1c1f) are one unit apart again. The mockup gets away with it
+     by COMPOSITION rather than by distance — the rows that hover (event, trade, alert)
+     carry no border, and the surfaces that carry a border (cards, chips) change their
+     BORDER on hover rather than their fill. If you ever put a #1c1c1f hover inside a
+     #1b1b1e border, it will look wrong, and the token values will not stop you. */
+  --line-inset: #1a1a1d;         /* a divider INSIDE a card (tab strip, footer rule) */
+  --line: #1b1b1e;               /* a card's edge */
+  --line-control: #252528;       /* a pill control's edge — Filters, the unit toggle, the bell */
+  --line-strong: #29292c;        /* THE standard visible border — dashed empties, separators */
+  --line-chip: #2d2d31;          /* a chip's edge on a filled ground; a count badge's */
+  --line-selected: #3d3d43;      /* the selected account chip's edge */
+  --line-hover: #3e3e45;         /* a hover edge; also the `·` glyph between header items */
 
   /* ===== TEXT — nine tiers. That is not excess: this app draws a lot of quiet
      metadata, and the prototype separates "muted" from "faint" from "barely there"
@@ -148,6 +241,24 @@
   --payout: var(--cyan-400);                                  /* funded payouts only */
   --status-good: var(--profit); --status-warn: var(--warning); --status-bad: var(--loss);
   --status-info: #7aa2f7;
+
+  /* ===== SYSTEM MESSAGE COLOUR — §17, owner ruling 2026-09-06 =====
+     An error must LOOK like an error. But red is also a losing trade, so the
+     licence is deliberately narrow: a system message may colour its GLYPH and a
+     1px EDGE. It may not colour its body text, and it may not wash its surface
+     beyond a trace. Nothing inside a data surface — a table cell, a KPI figure,
+     a chart mark — may use these; there, red and green mean money and only money.
+     Aliases onto existing values: no new hue, no new preset ID. */
+  --success: var(--profit);        /* a success glyph / edge — never a fill  */
+  /* THE DESTRUCTIVE RED IS ITS OWN SHADE (owner, 2026-09-06). Red still means BOTH a
+     losing trade and a dangerous action — §17's rule is unchanged — but the two get
+     different shades of it, which is a split the palette already makes elsewhere:
+     --loss for a FIGURE, a lighter red for a GLYPH. This is preset b2qLMFPP6's value
+     (Tailwind red-400, oklch(0.704 0.191 22.216)) so a generated component previews
+     truthfully against the registry. THE MONEY RED IS UNTOUCHED: --loss stays #ef4444
+     and every P&L figure with it. */
+  --destructive: #ff6467;
+  --info:    var(--status-info);   /* an informational glyph / edge          */
   /* The only blue-tinted SURFACES in the design, and they are a cool grey rather
      than brand blue. Named so nobody later "corrects" them to --accent. */
   --info-bg:#0f1319; --info-border:#1e2532;
@@ -158,8 +269,11 @@
      small sizes and flatter at large ones than the rem scale it replaces, which is
      why a card and a nav row can share 10 and nothing looks mismatched.
      ASSIGNMENT BY SURFACE is unchanged; only the values moved. ===== */
-  --r-sm:5px;      /* smallest chrome */
-  --r-md:6px;      /* icon buttons, menu rows, small badges */
+  /* sm and md take the preset's steps (owner, 2026-09-07). --r-lg (buttons, 10px) and
+     --r-2xl (cards, 14px) were ALREADY the preset's exact values and are untouched —
+     the scale was closer to b2qLMFPP6 than anyone had noticed. */
+  --r-sm:6px;      /* smallest chrome */
+  --r-md:8px;      /* icon buttons, menu rows, small badges */
   --r-lg:10px;     /* BUTTONS — and nav rows, event rows, meter cells, day cells */
   --r-input:10px;  /* inputs share the button step in Rhea */
   --r-xl:12px;     /* account chips, tiles, a chart well */
@@ -236,9 +350,18 @@
   /* Type scale — the hierarchy's shape calibrated to this app's density, not the
      preset's marketing-page sizes. bridge.css points Tailwind's text-sm/text-xs at
      these rather than at its own 14/12px defaults. */
-  --fs-page-title:20px; --fs-section-title:18.5px; --fs-card-title:15px;
-  --fs-primary-metric:25px;
-  --fs-body:13px; --fs-label:11px;
+  /* THE TYPE SCALE IS THE PRESET'S (owner, 2026-09-07): 12 / 14 / 16 / 18 / 20 / 24 / 30.
+     It used to run a pixel under at every step — 11 / 13 / 15 / 18.5 / 20 — so a component
+     installed from the registry rendered smaller than it previewed at. `bridge.css` points
+     Tailwind's text-* names here, and the two now agree, which also resolves an oddity:
+     `text-xl` (unmapped, Tailwind's 20px) and `text-2xl` used to render the SAME size.
+
+     `--fs-primary-metric` is the one value with no preset equivalent — 28px is what the
+     owner's dashboard mockup draws the Net P&L at. It moved with the rest because at its
+     old 25px it would now be barely larger than a page title. */
+  --fs-page-title:24px; --fs-section-title:18px; --fs-card-title:16px;
+  --fs-primary-metric:28px;
+  --fs-body:14px; --fs-label:12px;
 
   /* ===== MOTION ===== */
   /* Three durations. --dur-slow is for a VALUE TRAVELLING along a path (a meter bar
@@ -337,12 +460,28 @@
 
   /* ===== CHART =====
      --chart-grid is the gridline behind a series; the categorical palette comes from
-     preset b2qKmlY80 (chartColor: green) and is ADOPTED PROVISIONALLY — green is this
+     preset b2qLMFPP6 (chartColor: green) and is ADOPTED PROVISIONALLY — green is this
      product's profit colour, so a categorical chart in these hues can read as profit.
      Revisit per DESIGN-LANGUAGE §12; --profit and --loss are untouched. */
   --chart-grid:#1e1e23;
   --chart-1:#7bf1a8; --chart-2:#00c950; --chart-3:#00a63e; --chart-4:#008236; --chart-5:#016630;
 }
+
+/* THE OVERLAY CONTEXT — the permanent fix for card-vs-overlay.
+   Any floating panel carries `data-overlay-surface`, and everything inside it resolves
+   chrome against the PANEL rather than a card: its border, its row highlights, an outline
+   button's hover. One rule, so a new overlay cannot forget it the way six components did.
+
+   IT MUST LIVE IN THIS FILE. `bridge.css` may not declare our tokens (it maps their names
+   onto ours, one way), and the contextual value IS one of our tokens. This is the token
+   layer expressing a conditional value — the same shape the old `[data-theme="light"]`
+   block had — not a component rule. */
+[data-overlay-surface] {
+  --chrome-line: var(--overlay-line);
+  --chrome-hover: var(--overlay-hover);
+}
+
+
 
 /* ===== NO LIGHT THEME =====
    REMOVED 2026-08-28, by owner decision, and re-affirmed with the Rhea redesign.

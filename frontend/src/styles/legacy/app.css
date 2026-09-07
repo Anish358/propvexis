@@ -196,14 +196,6 @@ body {
 /* ---- data-category palette (END) ---- */
 
 /* ---- modal ---- */
-.modal-backdrop {
-  position: fixed; inset: 0; background: var(--scrim-3);
-  display: flex; align-items: center; justify-content: center; padding: 24px;
-}
-.modal {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl);
-  width: 640px; max-width: 100%; padding: 24px; max-height: 90vh; overflow-y: auto;
-}
 .modal header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .modal h2 { margin: 0; font-size: 17px; }
 .modal .x { background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; }
@@ -1227,19 +1219,6 @@ label.full { margin-bottom: 16px; }
 .at-cancel { background: transparent !important; border-color: var(--line) !important; color: var(--neutral-12) !important; }
 
 /* Manage-accounts modal */
-.modal-backdrop {
-  position: fixed; inset: 0; background: var(--scrim-4); z-index: 2147483000;
-  display: flex; align-items: center; justify-content: center; padding: 24px;
-  backdrop-filter: blur(2px);
-}
-.modal {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl);
-  width: 100%; max-width: 560px; max-height: 86vh;
-  /* hidden x + auto y: a lone `overflow-y: auto` makes overflow-x compute to
-     auto too, which spawns a stray horizontal scrollbar. Pin x to hidden. */
-  overflow: hidden auto;
-  box-shadow: var(--sh-3); position: relative; z-index: 1;
-}
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .modal-head h3 { margin: 0; font-size: var(--fs-section-title); }
 .modal-x { background: transparent; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }

@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useMatch } from 'react-router-dom';
 import {
   Activity, Bell, BarChart3, ChevronDown, ChevronUp, FileText, LayoutGrid, Notebook,
-  Menu, Plus, Settings as SettingsIcon, Shield, Target, Wrench,
+  Menu, Plus, Settings as SettingsIcon, Shield, Target, TestTubeDiagonal, Wrench,
 } from 'lucide-react';
 import Logo from '../components/Logo.jsx';
-import { NAV } from './nav.js';
+import { NAV, isDevOnly } from './nav.js';
 import { BRAND } from '../lib/theme.js';
 import { useAuth } from './AuthContext.jsx';
 import {
@@ -55,9 +55,18 @@ const ICONS = {
   tools: Wrench,
   settings: SettingsIcon,
   analytics: BarChart3,
+  test: TestTubeDiagonal,
 };
 
 const iconFor = (key) => ICONS[key] || ICONS.dashboard;
+
+/* The rail the app actually renders. `dev: true` entries are for us, and the app is
+ * live with open signup — a "Test" item in a customer's sidebar is a bug, not a
+ * curiosity. Vite evaluates import.meta.env.DEV at build time, so the entry and the
+ * route it points at are both dropped from the production bundle rather than merely
+ * hidden. The gate is HERE and not in nav.js because that file stays JSX-free and
+ * node-importable. */
+const VISIBLE_NAV = NAV.filter((item) => import.meta.env.DEV || !isDevOnly(item));
 
 /* NO NUDGE CARD IN THE FOOTER (removed 2026-08-28, owner call).
  *
@@ -99,7 +108,7 @@ const NAV_BASE = 0.06;
 const CTA_DELAY = 0.04;
 // After the last row, so the footer closes the sweep instead of racing it. Derived from
 // NAV.length rather than written down, so adding a module does not silently overlap it.
-const FOOT_DELAY = NAV_BASE + NAV.length * NAV_STEP;
+const FOOT_DELAY = NAV_BASE + VISIBLE_NAV.length * NAV_STEP;
 
 const sweep = (delay, on) => (on
   ? { 'data-entrance': 'left', style: { animationDelay: `${delay.toFixed(3)}s` } }
@@ -255,7 +264,7 @@ export default function Sidebar() {
           would be two sub-navs for one module. `to` falls back to `base` because such
           an entry is a destination as well as a module — nav.js says why. */}
       <RailNav aria-label="Main">
-        {NAV.map((item, i) => (
+        {VISIBLE_NAV.map((item, i) => (
           item.children && !item.subnavInPage
             ? <RailGroup key={item.base} item={item} entrance={sweep(NAV_BASE + i * NAV_STEP, entering)} />
             : (

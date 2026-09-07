@@ -1,3 +1,9 @@
+/* card.jsx
+ *
+ * @design approved 2026-09-06 — visible on the locked dashboard (the card shell under all of the above).
+ *   The owner signed that page off and DESIGN-LANGUAGE was written from it.
+ */
+
 import { Card as UICard } from '@/components/ui/card';
 
 export {
@@ -78,6 +84,17 @@ function Card({ hover = false, flush = false, spacing = 'md', gap = false, class
   return (
     <UICard
       className={[
+        /* THE CARD RADIUS IS THE ONE PLACE WE DEVIATE FROM THE PRESET (§6, owner
+         * 2026-09-07). The whole `--radius-*` scale is the preset's now — 6/8/10/14/16/
+         * 24/32 — and the generated card asks for `min(--radius-4xl, 24px)` = 24px.
+         * Ours stays 14, which is what the dashboard was signed off at and what the
+         * owner's mockup draws.
+         *
+         * It is pinned HERE and not in bridge.css deliberately: `dialog.jsx` and
+         * `alert-dialog.jsx` read the same `--radius-4xl`, so capping the token would
+         * have dragged every dialog back down to a card's roundness. A single deviation
+         * belongs in the wrapper that owns it. */
+        'rounded-[var(--r-2xl)]',
         SPACING[spacing] ?? SPACING.md,
         // See the header: the card imposes no vertical rhythm unless asked, because
         // the pages' own CSS already supplies it via child margins.

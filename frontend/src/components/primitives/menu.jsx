@@ -1,8 +1,20 @@
+/* menu.jsx
+ *
+ * @design approved 2026-09-07 — reviewed against preset b2qLMFPP6 side by side on the
+ *   Test page (features/dev/PrimitiveReview.jsx, "Dropdown — preset reference vs ours").
+ *   THE FIRST PRIMITIVE TO CLEAR REVIEW, and it is the one that made the review process
+ *   necessary: it had reached 30 screens while nobody had signed off how it looks.
+ *   What the review changed is recorded in the PRESET PARITY block below — five
+ *   differences, none of them visible until they were measured against a reference.
+ */
+
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup,
+  DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
   DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+import { cn } from '@/lib/utils';
 import { useOverlayContainer } from './overlay-container.js';
 
 /* Menu — PropVexis primitive. A dropdown menu on the GENERATED shadcn component,
@@ -84,6 +96,11 @@ function MenuTrigger(props) {
 // paints under the scrim (see the header), and outside one the context yields
 // `undefined`, so nothing about the ~dozen existing menus changes. A caller may still
 // override it — Base UI's own prop wins through `rest`.
+/* NO EDGE OVERRIDE HERE ANY MORE. This wrapper used to force `border-[var(--overlay-line)]`
+ * because the generated `border` resolved to a CARD's edge and vanished on a panel.
+ * `--color-border` is contextual now (tokens.css, "CHROME IS CONTEXTUAL"), so declaring
+ * `data-overlay-surface` on the panel is the whole fix and the generated class is right.
+ * The same deletion happened in popover.jsx and select.jsx. */
 function MenuContent({
   className, align = 'end', side = 'bottom', sideOffset = 8, ...rest
 }) {
@@ -94,14 +111,36 @@ function MenuContent({
       side={side}
       sideOffset={sideOffset}
       container={container}
+      data-overlay-surface=""
       className={['w-auto', MOTION, className].filter(Boolean).join(' ')}
       {...rest}
     />
   );
 }
 
-function MenuItem(props) {
-  return <DropdownMenuItem {...props} />;
+/* PRESET PARITY FOR THE MENU ONLY (owner, 2026-09-07).
+ *
+ * The generated item styles itself with `text-sm rounded-xl text-muted-foreground` —
+ * shadcn's own names, which in preset b2qLMFPP6 mean 14px, 14px and #a1a1aa. OUR bridge
+ * repoints all three for the app at large: `text-sm` -> 13px, `text-xs` -> 11px,
+ * `--radius-xl` -> 12px, `--color-muted-foreground` -> #c9c9d1. So the same component
+ * renders smaller and brighter here than in the preset preview.
+ *
+ * The owner asked for the DROPDOWN to match the preset exactly and for nothing else to
+ * move, so the difference is absorbed here rather than in the bridge — changing those
+ * four globally would re-size and re-colour every screen in the app. This is precisely
+ * the job of the wrapper seam: the generated file stays untouched and one file carries
+ * the divergence.
+ *
+ * `--muted` is zinc-400 (#a1a1aa), which is the preset's muted-foreground exactly, so
+ * the colour is a token rather than a literal. */
+const ITEM = 'text-[14px] rounded-[14px]';
+const LABEL = 'text-[12px] text-[var(--muted)]';
+/* §8's divider needs no override either: the generated `bg-border/50` is a divider at
+ * half the CURRENT surface's edge, which is exactly the rule, now that `border` is
+ * contextual. */
+function MenuItem({ className, ...rest }) {
+  return <DropdownMenuItem className={cn(ITEM, className)} {...rest} />;
 }
 
 // A checkbox item does NOT close the menu when activated, which is the behaviour the
@@ -111,8 +150,8 @@ function MenuItem(props) {
 //
 // The generated item also renders its own check indicator, so a call site passes the
 // `checked` state and nothing else — the hand-rolled <input type="checkbox"> is gone.
-function MenuCheckboxItem(props) {
-  return <DropdownMenuCheckboxItem closeOnClick={false} {...props} />;
+function MenuCheckboxItem({ className, ...rest }) {
+  return <DropdownMenuCheckboxItem closeOnClick={false} className={cn(ITEM, className)} {...rest} />;
 }
 
 function MenuSeparator(props) {
@@ -127,8 +166,46 @@ function MenuGroup(props) {
   return <DropdownMenuGroup {...props} />;
 }
 
-function MenuGroupLabel(props) {
-  return <DropdownMenuLabel {...props} />;
+function MenuGroupLabel({ className, ...rest }) {
+  return <DropdownMenuLabel className={cn(LABEL, className)} {...rest} />;
+}
+
+/* SUBMENUS (added 2026-09-07). The generated file has exported Sub/SubTrigger/SubContent
+ * all along; this wrapper simply never imported them, so a nested menu was unreachable
+ * from application code even though it was installed and tested upstream.
+ *
+ * SubTrigger is an ITEM — same type size and radius as any other row, plus the chevron
+ * and the open-state highlight the generated component already handles.
+ *
+ * SUBCONTENT DRAWS A RING, NOT A BORDER, so the contextual `--color-border` does not
+ * reach it — `ring-foreground/10` is a white alpha, not the surface's edge. It takes
+ * `--overlay-line` explicitly so a submenu and its parent panel are outlined identically.
+ *
+ * (An earlier version of this note claimed `dark:ring-foreground/10` was dead because no
+ * `@custom-variant dark` existed. That was wrong — bridge.css declares
+ * `@custom-variant dark (&)` and always has, so `dark:` matches unconditionally. The
+ * override stands on the ring-vs-border point alone.) */
+const SUB_SURFACE = 'ring-[var(--overlay-line)]';
+
+function MenuSub(props) {
+  return <DropdownMenuSub {...props} />;
+}
+
+function MenuSubTrigger({ className, ...rest }) {
+  return <DropdownMenuSubTrigger className={cn(ITEM, className)} {...rest} />;
+}
+
+function MenuSubContent({ className, sideOffset = 4, ...rest }) {
+  const container = useOverlayContainer();
+  return (
+    <DropdownMenuSubContent
+      sideOffset={sideOffset}
+      container={container}
+      data-overlay-surface=""
+      className={cn(SUB_SURFACE, MOTION, className)}
+      {...rest}
+    />
+  );
 }
 
 export {
@@ -139,5 +216,8 @@ export {
   MenuGroupLabel,
   MenuItem,
   MenuSeparator,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
   MenuTrigger,
 };

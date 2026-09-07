@@ -650,11 +650,21 @@ test('the rail ladders at half the page step, and the footer closes the sweep', 
    * one list here, six different cards there. At the same step the rail would still be
    * assembling after the page beside it had finished.
    *
-   * FOOT_DELAY IS DERIVED FROM NAV.length, not written down. A hardcoded 0.34 silently
-   * starts overlapping the last nav rows the day a module is added. */
+   * FOOT_DELAY IS DERIVED, not written down. A hardcoded 0.34 silently starts
+   * overlapping the last nav rows the day a module is added.
+   *
+   * It counts VISIBLE_NAV rather than NAV (2026-09-06). NAV is the information
+   * architecture; VISIBLE_NAV is what the rail actually renders, and the two diverge
+   * now that `dev: true` entries exist — the primitive review page is in the IA but is
+   * dropped from the production bundle. Counting NAV would delay the production footer
+   * by one step for a row that is not there. The guarantee this test exists for is
+   * unchanged and slightly stronger: the delay is COMPUTED from the number of rows
+   * drawn, never written down. */
   assert.match(sidebar, /const NAV_STEP = 0\.03;/);
   assert.match(sidebar, /const NAV_BASE = 0\.06;/);
-  assert.match(sidebar, /const FOOT_DELAY = NAV_BASE \+ NAV\.length \* NAV_STEP;/);
+  assert.match(sidebar, /const FOOT_DELAY = NAV_BASE \+ VISIBLE_NAV\.length \* NAV_STEP;/);
+  // ...and VISIBLE_NAV is genuinely derived from NAV, not a second hand-kept list.
+  assert.match(sidebar, /const VISIBLE_NAV = NAV\.filter\(/);
   assert.match(sidebar, /entrance=\{sweep\(NAV_BASE \+ i \* NAV_STEP, entering\)\}/);
 });
 

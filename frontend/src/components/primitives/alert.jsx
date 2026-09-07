@@ -1,33 +1,38 @@
 /* Alert — PropVexis primitive.
  *
- * A re-export, but read the two constraints before using it.
+ * A bare re-export, and it is worth saying why it stayed one.
  *
- * 1. `info` AND `success` ARE INERT — `default`, `error` and `warning` render.
- *    Verified against the built stylesheet, not assumed: `--warning` already exists
- *    (tokens.css -> bridge.css `--color-warning`), so that variant compiles; `--info`
- *    and `--success` do not exist and those two resolve to nothing.
+ * All four tones now render. `info` and `success` used to be INERT — `--info` and
+ * `--success` did not exist, so those variants resolved to nothing and rendered an
+ * unstyled box, silently. They were missing on purpose: DESIGN-LANGUAGE §4 read
+ * "green and red are trade outcomes only. Never status, never chrome", and a green
+ * banner in a trading journal reads as profit.
  *
- *    `shadcn add @coss/alert` offers to create all of them, by appending seven pairs
- *    to tailwind.css built from Tailwind's raw palette (`--color-blue-500`,
- *    `--color-emerald-500`, `--color-amber-500`, …). Reverted — and the two missing
- *    ones are missing for a reason that is specific rather than general:
- *      · `--success` in emerald is a GREEN used as status, and DESIGN-LANGUAGE §4 is
- *        explicit that "green and red are trade outcomes only. Never status, never
- *        chrome." A green banner in a trading journal reads as profit.
- *      · `--info` in blue is BRAND blue used as status, and §4 reserves blue for
- *        "primary actions and data".
- *    Amber has no such collision, which is why the one status colour this app does
- *    have is the one it can afford. Adding either of the others is an §21 amendment,
- *    not a CLI default.
+ * §17 (owner ruling, 2026-09-06) narrowed that rather than dropping it. A system
+ * message may colour its GLYPH and a 1px EDGE; it may not colour its words or wash
+ * its surface; and nothing inside a DATA SURFACE — a table cell, a KPI figure, a
+ * chart mark — may use status colour at all. The reason for the reversal is a product
+ * one: an error the user does not notice is a worse failure than one they briefly
+ * misread.
  *
- *    Using `info` or `success` anyway renders an unstyled box, silently. There is a
- *    test in new-account-pages.test.js holding that.
+ * The generated component already spends colour in exactly those two places:
  *
- * 2. `error` DEPENDS ON AN OPEN RULE. It draws `border-destructive/bg-destructive`,
- *    and bridge.css maps destructive to `--loss` because there is no other slot —
- *    §17, ⬜ OPEN, "revisit; do not build on it". Using it for a FAILED ACTION is the
- *    library's own meaning of the slot, so the usage is right; what is provisional is
- *    the colour it borrows. When §17 is decided, this is the call site to revisit, and
- *    it is one file rather than every page that shows an error.
+ *     error: "border-destructive/32 bg-destructive/4 [&>svg]:text-destructive"
+ *
+ * border and glyph coloured, `text-card-foreground` inherited from the base, and the
+ * surface at 4% — a trace, which §17 sets as the ceiling. So this file has nothing to
+ * override, and per §1's build order that is the outcome to prefer. The two tokens it
+ * was missing are aliases (`--success` → `--profit`, `--info` → `--status-info`) in
+ * tokens.css, mapped in bridge.css. No new hue, no new preset ID.
+ *
+ * The escalation ladder is deliberate — error is the loudest of the four, so a failed
+ * sync does not read like a tip. See §17 for the table.
+ *
+ * Still true: do not reach for `success` to tint a row, a cell or a figure green.
+ * That is the half of §4 the amendment did NOT touch.
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
  */
 export { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
