@@ -271,10 +271,21 @@
      it came from.)
      Tailwind's `-950` is not a step we hold, and importing five of them would put a
      SECOND palette beside the domain ring. So the fill is derived from the hue we already
-     own, with one formula for every tone rather than five literals: 22% of the hue over
-     the page black lands within a few units of Tailwind's own -950 (green -> #0e321d
-     against its #052e16). The text takes the `-bright` step, which tokens.css already
-     documents as the on-a-tint value.
+     own, with one formula for every tone rather than five literals. The text takes the
+     `-bright` step, which tokens.css already documents as the on-a-tint value.
+
+     THE MIX ENDS AT --zinc-950, AND #000 WAS TRIED AND REJECTED (owner, 2026-09-07, on
+     looking at the rendered row). Ending at black is the more faithful arithmetic — it
+     darkens without tinting, which is what a Tailwind -950 step is, and it recovered the
+     saturation that mixing toward a blue-grey costs (`loss` #350f0f against Tailwind's
+     #450a0a, versus #3c1618 through --zinc-950). It also made the badges DISAPPEAR: at
+     22% over black the fill lands within a couple of units of our own page, so five of
+     the six read as bare coloured text with no pill behind them.
+     That is §4's ramp warning arriving from the other direction. The preset's -950 recipe
+     is drawn on an #18181b card; ours sits on #09090b/#111114, so a fill tuned to read
+     against THEIR ground vanishes against OURS. The greyer mix is the one that reads,
+     because the lift toward --zinc-950 is exactly what separates the fill from the page.
+     Faithfulness to the formula lost to legibility on our own surfaces.
      ONE JUDGEMENT CALL, NAMED: the preset's demo hues are Tailwind's; three of ours are
      the same families (green-500, red-500, amber-500) but the BRAND blue is bespoke
      (#2b7fff, not #3b82f6), so deriving beats importing or the brand badge would drift

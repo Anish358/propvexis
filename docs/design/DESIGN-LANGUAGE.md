@@ -414,6 +414,30 @@ edge when the account is inside its stop-trading zone. Do not add a second.
 
 ---
 
+**OUR SURFACE RAMP IS OURS. Compare STEPS with the preset, never hexes.** (Owner,
+2026-09-07.) The ten depths come from the owner's `PropVexis Dashboard Zinc` mockup, and
+the dashboard — the one page that is finished and signed off — was built against them.
+The preset's are lighter throughout: its card is `#18181b` where ours is `#111114`.
+
+This surfaces constantly and always looks like a bug: a menu panel, a badge tint, a
+dropdown trigger's open fill will each read a few units off the shadcn preview, because
+every alpha and every hover composites on a darker ground here. **It is not a bug and it
+is not a licence to nudge a token.** When comparing against the preset, compare the STEP —
+our hover is +11 over the card, theirs is +15 over theirs — and expect the absolute values
+to differ.
+
+Moving the ramp onto the preset's was considered and declined: it changes every surface in
+the app, requires a new preset ID and an amendment under §21, and re-opens the locked
+dashboard for review. The one page that is done would be the first casualty.
+
+*Corollary, and the reason this is in §4 rather than a note somewhere:* three separate
+"fixes" this year were literals written to close a gap that this ramp explains — the
+switch's unchecked track, the submenu's ring, the outline button's border. Each was
+correct against the preset's ground and wrong against ours. **Before hard-coding a value
+to match a screenshot, check whether the ramp is the whole difference.**
+
+---
+
 ## §5 → see §6
 
 Radius. Several files in `components/primitives/` cite the radius rule as §5. The rule
@@ -693,7 +717,33 @@ brightens the edge; a control without one fills the surface.
 - **A hover affordance FADES, it does not unmount.** A list that reflows under the
   pointer is harder to click than one that does not.
 
-Tests: `design-language.test.js` §13/§14, `dash-brief.test.js`.
+**THE ONE CARVE-OUT: an OPEN trigger takes its variant's own rule, even when that means
+hover reduces it.** (Owner, 2026-09-07.) The generated variants carry both
+`aria-expanded:bg-muted` and `dark:hover:bg-input/30`, and Tailwind sorts the compound
+`dark:hover:` after the plain `aria-expanded:` — so hovering an `outline` or `ghost`
+trigger whose menu is open makes it *quieter*, and the open state only appears once the
+pointer leaves. That is this section read backwards, and we shipped an override
+(`OPEN_HOVER`) to stop it.
+
+The override was removed because it was applied to EVERY variant, and only two have an
+open state at all: on `default` and `destructive` it was the only open styling there was,
+and it painted a primary CTA and a destructive button a neutral `--sel-bg` for as long as
+the pointer sat on one. Fixing the wrong half of that trade is what made the choice — the
+owner took preset parity per variant over our stricter reading here.
+
+So the ladder below is what each variant does, and it is not uniform:
+
+| variant | open, pointer away |
+|---|---|
+| `default`, `destructive`, `link` | no rule — reads as REST |
+| shadcn `secondary` (our `tinted`) | `aria-expanded:bg-secondary` — its own rest fill |
+| `outline` (our `secondary`), `ghost` | `aria-expanded:bg-muted` — holds a fill |
+
+**This is a knowing divergence from the paragraph above, not an oversight**, and it is
+written here so it is not "fixed" again. An open trigger already has its feedback: the
+panel hanging off it. Held by `topbar-overlays.test.js`.
+
+Tests: `design-language.test.js` §13/§14, `dash-brief.test.js`, `topbar-overlays.test.js`.
 
 ---
 
