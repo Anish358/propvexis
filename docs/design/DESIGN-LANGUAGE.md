@@ -460,6 +460,43 @@ because a silent renumber is worse than a documented one.
 | `min(--radius-4xl, 24px)` | 24px | dialogs |
 | `rounded-full` | 99px | pills — toggles, icon buttons, progress bars |
 
+### CLOSED 2026-09-09 (owner) — THE CONTROLS ARE ALREADY PILLS. DO NOT REOPEN THIS.
+
+The amendment below left one thing open: the mockup draws controls as full pills and
+this app draws them at 16px, so should the bridge move? **The question was malformed,
+and the arithmetic is why.**
+
+**A BORDER-RADIUS CANNOT EXCEED HALF THE BOX.** When the two radii on a side add up to
+more than that side, the browser scales every corner down to fit (CSS Backgrounds 3,
+corner overlap). Our controls are short, so their radius is capped long before any
+token gets a say:
+
+| control | height | the most the browser will draw |
+|---|---|---|
+| Input, Select trigger, Button | `h-8` = 32px | **16px** |
+| Badge | `h-5` = 20px | **10px** |
+
+**So 16px on a 32px control IS a pill** — exactly, not approximately. The mockup and
+the app already agree; there was never a gap to close. A 99px control step would clamp
+straight back to 16px and change literally nothing, and the 14px alternative differs by
+two pixels on a shape that is already a semicircle at each end. The owner looked at all
+three rendered side by side and could not tell them apart, which is the correct answer
+rather than a failure of the pane.
+
+**AND THE CHANGE WOULD HAVE BEEN ACTIVELY WRONG.** `--radius-2xl` is not a
+"control" token. It also draws the **dropdown panel, the select panel, the textarea,
+the sidebar and the skeleton** — all tall, none clamped. Moving it to 99px would have
+left every control exactly as it is and turned the panels into lozenges. The token that
+looks like it means "controls" means "whatever the registry put it on".
+
+**THE RULE THIS LEAVES.** Before changing a radius token, check the HEIGHT of what
+draws it. Under ~32px the token is decorative — the box decides. Judge a radius change
+on the tall things it touches, because those are the only places it is visible. And
+never infer a token's scope from its name.
+
+Controls stay at 16px. Buttons stay at 14px via the wrapper. Nothing to do.
+
+---
 ### AMENDED 2026-09-08 (owner) — THE LADDER MOVED UP ONE STEP
 
 The card change below was the first half. The owner then ran the same question through a
