@@ -87,7 +87,7 @@ test('the card carries the frame\'s geometry', () => {
   // 24px, not 14, WHILE THE RADIUS EXPERIMENT RUNS (2026-09-08). This assertion is why
   // the experiment is honest: the geometry is PINNED, so moving it has to be deliberate
   // and shows up in a diff. It reverts with the commit that moved the components.
-    ['card', /overflow-hidden rounded-\[24px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
+    ['card', /overflow-hidden rounded-card border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
     ['header inset', /px-\[26px\] pt-\[22px\] pb-3.5/],
     ['title', /text-lg leading-7 font-\[650\] tracking-\[-0\.25px\]/],
     ['date', /text-sm leading-5 font-\[450\] text-\[var\(--muted\)\]/],
@@ -100,7 +100,7 @@ test('the card carries the frame\'s geometry', () => {
        dead `shrink-0` on an element that is no longer a flex child would have kept this
        regex green while meaning nothing. The wrapper is asserted on the next line, so
        the guarantee — a brief alert never shrinks — still has a test. */
-    ['alert row', /min-h-\[73px\] items-center gap-2\.5 rounded-\[10px\] bg-\[var\(--row-bg\)\]/],
+    ['alert row', /min-h-\[73px\] items-center gap-2\.5 rounded-lg bg-\[var\(--row-bg\)\]/],
     ['alert exit wrapper', /'grid shrink-0',\s*\n\s*EXIT_MOTION,/],
     /* `overflow-hidden` IS THE RESTING STATE SINCE 2026-09-03, not `overflow-y-auto`.
        scrollbars.css owns `overflow-y` from an unlayered file and turns this box into a

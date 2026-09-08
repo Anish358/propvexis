@@ -106,10 +106,12 @@ export function AccountCardShell({ critical = false, className, children, ...res
     <section
       data-slot="account-card"
       className={cn(
-        /* EXPERIMENT 2026-09-08 — was `rounded-[14px]`, our card step. The owner is
-           looking at the preset's card radius (24px) before deciding. Revert with the
-           commit, not by hand: four other card surfaces move with this one. */
-        'flex flex-col overflow-hidden rounded-[24px] border bg-[var(--surface)]',
+        /* `rounded-card` — 24px, the preset's card step (owner, 2026-09-08). It was a
+           hand-typed `rounded-[14px]`, which is how `--r-2xl`, documented as "CARDS",
+           came to control no card at all: five surfaces each spelled the number out. The
+           token is `--r-card` and it is surface-named on purpose, per §6's assignment by
+           surface — see tokens.css. */
+        'flex flex-col overflow-hidden rounded-card border bg-[var(--surface)]',
         critical ? 'border-[var(--loss-deep)]' : 'border-[var(--line)]',
         className,
       )}

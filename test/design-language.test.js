@@ -130,8 +130,20 @@ test('§6 — the radius scale matches the preset, and the card is the one excep
   const cardPrim = readFileSync(
     new URL('../frontend/src/components/primitives/card.jsx', import.meta.url), 'utf8',
   );
-  assert.match(cardPrim, /rounded-\[var\(--r-2xl\)\]/,
-    'the card keeps our 14px radius — the single documented deviation from the preset');
+  /* THE DEVIATION IS GONE (owner, 2026-09-08). This asserted that the card kept our
+     14px against the preset's 24 — "the single documented deviation from the preset".
+     The owner compared the two in the running app and kept the preset's.
+
+     COMMENT-STRIPPED, and that is not tidiness. This assertion PASSED after the change,
+     because card.jsx's new note quotes the old class while explaining that it went —
+     a green test proving the opposite of what it says. Other tests in this repo strip
+     comments for exactly this; this one had not needed to until a file started
+     discussing its own history. */
+  const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  assert.doesNotMatch(code(cardPrim), /rounded-\[var\(--r-2xl\)\]/,
+    'the card no longer pins our 14px step — it takes the preset\'s');
+  assert.match(tokensCss, /--r-card:\s*24px/,
+    '--r-card must be the preset\'s card step — see DESIGN-LANGUAGE §6');
 });
 
 test('§6 — a dialog takes its own 24px step, not the overlay radius', () => {
@@ -157,13 +169,13 @@ test('§6 — the assignment rule is documented where it is enforced, on the Rhe
    * became Rhea's 5/6/10/12/14/99px). So this now pins the two things that would
    * actually break a page rather than one comment's wording: that every step of the
    * scale is declared, and that the card step is documented as belonging to cards. */
-  assert.match(tokensCss, /CARDS and floating overlays/,
-    'tokens.css must still say which surface --r-2xl is for');
+  assert.match(tokensCss, /--r-card:24px;\s*\/\* CARDS/,
+    'tokens.css must say which surface --r-card is for');
   /* sm and md moved 5->6 and 6->8 (§6 amended 2026-09-07, owner): they take preset
    * b2qLMFPP6's derived steps so a registry component arrives shaped right. The others
    * did not move because they were ALREADY the preset's values — --r-lg 10px and
    * --r-2xl 14px match it exactly, which nobody had noticed. */
-  const RHEA = { '--r-sm': '6px', '--r-md': '8px', '--r-lg': '10px', '--r-input': '10px', '--r-xl': '12px', '--r-2xl': '14px', '--r-full': '99px' };
+  const RHEA = { '--r-sm': '6px', '--r-md': '8px', '--r-lg': '10px', '--r-input': '10px', '--r-xl': '12px', '--r-2xl': '14px', '--r-card': '24px', '--r-full': '99px' };
   for (const [name, value] of Object.entries(RHEA)) {
     assert.match(tokensCss, new RegExp(`(?<![\\w-])${name}\\s*:\\s*${value}\\b`),
       `${name} must be ${value} on the Rhea scale — see DESIGN-LANGUAGE §6`);

@@ -27,7 +27,7 @@ test('the three cards are one shell, not three', () => {
   // 24px, not 14, WHILE THE RADIUS EXPERIMENT RUNS (2026-09-08). This assertion is why
   // the experiment is honest: the geometry is PINNED, so moving it has to be deliberate
   // and shows up in a diff. It reverts with the commit that moved the components.
-  assert.match(panel, /rounded-\[24px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/);
+  assert.match(panel, /rounded-card border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/);
   assert.match(panel, /flush \? 'overflow-hidden' : 'gap-\[18px\] pt-\[22px\] pb-6'/);
   /* THE SIDE INSET SPLIT OFF THE VERTICAL ONE (2026-09-01) so the calendar can trim its
    * gutters — see the `narrow` test below. The frame's 24 is still the default and the

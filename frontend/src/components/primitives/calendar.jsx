@@ -160,7 +160,7 @@ export function CalCell({
       className={cn(
         // The floor is the same token the grid's `minmax()` reads — see CalGrid. Two
         // places, one value, or a row and its cell disagree about how short is too short.
-        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-[10px] border px-2.5 py-[9px] text-left',
+        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-lg border px-2.5 py-[9px] text-left',
         // THE EDGE IS READ FROM A VARIABLE, NOT SET INLINE (2026-09-02) — see the
         // `style` block below for why. The two halves have to live in the same layer,
         // or the hover half never lands.
@@ -287,7 +287,7 @@ export function CalWeek({ tone, label, value, sub, className, ...rest }) {
     <div
       data-slot="cal-week"
       className={cn(
-        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-[10px]',
+        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-lg',
         'border border-[var(--line-inset)] bg-[var(--surface-sunken)] px-2.5 py-[9px]',
         className,
       )}

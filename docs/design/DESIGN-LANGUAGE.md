@@ -448,7 +448,7 @@ because a silent renumber is worse than a documented one.
 
 ## §6 Radius — 🔒 LOCKED
 
-**The scale is the preset's. The card is the one exception.**
+**The scale is the preset's, and so is the card — there is no exception left.**
 
 | Component asks for | Value | Who asks |
 |---|---|---|
@@ -460,10 +460,40 @@ because a silent renumber is worse than a documented one.
 | `min(--radius-4xl, 24px)` | 24px | dialogs |
 | `rounded-full` | 99px | pills — toggles, icon buttons, progress bars |
 
-**The card keeps 14px**, and it is pinned in `primitives/card.jsx` — not in the bridge.
-`dialog.jsx` and `alert-dialog.jsx` read the same `--radius-4xl`, so capping the token
-there would drag every dialog down to a card's roundness. **A deviation belongs in the
-wrapper that owns it, never in the bridge.**
+### AMENDED 2026-09-08 (owner) — the card takes the preset step
+
+| Component asks for | Value | Who asks |
+|---|---|---|
+| `rounded-card` | 24px | **cards** — panels, KPI tiles, the Brief, the account strip |
+
+The card was the single documented deviation: the scale was the preset's everywhere
+except here, where the generated card asks for 24px and ours was pinned to 14. The owner
+compared the two in the running app and kept 24. **It was also the frame's own number** —
+`panel.jsx` records the Figma frame drawing these cards at 24 radius, and the page being
+"scaled two steps down" from it, so the shipped 14 was the outlier rather than the intent.
+
+**`--r-card` is surface-named, not a scale step**, because this section assigns radius BY
+SURFACE: the token a card reads should say "card". Same reasoning as `--r-input`.
+
+**`--r-2xl` stays 14px** for floating overlays and the legacy rules still reading it.
+Only cards moved.
+
+#### What the deviation taught, which outlives it
+
+It was pinned in `primitives/card.jsx` rather than in the bridge, because `dialog.jsx`
+and `alert-dialog.jsx` read the same `--radius-4xl` and capping the token would have
+dragged every dialog down with it. **That decision is why the change could be tried and
+kept in one line.** A deviation belongs in the wrapper that owns it, never in the bridge —
+the rule survives the exception that prompted it.
+
+#### And the reason it was invisible for so long
+
+Five card surfaces hand-typed `rounded-[14px]` instead of reading the token, so `--r-2xl`
+— documented as "CARDS" — controlled **no card at all**. Changing the token would have
+changed nothing on the dashboard. **A token that names a surface must be the only way that
+surface gets its value**, or the documentation is describing something that is not
+happening. Twelve hand-typed radii across the dashboard primitives were replaced with
+named utilities in the same change.
 
 **Chrome in the top bar is a capsule** — everything in that bar is `--r-full` at one
 height; nothing outside it uses that shape.

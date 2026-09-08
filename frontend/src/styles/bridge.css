@@ -299,6 +299,14 @@
   --radius-3xl: 24px;     /* preset: Tailwind's 1.5rem */
   --radius-full: var(--r-full);
   --radius-input: var(--r-input);   /* our own step — inputs are their own shape */
+  /* AND CARDS ARE THEIR OWN SHAPE TOO (2026-09-08). Same reasoning as `--radius-input`
+     directly above: §6 assigns radius by SURFACE, so a card reads a token that says
+     "card". It resolves to 24px — the preset's own card step, kept after the owner
+     compared it against our 14 in the running app.
+     Declared here so `rounded-card` exists as a real utility: five card surfaces used to
+     hand-type the number, which is how a token documented as "CARDS" came to control no
+     card at all. */
+  --radius-card: var(--r-card);
 
   /* Type scale, part 1 — OUR ROLES, as named utilities. These are roles; the
      sizes live in tokens.css. */

@@ -45,10 +45,12 @@ export function PanelCard({ flush = false, narrow = false, className, children, 
     <section
       data-slot="panel"
       className={cn(
-        /* EXPERIMENT 2026-09-08 — was `rounded-[14px]`, our card step. The owner is
-           looking at the preset's card radius (24px) before deciding. Revert with the
-           commit, not by hand: four other card surfaces move with this one. */
-        'flex min-w-0 flex-col rounded-[24px] border border-[var(--line)] bg-[var(--surface)]',
+        /* `rounded-card` — 24px, the preset's card step (owner, 2026-09-08). It was a
+           hand-typed `rounded-[14px]`, which is how `--r-2xl`, documented as "CARDS",
+           came to control no card at all: five surfaces each spelled the number out. The
+           token is `--r-card` and it is surface-named on purpose, per §6's assignment by
+           surface — see tokens.css. */
+        'flex min-w-0 flex-col rounded-card border border-[var(--line)] bg-[var(--surface)]',
         flush ? 'overflow-hidden' : 'gap-[18px] pt-[22px] pb-6',
         !flush && (narrow ? 'px-3.5' : 'px-6'),
         className,
@@ -134,7 +136,7 @@ export function PanelChip({ className, children, ...rest }) {
     <span
       data-slot="panel-chip"
       className={cn(
-        'shrink-0 rounded-[6px] border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
+        'shrink-0 rounded-sm border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
         className,
       )}

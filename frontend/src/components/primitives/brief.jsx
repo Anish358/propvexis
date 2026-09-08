@@ -127,10 +127,12 @@ export function BriefCard({ className, children, ...rest }) {
     <section
       data-slot="brief"
       className={cn(
-        /* EXPERIMENT 2026-09-08 — was `rounded-[14px]`, our card step. The owner is
-           looking at the preset's card radius (24px) before deciding. Revert with the
-           commit, not by hand: four other card surfaces move with this one. */
-        'flex flex-col overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)]',
+        /* `rounded-card` — 24px, the preset's card step (owner, 2026-09-08). It was a
+           hand-typed `rounded-[14px]`, which is how `--r-2xl`, documented as "CARDS",
+           came to control no card at all: five surfaces each spelled the number out. The
+           token is `--r-card` and it is surface-named on purpose, per §6's assignment by
+           surface — see tokens.css. */
+        'flex flex-col overflow-hidden rounded-card border border-[var(--line)] bg-[var(--surface)]',
         className,
       )}
       {...rest}
@@ -729,7 +731,7 @@ export function BriefEvent({
       data-slot="brief-event"
       className={cn(
         'grid h-[33px] shrink-0 grid-cols-[64px_max-content_auto_66px] items-center gap-4',
-        'rounded-[10px] bg-[var(--row-bg)] px-2.5 hover:bg-[var(--surface-hover)]',
+        'rounded-lg bg-[var(--row-bg)] px-2.5 hover:bg-[var(--surface-hover)]',
         HOVER_MOTION,
         'max-[1200px]:h-auto max-[1200px]:py-1.5',
         className,
@@ -836,7 +838,7 @@ export function BriefAlert({
         <div
           data-slot="brief-alert"
           className={cn(
-            'group flex min-h-[73px] items-center gap-2.5 rounded-[10px] bg-[var(--row-bg)]',
+            'group flex min-h-[73px] items-center gap-2.5 rounded-lg bg-[var(--row-bg)]',
             'px-2.5 py-2 hover:bg-[var(--surface-hover)] focus-within:bg-[var(--surface-hover)]',
             HOVER_MOTION,
             className,
@@ -898,7 +900,7 @@ export function BriefNote({ className, children, ...rest }) {
     <p
       data-slot="brief-note"
       className={cn(
-        'm-0 rounded-[10px] border border-dashed border-[var(--line-strong)] p-3.5',
+        'm-0 rounded-lg border border-dashed border-[var(--line-strong)] p-3.5',
         'text-xs leading-5 text-pretty text-[var(--text-4)]',
         swapped && SWAP_MOTION,
         className,

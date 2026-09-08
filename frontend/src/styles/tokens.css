@@ -339,8 +339,16 @@
   --r-md:8px;      /* icon buttons, menu rows, small badges */
   --r-lg:10px;     /* BUTTONS — and nav rows, event rows, meter cells, day cells */
   --r-input:10px;  /* inputs share the button step in Rhea */
-  --r-xl:12px;     /* account chips, tiles, a chart well */
-  --r-2xl:14px;    /* CARDS and floating overlays — an overlay is a card that floats */
+  --r-xl:12px;     /* account chips, tiles, a chart well — NOT a preset step, see §6 */
+  /* CARDS TOOK THE PRESET'S OWN STEP (owner, 2026-09-08). Every card surface on the
+     dashboard was a hand-typed `rounded-[14px]`, so this token described cards without
+     controlling a single one; the owner compared 14 against the preset's 24 in the app
+     and kept 24. Surface-named for the same reason `--r-input` is: §6 assigns radius BY
+     SURFACE, so the thing a card reads should say "card" rather than name a step on a
+     scale. It is also the radius the original Figma frame drew (panel.jsx's header
+     records the page being "scaled two steps down" from it). */
+  --r-card:24px;   /* CARDS — panels, KPI tiles, the Brief, the account strip */
+  --r-2xl:14px;    /* floating overlays, and the legacy rules still reading it */
   --r-full:99px;   /* every pill: badges, chips, toggles, icon buttons, bars */
 
   /* ===== SPACING — 8px grid; 4px is the sole sub-8 exception, for hairline gaps. */

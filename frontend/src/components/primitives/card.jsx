@@ -84,44 +84,25 @@ function Card({ hover = false, flush = false, spacing = 'md', gap = false, class
   return (
     <UICard
       className={[
-        /* THE CARD RADIUS IS THE ONE PLACE WE DEVIATE FROM THE PRESET (§6, owner
-         * 2026-09-07). The whole `--radius-*` scale is the preset's now — 6/8/10/14/16/
-         * 24/32 — and the generated card asks for `min(--radius-4xl, 24px)` = 24px.
-         * Ours stays 14, which is what the dashboard was signed off at and what the
-         * owner's mockup draws.
+        /* ── THE CARD TAKES THE PRESET'S RADIUS (owner, 2026-09-08) ─────────────────
          *
-         * It is pinned HERE and not in bridge.css deliberately: `dialog.jsx` and
-         * `alert-dialog.jsx` read the same `--radius-4xl`, so capping the token would
-         * have dragged every dialog back down to a card's roundness. A single deviation
-         * belongs in the wrapper that owns it. */
-        /* ── EXPERIMENT, 2026-09-08: THE CARD TAKES THE PRESET'S RADIUS ──────────────
+         * This was `rounded-[var(--r-2xl)]` — 14px — and it was the ONE place the app
+         * deviated from preset b2qLMFPP6 on radius. The generated card asks for
+         * `min(--radius-4xl, 24px)` = 24px; it now gets it.
          *
-         * This line was `rounded-[var(--r-2xl)]` — 14px, our card step — and it was the
-         * ONE place the app deviated from preset b2qLMFPP6 on radius. The generated card
-         * asks for `min(--radius-4xl, 24px)` = 24px; letting it through is what this
-         * change does, and it is a one-line change precisely because the deviation was
-         * parked in this wrapper rather than in the bridge (see the note above: putting
-         * it in the bridge would have dragged the dialog down with it).
+         * It was a one-line change because the deviation was parked in this WRAPPER
+         * rather than in bridge.css, on the reasoning recorded above — putting it in the
+         * bridge would have dragged the dialog down with it, since both read the same
+         * token. That decision, made the day before, is why this could be tried and kept
+         * without touching anything else. The seam paying for itself.
          *
-         * The owner asked to see it before deciding. TO REVERT: `git revert` the commit
-         * that introduced this, or put the line back. `--r-2xl` itself is untouched at
-         * 14px, so legacy overlays, the wizard's cards and everything else that reads the
-         * token are unaffected — only the Card component moves.
+         * IT WAS ALSO THE FRAME'S OWN NUMBER: panel.jsx's header records the Figma frame
+         * drawing these cards at 24 radius, and the page being "scaled two steps down"
+         * from it. So this is the preset and the design agreeing, and the shipped 14 was
+         * the outlier.
          *
-         * WHAT TO LOOK AT WHILE JUDGING IT:
-         *   · The dashboard is almost entirely cards, so the whole page changes character.
-         *   · The KPI tiles are the small end — a 24px corner on a ~150px-wide tile is a
-         *     lot of curve, and they are where this will look most different.
-         *   · It makes cards agree with the MODAL, which is already 24px. §6 says "an
-         *     overlay is a card that floats", and right now card 14 / modal 24 / menu 16
-         *     are three roundnesses for things that rule says should agree. This closes
-         *     one of the two gaps.
-         *   · The empty state was set to 10px earlier today as "a step inside the card's
-         *     14". Inside 24 that gap is wider; worth a second look if this stays.
-         *
-         * IF IT STAYS this stops being an experiment and needs the rest of the ritual:
-         * §6 is 🔒 LOCKED, so a kept change wants a DESIGN-LANGUAGE amendment recording
-         * that the card exception is gone. */
+         * §6 is 🔒 LOCKED and carries the amendment. `--r-2xl` stays 14px for the
+         * floating overlays and the legacy rules still reading it; only cards moved. */
         SPACING[spacing] ?? SPACING.md,
         // See the header: the card imposes no vertical rhythm unless asked, because
         // the pages' own CSS already supplies it via child margins.

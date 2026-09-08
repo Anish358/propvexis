@@ -114,10 +114,12 @@ export function KpiCard({ hero = false, className, children, ...rest }) {
            to the floor. Those three together are why the Net P&L card's label sat above
            its neighbours' and its number below theirs. Every value here is the
            prototype's; none of them is a nudge. */
-        /* EXPERIMENT 2026-09-08 — was `rounded-[14px]`, our card step. The owner is
-           looking at the preset's card radius (24px) before deciding. Revert with the
-           commit, not by hand: four other card surfaces move with this one. */
-        'flex min-h-[128px] min-w-0 rounded-[24px] border px-[17px] pb-[24px]',
+        /* `rounded-card` — 24px, the preset's card step (owner, 2026-09-08). It was a
+           hand-typed `rounded-[14px]`, which is how `--r-2xl`, documented as "CARDS",
+           came to control no card at all: five surfaces each spelled the number out. The
+           token is `--r-card` and it is surface-named on purpose, per §6's assignment by
+           surface — see tokens.css. */
+        'flex min-h-[128px] min-w-0 rounded-card border px-[17px] pb-[24px]',
         hero
           ? 'flex-col gap-[13px] pt-[28px] border-[var(--line-control)] bg-[var(--surface-raised)]'
           : 'items-start justify-between gap-3 pt-[22px] border-[var(--line)] bg-[var(--surface)]',
@@ -181,7 +183,7 @@ export function KpiPill({ className, children, ...rest }) {
     <span
       data-slot="kpi-pill"
       className={cn(
-        'shrink-0 rounded-[6px] border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
+        'shrink-0 rounded-sm border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
         className,
       )}
@@ -366,7 +368,7 @@ export function KpiChip({ tone = 'flat', className, children, ...rest }) {
     <span
       data-slot="kpi-chip"
       className={cn(
-        'rounded-[6px] px-[5px] py-px font-mono text-[10px] leading-4 font-semibold tracking-[-0.2px] whitespace-nowrap',
+        'rounded-sm px-[5px] py-px font-mono text-[10px] leading-4 font-semibold tracking-[-0.2px] whitespace-nowrap',
         className,
       )}
       style={{ color, background }}

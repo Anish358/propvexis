@@ -70,7 +70,7 @@ test('the week cell is shaped like a day and coloured like a summary', () => {
   const week = calCode.slice(calCode.indexOf('export function CalWeek'));
   // Same box as a day cell: the two sit in one grid row and must agree.
   assert.match(week, /min-h-\[var\(--cal-cell-h,82px\)\]/);
-  assert.match(week, /rounded-\[10px\]/);
+  assert.match(week, /rounded-lg/);
   assert.match(week, /px-2\.5 py-\[9px\]/);
   /* Same INTERNAL arrangement as a day cell, so the week's total lands on the same
    * baseline as the seven figures it totals. That arrangement CHANGED SIDES on
