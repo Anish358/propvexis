@@ -273,6 +273,31 @@ const APPROVED = new Set([
    * dashed empties, SEPARATORS". That one was a real component fix, and it was a
    * correction to the ramp's own intent rather than a value chosen by eye. */
   'avatar.js', 'separator.jsx', 'count-badge.jsx',
+
+  /* BATCH 6 — REBUILT, THEN REVIEWED, locked as a family (owner, 2026-09-08).
+   *
+   * The only batch that could not be looked at until it was BUILT. All three still
+   * rendered the app's own `.u-*` markup, which was scheduled for deletion — so
+   * reviewing them would have been reviewing something about to be thrown away. They
+   * were rebuilt the same day and the owner reviewed the rebuild:
+   *
+   *     EmptyState   -> @shadcn/empty
+   *     Tabs         -> @shadcn/tabs, variant="line"
+   *     LoadingBlock -> the Skeleton primitive locked in Batch 3
+   *
+   * TWENTY-SIX LEGACY RULES WENT WITH THEM, which is half the point of the batch:
+   * legacy/app.css is at 994 class names and its shared `u-*` layer is down to the
+   * button, the card and the form field. PROVISIONAL above is empty as a result — the
+   * resting state that map was built to reach.
+   *
+   * TWO OF THE THREE WERE HELD BACK BY REASONS THAT HAD EXPIRED, the fifth and sixth
+   * found during this review. `empty-state.jsx` argued "no registry has an empty state"
+   * on the line below its own status block naming the component that replaced it;
+   * `tabs.jsx` argued its underline was too particular for a library, and the library
+   * ships that underline as a variant. Only LoadingBlock's argument was live, and it is
+   * answered in its header rather than deleted — the rebuild trades a sweeping shimmer
+   * for a pulse, deliberately. */
+  'empty-state.jsx', 'loading-block.jsx', 'tabs.jsx',
 ]);
 
 const modules = files.filter((f) => f !== 'index.js');
@@ -330,6 +355,8 @@ const LOCKED_BATCHES = {
     ['alert.jsx', 'skeleton.jsx', 'spinner.js', 'progress.jsx'],
   'Batch 5 — Small pieces (locked 2026-09-08)':
     ['avatar.js', 'separator.jsx', 'count-badge.jsx'],
+  'Batch 6 — Rebuilt, then reviewed (locked 2026-09-08)':
+    ['empty-state.jsx', 'loading-block.jsx', 'tabs.jsx'],
 };
 
 test('a locked batch stays locked, as a set', () => {

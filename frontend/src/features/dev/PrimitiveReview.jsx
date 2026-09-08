@@ -2216,7 +2216,7 @@ export default function PrimitiveReview() {
         we move on. Batches are locked together because parts that sit side by side have to
         agree on height, corners and spacing.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>32 of 36 approved.</strong>
+        <strong style={{ color: 'var(--text)' }}>35 of 36 approved — the queue is empty.</strong>
         {' '}
         Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
         the switch and the unit toggle. The dropdown was the first through — and it is the
@@ -2228,11 +2228,12 @@ export default function PrimitiveReview() {
         The seven form controls were signed off after four rounds — the last of which
         replaced the picker with the registry component outright.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>Batch 6 is open, at the top.</strong>
+        <strong style={{ color: 'var(--text)' }}>Nothing is waiting on you.</strong>
         {' '}
-        The last three, and the only ones that had to be REBUILT before they could be looked
-        at. Batch 4 — the Add Account wizard — was skipped on 8 Sep because that flow is being
-        redesigned; it comes back afterwards. Everything else is signed off.
+        Every batch is locked. The one part still unsigned is the Add Account wizard, and it
+        is unsigned on purpose — that flow is being redesigned, and leaving it unapproved is
+        what stops the new one inheriting the old. This page stays: change one colour and you
+        can check all 36 parts at once instead of clicking through the whole app.
       </p>
 
       {/* ================================================= THE UNBATCHED ONE === */}
@@ -2287,14 +2288,15 @@ export default function PrimitiveReview() {
       {/* ================================================================ BATCH 6 === */}
       <div style={S.batchHead}>
         <span style={S.batchTitle}>Batch 6 — Rebuilt, then reviewed</span>
-        <Tag tone="open">open · 3 to sign off</Tag>
+        <Tag tone="ok">🔒 locked 8 Sep 2026</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          the last three on the old CSS — rebuilt on 8 Sep, and this is the rebuild
+          the last three on the old CSS — rebuilt on 8 Sep, reviewed as the rebuild, locked
         </span>
       </div>
 
       <Spec
         name="Rebuilt on the registry"
+        approved="8 Sep 2026"
         file="primitives/empty-state.jsx · tabs.jsx · loading-block.jsx"
         ask={
           'these three are new, not adjusted — yesterday they were still drawing the old '
