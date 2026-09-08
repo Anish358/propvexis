@@ -327,13 +327,25 @@ function DataTableRow({
 
 /* ── A CELL ─────────────────────────────────────────────────────────────────────────
  *
- * `numeric` brings `tabular-nums` and right alignment together, because they are one
- * decision: a column of figures that is not right-aligned cannot be scanned for
- * magnitude, and tabular figures are what stop the decimal point wandering. The shipped
- * table has BOTH halves and then centres everything (`.log-grid td.num { text-align:
- * center }` overriding `.num`), which keeps the tabular figures and throws away the
- * scanning. That is the one thing here that is a genuine change rather than a token
- * correction, so it is on the Test page side by side.
+ * `numeric` MEANS TABULAR FIGURES. IT DOES NOT MEAN RIGHT-ALIGNED (owner, 2026-09-09).
+ *
+ * It used to mean both, on the argument that they are one decision — a column of figures
+ * that is not right-aligned cannot be scanned for magnitude. The owner split it, and the
+ * split is a real distinction rather than a compromise:
+ *
+ *   A MEASUREMENT is centred — an entry price, an exit price, a volume, a pip size. You
+ *   read one of these to answer "what was it", against the row it is in.
+ *
+ *   A RESULT is right-aligned — R, net P&L, commission. You read a COLUMN of these to
+ *   answer "which of these is big", down the table, and that only works when the decimal
+ *   points and the minus signs line up.
+ *
+ * Both keep `tabular-nums`, because a wandering decimal point is wrong either way.
+ *
+ * So a caller writes `numeric` for a figure and adds `align="right"` for the two or three
+ * columns that are results. The shipped table centres everything including the results,
+ * which keeps the tabular figures and throws away what they are for; it right-aligned
+ * nothing, and this changes two columns rather than seven.
  *
  * `truncate` on every cell is required by `table-fixed`: over-long content overflows
  * rather than widening its column, so every cell has to be able to end in an ellipsis.
@@ -352,7 +364,9 @@ const CELL_TONE = {
 function DataTableCell({
   align, numeric = false, narrow = false, tone, className, children, ...rest
 }) {
-  const a = align || (numeric ? 'right' : 'left');
+  // A figure defaults to CENTRED — see the block above. `align="right"` is the opt-in
+  // for the columns that are read down rather than across.
+  const a = align || (numeric ? 'center' : 'left');
   return (
     <TableCell
       data-slot="data-table-cell"

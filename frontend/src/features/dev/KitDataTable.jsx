@@ -154,10 +154,10 @@ function KitTable({ trades, state = 'ready', unit = 'R', selected, onToggle, onT
           <DataTableHeadCell>Symbol</DataTableHeadCell>
           <DataTableHeadCell>Type</DataTableHeadCell>
           <DataTableHeadCell>Session</DataTableHeadCell>
-          <DataTableHeadCell align="right">Entry</DataTableHeadCell>
-          <DataTableHeadCell align="right">Exit</DataTableHeadCell>
-          <DataTableHeadCell align="right">Volume</DataTableHeadCell>
-          <DataTableHeadCell align="right">SL Size</DataTableHeadCell>
+          <DataTableHeadCell align="center">Entry</DataTableHeadCell>
+          <DataTableHeadCell align="center">Exit</DataTableHeadCell>
+          <DataTableHeadCell align="center">Volume</DataTableHeadCell>
+          <DataTableHeadCell align="center">SL Size</DataTableHeadCell>
           <DataTableHeadCell>Setup</DataTableHeadCell>
           <DataTableHeadCell align="center">Probability</DataTableHeadCell>
           <DataTableHeadCell>Rules</DataTableHeadCell>
@@ -225,7 +225,11 @@ function KitTable({ trades, state = 'ready', unit = 'R', selected, onToggle, onT
                 <DataTableCell align="center">
                   {out ? <Badge tone={TONE[out]}>{OUTCOME_LABEL[out]}</Badge> : <DataTableDash />}
                 </DataTableCell>
-                <DataTableCell numeric tone={out ? TONE[out] : undefined}>
+                {/* THE ONE RIGHT-ALIGNED COLUMN (owner, 2026-09-09). A result is read DOWN
+                    the table to answer "which of these is big", so its decimal points
+                    and minus signs have to line up. The measurements above it are read
+                    ACROSS, against their own row, and stay centred. */}
+                <DataTableCell numeric align="right" tone={out ? TONE[out] : undefined}>
                   {result == null ? <DataTableDash />
                     : unit === 'USD' ? fmtMoney(result, { sign: true }) : fmtNum(result)}
                 </DataTableCell>
@@ -382,11 +386,14 @@ export function DataTableParity() {
         edge and never inside a data surface, because in a table red and green are your money.
         Ours marks it with a left edge instead.
         {' '}
-        <strong style={F.strong}>6. Numbers are right-aligned. This one IS a change and it
-        is the one to argue with. </strong>
-        Today every column is centred, including the figures — the tabular figures are
-        there but the centring throws away what they are for, which is scanning a column
-        for magnitude. Text stays left, pills and marks stay centred.
+        <strong style={F.strong}>6. Net P&amp;L is right-aligned. Nothing else is
+        (your ruling, 9 Sep). </strong>
+        A <em>measurement</em> — entry, exit, volume, SL — is read across, against its own
+        row, and stays centred. A <em>result</em> is read down the column to answer
+        &ldquo;which of these is big&rdquo;, and that only works when the decimal points
+        and the minus signs line up. Both keep tabular figures either way. Two columns
+        moved rather than seven, and the kit now carries the distinction so the next table
+        does not have to re-decide it.
       </div>
     </div>
   );
@@ -490,13 +497,15 @@ export function DataTableQuestions() {
         <span style={{ flex: 1 }} />
       </div>
       <div style={F.note}>
-        <strong style={F.strong}>1. Right-aligned figures. </strong>
-        Difference 6 above. It is the only change here that is not a rule being applied,
-        and it is the one that changes how the table reads most. Keep it, or go back to
-        everything centred?
+        <strong style={F.strong}>1. Right-aligned figures — ANSWERED 9 Sep. </strong>
+        Only the results right-align (Net P&amp;L, and R when the unit is R); the
+        measurements stay centred. It is built that way above and the rule is written into
+        the kit, not the page. Nothing left to decide here — check it reads the way you
+        expected.
         <br />
         <br />
-        <strong style={F.strong}>2. Sorting does not exist in the product. </strong>
+        <strong style={F.strong}>2. Sorting stays in the kit, off on the screen —
+        ANSWERED 9 Sep. </strong>
         The brief lists it. There is no sort in the Trade Log page, and no way for the
         page to ask the API for a different order — I checked both. So a header that
         sorted would be a control the product cannot honour, which the review checklist
