@@ -41,11 +41,31 @@ import { cn } from '@/lib/utils';
  *   · Padding went from 48/24 to a uniform p-12, and the max width from a hand-set 460px
  *     to the registry's `max-w-sm` on the header and content.
  *
- * `border-dashed` COMES FROM THE REGISTRY AND DRAWS NOTHING, deliberately left as it
- * arrived: the generated Empty sets a border STYLE and no border WIDTH, so it is inert
- * until a caller asks for one. §4 files a dashed edge under empty states, so the day one
- * is wanted it is `border` at the call site and not a new component.
+ * ── THE DASHED EDGE, AND THE NOTE THAT WAS WRONG ABOUT IT (2026-09-08) ────────────────
+ *
+ * This said: "`border-dashed` COMES FROM THE REGISTRY AND DRAWS NOTHING, deliberately
+ * left as it arrived: the generated Empty sets a border STYLE and no border WIDTH, so it
+ * is inert until a caller asks for one."
+ *
+ * TRUE OF SHADCN'S INSTALL, FALSE OF OURS, and the owner saw the difference immediately —
+ * a thick WHITE dashed box where the reference shows a faint grey one. `border-style`
+ * with no width is inert only because preflight has already zeroed the width, and we do
+ * not import preflight (tailwind.css says why: it would restyle every legacy page). So
+ * the style landed on the UA default `medium` width and `currentColor`. Reading the
+ * registry source is not the same as knowing what it does HERE.
+ *
+ * Fixed at the root — bridge.css now zeroes border-width for every `[data-slot]` element,
+ * which is what preflight would have done and what that file already did for buttons
+ * alone. So `border-dashed` is inert here now, exactly as upstream assumes.
+ *
+ * AND THE EDGE IS THEN ASKED FOR EXPLICITLY, because an empty state should have one:
+ * shadcn's own examples draw it, and this app already has the convention in two approved
+ * primitives — `account.jsx` and `brief.jsx` both write `border border-dashed
+ * border-[var(--line-strong)]` for exactly this. `--line-strong` is the token §4 names
+ * for it ("THE standard visible border — dashed empties, separators"), so this is the
+ * app's settled answer rather than a third opinion about what a dashed edge looks like.
  */
+const EDGE = 'border border-dashed border-[var(--line-strong)]';
 
 /* IT FADES IN, and this is the one surface where a pure entrance animation is easy to
  * justify. An empty state has NO FIGURES TO READ — that is its definition — so the
@@ -63,7 +83,7 @@ const ENTRANCE = 'animate-[pv-content-in_var(--dur)_var(--ease)_backwards]';
 
 function EmptyState({ icon, title, description, actions, badge, className }) {
   return (
-    <Empty className={cn(ENTRANCE, className)}>
+    <Empty className={cn(EDGE, ENTRANCE, className)}>
       {badge}
       <EmptyHeader>
         {icon ? <EmptyMedia variant="icon">{icon}</EmptyMedia> : null}

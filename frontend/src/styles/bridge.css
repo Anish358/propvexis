@@ -549,7 +549,28 @@
      as its border instead of the token the bridge points at. Same `:where()` zero
      specificity as the two above, so any author rule still wins and this can only ever
      remove a browser default. */
-  :where(button[data-slot], [data-slot] button) {
+  /* WIDENED FROM `button` TO EVERY GENERATED ELEMENT — 2026-09-08, and it is the same
+     bug the paragraph above describes, found a second time because the fix was scoped to
+     where it was first seen rather than to where it applies.
+
+     The owner spotted the rebuilt empty state drawing a THICK WHITE DASHED BOX. Nothing
+     in our layer asked for it: `@shadcn/empty` sets `rounded-3xl border-dashed` and no
+     border WIDTH, which is inert in a normal Tailwind install because preflight has
+     already zeroed it. We do not import preflight (see tailwind.css — it would restyle
+     every legacy page), so `border-style: dashed` lands on the UA default `medium`
+     width and `currentColor`: 3px, white, on a dark card.
+
+     THE COMMENT ON THIS FILE'S OWN empty-state ALSO GOT IT WRONG, which is why this is
+     worth spelling out. It read "the generated Empty sets a border STYLE and no border
+     WIDTH, so it is inert until a caller asks for one" — true of shadcn's install and
+     false of ours. Reading the registry source is not the same as knowing what it does
+     HERE, which is the §25 lesson arriving through a third door.
+
+     Scoped to `[data-slot]` and its descendants: that attribute is emitted by generated
+     components and by nothing else, so legacy markup is untouched. Still `:where()`, so
+     any author rule wins and this can only remove a browser default — and still
+     border-WIDTH only, for the reason above. */
+  :where([data-slot], [data-slot] *) {
     border-width: 0;
   }
 

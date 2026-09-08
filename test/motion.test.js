@@ -293,8 +293,11 @@ test('empty states fade in', () => {
   assert.match(empty, /const ENTRANCE = 'animate-\[pv-content-in_var\(--dur\)_var\(--ease\)_backwards\]';/);
   // `cn(ENTRANCE, className)` since 2026-09-08 — the block moved onto @shadcn/empty and
   // the `.u-empty` class it used to carry is deleted. What this test protects is that
-  // the FADE survived the rebuild, which is what a rebuild loses by accident.
-  assert.match(empty, /cn\(ENTRANCE, className\)/);
+  // the FADE survived the rebuild, which is what a rebuild loses by accident. EDGE joined
+  // it on 2026-09-08: the registry's `border-dashed` draws a 3px white box in this app,
+  // because we do not import preflight and the style lands on the UA default width. The
+  // edge is now stated explicitly, the way account.jsx and brief.jsx already state it.
+  assert.match(empty, /cn\(EDGE, ENTRANCE, className\)/);
 });
 
 test('the wizard keeps @starting-style and says why it is not a contradiction', () => {
