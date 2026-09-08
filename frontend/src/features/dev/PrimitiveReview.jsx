@@ -48,6 +48,8 @@ import {
   SelectContent as RawSelectPopup, SelectItem as RawSelectItem,
   SelectTrigger as RawSelectTrigger, SelectValue as RawSelectValue,
 } from '@/components/ui/select';
+/* THE FOUR BADGE CHIPS UNDER REVIEW, from three different families. */
+import { KpiChip, KpiPill, PanelChip, RailSoon } from '@/components/primitives';
 import {
   Alert, AlertAction, AlertDescription, AlertTitle,
   Badge,
@@ -2407,6 +2409,181 @@ function VariantMatrix() {
   );
 }
 
+/* ============================================= THE BADGE CHIP RADIUS TRIAL ===
+ *
+ * AN OPEN DECISION, 9 Sep 2026. The owner spotted that the four badge chips did not seem
+ * to follow the ladder shift. They did — `rounded-sm` moved 6px to 8px with everything
+ * else — but that is the SMALLEST step there is, while cards moved +10 and rows +4. They
+ * came out of the shift as the squarest thing on a much rounder page, which is what the
+ * eye actually caught.
+ *
+ * THE REAL FAULT IS THE STEP, NOT THE SHIFT. All four ask for `rounded-sm`, which §6
+ * assigns to "small chrome, menu rows". They are badges, and both locked rules put a
+ * badge somewhere else: §6's table sends it to `rounded-2xl`, §5 sends badges and pills to
+ * `--r-full`. CountBadge already follows that rule, so the badge family currently disagrees
+ * with itself — one pill and four squares.
+ *
+ * WHY THERE IS A MAGNIFIER, AND WHY THAT IS NOT A CHEAT. The previous trial on this page
+ * failed because it compared radii that clamp: a radius cannot exceed half the box, so
+ * short elements cannot show the difference their token claims. These chips are 18-22px
+ * tall, so a pill draws 9-11px against today's 8px. THE ENTIRE DECISION IS ONE TO THREE
+ * PIXELS. Presenting that at real size again would waste the owner's time twice, so each
+ * column carries both: the chips at true dashboard size, and one of them scaled 4x. The
+ * magnifier scales the real element, so the radius scales with it and the SHAPE is
+ * honest — but the border scales too, which is why it looks heavier than it is.
+ *
+ * HOW THE PREVIEW WORKS. Each column scopes `--radius-sm`, which is what `rounded-sm` reads.
+ * The real change would edit the class on four components instead, which is a different
+ * mechanism reaching the same pixels — worth knowing when reading this pane as evidence.
+ */
+
+const CHIP_COLUMNS = [
+  {
+    key: 'now',
+    title: '8px',
+    sub: 'today',
+    vars: {},
+    note: 'The small-chrome step. Correct before the shift, when the page around it was '
+      + 'built on 6/8/10/12/14 — and the squarest thing on it now.',
+  },
+  {
+    key: 'md',
+    title: '10px',
+    sub: 'one step up',
+    vars: { '--radius-sm': 'var(--r-md)' },
+    note: 'Softer, still reads as a chip rather than a lozenge. Needs no rule change, '
+      + 'but leaves the badge family split from CountBadge.',
+  },
+  {
+    key: 'pill',
+    title: 'pill',
+    sub: 'what §5 and §6 both say',
+    vars: { '--radius-sm': '99px' },
+    note: 'Clamps to 9-11px on these heights, so it is a lozenge, not a circle. Matches '
+      + 'CountBadge and closes the split.',
+  },
+];
+
+function ChipColumn({ column }) {
+  return (
+    <div style={{ ...S.specimen, flex: '1 1 280px', minWidth: 260, gap: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
+          {column.title}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{column.sub}</span>
+      </div>
+
+      <div
+        style={{
+          ...column.vars,
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--r-card)',
+          background: 'var(--surface)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* TRUE DASHBOARD SIZE. This half is the honest one — it is what actually ships,
+            and if the three columns look identical here, that IS the finding. */}
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Cumulative P&amp;L</span>
+            <PanelChip>USD</PanelChip>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{
+              fontSize: 26, fontWeight: 550, letterSpacing: '-.4px', color: 'var(--text)',
+            }}
+            >
+              8,395
+            </span>
+            <KpiPill>10 trades</KpiPill>
+            <KpiChip tone="pos">+2.8%</KpiChip>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Playbook</span>
+            <RailSoon />
+          </div>
+        </div>
+
+        {/* MAGNIFIED 4x, because one to three pixels is not judgeable at true size. The
+            real component is scaled, so the radius scales with it; the border scales too
+            and therefore overstates itself. Judge the CORNER, not the weight. */}
+        <div style={{
+          borderTop: '1px solid var(--line-inset)',
+          background: 'var(--bg)',
+          height: 104,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+        }}
+        >
+          <div style={{ transform: 'scale(4)', transformOrigin: 'center' }}>
+            <KpiPill>10</KpiPill>
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        fontSize: 12, lineHeight: '19px', color: 'var(--text-2)', marginTop: 10,
+      }}
+      >
+        {column.note}
+      </div>
+    </div>
+  );
+}
+
+function BadgeRadiusTrial() {
+  return (
+    <>
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>The one decision still open</span>
+        <Tag tone="open">waiting on you</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          what shape the badge chips take
+        </span>
+      </div>
+
+      <div style={{ ...S.card, marginTop: 12 }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Badge chips</span>
+          <span style={S.mono}>kpi-pill · panel-chip · rail-soon · kpi-chip</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="open">8, 10 or pill</Tag>
+        </div>
+
+        <div style={S.note}>
+          All four ask for
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>{"rounded-sm"}</strong>
+          , which §6 assigns to small chrome and menu rows. They are badges, and §5 sends
+          a badge to the pill step — where CountBadge already sits. Read the top half of
+          each column first: it is true dashboard size, and
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>
+            the whole decision is one to three pixels
+          </strong>
+          {' '}
+          because a radius cannot exceed half the box and these chips are 18–22px tall.
+          The magnified strip below it is there because that is genuinely too small to
+          judge, not to make the difference look bigger than it is.
+        </div>
+
+        <div style={{
+          display: 'flex', gap: 22, padding: 18, flexWrap: 'wrap', alignItems: 'flex-start',
+        }}
+        >
+          {CHIP_COLUMNS.map((c) => <ChipColumn key={c.key} column={c} />)}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function PrimitiveReview() {
   const menu = MenuSpecimens();
 
@@ -2428,6 +2605,8 @@ export default function PrimitiveReview() {
         {' '}
         <strong style={{ color: 'var(--text)' }}>What comes next is below.</strong>
       </p>
+
+      <BadgeRadiusTrial />
 
       <RedesignMap legacyClasses={LEGACY_CLASSES} />
 

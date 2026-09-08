@@ -452,13 +452,25 @@ because a silent renumber is worse than a documented one.
 
 | Component asks for | Value | Who asks |
 |---|---|---|
-| `rounded-sm` / `rounded-md` | 6 / 8px | small chrome, menu rows |
-| `rounded-lg` | 10px | nav rows, list rows, day cells |
+| `rounded-sm` / `rounded-md` | **8 / 10px** | small chrome, menu rows |
+| `rounded-lg` | **14px** | buttons, nav rows, list rows, day cells |
 | `rounded-xl` | 14px | tiles, chips |
 | `rounded-2xl` | 16px | controls — button, input, textarea, badge, menu |
 | `rounded-3xl` | 24px | popovers |
 | `min(--radius-4xl, 24px)` | 24px | dialogs |
-| `rounded-full` | 99px | pills — toggles, icon buttons, progress bars |
+| `rounded-card` | **24px** | cards, panels, KPI tiles |
+| `rounded-full` | 99px | pills — toggles, icon buttons, progress bars, badges |
+
+**The three bold values moved on 2026-09-08** and this table did not follow them for a
+day. It does now. `rounded-sm/md/lg` and `rounded-card` resolve through our own
+`--r-*` tokens, so they track the ladder; `rounded-xl/2xl/3xl/4xl` are the bridge's own
+numbers and are deliberately fixed — see the closure note above for why that is not the
+inconsistency it looks like.
+
+**A VALUE HERE IS A CEILING, NOT A PROMISE.** Radius clamps to half the box, so on
+anything under about 32px tall the number above is never what draws. A 20px badge caps
+at 10px whether it asks for 16 or 99. Check the height before reading a row as a
+guarantee.
 
 ### CLOSED 2026-09-09 (owner) — THE CONTROLS ARE ALREADY PILLS. DO NOT REOPEN THIS.
 
