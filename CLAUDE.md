@@ -49,7 +49,7 @@ https://journal.anishdevlops.xyz still served during migration).
   `@status provisional` nor `@design unreviewed`** — either one makes it a redirect to
   `@shadcn`. Approval is an owner decision and is never inferred.
 - **A generated component does not arrive as previewed** (§25). The bridge re-means
-  shadcn's own names — `text-sm` is 14px but `rounded-2xl` is 16px here, `--color-border`
+  shadcn's own names — `rounded-sm` is 8px here, not 2px, and `--color-border`
   is contextual — and a variant this app does not define compiles to **nothing**, silently.
   When a registry component looks wrong, read §25 before changing a token, and absorb the
   difference in the WRAPPER, never in the bridge.
