@@ -249,6 +249,44 @@ test('the arrival flash lives in the bridge, is tokened, and does not fill forwa
   );
 });
 
+test('the Trade Log preview shows the columns the Trade Log shows, and no more', () => {
+  /* DERIVED FROM `tradeColumns.js`, so it cannot rot. The owner's first look at the
+   * preview was a table scrolling sideways, because it rendered FIFTEEN columns — the
+   * thirteen defaults plus SL Size and Rules, which I had switched on to show the missing
+   * value and the hover reason. Thirteen fits the page and fifteen does not, so the
+   * "as it will be seen in the Trade Log" pane was showing something the page never does.
+   *
+   * The extra two belong in the parity pane, where a comparison is the point, and that is
+   * where they now are. This asserts the split rather than a count: whatever
+   * `tradeColumns.js` marks `defaultOn` is what the preview renders. */
+  const spec = readFileSync(at('../frontend/src/features/trades/tradeColumns.js'), 'utf8');
+  const preview = readFileSync(at('../frontend/src/features/dev/KitDataTable.jsx'), 'utf8');
+
+  // Every column the shipped spec turns on by default, minus the structural select box.
+  const defaults = [...spec.matchAll(/\{ id: '([a-z_]+)',[^}]*defaultOn: true[^}]*\}/g)]
+    .map((m) => m[1])
+    .filter((id) => id !== 'select');
+  assert.ok(defaults.length >= 10, `expected the shipped default view, found ${defaults.length}`);
+
+  // The preview's own COLUMNS array — the one TradeLogPreview renders.
+  const block = preview.slice(preview.indexOf('const COLUMNS = ['), preview.indexOf('const SL = {'));
+  const shown = [...block.matchAll(/id: '([a-z_]+)'/g)].map((m) => m[1]);
+
+  const optional = ['sl', 'adherence', 'duration', 'mfe', 'maxr', 'commission'];
+  const strays = shown.filter((id) => optional.includes(id));
+  assert.deepEqual(
+    strays, [],
+    'the Trade Log preview renders an OPTIONAL column: ' + strays.join(', ') + '. Those '
+      + 'belong in the parity pane (WITH_OPTIONAL), not in the pane that claims to show '
+      + 'what the page ships — fifteen columns overflow the page and thirteen do not.',
+  );
+  assert.equal(
+    shown.length, defaults.length,
+    `the preview shows ${shown.length} columns and the shipped default view has `
+      + `${defaults.length}. They must match, or the pane is not the Trade Log.`,
+  );
+});
+
 test('the table is exported from the barrel, because that is the only door', () => {
   const parts = [
     'DataTable', 'DataTableBody', 'DataTableCell', 'DataTableDash', 'DataTableHeadCell',

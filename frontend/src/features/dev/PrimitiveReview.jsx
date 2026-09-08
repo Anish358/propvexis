@@ -71,6 +71,7 @@ import {
  * rules apply there — real components, inline-styled scaffolding. */
 import {
   DataTableArrival, DataTableParity, DataTableQuestions, DataTableSelection, DataTableStates,
+  TradeLogPreview,
 } from './KitDataTable.jsx';
 
 /* ---------------------------------------------------------------- scaffolding --- */
@@ -2487,19 +2488,25 @@ export default function PrimitiveReview() {
           the data table · piece 1 of 6
         </span>
       </div>
-      <p style={{ ...S.lede, ...S.column, margin: '8px auto 0' }}>
-        <strong style={{ color: 'var(--text)' }}>There was no data table in this
-        codebase.</strong>
+      {/* THE TABLE, BARE AND FIRST (owner, 2026-09-09). The prose used to sit above it
+        * and the owner could not see the component for the writing about the component:
+        * "I want to see the table built separately, as it will be seen in the tradelog
+        * page." So this is the table, at the page's real width, and the explanation is
+        * below it where it belongs. */}
+      <TradeLogPreview />
+
+      <p style={{ ...S.lede, ...S.column, margin: '26px auto 0' }}>
+        <strong style={{ color: 'var(--text)' }}>That is the Trade Log.</strong>
         {' '}
-        Twelve files hand-roll their own, and the Trade Log&rsquo;s is the hardest one in
-        the app — fifteen columns here and up to twenty-one if you turn them all on, six
-        different kinds of cell in one row, row selection driving the bulk actions, and a
-        row you can click that also contains things you can click. This is that table,
-        built once. It is the piece most of Cycle 00&rsquo;s effort belongs to, and the
-        five that follow are small next to it.
+        There was no data table in this codebase — twelve files hand-roll their own, and
+        the Trade Log&rsquo;s is the hardest one in the app: thirteen columns by default
+        and up to twenty-one if you switch them all on, six kinds of cell in one row, row
+        selection driving the bulk actions, and a row you can click that also contains
+        things you can click. This is that table, built once, and it is the piece most of
+        Cycle 00&rsquo;s effort belongs to.
         {' '}
-        Below: ours against the one that ships today, then the four states, then
-        selection, then the four things I need you to decide.
+        Below: the same table beside the one that ships today, then the four states, then
+        selection, then the arrival flash, then what is decided and what is left.
       </p>
 
       <DataTableParity />
