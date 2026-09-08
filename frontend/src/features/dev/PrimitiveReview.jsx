@@ -65,6 +65,14 @@ import {
   Skeleton, Spinner, Switch, Textarea, ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
 
+/* CYCLE 00 — THE KIT. Its specimens live in their own module: the data table needs
+ * fifteen columns of realistic trades and the shipping table beside it for comparison,
+ * which is 400 lines that have nothing to do with the primitive batches above. Same
+ * rules apply there — real components, inline-styled scaffolding. */
+import {
+  DataTableParity, DataTableQuestions, DataTableSelection, DataTableStates,
+} from './KitDataTable.jsx';
+
 /* ---------------------------------------------------------------- scaffolding --- */
 
 const S = {
@@ -2415,21 +2423,66 @@ export default function PrimitiveReview() {
       <div style={S.eyebrow}>Development only · not visible to customers</div>
       <h1 style={S.h1}>Primitive review</h1>
       <p style={S.lede}>
-        <strong style={{ color: 'var(--text)' }}>35 of 36 approved. Nothing is waiting on
-        you.</strong>
+        <strong style={{ color: 'var(--text)' }}>The parts are done — 35 of 36 approved.
+        Cycle 00 has started, and the first kit piece is waiting on you.</strong>
         {' '}
-        Every batch is locked, so they are folded away below — click one to open it. The
-        page stays exactly as useful as it was: change one colour and you can check all 36
-        parts at once instead of clicking through the whole app.
+        Every primitive batch is locked and folded away below; click one to open it after
+        changing a token, and you can check all 36 parts at once instead of clicking
+        through the whole app. The one part still unsigned is the Add Account wizard, and
+        it is unsigned on purpose — that flow is being redesigned in cycle 4, and leaving
+        it unapproved is what stops the new one inheriting the old.
         {' '}
-        The one part still unsigned is the Add Account wizard, and it is unsigned on
-        purpose — that flow is being redesigned, and leaving it unapproved is what stops
-        the new one inheriting the old.
+        <strong style={{ color: 'var(--text)' }}>The kit is reviewed here too, and not as
+        a mockup.</strong>
         {' '}
-        <strong style={{ color: 'var(--text)' }}>What comes next is below.</strong>
+        A drawing cannot show a token resolving differently in context, and that is what
+        every problem this page has found turned out to be.
       </p>
 
       <RedesignMap legacyClasses={LEGACY_CLASSES} />
+
+      {/* ================================================================ CYCLE 00 ===
+        *
+        * THE KIT IS BEING REVIEWED THE WAY THE PRIMITIVES WERE, and that is the owner's
+        * own ruling rather than the plan's. Plan §6 step 2 says Claude Design produces a
+        * mockup and the owner reviews it alone. That is right for a SCREEN. It is wrong
+        * for a component, and this page is why: five differences on `menu.jsx` were
+        * invisible until they were measured in the real cascade, and every one came from
+        * our bridge re-meaning a shadcn name. A drawing cannot show that. Neither can it
+        * show a `<thead>` that stops sticking because a scroll container appeared around
+        * it — which is a real thing this component does if the shell gets it wrong.
+        *
+        * ONE PIECE AT A TIME, TABLE FIRST. Cycle 00 is six pieces and a decision; the
+        * table is the centrepiece, has no existing implementation to lean on, and is what
+        * unlocks Cycle 01. The other five are mostly skins on components already
+        * installed and come after this is signed off.
+        */}
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>Cycle 00 — the kit</span>
+        <Tag tone="open">waiting on you</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          the data table · piece 1 of 6
+        </span>
+      </div>
+      <p style={{ ...S.lede, margin: '8px 0 0' }}>
+        <strong style={{ color: 'var(--text)' }}>There was no data table in this
+        codebase.</strong>
+        {' '}
+        Twelve files hand-roll their own, and the Trade Log&rsquo;s is the hardest one in
+        the app — fifteen columns here and up to twenty-one if you turn them all on, six
+        different kinds of cell in one row, row selection driving the bulk actions, and a
+        row you can click that also contains things you can click. This is that table,
+        built once. It is the piece most of Cycle 00&rsquo;s effort belongs to, and the
+        five that follow are small next to it.
+        {' '}
+        Below: ours against the one that ships today, then the four states, then
+        selection, then the four things I need you to decide.
+      </p>
+
+      <DataTableParity />
+      <DataTableStates />
+      <DataTableSelection />
+      <DataTableQuestions />
 
       <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
         <div style={S.cardHead}>

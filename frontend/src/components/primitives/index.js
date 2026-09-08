@@ -66,6 +66,18 @@ export {
   DialogPopup, DialogPortal, DialogTitle, DialogTrigger,
 } from './dialog.jsx';
 export { EmptyState } from './empty-state.jsx';
+
+// THE DATA TABLE — Cycle 00's centrepiece, and the app's ONLY grid for a page of rows.
+// `@shadcn/table` at base-rhea, wrapped. It is deliberately a different object from
+// `PanelTable*` below (that one is a card's six-row list); data-table.jsx opens with the
+// four differences and why they are not one component with a flag. Presentational only —
+// no table engine lives in it, so the eleven other hand-rolled tables can adopt the look
+// without adopting TanStack.
+export {
+  DataTable, DataTableBody, DataTableCell, DataTableDash, DataTableHeadCell,
+  DataTableHeader, DataTableNote, DataTableNotice, DataTableRow, DataTableSelect,
+  DataTableSkeleton, DataTableStack,
+} from './data-table.jsx';
 export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './field.jsx';
 export { Checkbox } from './checkbox.jsx';
 export { ConsentField } from './consent-field.jsx';
