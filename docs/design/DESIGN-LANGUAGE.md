@@ -460,6 +460,41 @@ because a silent renumber is worse than a documented one.
 | `min(--radius-4xl, 24px)` | 24px | dialogs |
 | `rounded-full` | 99px | pills — toggles, icon buttons, progress bars |
 
+### AMENDED 2026-09-08 (owner) — THE LADDER MOVED UP ONE STEP
+
+The card change below was the first half. The owner then ran the same question through a
+Claude Design mockup of this dashboard and kept its result: **a softer ladder anchored on
+the 24px card, one step down each level.**
+
+| was | now | what moved |
+|---|---|---|
+| 6px | **8px** | smallest chrome, thin skeleton bars |
+| 8px | **10px** | badges, count chips, icon buttons, menu rows |
+| 10px | **14px** | buttons, nav rows, event rows, alert rows, day cells, meter cells |
+| 12px | **18px** | account chips, tiles, a chart well |
+| 14px | **24px** | card and section shells |
+| 24px | 24px | cards — already moved |
+| 99px | 99px | **pills untouched** — toggles, avatars, dots, progress tracks |
+
+**Two rows matched our own comments almost word for word before anything moved**, which is
+what made the mapping unambiguous rather than a guess: the mockup's *"10px → 14px: sidebar
+nav items, brief event rows, alert rows, calendar day cells"* against `--r-lg`'s *"nav rows,
+event rows, day cells"*, and its *"12px → 18px: account chips, meter cells, chart
+placeholder"* against `--r-xl`'s *"account chips, tiles, a chart well"*.
+
+**THIS IS SOFTER THAN THE PRESET, NOT EQUAL TO IT**, and the heading above still says the
+scale is the preset's — so this is the exception being recorded rather than hidden. Preset
+b2qLMFPP6 steps 6/8/10/14/16/24/32; this ladder is 8/10/14/18/24, and **18px is not a preset
+step at all**. The owner chose it from a rendered mockup of this product rather than from a
+preset table, which is the stronger of the two kinds of evidence.
+
+**What did NOT move, and why.** The bridge's `--radius-xl/2xl/3xl/4xl` are what GENERATED
+components ask for, and the mockup does not cover them — it draws buttons and inputs as full
+pills where this app draws them at 16px. Moving those to match would be redesigning every
+control on the strength of a mockup answering a different question. Open, not taken.
+
+---
+
 ### AMENDED 2026-09-08 (owner) — the card takes the preset step
 
 | Component asks for | Value | Who asks |

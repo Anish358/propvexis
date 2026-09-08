@@ -332,23 +332,55 @@
      small sizes and flatter at large ones than the rem scale it replaces, which is
      why a card and a nav row can share 10 and nothing looks mismatched.
      ASSIGNMENT BY SURFACE is unchanged; only the values moved. ===== */
-  /* sm and md take the preset's steps (owner, 2026-09-07). --r-lg (buttons, 10px) and
-     --r-2xl (cards, 14px) were ALREADY the preset's exact values and are untouched —
-     the scale was closer to b2qLMFPP6 than anyone had noticed. */
-  --r-sm:6px;      /* smallest chrome */
-  --r-md:8px;      /* icon buttons, menu rows, small badges */
-  --r-lg:10px;     /* BUTTONS — and nav rows, event rows, meter cells, day cells */
-  --r-input:10px;  /* inputs share the button step in Rhea */
-  --r-xl:12px;     /* account chips, tiles, a chart well — NOT a preset step, see §6 */
+  /* ===== THE LADDER MOVED UP ONE STEP (owner, 2026-09-08) =====
+
+     The owner ran the same question through a Claude Design mockup of this dashboard
+     and kept the result: a softer ladder anchored on the 24px card, "then one step
+     down each level". Every value below is that mapping, and two of the rows matched
+     our own comments almost word for word before anything moved — the mockup's
+     "10px -> 14px: sidebar nav items, brief event rows, alert rows, calendar day
+     cells" against `--r-lg`'s "nav rows, event rows, day cells", and its "12px -> 18px:
+     account chips, meter cells, chart placeholder" against `--r-xl`'s "account chips,
+     tiles, a chart well". That is what made the mapping unambiguous rather than a guess.
+
+         was   now   what moved
+         6  -> 8     smallest chrome, thin skeleton bars
+         8  -> 10    badges, count chips, icon buttons, menu rows
+         10 -> 14    BUTTONS, nav rows, event rows, alert rows, day cells, meter cells
+         12 -> 18    account chips, tiles, a chart well
+         14 -> 24    card and section shells
+         24 =  24    cards, already moved on 2026-09-08
+         99 =  99    pills are untouched, exactly as the mockup has them
+
+     THIS IS SOFTER THAN THE PRESET, NOT EQUAL TO IT, and that is worth stating plainly
+     because §6 says "the scale is the preset's". Preset b2qLMFPP6 steps 6/8/10/14/16/
+     24/32; this ladder is 8/10/14/18/24 — 18 is not a preset step at all. The owner
+     chose it from a rendered mockup rather than from the preset table, which is the
+     stronger evidence of the two, and §6 carries the amendment.
+
+     THE BRIDGE'S `--radius-xl/2xl/3xl/4xl` ARE DELIBERATELY NOT MOVED. Those are what
+     GENERATED components ask for, and the mockup does not cover them — it draws
+     buttons and inputs as full pills, where this app draws them at 16px. Moving them
+     to match would be redesigning every control on the strength of a mockup that was
+     answering a different question. Raised with the owner instead. ===== */
+  --r-sm:8px;      /* smallest chrome, thin skeleton bars */
+  --r-md:10px;     /* icon buttons, menu rows, small badges, count chips */
+  --r-lg:14px;     /* BUTTONS — and nav rows, event rows, meter cells, day cells */
+  --r-input:14px;  /* inputs share the button step in Rhea */
+  --r-xl:18px;     /* account chips, tiles, a chart well */
   /* CARDS TOOK THE PRESET'S OWN STEP (owner, 2026-09-08). Every card surface on the
      dashboard was a hand-typed `rounded-[14px]`, so this token described cards without
      controlling a single one; the owner compared 14 against the preset's 24 in the app
      and kept 24. Surface-named for the same reason `--r-input` is: §6 assigns radius BY
-     SURFACE, so the thing a card reads should say "card" rather than name a step on a
-     scale. It is also the radius the original Figma frame drew (panel.jsx's header
-     records the page being "scaled two steps down" from it). */
+     SURFACE, so the thing a card reads should say "card". It is also the radius the
+     original Figma frame drew (panel.jsx records the page being "scaled two steps
+     down" from it). */
   --r-card:24px;   /* CARDS — panels, KPI tiles, the Brief, the account strip */
-  --r-2xl:14px;    /* floating overlays, and the legacy rules still reading it */
+  /* EQUAL TO `--r-card` NOW, AND THAT IS CORRECT RATHER THAN REDUNDANT. Its remaining
+     users are all legacy CARD shells — `.kpi`, `.panel`, `.bd`, `.log-panel` — which is
+     exactly the mockup's "14 -> 24, all card/section shells" row. It is a second name
+     for the same value only until those rules are deleted, and it dies with them. */
+  --r-2xl:24px;    /* legacy card shells — .kpi, .panel, .bd, .log-panel */
   --r-full:99px;   /* every pill: badges, chips, toggles, icon buttons, bars */
 
   /* ===== SPACING — 8px grid; 4px is the sole sub-8 exception, for hairline gaps. */

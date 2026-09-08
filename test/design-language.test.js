@@ -174,11 +174,11 @@ test('§6 — the assignment rule is documented where it is enforced, on the Rhe
    * scale is declared, and that the card step is documented as belonging to cards. */
   assert.match(tokensCss, /--r-card:24px;\s*\/\* CARDS/,
     'tokens.css must say which surface --r-card is for');
-  /* sm and md moved 5->6 and 6->8 (§6 amended 2026-09-07, owner): they take preset
-   * b2qLMFPP6's derived steps so a registry component arrives shaped right. The others
-   * did not move because they were ALREADY the preset's values — --r-lg 10px and
-   * --r-2xl 14px match it exactly, which nobody had noticed. */
-  const RHEA = { '--r-sm': '6px', '--r-md': '8px', '--r-lg': '10px', '--r-input': '10px', '--r-xl': '12px', '--r-2xl': '14px', '--r-card': '24px', '--r-full': '99px' };
+  /* THE LADDER MOVED UP ONE STEP (owner, 2026-09-08): 8/10/14/18/24, anchored on the
+   * 24px card. It is SOFTER than preset b2qLMFPP6 (6/8/10/14/16/24/32) — 18px is not a
+   * preset step — and the owner chose it from a rendered mockup of this dashboard rather
+   * than from the preset table. §6 carries the amendment and tokens.css the mapping. */
+  const RHEA = { '--r-sm': '8px', '--r-md': '10px', '--r-lg': '14px', '--r-input': '14px', '--r-xl': '18px', '--r-2xl': '24px', '--r-card': '24px', '--r-full': '99px' };
   for (const [name, value] of Object.entries(RHEA)) {
     assert.match(tokensCss, new RegExp(`(?<![\\w-])${name}\\s*:\\s*${value}\\b`),
       `${name} must be ${value} on the Rhea scale — see DESIGN-LANGUAGE §6`);
