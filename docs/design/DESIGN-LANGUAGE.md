@@ -1,7 +1,7 @@
 # PropVexis Design Language — Base Rhea
 
 **Status:** 🔒 LOCKED 2026-08-29 · rewritten from the shipped dashboard
-· foundation re-valued 2026-09-07
+· foundation re-valued 2026-09-07 · radius ladder 2026-09-08
 **Foundation:** shadcn **Build Your Own** preset `b2qLMFPP6`, style **Base Rhea**
 (supersedes `b2qKmlY80`, §21 amendment 2026-09-07)
 **Reference implementation:** the dashboard — `features/dashboard/`,
@@ -16,8 +16,8 @@ and the owner's `PropVexis Dashboard Zinc` mockup, which the surface ramp is tak
 >    `@theme inline`, so `--color-popover` reads `--surface-2` no matter what a preset
 >    writes into `tailwind.css`.
 > 2. **Its dark block cannot match.** A preset puts every dark value inside `.dark {}`.
->    Nothing in this app sets a `.dark` class — the theme travels on `data-theme`, and
->    the app is dark by default on bare `:root`. The whole block is dead CSS.
+>    This app is dark unconditionally on bare `:root` — no
+>    `.dark` class, no `data-theme` (§4). The whole block is dead CSS.
 >
 > So the preset ID records **where our values came from**, and it is not installed into
 > `components.json`. Alignment is done by moving OUR values to match, which is the only
@@ -108,6 +108,12 @@ application code imports — that is what makes `shadcn add --overwrite` safe. C
 fix is never to edit that rule.** Delete it and move the component onto the generated one.
 **The goal is removing `legacy/app.css` entirely** — every edit either moves toward zero
 or is wrong.
+
+🔒 **It is also FROZEN — nothing new is ever added to it, anywhere** (owner, 2026-09-08).
+`legacy-frozen.test.js` pins every class name the file declared that day, so a rule can
+be deleted freely and a new one cannot be added at all. Deleting is the expected
+direction: drop the names from `test/fixtures/legacy-classes.txt` in the same commit —
+that diff is the progress record.
 
 The modal is why: it was "fixed" three times by tuning legacy values before anyone noticed
 `DialogPopup` was the bare Base UI primitive and the shadcn skin had never been applied at
@@ -448,183 +454,47 @@ because a silent renumber is worse than a documented one.
 
 ## §6 Radius — 🔒 LOCKED
 
-**The scale is the preset's, and so is the card — there is no exception left.**
+**Radius is assigned BY SURFACE, and the ladder is OURS** — anchored on the 24px card,
+one step down per level. It is softer than preset b2qLMFPP6 (6/8/10/14/16/24/32), and
+18px is not a preset step at all: the owner chose it from a rendered mockup of this
+product, which outranks a preset table.
 
-| Component asks for | Value | Who asks |
+| Surface | Token | Write it as |
 |---|---|---|
-| `rounded-sm` / `rounded-md` | **8 / 10px** | small chrome, menu rows |
-| `rounded-lg` | **14px** | buttons, nav rows, list rows, day cells |
-| `rounded-xl` | 14px | tiles, chips |
-| `rounded-2xl` | 16px | controls — button, input, textarea, badge, menu |
-| `rounded-3xl` | 24px | popovers |
-| `min(--radius-4xl, 24px)` | 24px | dialogs |
-| `rounded-card` | **24px** | cards, panels, KPI tiles |
-| `rounded-full` | 99px | pills — toggles, icon buttons, progress bars, badges |
+| smallest chrome, skeleton bars | `--r-sm` 8px | `rounded-sm` |
+| icon buttons, menu rows, count chips | `--r-md` 10px | `rounded-md` |
+| buttons, nav rows, event rows, day cells, meter cells | `--r-lg` 14px | `rounded-lg` |
+| tiles, account chips, a chart well, an empty state | `--r-xl` 18px | `rounded-[var(--r-xl)]` |
+| cards, panels, KPI tiles, the Brief | `--r-card` 24px | `rounded-card` |
+| pills — toggles, badges, progress tracks, avatars | `--r-full` 99px | `rounded-full` |
+| popovers / dialogs | 24px | `rounded-3xl` / `min(--radius-4xl, 24px)` |
 
-**The three bold values moved on 2026-09-08** and this table did not follow them for a
-day. It does now. `rounded-sm/md/lg` and `rounded-card` resolve through our own
-`--r-*` tokens, so they track the ladder; `rounded-xl/2xl/3xl/4xl` are the bridge's own
-numbers and are deliberately fixed — see the closure note above for why that is not the
-inconsistency it looks like.
+`--r-2xl` (24px) and `--r-input` (14px) are read only by `legacy/app.css` and die
+with it. Do not reach for one in new work.
 
-**A VALUE HERE IS A CEILING, NOT A PROMISE.** Radius clamps to half the box, so on
-anything under about 32px tall the number above is never what draws. A 20px badge caps
-at 10px whether it asks for 16 or 99. Check the height before reading a row as a
-guarantee.
+**Three traps, all silent. Read these before changing a radius.**
 
-### THE PREVIEW TRAP, 2026-09-09 — A BRIDGE NAME IS NOT READABLE AT RUNTIME
+1. **A VALUE IS A CEILING, NOT A PROMISE.** Radius clamps to half the box, so below
+   ~32px the number never draws: a 20px badge caps at 10px whether it asks for 16 or
+   99. **This is why controls and badges are ALREADY pills, and that question is
+   closed.** Judge any radius change on the TALL things it touches.
 
-Two trial panes were built on this page to compare radii, and **both were broken in the
-same way**. Each scoped a bridge variable on a wrapper div — `--radius-sm`,
-then `--radius-2xl` — expecting everything inside to redraw. Nothing redrew.
-The owner reported "all three look exactly the same" twice, and was describing the
-output literally rather than judging perceptibility.
+2. **A BRIDGE NAME IS NOT READABLE AT RUNTIME.** Tailwind bakes the indirection in at
+   build time — `.rounded-sm{border-radius:var(--r-sm)}` but
+   `.rounded-xl{border-radius:14px}`. So setting `--radius-*` on an element is a
+   no-op, and `rounded-xl` is a LITERAL 14px, **not** `--r-xl`. To track the
+   ladder write `rounded-[var(--r-*)]`, and confirm in the BUILT stylesheet. Two trial
+   panes were read as evidence before anyone did.
 
-**Tailwind resolves the indirection at BUILD time.** Read the built stylesheet, not the
-bridge:
+3. **A NESTED SURFACE SITS ONE STEP INSIDE ITS CONTAINER.** An inner curve bulging past
+   the outer one reads as uneven — the empty state at 14px inside a 24px card was this.
+   When the ladder moves, the step that satisfies this moves with it.
 
-```css
-.rounded-sm  { border-radius: var(--r-sm) }   /* the bridge name is GONE */
-.rounded-2xl { border-radius: 16px }          /* inlined outright */
-.rounded-card{ border-radius: var(--r-card) }
-```
+`--radius-xl/2xl/3xl/4xl` are the bridge's FIXED numbers for generated components and
+deliberately do not track the ladder (§25).
 
-So `--radius-sm` is a compile-time input, not a runtime variable. Setting it
-on an element is a no-op — **silently**, like every other trap in this codebase.
-
-**TO PREVIEW OR OVERRIDE A RADIUS:** scope the `--r-*` token (that name does
-survive into the CSS), or change the class. Never the bridge name. And before trusting
-any visual preview, `grep` the built CSS for the property you think you are
-moving — one line of proof ahead of a conclusion drawn from it.
-
-**THIS IS THE THIRD MEMBER OF A FAMILY**, and they are worth learning together because
-all three fail without an error:
-
-1. a utility class written outside `components/{ui,primitives}` compiles to
-   nothing (§1),
-2. `tailwind-merge` drops an override only when the modifier set MATCHES, so a
-   correct-looking class can lose silently (see the top-bar pills),
-3. a bridge variable set at runtime is read by nobody, because the name was resolved
-   away at build.
-
-**The lesson is one lesson:** in this stack, "I wrote the right thing" is not evidence.
-The built output is.
-
----
-### CLOSED 2026-09-09 (owner) — THE CONTROLS ARE ALREADY PILLS. DO NOT REOPEN THIS.
-
-The amendment below left one thing open: the mockup draws controls as full pills and
-this app draws them at 16px, so should the bridge move? **The question was malformed,
-and the arithmetic is why.**
-
-**A BORDER-RADIUS CANNOT EXCEED HALF THE BOX.** When the two radii on a side add up to
-more than that side, the browser scales every corner down to fit (CSS Backgrounds 3,
-corner overlap). Our controls are short, so their radius is capped long before any
-token gets a say:
-
-| control | height | the most the browser will draw |
-|---|---|---|
-| Input, Select trigger, Button | `h-8` = 32px | **16px** |
-| Badge | `h-5` = 20px | **10px** |
-
-**So 16px on a 32px control IS a pill** — exactly, not approximately. The mockup and
-the app already agree; there was never a gap to close. A 99px control step would clamp
-straight back to 16px and change literally nothing, and the 14px alternative differs by
-two pixels on a shape that is already a semicircle at each end. The owner looked at all
-three rendered side by side and could not tell them apart — which turned out to be
-literally true, because the pane scoped a bridge name and moved nothing (see the trap
-above). **The conclusion survives anyway, and on better evidence than the pane:** a 32px
-box cannot draw more than 16px whatever it asks for, so the controls are already pills by
-arithmetic, not by observation.
-
-**AND THE CHANGE WOULD HAVE BEEN ACTIVELY WRONG.** `--radius-2xl` is not a
-"control" token. It also draws the **dropdown panel, the select panel, the textarea,
-the sidebar and the skeleton** — all tall, none clamped. Moving it to 99px would have
-left every control exactly as it is and turned the panels into lozenges. The token that
-looks like it means "controls" means "whatever the registry put it on".
-
-**THE RULE THIS LEAVES.** Before changing a radius token, check the HEIGHT of what
-draws it. Under ~32px the token is decorative — the box decides. Judge a radius change
-on the tall things it touches, because those are the only places it is visible. And
-never infer a token's scope from its name.
-
-Controls stay at 16px. Buttons stay at 14px via the wrapper. Nothing to do.
-
----
-### AMENDED 2026-09-08 (owner) — THE LADDER MOVED UP ONE STEP
-
-The card change below was the first half. The owner then ran the same question through a
-Claude Design mockup of this dashboard and kept its result: **a softer ladder anchored on
-the 24px card, one step down each level.**
-
-| was | now | what moved |
-|---|---|---|
-| 6px | **8px** | smallest chrome, thin skeleton bars |
-| 8px | **10px** | badges, count chips, icon buttons, menu rows |
-| 10px | **14px** | buttons, nav rows, event rows, alert rows, day cells, meter cells |
-| 12px | **18px** | account chips, tiles, a chart well |
-| 14px | **24px** | card and section shells |
-| 24px | 24px | cards — already moved |
-| 99px | 99px | **pills untouched** — toggles, avatars, dots, progress tracks |
-
-**Two rows matched our own comments almost word for word before anything moved**, which is
-what made the mapping unambiguous rather than a guess: the mockup's *"10px → 14px: sidebar
-nav items, brief event rows, alert rows, calendar day cells"* against `--r-lg`'s *"nav rows,
-event rows, day cells"*, and its *"12px → 18px: account chips, meter cells, chart
-placeholder"* against `--r-xl`'s *"account chips, tiles, a chart well"*.
-
-**THIS IS SOFTER THAN THE PRESET, NOT EQUAL TO IT**, and the heading above still says the
-scale is the preset's — so this is the exception being recorded rather than hidden. Preset
-b2qLMFPP6 steps 6/8/10/14/16/24/32; this ladder is 8/10/14/18/24, and **18px is not a preset
-step at all**. The owner chose it from a rendered mockup of this product rather than from a
-preset table, which is the stronger of the two kinds of evidence.
-
-**What did NOT move, and why.** The bridge's `--radius-xl/2xl/3xl/4xl` are what GENERATED
-components ask for, and the mockup does not cover them — it draws buttons and inputs as full
-pills where this app draws them at 16px. Moving those to match would be redesigning every
-control on the strength of a mockup answering a different question. Open, not taken.
-
----
-
-### AMENDED 2026-09-08 (owner) — the card takes the preset step
-
-| Component asks for | Value | Who asks |
-|---|---|---|
-| `rounded-card` | 24px | **cards** — panels, KPI tiles, the Brief, the account strip |
-
-The card was the single documented deviation: the scale was the preset's everywhere
-except here, where the generated card asks for 24px and ours was pinned to 14. The owner
-compared the two in the running app and kept 24. **It was also the frame's own number** —
-`panel.jsx` records the Figma frame drawing these cards at 24 radius, and the page being
-"scaled two steps down" from it, so the shipped 14 was the outlier rather than the intent.
-
-**`--r-card` is surface-named, not a scale step**, because this section assigns radius BY
-SURFACE: the token a card reads should say "card". Same reasoning as `--r-input`.
-
-**`--r-2xl` stays 14px** for floating overlays and the legacy rules still reading it.
-Only cards moved.
-
-#### What the deviation taught, which outlives it
-
-It was pinned in `primitives/card.jsx` rather than in the bridge, because `dialog.jsx`
-and `alert-dialog.jsx` read the same `--radius-4xl` and capping the token would have
-dragged every dialog down with it. **That decision is why the change could be tried and
-kept in one line.** A deviation belongs in the wrapper that owns it, never in the bridge —
-the rule survives the exception that prompted it.
-
-#### And the reason it was invisible for so long
-
-Five card surfaces hand-typed `rounded-[14px]` instead of reading the token, so `--r-2xl`
-— documented as "CARDS" — controlled **no card at all**. Changing the token would have
-changed nothing on the dashboard. **A token that names a surface must be the only way that
-surface gets its value**, or the documentation is describing something that is not
-happening. Twelve hand-typed radii across the dashboard primitives were replaced with
-named utilities in the same change.
-
-**Chrome in the top bar is a capsule** — everything in that bar is `--r-full` at one
-height; nothing outside it uses that shape.
-
-Test: `design-language.test.js` §6.
+Held by `radius-ladder.test.js` — no primitive hand-types a radius — and
+`design-language.test.js`.
 
 ---
 
@@ -792,8 +662,16 @@ focus state.**
 
 ## §11 Density and spacing — 🔒 LOCKED
 
-8px grid: `--s-1 … --s-12`. **4px is the sole sub-8 exception**, for hairline gaps. A
-value off the scale is a bug, not a nudge.
+**The base unit is 4px.** `bridge.css` points `--spacing` at it, which is Tailwind's
+own base — so `p-6`, `gap-1.5`, `px-2.5` and `p-3.5` all land on the
+preset's scale exactly. **Use the Tailwind step; it IS the scale.**
+
+**A value fitted to a container the design fixes may be arbitrary** — `px-[18px]`,
+`pt-[22px]`, `gap-[7px]`. This is the same carve-out §3 makes for type: a number
+sized to a cell is answering the cell, not the scale. Everything else takes a step.
+
+`--s-1 … --s-12` are the LEGACY 8px scale, read only by `legacy/app.css`. They die
+with it — do not reach for one in new work.
 
 ---
 
@@ -1195,9 +1073,13 @@ and none of it reports an error. Two causes, and both fail silently.
 
 | it asks for | shadcn means | it gets here |
 |---|---|---|
-| `text-sm` / `text-xs` | 14 / 12px | **13 / 11px** |
+| `rounded-sm` / `rounded-md` / `rounded-lg` | 2 / 6 / 8px | **8 / 10 / 14px** |
 | `text-muted-foreground` | `#a1a1aa` | **`#c9c9d1`** |
 | `bg-popover`, `bg-accent`, `border` | the preset's | **ours** |
+
+**Type is NOT on this list any more.** The scale moved onto the preset on 2026-09-07,
+so `text-sm` is 14px and `text-xs` is 12px — what shadcn means. A generated
+component previews truthfully by size; it is radius and colour that still shift.
 
 This is deliberate — it is why the app has one type scale and one palette instead of two.
 
