@@ -127,7 +127,10 @@ export function BriefCard({ className, children, ...rest }) {
     <section
       data-slot="brief"
       className={cn(
-        'flex flex-col overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)]',
+        /* EXPERIMENT 2026-09-08 — was `rounded-[14px]`, our card step. The owner is
+           looking at the preset's card radius (24px) before deciding. Revert with the
+           commit, not by hand: four other card surfaces move with this one. */
+        'flex flex-col overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)]',
         className,
       )}
       {...rest}

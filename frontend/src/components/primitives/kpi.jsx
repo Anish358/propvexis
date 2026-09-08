@@ -114,7 +114,10 @@ export function KpiCard({ hero = false, className, children, ...rest }) {
            to the floor. Those three together are why the Net P&L card's label sat above
            its neighbours' and its number below theirs. Every value here is the
            prototype's; none of them is a nudge. */
-        'flex min-h-[128px] min-w-0 rounded-[14px] border px-[17px] pb-[24px]',
+        /* EXPERIMENT 2026-09-08 — was `rounded-[14px]`, our card step. The owner is
+           looking at the preset's card radius (24px) before deciding. Revert with the
+           commit, not by hand: four other card surfaces move with this one. */
+        'flex min-h-[128px] min-w-0 rounded-[24px] border px-[17px] pb-[24px]',
         hero
           ? 'flex-col gap-[13px] pt-[28px] border-[var(--line-control)] bg-[var(--surface-raised)]'
           : 'items-start justify-between gap-3 pt-[22px] border-[var(--line)] bg-[var(--surface)]',

@@ -106,7 +106,10 @@ export function AccountCardShell({ critical = false, className, children, ...res
     <section
       data-slot="account-card"
       className={cn(
-        'flex flex-col overflow-hidden rounded-[14px] border bg-[var(--surface)]',
+        /* EXPERIMENT 2026-09-08 — was `rounded-[14px]`, our card step. The owner is
+           looking at the preset's card radius (24px) before deciding. Revert with the
+           commit, not by hand: four other card surfaces move with this one. */
+        'flex flex-col overflow-hidden rounded-[24px] border bg-[var(--surface)]',
         critical ? 'border-[var(--loss-deep)]' : 'border-[var(--line)]',
         className,
       )}

@@ -84,7 +84,10 @@ test('the card carries the frame\'s geometry', () => {
      * columns carry their own 26px inset rather than the card padding everything — so
      * the row of scrolling events can bleed to the card's own border instead of stopping
      * 14px short of it. */
-    ['card', /overflow-hidden rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
+  // 24px, not 14, WHILE THE RADIUS EXPERIMENT RUNS (2026-09-08). This assertion is why
+  // the experiment is honest: the geometry is PINNED, so moving it has to be deliberate
+  // and shows up in a diff. It reverts with the commit that moved the components.
+    ['card', /overflow-hidden rounded-\[24px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
     ['header inset', /px-\[26px\] pt-\[22px\] pb-3.5/],
     ['title', /text-lg leading-7 font-\[650\] tracking-\[-0\.25px\]/],
     ['date', /text-sm leading-5 font-\[450\] text-\[var\(--muted\)\]/],
