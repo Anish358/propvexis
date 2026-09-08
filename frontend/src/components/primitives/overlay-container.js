@@ -1,8 +1,9 @@
 /* overlay-container.js
  *
- * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
- *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
- *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ * @design approved 2026-09-08 — owner confirmed it works rather than approving how it
+ *   looks, because it draws nothing: the check was a modal with a menu inside it, and
+ *   whether the menu appeared. Signed off the way dialog.jsx was signed off underneath
+ *   modal.jsx. See test/primitives-status.test.js.
  */
 
 import { createContext, useContext } from 'react';

@@ -224,6 +224,23 @@ const APPROVED = new Set([
    * 2026-09-06, and the test failed the first page that used them correctly. A stale test
    * is worse than a stale comment because it enforces. */
   'alert.jsx', 'skeleton.jsx', 'spinner.js', 'progress.jsx',
+
+  /* AND THE ONE THAT WAS IN NO BATCH (owner, 2026-09-08).
+   *
+   * `overlay-container.js` renders NOTHING — it is a React context holding a ref, and
+   * the batches were drawn from things you can look at, so it was never assigned to one.
+   * That left the arithmetic short: 28 approved plus 7 batched is 35, and there are 36.
+   *
+   * APPROVED THE WAY `dialog.jsx` WAS, which is to say by confirming it WORKS rather
+   * than by approving how it looks. It has exactly one visible consequence and the Test
+   * page shows it: a menu opened inside a modal, which without this context portals
+   * beside the backdrop and paints under the scrim — focused, keyboard-operable and
+   * invisible. The owner opened it and the menu appeared.
+   *
+   * The PICKER in that same specimen is still broken and that is a KNOWN, PARKED
+   * limitation rather than a defect in this file: the generated SelectContent exposes no
+   * way to pass a portal container. Owner ruling 2026-09-08 was to leave and note it. */
+  'overlay-container.js',
 ]);
 
 const modules = files.filter((f) => f !== 'index.js');

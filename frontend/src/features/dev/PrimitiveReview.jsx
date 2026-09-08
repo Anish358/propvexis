@@ -2124,7 +2124,7 @@ export default function PrimitiveReview() {
         we move on. Batches are locked together because parts that sit side by side have to
         agree on height, corners and spacing.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>28 of 36 approved.</strong>
+        <strong style={{ color: 'var(--text)' }}>29 of 36 approved.</strong>
         {' '}
         Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
         the switch and the unit toggle. The dropdown was the first through — and it is the
@@ -2138,21 +2138,22 @@ export default function PrimitiveReview() {
         {' '}
         <strong style={{ color: 'var(--text)' }}>Batch 4 — Flows is open, at the top.</strong>
         {' '}
-        One component with 21 parts, and the odd one out still sits above it: the piece of
-        plumbing that was never in a batch at all.
+        One component with 21 parts — and it is the last thing standing between the review
+        and an empty queue, apart from six small pieces in Batches 5 and 6.
       </p>
 
       {/* ================================================= THE UNBATCHED ONE === */}
       <div style={S.batchHead}>
         <span style={S.batchTitle}>The one that was in no batch</span>
-        <Tag tone="open">needs a decision, not an opinion</Tag>
+        <Tag tone="ok">approved 8 Sep 2026</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          24 approved + 11 still batched = 35, and there are 36
+          signed off by confirming it works — it has no appearance to judge
         </span>
       </div>
 
       <Spec
         name="Overlay container"
+        approved="8 Sep 2026"
         file="primitives/overlay-container.js"
         ask={
           'nothing, really — and that is the point. This one draws no pixels: it is the '
