@@ -96,7 +96,7 @@ export { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './s
 export {
   Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue,
 } from './progress.jsx';
-export { Separator } from './separator.js';
+export { Separator } from './separator.jsx';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
 // The @coss switch, with its OFF state made visible in our dark theme — the preset

@@ -1917,25 +1917,34 @@ function SmallPieces() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span style={S.specimenLabel}>Number badge</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, minHeight: 56 }}>
+        {/* THE BADGE GOES INSIDE THE BUTTON, and the first version of this pane put it
+            beside one — which the owner spotted immediately as "the hover feels off".
+            It was: as a SIBLING, moving the pointer from the bell onto the badge LEAVES
+            the button, so the hover fill drops while the cursor is still visually on the
+            control. Notifications.jsx has always had it right — the badge is a child of
+            the trigger, `size="icon-sm" pill`, and `.notif` supplies the positioned
+            ancestor `corner` needs. Reproduced here exactly, because a specimen that
+            composes a component differently from its one real call site is testing
+            something the app does not do. */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20, minHeight: 56 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
             <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Filters</span>
             <CountBadge>3</CountBadge>
           </span>
           <span style={{ position: 'relative', display: 'inline-flex' }}>
-            <Button variant="chrome" size="icon">
+            <Button variant="chrome" size="icon-sm" pill>
               <Bell aria-hidden="true" />
+              <CountBadge tone="alert" corner>7</CountBadge>
             </Button>
-            <CountBadge tone="alert" corner>7</CountBadge>
           </span>
           <span style={{ position: 'relative', display: 'inline-flex' }}>
-            <Button variant="chrome" size="icon">
+            <Button variant="chrome" size="icon-sm" pill>
               <Bell aria-hidden="true" />
+              <CountBadge tone="alert" corner>99+</CountBadge>
             </Button>
-            <CountBadge tone="alert" corner>99</CountBadge>
           </span>
         </div>
-        <span style={{ ...S.mono, fontSize: 11 }}>a filter count · unread, 1 digit · 2 digits</span>
+        <span style={{ ...S.mono, fontSize: 11 }}>a filter count · unread · capped at 99+</span>
       </div>
     </div>
   );
