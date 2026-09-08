@@ -1,4 +1,4 @@
-import { query } from '../../platform/db.js';
+import { pool, query } from '../../platform/db.js';
 import { config } from '../../platform/config.js';
 import { seal, open, secretboxEnabled } from '../../platform/secretbox.js';
 import { refreshTokens } from './ctraderOauth.js';
@@ -129,6 +129,58 @@ export function supersedeDuplicateIdentitiesQuery(identityId, ctidUserId) {
               AND revoked_at IS NULL
               AND user_id = (SELECT user_id FROM ctrader_identities WHERE id = $1)
         RETURNING id;`,
+    values: [identityId, ctidUserId],
+  };
+}
+
+/**
+ * Move every account that belonged to an OLDER grant for this same cTrader login onto
+ * the new one.
+ *
+ * THE BUG THIS CLOSES, and it silently killed every cTrader account the owner had.
+ *
+ * `supersedeDuplicateIdentitiesQuery` above revokes the older identity row — it has to,
+ * or the unique index raises on setCtid. Its comment claimed "any account already
+ * pointing at one keeps its foreign key", which is true and completely beside the
+ * point: the FK survives, but `mt5_accounts.ctrader_identity_id` now names a REVOKED
+ * grant, and every query that decides whether an account can sync joins
+ * `ctrader_identities ... AND revoked_at IS NULL`. So the account fell out of all three
+ * at once — the 3-hour scheduler, the Sync Trades button, and the worker's payload.
+ *
+ * PROD 2026-09-08. Identity 4 held account 32 and identity 6 held account 34; both were
+ * superseded by later authorizations, and identity 7 — the live one — owned nothing.
+ * Result: "no accounts are connected for Auto Sync" from the button, no scheduled syncs
+ * at all, and Settings › Accounts still reporting **Auto sync · Synced** for both,
+ * because that column reads `import_method` and the last job. Account 32 had been dead
+ * for two days. **Re-authorizing was enough to do it**, and re-authorizing is exactly
+ * what a trader does when a connection looks unhealthy.
+ *
+ * WHY ADOPTING IS RIGHT RATHER THAN MERELY CONVENIENT. The new row is the SAME cTrader
+ * login (`user_id`, `ctid_user_id` both match) with a fresher token pair. It is strictly
+ * more able to serve those accounts than the row being retired. The alternative —
+ * asking the trader to delete and re-add accounts they have history on — would discard
+ * the journal to fix a pointer.
+ *
+ * IT DOES NOT REQUIRE THE OLD ROW TO STILL BE LIVE, deliberately: that is what lets a
+ * trader who disconnected a grant on purpose get their accounts back by simply
+ * authorizing again, and it is what makes this repair the already-orphaned rows on prod
+ * rather than only preventing new ones.
+ */
+export function repointAccountsToIdentityQuery(identityId, ctidUserId) {
+  return {
+    text: `UPDATE mt5_accounts a
+              SET ctrader_identity_id = $1
+             FROM ctrader_identities old
+            WHERE a.ctrader_identity_id = old.id
+              AND old.id <> $1
+              AND old.ctid_user_id = $2
+              -- SAME OWNER, asserted rather than assumed. ctid_user_id is a
+              -- cTrader-side id and nothing stops two PropVexis users authorizing the
+              -- same cTrader login; without this an account would be handed to the
+              -- other tenant's grant.
+              AND old.user_id = (SELECT user_id FROM ctrader_identities WHERE id = $1)
+              AND a.user_id = old.user_id
+        RETURNING a.id, a.ctrader_identity_id;`,
     values: [identityId, ctidUserId],
   };
 }
@@ -361,6 +413,46 @@ export async function freshAccessToken(row, opts = {}) {
 export const identitiesAwaitingDiscovery = (limit) => run(identitiesAwaitingDiscoveryQuery(limit));
 export const supersedeDuplicateIdentities = (identityId, ctidUserId) =>
   run(supersedeDuplicateIdentitiesQuery(identityId, ctidUserId));
+export const repointAccountsToIdentity = (identityId, ctidUserId) =>
+  run(repointAccountsToIdentityQuery(identityId, ctidUserId));
+
+/**
+ * Claim a cTID for this identity: adopt the older grants' accounts, retire those
+ * grants, then record the cTID. ONE TRANSACTION, and the order inside it is the
+ * contract.
+ *
+ * WHY IT IS ONE TRANSACTION AND NOT THREE CALLS, which is what discovery used to make:
+ *
+ *  · Superseding without repointing is the prod bug — the accounts survive pointing at
+ *    a revoked grant and silently stop syncing. The two writes are one decision and
+ *    must not be separable.
+ *  · A failure BETWEEN supersede and setCtid left the user with the older row revoked
+ *    and the newer row still holding no cTID: zero live identities for that login, so
+ *    every account dead and the next authorization unable to explain why.
+ *
+ * ORDER: repoint, then revoke, then setCtid. setCtid is LAST because it is the write
+ * that can raise 23505 on uq_ctrader_identities_live, and by then the rows it would
+ * collide with are revoked. Repoint runs before revoke only for readability — it
+ * matches on `ctid_user_id`, which revoking does not clear — but the transaction is
+ * what makes the ordering safe rather than lucky.
+ */
+export async function adoptCtid(identityId, ctidUserId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const exec = async (q) => (await client.query(q.text, q.values)).rows;
+    const adopted = await exec(repointAccountsToIdentityQuery(identityId, ctidUserId));
+    const superseded = await exec(supersedeDuplicateIdentitiesQuery(identityId, ctidUserId));
+    await exec(setCtidQuery(identityId, ctidUserId));
+    await client.query('COMMIT');
+    return { adopted: adopted.map((r) => Number(r.id)), superseded: superseded.map((r) => Number(r.id)) };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 /**
  * Record that discovery has run for this identity.
