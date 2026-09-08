@@ -70,26 +70,35 @@ import { cn } from '@/lib/utils';
  * "At corner i see some uneven in ours." They were right, and the cause is not a
  * rendering artefact — the registry asks for a radius this app does not use.
  *
- *     the registry Empty          rounded-3xl   24px
- *     our card radius             --r-2xl       14px
- *     account.jsx dashed empty                  12px
- *     brief.jsx dashed empty                    10px
- *     what 24px IS here           modal.jsx     24px
+ * THE PRINCIPLE HELD; EVERY NUMBER IN IT MOVED (owner, 2026-09-09). The rule chosen that
+ * day was right and is kept: an empty state fills a CARD's body, so it must sit ONE STEP
+ * INSIDE the card containing it — an inner curve that bulges past the outer one is what
+ * reads as uneven. But the ladder shifted the next day and the step that satisfied it
+ * changed:
  *
- * An empty state fills a CARD's body, so at 24px its corner curves harder than the 14px
- * card containing it — the inner curve bulges past the outer one, which is what reads as
- * uneven. §6 assigns radius BY SURFACE and 24px is this app's modal step; nothing else
- * uses it. Both of our own approved dashed empties already sit a step INSIDE their card,
- * at 12px and 10px.
+ *                              8 Sep      9 Sep
+ *     the card                 14px       24px    <- moved
+ *     one step inside it       10px       18px    <- so this moved too
+ *     account.jsx dashed       12px       18px    (--r-xl, tracked the ladder)
+ *     brief.jsx dashed note    10px       14px    (--r-lg, and correct there)
+ *     THIS, until now          10px       14px    <- stayed a row step, now two
+ *                                                    steps inside a 24px card
  *
- * So the app had already answered this and the registry value was the outlier. `rounded-lg`
- * is `--r-lg` (10px) — the token rather than a literal, and the same value brief.jsx picked
- * by hand. This is a correction to our own scale, not a preference, and it is one class to
- * revert if the owner disagrees.
+ * So `rounded-lg` is no longer "one step inside the card" — it is the BUTTON and row
+ * step, which is not what a card-body well is. `--r-xl` is: tokens.css names it
+ * "account chips, tiles, a chart well", and account.jsx's dashed empty — the same idiom,
+ * an approved primitive — already sits there. brief.jsx keeps `--r-lg` correctly,
+ * because its dashed NOTE is a row inside a section, not a card body.
+ *
+ * WRITTEN AS `rounded-[var(--r-xl)]` AND NOT `rounded-xl`, WHICH WOULD BE A BUG.
+ * The bridge pins `--radius-xl: 14px` as a literal for generated components, and
+ * Tailwind bakes it in: the built CSS reads `.rounded-xl{border-radius:14px}`. So the
+ * utility would silently keep today's wrong value. §6 records this trap; the token form is
+ * the only one that tracks the ladder, and it is what account.jsx and rail.jsx already use.
  *
  * WHY IT LOOKED FINE IN SHADCN'S OWN SCREENSHOT: their empty sits in a container whose
  * radius is at least its own, so there is no inner-rounder-than-outer conflict to see. */
-const EDGE = 'rounded-lg border border-dashed border-[var(--line-strong)]';
+const EDGE = 'rounded-[var(--r-xl)] border border-dashed border-[var(--line-strong)]';
 
 /* IT FADES IN, and this is the one surface where a pure entrance animation is easy to
  * justify. An empty state has NO FIGURES TO READ — that is its definition — so the
