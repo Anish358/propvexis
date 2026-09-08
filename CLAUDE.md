@@ -70,6 +70,21 @@ https://journal.anishdevlops.xyz still served during migration).
   **silently** — so a caller-supplied dimension, alignment or column template is a
   PROP, not a class. This has cost real debugging time five times; §1 lists them.
   `hidden` also does nothing against an author `display` — conditionally render.
+- 🔒 **`legacy/app.css` IS FROZEN. IT MAY ONLY SHRINK.** (Owner, 2026-09-08 — standing
+  rule.) Anything NEW — a new screen, component, state or tweak — is built with
+  shadcn + Tailwind in `components/{ui,primitives}`. Nothing new is ever added to the
+  legacy stylesheet, anywhere.
+  **This is enforced, not remembered:** `test/legacy-frozen.test.js` pins every class
+  name the file declared on 2026-09-08 (`test/fixtures/legacy-classes.txt`) and fails if
+  a name appears that is not in it — so a rule can be deleted freely and a new one cannot
+  be added at all. It also pins the stylesheet import list, so a fifth `.css` file cannot
+  be slipped in beside it. *Deleting* is the expected direction: when a redesign cycle
+  removes a screen's CSS, delete its names from the fixture in the same commit — that diff
+  is the progress record. Class NAMES rather than lines or bytes, so documenting the file
+  (recording what was deleted and why) never trips the ratchet.
+  *What it deliberately cannot catch:* adding a declaration inside a rule that already
+  exists. The rule below covers that, and no test can tell a bug fix from a feature inside
+  an existing `{ }`.
 - ⛔ **NEVER PATCH LEGACY CSS. REPLACE IT WITH SHADCN.** (Owner, 2026-09-07 — standing
   rule, no exceptions.) When a component looks wrong and the cause is in
   `styles/legacy/app.css`, the fix is **never** to edit that rule. Delete it and move the
