@@ -1910,8 +1910,13 @@ function RebuiltSix() {
 
       <div>
         <span style={S.specimenLabel}>Nothing here yet</span>
+        {/* PADDED, so the two borders are not flush. The first version of this pane sat the
+            empty state's edge directly against the card's, with no gap — which made the
+            corners the only place the two curves could be compared, and exaggerated a
+            mismatch that was real but smaller than it looked. A real page puts an empty
+            state inside a card's padding, so the specimen does too. */}
         <div style={{
-          marginTop: 10, border: '1px solid var(--line)', borderRadius: 14,
+          marginTop: 10, padding: 12, border: '1px solid var(--line)', borderRadius: 14,
           background: 'var(--surface)',
         }}
         >

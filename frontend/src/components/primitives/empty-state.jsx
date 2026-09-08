@@ -65,7 +65,31 @@ import { cn } from '@/lib/utils';
  * for it ("THE standard visible border — dashed empties, separators"), so this is the
  * app's settled answer rather than a third opinion about what a dashed edge looks like.
  */
-const EDGE = 'border border-dashed border-[var(--line-strong)]';
+/* ── AND THE CORNER, WHICH THE OWNER SAW BEFORE I DID (2026-09-08) ───────────────────
+ *
+ * "At corner i see some uneven in ours." They were right, and the cause is not a
+ * rendering artefact — the registry asks for a radius this app does not use.
+ *
+ *     the registry Empty          rounded-3xl   24px
+ *     our card radius             --r-2xl       14px
+ *     account.jsx dashed empty                  12px
+ *     brief.jsx dashed empty                    10px
+ *     what 24px IS here           modal.jsx     24px
+ *
+ * An empty state fills a CARD's body, so at 24px its corner curves harder than the 14px
+ * card containing it — the inner curve bulges past the outer one, which is what reads as
+ * uneven. §6 assigns radius BY SURFACE and 24px is this app's modal step; nothing else
+ * uses it. Both of our own approved dashed empties already sit a step INSIDE their card,
+ * at 12px and 10px.
+ *
+ * So the app had already answered this and the registry value was the outlier. `rounded-lg`
+ * is `--r-lg` (10px) — the token rather than a literal, and the same value brief.jsx picked
+ * by hand. This is a correction to our own scale, not a preference, and it is one class to
+ * revert if the owner disagrees.
+ *
+ * WHY IT LOOKED FINE IN SHADCN'S OWN SCREENSHOT: their empty sits in a container whose
+ * radius is at least its own, so there is no inner-rounder-than-outer conflict to see. */
+const EDGE = 'rounded-lg border border-dashed border-[var(--line-strong)]';
 
 /* IT FADES IN, and this is the one surface where a pure entrance animation is easy to
  * justify. An empty state has NO FIGURES TO READ — that is its definition — so the
