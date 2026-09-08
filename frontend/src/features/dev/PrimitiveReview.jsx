@@ -2517,20 +2517,21 @@ export default function PrimitiveReview() {
         * signed off". It rejoins the batch when it is signed.
         */}
       <Spec
-        name="Tick box — reopened, and it is a different component now"
+        name="Tick box — reopened, and not what you signed off"
         pending="waiting on you"
-        file="primitives/checkbox.jsx · @coss"
+        file="primitives/checkbox.jsx · @shadcn"
         ask={
-          'two things, and the first one is a bug you found. THE SHAPE: it was a rounded '
-          + 'square when you approved it on 7 Sep and it had become a perfect circle by '
-          + 'the 8th, because the radius ladder moved up a step and a 16px box cannot '
-          + 'wear an 8px corner — a corner clamps to half its box. It is 4px again here. '
-          + 'Check it reads as a SQUARE, not a radio button. THE THIRD STATE: the middle '
-          + 'box is "some but not all", which is what the trade log’s select-all shows '
-          + 'when you have picked nine of four hundred rows. The old one could not draw '
-          + 'that at all — it showed a tick, whatever was selected. Also worth a look: '
-          + 'the tick is this component’s own glyph rather than lucide’s, so the stroke '
-          + 'is a shade heavier, and there is a faint 1px highlight along the top edge.'
+          'two things, and the first is the bug you found. THE SHAPE: it was a rounded '
+          + 'square when you approved it on 7 Sep and a perfect circle by the 8th, '
+          + 'because the ladder moved up a step and a 16px box cannot wear an 8px corner '
+          + '— a corner clamps to half its box. The culprit was OUR override, not the '
+          + 'component: shadcn ships a 5px corner and we were forcing the token over it. '
+          + 'The override is deleted, so this is the registry’s own 5px. Check it reads '
+          + 'as a SQUARE, not a radio button. THE THIRD STATE: the middle box is "some '
+          + 'but not all" — what the trade log’s select-all shows when you have picked '
+          + 'nine of four hundred rows. shadcn ships no such state, so that dash is the '
+          + 'one thing here that is ours; everything else is the component untouched. '
+          + 'Judge the dash’s weight and length against the tick beside it.'
         }
         states={[
           { label: 'Off', render: <Checkbox aria-label="Off" /> },

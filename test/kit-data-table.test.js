@@ -140,35 +140,47 @@ test('§17 — a row state is an edge, never a wash behind the figures', () => {
   assert.match(code, /inset_2px_0_0_0_var\(--warning\)/, 'the attention row is marked by an edge');
 });
 
-test('the indeterminate dash comes from the component, not from this file', () => {
-  /* INVERTED ON 2026-09-09, AND THE OLD ASSERTION IS WORTH RECORDING because it was
-   * enforcing a mistake. It read "the registry checkbox has no indeterminate state, so
-   * this file draws one", and pinned the `data-[indeterminate]:before:` rules that faked
-   * a dash. That was true of `@shadcn/checkbox` and false of the REGISTRY: `@coss`
-   * ships one that renders the dash from `state.indeterminate`. §1 step 3 is "@coss for
-   * what @shadcn does not ship", and it was skipped — the Cycle 00 brief's line "the kit
-   * needs almost no @coss" was treated as a check having been performed.
+test('the indeterminate dash lives in ONE place, and it is not this file', () => {
+  /* REWRITTEN TWICE IN ONE DAY, and both rewrites are worth recording because they are
+   * the same mistake from opposite directions.
    *
-   * A TEST THAT PINS A HAND-BUILT THING IS A TEST THAT KEEPS IT. That is the same shape
-   * as the stale assertion Batch 3 found (it forbade the info and success tones on the
-   * grounds their tokens did not exist, months after they did) — a stale test is worse
-   * than a stale comment because it enforces. So this now asserts the opposite: the dash
-   * is the component's, and this file only passes the flag through. */
+   * V1 pinned the dash INSIDE data-table.jsx and called the gap a registry finding. That
+   * was true of @shadcn and false of the registry — @coss ships the state — so the test
+   * was enforcing a hand-built thing, which is a test that keeps it. Same shape as the
+   * stale assertion Batch 3 found (it forbade the info and success tones months after
+   * their tokens existed); a stale test is worse than a stale comment because it enforces.
+   *
+   * V2 pinned it to the GENERATED file, on the assumption we would stay on coss. The owner
+   * chose the shadcn checkbox instead — a coss component arrives in our colours but in
+   * coss's geometry, and there were twenty-one coss literals on it against eight tokens
+   * that resolved through our bridge. So shadcn genuinely has no indeterminate state and
+   * we genuinely need one.
+   *
+   * WHAT IS ACTUALLY INVARIANT, and is all this should ever have asserted: the dash is
+   * drawn in exactly ONE place — `checkbox.jsx`, the wrapper seam — and the table only
+   * passes the flag down. Two components drawing it is how they come to disagree. */
   assert.doesNotMatch(
     code, /data-\[indeterminate\]/,
-    'data-table.jsx is drawing an indeterminate state again. @coss/checkbox already '
-      + 'renders the dash — pass `indeterminate` through and let the component draw it.',
+    'data-table.jsx is drawing an indeterminate state again. That belongs in '
+      + 'primitives/checkbox.jsx, so every tick box in the app gets it — pass '
+      + '`indeterminate` through and let the checkbox draw it.',
   );
   assert.match(
     code, /indeterminate=\{indeterminate\}/,
     'the select-all must still pass `indeterminate` down, or a partial selection draws '
       + 'a TICK and lies about what the bulk action will do',
   );
-  const generated = readFileSync(at('../frontend/src/components/ui/checkbox.jsx'), 'utf8');
+  const box = readFileSync(at('../frontend/src/components/primitives/checkbox.jsx'), 'utf8');
   assert.match(
-    generated, /state\.indeterminate/,
-    'the generated checkbox no longer draws its own indeterminate state. If it went back '
-      + 'to @shadcn, the trade log select-all is broken again — see checkbox.jsx.',
+    box, /data-\[indeterminate\]:before:/,
+    'primitives/checkbox.jsx must draw the indeterminate dash. @shadcn/checkbox has no '
+      + 'such state — it renders a tick whatever is selected. If the registry ever ships '
+      + 'it, delete the wrapper block AND this assertion together.',
+  );
+  assert.match(
+    box, /data-\[indeterminate\]:bg-primary/,
+    'indeterminate must also FILL: Base UI omits data-checked while indeterminate, so the '
+      + 'generated fill rules never fire and the box would read as empty',
   );
 });
 

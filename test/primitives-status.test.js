@@ -209,16 +209,25 @@ const APPROVED = new Set([
    * and a FieldLabel in a row — the same way `dialog.jsx` was approved under `modal.jsx`.
    * It originates no appearance of its own; what it fixes is a three-line consent
    * sentence being centred against a 16px box and rendered as bold as a heading. */
-  /* `checkbox.jsx` LEFT THIS SET ON 2026-09-09, deliberately (owner). It is not a
-   * regression and not a downgrade — it is a DIFFERENT COMPONENT. It moved from
-   * @shadcn to @coss because only the coss one has an indeterminate state, which the
-   * trade log's select-all needs to tell "all four hundred" from "nine of four
-   * hundred". Approval is never inferred, least of all from a predecessor's, so it
-   * goes back to unreviewed until the owner has looked at the replacement.
+  /* `checkbox.jsx` LEFT THIS SET ON 2026-09-09, deliberately (owner), and it is STILL
+   * @shadcn — it spent a few hours on @coss and the owner sent it back, because a coss
+   * component arrives in our colours but in coss's geometry (twenty-one literals of
+   * theirs against eight names our bridge owns). See primitives/checkbox.jsx.
    *
-   * It also carried a real bug out with it: forcing `rounded-sm` made it a perfect
-   * circle the moment --r-sm moved 6 -> 8 on 09-08, because radius clamps to half a
-   * 16px box. `radius-clamp.test.js` is the new guard. */
+   * SO WHY UNREVIEWED, IF IT IS THE SAME REGISTRY IT WAS APPROVED ON. Because what
+   * ships is not what was signed. Two things changed:
+   *
+   *   · the `rounded-sm` override is DELETED. That override is what destroyed the
+   *     control — the ladder moved 6 -> 8 on 09-08 and radius clamps to half a 16px
+   *     box, so every tick box in the app became a circle. It now takes the registry's
+   *     own 5px, which makes it §6's one documented exception rather than a value of
+   *     ours. `radius-clamp.test.js` is the guard that was missing.
+   *   · it has a THIRD STATE it has never had. shadcn ships no indeterminate state, so
+   *     the dash is absorbed in the wrapper — the trade log's select-all has to tell
+   *     "all four hundred" from "nine of four hundred".
+   *
+   * A corner that changed and a state that did not exist are not things approval can be
+   * inherited across. It rejoins Batch 2 when the owner signs it. */
   'input.jsx', 'textarea.js', 'select.jsx',
   'label.jsx', 'field.jsx', 'consent-field.jsx',
 

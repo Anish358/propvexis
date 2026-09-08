@@ -235,11 +235,13 @@ test('the tick trails the label, so the value does not move when the list opens'
  * `data-disabled`, not a form control with the DOM property". This list did not carry
  * that distinction, so it only ever accepted shadcn's spelling.
  *
- * WHAT MADE IT MATTER: `checkbox` moved from @shadcn to @coss on 2026-09-09 (only the
- * coss one has an indeterminate state — see primitives/checkbox.jsx). The coss component
- * writes `data-disabled:cursor-not-allowed`, the correct selector for a Base UI control,
- * which does exactly the same job. The rule was satisfied and the test failed — a test
- * enforcing an implementation rather than an outcome.
+ * WHAT MADE IT MATTER: `checkbox` spent a few hours on @coss on 2026-09-09, and coss
+ * writes `data-disabled:cursor-not-allowed` — the correct selector for a Base UI control,
+ * doing exactly the same job. The rule was satisfied and the test failed, which is a test
+ * enforcing an implementation rather than an outcome. The owner then chose the shadcn
+ * checkbox (see primitives/checkbox.jsx for why), so this entry is back on `disabled:` —
+ * and the third column stays, because the next Base-UI-attribute component will need it
+ * and because the distinction is real either way.
  *
  * IT IS STILL STRICT. Each control must declare the cursor under ITS OWN attribute and
  * must not block pointer events under that same attribute, so a component cannot pass by
@@ -248,7 +250,7 @@ const CONTROLS = [
   ['button', () => classesContaining(prim('button.jsx'), 'disabled:pointer-events-auto', 'button.jsx'), 'disabled:'],
   ['input', () => classesContaining(prim('input.jsx'), 'disabled:pointer-events-auto', 'input.jsx'), 'disabled:'],
   ['textarea', () => classesContaining(ui('textarea.jsx'), 'disabled:cursor-not-allowed', 'ui/textarea.jsx'), 'disabled:'],
-  ['checkbox', () => classesContaining(ui('checkbox.jsx'), 'data-disabled:cursor-not-allowed', 'ui/checkbox.jsx'), 'data-disabled:'],
+  ['checkbox', () => classesContaining(ui('checkbox.jsx'), 'disabled:cursor-not-allowed', 'ui/checkbox.jsx'), 'disabled:'],
   ['select trigger', () => classesContaining(ui('select.jsx'), 'data-[size=default]:h-8', 'ui/select.jsx trigger'), 'disabled:'],
 ];
 

@@ -1,10 +1,9 @@
 /* checkbox.jsx
  *
- * @design unreviewed — REOPENED 2026-09-09 (owner). It was approved on 09-07 as part of
- *   Batch 2 and is now a DIFFERENT component: it moved from @shadcn to @coss, because
- *   only the coss one has an indeterminate state. The owner has not seen the replacement,
- *   and approval is never inferred (§1) — not from the fact that its predecessor was
- *   signed off. It is on the Test page to be re-signed. See test/primitives-status.test.js.
+ * @design unreviewed — REOPENED 2026-09-09 (owner). It was approved on 09-07 and what
+ *   ships now is not what was signed: the corner override that made it a circle is gone,
+ *   and it has a third state it never had. Approval is never inferred (§1), so it waits
+ *   on the Test page. See test/primitives-status.test.js.
  */
 
 import React from 'react';
@@ -13,72 +12,103 @@ import { cn } from '@/lib/utils';
 
 /* Checkbox — PropVexis primitive.
  *
- * Renders Base UI's Checkbox through the generated component, which carries the
- * accessibility contract: the root is a real control, so it is focusable, operable with
- * Space, and exposes its state to assistive tech. The label pairs by htmlFor/id, exactly
- * as Input's does.
+ * `@shadcn/checkbox` at base-rhea, near enough untouched. Renders Base UI's Checkbox, so
+ * the root is a real control: focusable, operable with Space, and its state is exposed to
+ * assistive tech. The label pairs by htmlFor/id, exactly as Input's does.
  *
- * IT IS NOT DECORATION. Two things in this app depend on its state being real rather
- * than styled: the credential consent gate, where an unticked box is what stops a
- * trade-capable password being submitted, and the trade log's row selection, which is
- * what a bulk action operates on. Do not swap it for a styled div.
+ * IT IS NOT DECORATION. Two things depend on its state being real rather than styled: the
+ * credential consent gate, where an unticked box is what stops a trade-capable password
+ * being submitted, and the trade log's row selection, which is what a bulk action
+ * operates on. Do not swap it for a styled div.
  *
- * ── IT IS @coss NOW, AND THE REASON IS A CAPABILITY, NOT A LOOK (2026-09-09) ──────────
+ * ── @shadcn, NOT @coss — OWNER RULING 2026-09-09 ─────────────────────────────────────
  *
- * `@shadcn/checkbox` HAS NO INDETERMINATE STATE. It hard-renders a `CheckIcon` in its
- * indicator and ignores children, and Base UI does not set `data-checked` when a box is
- * indeterminate — so a shadcn checkbox in a select-all position draws a TICK when nine of
- * four hundred rows are selected. That is a lie about what the bulk action will do.
+ * It spent a few hours on `@coss/checkbox`, because that one ships an indeterminate state
+ * and shadcn's does not. The owner looked at both and chose shadcn's. The reason is the
+ * one this whole layer exists to protect, and it is worth stating because it applies to
+ * EVERY future coss item, not just this one:
  *
- * `@coss/checkbox` renders the dash itself, off `state.indeterminate`. So this is §1 step
- * 3 working exactly as written — "`@coss` only for what `@shadcn` does not ship" — and it
- * is the same argument `alert.jsx` and `progress.jsx` already run on: shadcn ships two
- * alert variants and §17 needs four, so those are coss too. A missing state is a missing
- * capability, not a preference.
+ *   **A `@coss` COMPONENT ARRIVES IN OUR COLOURS AND IN COSS'S GEOMETRY.**
  *
- * WHAT THIS COST BY BEING FOUND LATE, recorded because the process failure matters more
- * than the component. The data table was built with the indeterminate dash HAND-DRAWN in
- * its own wrapper — `data-[indeterminate]:before:` rules to fake what coss ships — and
- * the file even wrote up "the registry has no indeterminate state" as a finding. The
- * registry does. `@coss` was never searched, because the Cycle 00 brief said "the kit
- * needs almost no @coss" and that sentence was taken as a check having been done. It was
- * written about the primitives, on a different day, by someone answering a different
- * question. The owner found this, not the audit. Those rules are deleted now.
+ * Colours are fine: coss writes semantic names — `bg-primary`, `border-input`, `ring-ring`
+ * — and `bridge.css` owns those names, so they resolve to our tokens automatically. But
+ * everything coss states as a LITERAL comes in as coss's own number, and on that one
+ * component there were twenty-one of them against eight that resolved through the bridge:
+ * a `.25rem` corner, `size-4.5`, `shadow-xs/5`, an inner highlight, and an alpha ladder in
+ * steps of /24 /32 /36 /48 /64 which is not the preset's.
  *
- * ── THE CORNER IS 4px AND IT IS OFF THE LADDER, DELIBERATELY (2026-09-09) ─────────────
+ * `components.json` sets `"style": "base-rhea"` and the shadcn registry **serves a
+ * different implementation per style**, so a shadcn item is drawn with the preset's own
+ * values. The coss registry is one URL with no style parameter: one implementation, coss's
+ * numbers, and its `style` item ships a whole theme of its own that we do not install.
  *
- * This file used to force `rounded-sm` with an argument: "our steps are 6 / 8 / 10 / 14 /
- * 16, and a single arbitrary value is how a scale stops being one." That argument was
- * right on 09-07 and expired on 09-08, when the ladder moved up a step and `--r-sm` went
- * 6px -> 8px.
+ * THIS HAS ALREADY COST US ONCE. `alert.jsx` is @coss (§17 needs four tones, shadcn ships
+ * two) and the owner's verdict in Batch 3 was "too colorful (doesn't go with our theme)" —
+ * the fix was dropping its surface wash and taking the tone edge from 32% to 20%. That 32%
+ * was coss's alpha step arriving unchallenged. `select.jsx` went the other way for a
+ * related reason and is shadcn again.
  *
- * A 16px BOX CANNOT WEAR ANY LADDER STEP. Radius clamps to half the box, so 8px on 16px
- * is a PERFECT CIRCLE — and the smallest step we have is 8px. Following the token turned
- * every tick box in the app into a radio button overnight: the filter bar, the finance
- * ledger, the journal workspace, the consent gate, the menu's tick rows, the trade log's
- * row selection. It had been approved as a rounded square the day before and nothing
- * caught it, because §6's warning about this lives in prose.
+ * SO THE RULE, and it is now written where the next person will hit it: @coss stays step 3
+ * of §1 for a capability shadcn genuinely lacks, and every literal it brings has to be
+ * argued for or replaced. A missing state is not automatically worth a foreign geometry.
  *
- * So the tick box is the one control whose corner is a literal below the ladder, and
- * `@coss`'s own `rounded-[.25rem]` (4px) is that literal — we take what the component
- * ships rather than picking a fifth opinion. `radius-clamp.test.js` now asserts the
- * corner DRAWS on the box it sits on, for every component, computed from tokens.css at
- * test time — so the next ladder move cannot do this again silently.
+ * ── THE CORNER: THE OVERRIDE IS DELETED, AND IT WAS THE BUG (2026-09-09) ─────────────
  *
- * WHY A CIRCLE IS WRONG rather than merely different: a round tick box reads as a radio
- * button, and a radio button means "pick exactly one". This control means "pick any".
+ * This file used to force `rounded-sm` over the registry's `rounded-[5px]`, with an
+ * argument: "our steps are 6 / 8 / 10 / 14 / 16, and a single arbitrary value is how a
+ * scale stops being one." It was even asked rather than tidied, and the owner was told it
+ * was a knowing 1px divergence.
  *
- * ── WHAT ELSE CHANGED WITH THE REGISTRY, so it is judged rather than discovered ───────
+ * THAT OVERRIDE IS WHAT DESTROYED THE CONTROL. On 2026-09-08 the ladder moved up a step
+ * and `--r-sm` went 6px -> 8px. The box is 16px. **Radius clamps to half its box**, so 8px
+ * on 16px is a PERFECT CIRCLE — and every tick box in the app became a radio button
+ * overnight: the filter bar, the finance ledger, the journal workspace, the consent gate,
+ * the menu's tick rows, the trade log's row selection.
  *
- *   · the box is `size-4.5 sm:size-4` — 18px below 640px, 16px above. Desktop is 16px,
- *     the same as before. shadcn's was a flat `size-4`.
- *   · the tick and the dash are the component's own SVG paths at `size-3.5 sm:size-3`,
- *     where shadcn used lucide's `CheckIcon`. A hair heavier stroke (3 vs lucide's 2).
- *   · it draws a 1px inner highlight (`before:shadow-*`) that shadcn does not, and a
- *     `focus-visible` ring with an offset rather than a 3px halo.
- *   · checked fills with `--color-primary` in both, so the fill colour is unchanged from
- *     what was signed off.
+ * A 16px BOX CANNOT WEAR ANY LADDER STEP, because the smallest one we have is exactly half
+ * of it. So the tick box is §6's one documented exception, and the registry's own 5px is
+ * that exception — taken from the component rather than invented here, which is one fewer
+ * place where our layer silently re-means shadcn. The original argument was not wrong
+ * about scales; it was wrong that this box could be on one.
+ *
+ * `radius-clamp.test.js` now recomputes every radius in the library against the box it is
+ * written on, reading the ladder out of tokens.css at test time, so the next token move
+ * cannot do this again quietly.
+ *
+ * ── THE THIRD STATE, WHICH SHADCN DOES NOT SHIP ──────────────────────────────────────
+ *
+ * `@shadcn/checkbox` has no indeterminate state — checked today against the live registry,
+ * and there is no example that adds one. It hard-renders a `CheckIcon` and ignores
+ * children, and Base UI does not set `data-checked` when a box is indeterminate, so the
+ * generated component draws a TICK for a partial selection and paints nothing at all.
+ *
+ * A SELECT-ALL SHOWING A TICK FOR NINE OF FOUR HUNDRED ROWS IS A LIE about what the bulk
+ * action will do. So it is absorbed HERE, in the wrapper, which is what §25 prescribes and
+ * what the barrel's own note prescribes for a gap in the generated layer:
+ *
+ *   · paint like checked, because Base UI omits `data-checked` while indeterminate
+ *   · hide the tick, since the component's own Indicator renders one regardless
+ *   · draw the dash as a 2px rounded bar on `before:`
+ *
+ * `before:` is free — the generated root spends `after:` on its enlarged hit area.
+ *
+ * THE DASH IS A MARK, NOT AN ICON, so §23 ("never hand-drawn SVG paths for UI icons") is
+ * not in play: there is no path here, just a bar that inherits `currentColor` and scales
+ * with nothing. If shadcn ever ships the state, delete this block and the tests that pin
+ * it — `kit-data-table.test.js` says so where it checks for it.
  */
+const INDETERMINATE = [
+  // Base UI sets `data-indeterminate` and NOT `data-checked`, so the generated
+  // `data-checked:*` fill rules do not fire and the box would stay empty.
+  'data-[indeterminate]:border-primary data-[indeterminate]:bg-primary',
+  'data-[indeterminate]:text-primary-foreground',
+  // The Indicator renders whenever checked OR indeterminate, and its glyph is a tick.
+  'data-[indeterminate]:[&_svg]:hidden',
+  'data-[indeterminate]:before:absolute data-[indeterminate]:before:h-0.5',
+  'data-[indeterminate]:before:w-2.5 data-[indeterminate]:before:rounded-full',
+  'data-[indeterminate]:before:bg-current',
+].join(' ');
+
 export function Checkbox({ className, ...rest }) {
-  return <UICheckbox className={className && cn(className)} {...rest} />;
+  return <UICheckbox className={cn(INDETERMINATE, className)} {...rest} />;
 }
