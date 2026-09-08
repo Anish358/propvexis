@@ -29,22 +29,28 @@ import { cn } from '@/lib/utils';
  * code imports from. Adding a third source directory would widen the `@source` scope,
  * which §1 calls out as a deliberate reviewable change; nothing here needs it.
  *
- * `[display:grid]`, NOT `grid`, IN ALL FOUR GRID COMPONENTS — and this is a bug that
- * shipped, not a stylistic tic. legacy/app.css declares `.grid { display: table;
- * min-width: calc(var(--grid-cols, 11) * 92px); table-layout: fixed }` for the Trade
- * Log, UNLAYERED, and index.css is explicit that unlayered rules beat anything Tailwind
- * emits ("the library can only ever add; it cannot outrank"). The legacy rule even says
- * it declares `display` deliberately to win this collision. So every wizard grid was
- * rendering as a 1012px-wide TABLE: the choice cards stacked in one column, each sized
- * to its own text, overflowing the step — which is exactly what the owner reported.
- * `gap-4` does nothing on a table either, so they had no gutter.
+ * THE FOUR GRIDS ARE PLAIN `grid` AGAIN, and what stood here is worth keeping in summary
+ * because it was true, load-bearing, and expired.
  *
- * The arbitrary property emits `.\[display\:grid\]{display:grid}` — a class name no
- * legacy selector can claim — so it is the same declaration under a name that does not
- * collide. It is deliberately NOT a fix to legacy/app.css: renaming that rule touches
- * the Trade Log, its sticky header, print styles and four tests, which is its own
- * change. utility-collisions.test.js pins the legacy side; new-account-pages.test.js
- * now pins this side.
+ * legacy/app.css USED TO declare `.grid { display: table; min-width: calc(var(--grid-cols,
+ * 11) * 92px); table-layout: fixed }` for the Trade Log, UNLAYERED — and unlayered beat
+ * anything Tailwind emitted. So every wizard grid rendered as a 1012px-wide TABLE: the
+ * choice cards stacked in one column, each sized to its own text, overflowing the step,
+ * with no gutter because `gap-4` does nothing on a table. That SHIPPED.
+ *
+ * The fix at the time was to write the display as an arbitrary PROPERTY rather than as
+ * the utility — the same declaration under a class name no legacy selector could claim.
+ *
+ * BOTH HALVES OF THE COLLISION WERE CLOSED ON 2026-08-28, before this file said any of
+ * the above: the table became `.log-grid`, a name Tailwind will never emit, and legacy
+ * moved into `layer(legacy)` where it outranks nothing at any specificity. Either alone
+ * is enough. `utility-collisions.test.js` now asserts the squat count is ZERO for every
+ * bare utility, used or not, so the hazard cannot return unnoticed.
+ *
+ * So the workaround is deleted rather than carried. It is the THIRD expired justification
+ * found in this layer — after `select.jsx`'s dead breakpoints and its own copy of this
+ * same `grid` claim — which is why the standing rule is now: check that the reason still
+ * holds before writing code that depends on it.
  *
  * EVERY VALUE TRACES TO A RULE. `--spacing` is `--s-1`, so p-2/p-4/p-6/p-8/p-12 are
  * §11's 8px grid exactly (the odd steps 5/7/9/11 are off it and are not used).
@@ -437,7 +443,7 @@ export function WizardPillars({ className, children, ...rest }) {
   return (
     <div
       data-slot="wizard-pillars"
-      className={cn('[display:grid] gap-4 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]', className)}
+      className={cn('grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]', className)}
       {...rest}
     >
       {children}
@@ -479,7 +485,7 @@ export function WizardFields({ className, children, ...rest }) {
   return (
     <div
       data-slot="wizard-fields"
-      className={cn('[display:grid] w-full items-start gap-6 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]', className)}
+      className={cn('grid w-full items-start gap-6 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]', className)}
       {...rest}
     >
       {children}
@@ -543,7 +549,7 @@ export function ChoiceGrid({ layout = 'cards', className, children, ...rest }) {
     <div
       data-slot="choice-grid"
       data-layout={layout}
-      className={cn('[display:grid]', CHOICE_GRID[layout] || CHOICE_GRID.cards, className)}
+      className={cn('grid', CHOICE_GRID[layout] || CHOICE_GRID.cards, className)}
       {...rest}
     >
       {children}

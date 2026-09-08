@@ -195,6 +195,35 @@ const APPROVED = new Set([
    * sentence being centred against a 16px box and rendered as bold as a heading. */
   'input.jsx', 'textarea.js', 'select.jsx', 'checkbox.jsx',
   'label.jsx', 'field.jsx', 'consent-field.jsx',
+
+  /* BATCH 3 — FEEDBACK, locked as a family (owner, 2026-09-08).
+   *
+   * The cleanest batch of the review, and the reason is the process rather than luck: it
+   * was audited under the standing rule that the REGISTRY is checked before anything is
+   * wrapped or hand-built. All four were the shipped component and all four were
+   * byte-identical to what their registry serves — no drift, no rewrite waiting, nothing
+   * of ours to defend. `alert` and `progress` are @coss, `skeleton` and `spinner` are
+   * shadcn base-rhea.
+   *
+   * `alert` IS @coss DELIBERATELY: shadcn ships two variants and §17 needs a four-step
+   * ladder, which coss provides. §1 build order, not a shortcut past it.
+   *
+   * WHAT THE REVIEW CHANGED. One thing, and it was the owner seeing the four tones side
+   * by side: "too colorful (doesn't go with our theme)". The surface wash came off every
+   * tone and the edge went 32% -> 20%, because at 32% a tone edge composited BRIGHTER
+   * than the loudest neutral edge in the app (#5d2c2f against a chip at #2d2d31). §17 was
+   * tuned, not reversed — the glyph keeps full strength and the words stay neutral, which
+   * is the half of the rule that separates a message bar from a losing figure in a table.
+   *
+   * `spinner.js` is approved WITH NO CALL SITES. Nothing in the app renders it; the owner
+   * was told so on the page before signing. It is approved so that the first button that
+   * needs one is not inventing it.
+   *
+   * AND ONE STALE TEST FELL OUT: a check that FORBADE the info and success tones on the
+   * grounds their tokens did not exist. They had existed since §17 landed them on
+   * 2026-09-06, and the test failed the first page that used them correctly. A stale test
+   * is worse than a stale comment because it enforces. */
+  'alert.jsx', 'skeleton.jsx', 'spinner.js', 'progress.jsx',
 ]);
 
 const modules = files.filter((f) => f !== 'index.js');
@@ -248,6 +277,8 @@ const LOCKED_BATCHES = {
   'Batch 2 — Form controls (locked 2026-09-07)':
     ['input.jsx', 'textarea.js', 'select.jsx', 'checkbox.jsx',
       'label.jsx', 'field.jsx', 'consent-field.jsx'],
+  'Batch 3 — Feedback (locked 2026-09-08)':
+    ['alert.jsx', 'skeleton.jsx', 'spinner.js', 'progress.jsx'],
 };
 
 test('a locked batch stays locked, as a set', () => {

@@ -59,6 +59,8 @@ import {
   OverlayContainerContext, Popover, PopoverContent,
   PopoverTrigger, Progress, ProgressIndicator, ProgressLabel, ProgressTrack,
   ProgressValue,
+  ChoiceCard, ChoiceGrid, ChoiceMark, ChoiceRow, WizardActions, WizardBody, WizardBrand,
+  WizardExit, WizardFields, WizardHeader, WizardHeading, WizardProgress, WizardSearch,
   Select, SelectItem, SelectPopup, SelectTrigger, SelectValue,
   Skeleton, Spinner, Switch, Textarea, ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
@@ -1858,6 +1860,109 @@ function LoadingFamily() {
   );
 }
 
+/* ================================================================= BATCH 4 ===
+ * FLOWS — the Add Account wizard.
+ *
+ * ONE COMPONENT, 21 EXPORTED PARTS, and the only batch in the review that is genuinely
+ * HAND-WRITTEN rather than a registry component with a wrapper. That is a claim the
+ * standing rule says to check rather than assert, so it was checked: neither shadcn nor
+ * @coss ships a wizard, a stepper, or anything shaped like one — @coss's 484 particles
+ * cover 52 component types and none of them is this. The pieces it is BUILT from are all
+ * registry components (Button, Input, Progress), and it composes them.
+ *
+ * WHY IT WAITED FOR BATCH 2 AND 3. Every page of this wizard is made of form controls and
+ * a progress bar. Reviewing the container before its contents were settled would have
+ * meant reviewing it twice — and in the event both batches moved under it: the labels went
+ * muted, the picker was replaced outright, and the progress bar's animation was corrected.
+ *
+ * WHAT THE PRE-REVIEW AUDIT FOUND (2026-09-08):
+ *
+ *   · A THIRD EXPIRED JUSTIFICATION, same shape as the two in `select.jsx`. All four grids
+ *     were written as an arbitrary `[display:grid]` property rather than the plain `grid`
+ *     utility, to dodge a legacy CSS collision — one that had been closed at BOTH ends on
+ *     2026-08-28, before this file was written. Deleted; the grids are plain `grid` now.
+ *   · Nothing else. Every value in the file traces to a rule, and the file says which.
+ */
+function WizardSpecimen() {
+  const [choice, setChoice] = useState('ftmo');
+  return (
+    <div style={{
+      width: '100%', border: '1px solid var(--line)', borderRadius: 14,
+      background: 'var(--bg)', overflow: 'hidden',
+    }}
+    >
+      <WizardHeader>
+        <WizardBrand>PropVexis</WizardBrand>
+        <WizardProgress index={2} total={6} />
+        <WizardExit onClick={() => {}} />
+      </WizardHeader>
+      <div style={{ padding: '8px 24px 28px' }}>
+        <WizardBody measure="default">
+          <WizardHeading
+            eyebrow="Add account"
+            title="Which firm is this account with?"
+            description="We use this to pre-fill the rules we score the account against. You can change any of them on the next page."
+          />
+          <WizardFields>
+            <WizardSearch placeholder="Search firms" />
+            <ChoiceGrid layout="rows">
+              {[
+                { id: 'ftmo', title: 'FTMO', mark: 'F' },
+                { id: 'gft', title: 'GoatFundedTrader', mark: 'G' },
+                { id: 'tpt', title: 'The Prop Trader', mark: 'T' },
+                { id: 'other', title: 'Other / not listed', mark: '?' },
+              ].map((f) => (
+                <ChoiceRow
+                  key={f.id}
+                  mark={<ChoiceMark>{f.mark}</ChoiceMark>}
+                  title={f.title}
+                  selected={choice === f.id}
+                  onClick={() => setChoice(f.id)}
+                />
+              ))}
+            </ChoiceGrid>
+          </WizardFields>
+          <WizardActions>
+            <Button variant="secondary">Back</Button>
+            <Button variant="primary">Continue</Button>
+          </WizardActions>
+        </WizardBody>
+      </div>
+    </div>
+  );
+}
+
+/* THE CARD GRID, which is the other half of the wizard's vocabulary: a ChoiceRow answers
+ * "which one of these names", a ChoiceCard answers "which of these approaches" and needs
+ * room for a sentence. Both states matter — a disabled card is how the flow says "this
+ * one is not available on your plan", and until today a disabled card gave no cursor
+ * feedback at all. */
+function WizardChoices() {
+  const [picked, setPicked] = useState('ea');
+  return (
+    <ChoiceGrid layout="cards" style={{ width: '100%' }}>
+      <ChoiceCard
+        title="Expert Advisor"
+        description="Runs inside your MT4/MT5 terminal and pushes closed trades as they happen."
+        badge={<Badge>Recommended</Badge>}
+        selected={picked === 'ea'}
+        onClick={() => setPicked('ea')}
+      />
+      <ChoiceCard
+        title="Upload a file"
+        description="Export a statement from your terminal and drop it in. Nothing stays connected."
+        selected={picked === 'file'}
+        onClick={() => setPicked('file')}
+      />
+      <ChoiceCard
+        title="Auto Sync"
+        description="We keep a connection open and pull trades for you. Not available on your plan."
+        disabled
+      />
+    </ChoiceGrid>
+  );
+}
+
 /* ------------------------------------------------------------------- the page --- */
 
 /* THE COUNTS MOVE AS THINGS GET SIGNED OFF, and two of them moved on 2026-09-07 without
@@ -1867,7 +1972,6 @@ function LoadingFamily() {
  * one thing this page must not do — it is the only place anyone reads how much is
  * outstanding. */
 const LATER_BATCHES = [
-  { n: 4, name: 'Flows', qty: 1, parts: 'wizard (21 pieces)', dep: 'after Batch 2 — the wizard is built from those controls. toggle-group was signed off early, on the variant matrix' },
   { n: 5, name: 'Small pieces', qty: 3, parts: 'avatar · separator · count-badge' },
   { n: 6, name: 'Rebuild first, then review', qty: 3, parts: 'empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
 ];
@@ -2020,7 +2124,7 @@ export default function PrimitiveReview() {
         we move on. Batches are locked together because parts that sit side by side have to
         agree on height, corners and spacing.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>24 of 36 approved.</strong>
+        <strong style={{ color: 'var(--text)' }}>28 of 36 approved.</strong>
         {' '}
         Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
         the switch and the unit toggle. The dropdown was the first through — and it is the
@@ -2032,10 +2136,10 @@ export default function PrimitiveReview() {
         The seven form controls were signed off after four rounds — the last of which
         replaced the picker with the registry component outright.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>Batch 3 — Feedback is open, at the top.</strong>
+        <strong style={{ color: 'var(--text)' }}>Batch 4 — Flows is open, at the top.</strong>
         {' '}
-        Four parts, and the odd one out sits above it: the piece of plumbing that was never
-        in a batch at all.
+        One component with 21 parts, and the odd one out still sits above it: the piece of
+        plumbing that was never in a batch at all.
       </p>
 
       {/* ================================================= THE UNBATCHED ONE === */}
@@ -2086,18 +2190,72 @@ export default function PrimitiveReview() {
         </div>
       </div>
 
+      {/* ================================================================ BATCH 4 === */}
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>Batch 4 — Flows</span>
+        <Tag tone="open">open · 1 to sign off</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          the Add Account wizard — one component, 21 parts, and the only hand-written one
+          left in the review
+        </span>
+      </div>
+
+      <Spec
+        name="The wizard"
+        file="primitives/wizard.jsx"
+        ask={
+          'this is a whole page rather than a control, so look at it the way a new user '
+          + 'would. Is the question at the top obviously the question? Is the progress bar '
+          + 'useful or is the "2 of 6" doing all the work? Are the rows the right height to '
+          + 'scan a list of firms, and is the selected one unmistakable? Then the cards '
+          + 'below: they carry a sentence each, so check the gap between the title and its '
+          + 'description, and whether the greyed-out one reads as "not available to you" '
+          + 'rather than as broken. Hover the greyed-out card — it should now show the '
+          + 'not-allowed cursor, which is the change you asked for yesterday.'
+        }
+        states={[
+          { label: 'A step, end to end', render: <WizardSpecimen /> },
+          { label: 'Choice cards — selected, unselected, unavailable', render: <WizardChoices /> },
+        ]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Why this one is hand-written</span>
+          <span style={S.mono}>checked, not assumed</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="ok">no registry equivalent</Tag>
+        </div>
+        <div style={S.note}>
+          Every other part in this review is a shipped component with a thin wrapper. This
+          one is ours, and after yesterday I checked that claim rather than repeating it:
+          neither shadcn nor coss ships a wizard, a stepper, or anything shaped like one —
+          coss has 484 ready-made pieces across 52 kinds of component and none of them is
+          this. What it is BUILT from is all shipped, though: the buttons, the search field
+          and the progress bar are the same ones you have already signed off, which is why
+          this batch waited for the other two.
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>One thing was cleaned up on the way in.</strong>
+          {' '}
+          All four of its grids were written the long way round to dodge a clash with the
+          old stylesheet — a clash closed at both ends on 28 August, before this file was
+          even written. Third time this review has found a workaround outliving its
+          problem, which is why the rule you set yesterday exists.
+        </div>
+      </div>
+
       {/* ================================================================ BATCH 3 === */}
       <div style={S.batchHead}>
         <span style={S.batchTitle}>Batch 3 — Feedback</span>
-        <Tag tone="open">open · 4 to sign off</Tag>
+        <Tag tone="ok">🔒 locked 8 Sep 2026</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          the message bar, the loading placeholder, the spinner and the progress bar — the
-          app talking about itself
+          all four signed off · new screens may use them · Batch 4 is next
         </span>
       </div>
 
       <Spec
         name="Message bar"
+        approved="8 Sep 2026"
         file="primitives/alert.jsx"
         ask={
           'the four tones against each other. The rule you settled last week says a system '
@@ -2153,6 +2311,7 @@ export default function PrimitiveReview() {
 
       <Spec
         name="Loading, waiting, progress"
+        approved="8 Sep 2026"
         file="primitives/skeleton.jsx · spinner.js · progress.jsx"
         ask={
           'whether these three feel like one family. They are the same sentence said three '
