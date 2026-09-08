@@ -78,15 +78,35 @@ test('a second authorization retires the first, instead of breaking discovery', 
     'scoped to ONE user — never retire a stranger\'s identity for sharing a cTID');
 });
 
-test('the supersede runs BEFORE setCtid, not after', async () => {
-  // After is too late: setCtid is the statement that raises 23505.
-  // readSrc is scoped to frontend/src, so the backend route is read directly.
+test('the supersede runs BEFORE setCtid, not after — now inside adoptCtid', async () => {
+  /* THE INVARIANT IS UNCHANGED; ITS HOME MOVED. After is too late: setCtid is the
+   * statement that raises 23505 on uq_ctrader_identities_live.
+   *
+   * The route used to make three separate awaits and this test read their order there.
+   * They are now one transaction (adoptCtid, 2026-09-08) because a THIRD write had to
+   * join them — repointing the older grants' accounts onto the new identity, without
+   * which superseding silently disconnects every account that pointed at the old row.
+   * So the ordering is asserted where it now lives, and the transaction is asserted
+   * too: a failure between supersede and setCtid used to leave the user with ZERO live
+   * identities for that login. */
   const { readFileSync } = await import('node:fs');
   const path = (await import('node:path')).default;
   const { repoRoot } = await import('../src/platform/paths.js');
+  const mod = readFileSync(path.join(repoRoot, 'src/domain/sync/ctraderIdentities.js'), 'utf8');
+  const body = mod.slice(mod.indexOf('export async function adoptCtid'));
+  const repointAt = body.indexOf('repointAccountsToIdentityQuery(');
+  const supersedeAt = body.indexOf('supersedeDuplicateIdentitiesQuery(');
+  const setCtidAt = body.indexOf('setCtidQuery(');
+  assert.ok(repointAt > 0 && supersedeAt > 0 && setCtidAt > 0, 'all three writes must exist');
+  assert.ok(supersedeAt < setCtidAt, 'the duplicate must be retired before its cTID is claimed');
+  assert.ok(repointAt < supersedeAt, 'accounts are adopted before their grant is retired');
+  assert.match(body, /BEGIN/, 'all three writes are one transaction or none of them are');
+  assert.match(body, /ROLLBACK/);
+
+  // And the route makes exactly ONE call, so the three writes cannot be reordered or
+  // half-applied from there.
   const route = readFileSync(path.join(repoRoot, 'src/routes/ctrader.js'), 'utf8');
-  const supersedeAt = route.indexOf('supersedeDuplicateIdentities(id');
-  const setCtidAt = route.indexOf('setCtid(id, ctidUserId)');
-  assert.ok(supersedeAt > 0 && setCtidAt > 0, 'both calls must exist');
-  assert.ok(supersedeAt < setCtidAt, 'the duplicate must be retired first');
+  assert.match(route, /await adoptCtid\(id, ctidUserId\)/);
+  assert.doesNotMatch(route, /supersedeDuplicateIdentities\(/,
+    'the route must not be able to supersede without adopting');
 });

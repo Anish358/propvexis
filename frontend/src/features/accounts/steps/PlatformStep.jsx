@@ -5,7 +5,6 @@ import {
 } from '@/components/primitives';
 import { useFlow } from '../NewAccountFlow.jsx';
 import { searchPlatforms } from '../platformCatalog.js';
-import { findFirm } from '../../prop/propFirms.js';
 
 /* Which platform the account runs on.
  *
@@ -23,11 +22,22 @@ import { findFirm } from '../../prop/propFirms.js';
  * card in the catalog carries one for exactly this reason, so a greyed name is never
  * bare. Selecting one would 400 at provision, six questions later.
  *
- * THE PROP PATH NARROWS TO THE FIRM (spec §7.2): a firm implies its platform, so
- * showing all five invites the wrong answer. The rest stay one toggle away rather
- * than hidden, because the catalog's own list can be incomplete for a firm we have
- * not verified. The unlisted firm names every platform (Task 2), so it needs no
- * special case here — it simply arrives with the full list.
+ * EVERY PLATFORM IS LISTED, ALWAYS (owner decision 2026-09-08, reversing the spec
+ * §7.2 narrowing this page shipped with). The prop path used to filter the grid to the
+ * chosen firm's `platforms` list and hide the rest behind a "Show all platforms"
+ * toggle, on the reading that a firm implies its platform.
+ *
+ * IT DOES NOT, AND THE CATALOG WAS WRONG ABOUT THE FIRM THE OWNER ACTUALLY USES.
+ * GoatFundedTrader is recorded as `platforms: ['mt5']` while issuing cTrader logins —
+ * so a trader adding their real GFT cTrader account was shown MetaTrader 5, one card,
+ * and had to find "Show all platforms (4 more)" to reach the platform they were
+ * holding in the other tab. A narrowing that depends on our own catalog being complete
+ * for every prop firm on earth will keep being wrong in exactly this direction, and
+ * being wrong hides the right answer instead of merely offering too many.
+ *
+ * So the grid is the whole catalog and `status` carries the difference: a platform we
+ * do not serve yet is present, badged Soon, and unselectable. That is the same
+ * treatment the soon cards already had — it now applies to the firm question too.
  *
  * WHEN CHOOSING ADVANCES, AND WHEN IT DOES NOT. The rule this flow follows: if the
  * choice is the only thing the step collects, choosing advances; if the step collects
@@ -44,25 +54,13 @@ import { findFirm } from '../../prop/propFirms.js';
 export default function PlatformStep() {
   const { draft, patch, advance } = useFlow();
   const [query, setQuery] = useState('');
-  const [showAll, setShowAll] = useState(false);
   const [broker, setBroker] = useState(() => draft.broker || '');
 
   const isProp = draft.capital_kind === 'prop';
-  const firmPlatforms = isProp ? findFirm(draft.firm_id)?.platforms ?? null : null;
 
-  const cards = useMemo(() => {
-    const found = searchPlatforms(query);
-    // The narrowing applies to the firm's own list only, and a typed query overrides
-    // it: someone searching for "ctrader" has told us what they are looking for, and
-    // hiding it behind a toggle at that point is answering a question they did not
-    // ask.
-    if (!firmPlatforms || showAll || query.trim() !== '') return found;
-    return found.filter((c) => firmPlatforms.includes(c.id));
-  }, [query, firmPlatforms, showAll]);
-
-  const hiddenCount = firmPlatforms && !showAll && query.trim() === ''
-    ? searchPlatforms('').length - cards.length
-    : 0;
+  // The search box is the only thing that narrows the grid now. `searchPlatforms`
+  // deliberately does not filter by status, so a Soon platform stays findable by name.
+  const cards = useMemo(() => searchPlatforms(query), [query]);
 
   function choose(card) {
     if (card.status !== 'live') return;
@@ -111,15 +109,6 @@ export default function PlatformStep() {
             />
           ))}
         </ChoiceGrid>
-
-        {/* Rendered only when something is actually hidden, and it names how many —
-            "Show all platforms" beside a complete grid is a control that does
-            nothing, and the user cannot tell which case they are in. */}
-        {hiddenCount > 0 ? (
-          <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
-            Show all platforms ({hiddenCount} more)
-          </Button>
-        ) : null}
 
         {/* Live only. toProvisionPayload nulls `broker` on the prop path, so collecting
             it there would be input we throw away — and asking for it would imply we

@@ -15,6 +15,7 @@ import {
   heartbeat,
   lastJob,
   lastManualJob,
+  accountSyncConnected,
   jobForWorker,
   isMarketOpen,
   requestedPlatforms,
@@ -22,6 +23,7 @@ import {
   MANUAL_COOLDOWN_MS,
   lastJobsForUser,
   syncableAccounts,
+  autoSyncAccountsNeedingReconnect,
 } from '../domain/sync/queue.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
 import { sweepAutoAcknowledged } from '../domain/prop/challengeGroups.js';
@@ -455,7 +457,22 @@ export default function syncRoutes(app, ctx) {
     }
 
     if (!accounts.length) {
-      return reply.code(409).send({ error: 'no accounts are connected for Auto Sync' });
+      /* WHY THIS DISTINGUISHES TWO CASES. "No accounts are connected for Auto Sync" was
+       * the whole message, and the owner read it on a workspace holding two accounts
+       * that Settings › Accounts was simultaneously calling "Auto sync · Synced" -- so
+       * the sentence read as a bug in the button rather than as the truth about the
+       * connection. `syncableAccounts` excludes an account whose broker grant has been
+       * revoked, which is a state the trader can FIX, and a refusal that does not name
+       * it is a dead end. */
+      const disconnected = (await autoSyncAccountsNeedingReconnect(req.user.uid)).length;
+      return reply.code(409).send(disconnected
+        ? {
+          error: disconnected === 1
+            ? 'Your broker connection needs reauthorizing before this account can sync — reconnect it from Settings › Accounts.'
+            : `${disconnected} accounts need their broker connection reauthorizing before they can sync — reconnect them from Settings › Accounts.`,
+          reconnect: disconnected,
+        }
+        : { error: 'no accounts are connected for Auto Sync' });
     }
     return reply.send({ queued, skipped });
   });
@@ -497,8 +514,21 @@ export default function syncRoutes(app, ctx) {
       if (acct.platform === 'mt5' && cred.read_only === false) {
         return reply.code(409).send({ error: 'stored credential can trade — enter the investor password' });
       }
-    } else if (acct.ctrader_identity_id == null) {
-      return reply.code(409).send({ error: 'this account is not connected to cTrader' });
+    } else {
+      /* THE IDENTITY MUST BE LIVE, NOT MERELY PRESENT, and this check used to ask only
+       * whether the column was non-null. Every OTHER consumer -- the scheduler, the
+       * Sync Trades button, the worker's payload query -- additionally requires
+       * `revoked_at IS NULL`, so a revoked grant sailed through here and queued a job
+       * ctraderLeasedPayloadQuery could never serve: lease, report nothing, expire,
+       * reclaim, forever, with no error anywhere. Now it reads the same string they do
+       * (domain/sync/eligibility.js). */
+      const state = await accountSyncConnected(req.user.uid, acct.id);
+      if (!state?.connected) {
+        return reply.code(409).send({
+          error: 'this account is no longer connected to cTrader — reconnect it to resume syncing',
+          reconnect: 'ctrader',
+        });
+      }
     }
 
     // MANUAL JOBS ONLY -- a scheduled sync and the account's own `first_sync` must not

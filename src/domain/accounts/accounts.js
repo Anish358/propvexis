@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { query, withTransaction } from '../../platform/db.js';
 import { postChallengeFee } from '../finance/fees.js';
 import { cascadeDeleteStatements } from './cascade.js';
+import { SYNC_ELIGIBILITY_JOINS, SYNC_CONNECTED_SQL } from '../sync/eligibility.js';
 import { reconcileGroup } from '../prop/challengeGroups.js';
 
 const genToken = () => crypto.randomBytes(24).toString('hex'); // 48 hex chars
@@ -149,9 +150,25 @@ export async function listAccounts(userId) {
             -- request to fill in three characters of label is a request the top bar
             -- would be making on pages that need nothing else from the prop engine.
             ch.phase,
-            acc.balance, acc.equity, acc.updated_at AS balance_updated_at
+            acc.balance, acc.equity, acc.updated_at AS balance_updated_at,
+            -- IS THE SYNC CONNECTION STILL ALIVE? Reported from the SAME string the
+            -- scheduler and the Sync Trades button decide on (domain/sync/eligibility.js),
+            -- because the page was confidently lying without it.
+            --
+            -- Settings › Accounts showed "Auto sync · Synced" for two accounts that had
+            -- silently stopped syncing days earlier: that cell read import_method and the
+            -- newest job, which are HISTORICAL facts, while the queue was excluding both
+            -- accounts because their cTrader grant had been revoked out from under them.
+            -- A column that can only ever say "Synced" cannot report a broken connection,
+            -- so the one state a trader most needs from this table was the one it could
+            -- not express.
+            --
+            -- The LATERAL below also aliases a table c (challenges). That is a separate
+            -- scope and Postgres resolves the inner one first, so the two do not collide
+            -- -- verified against the database, not assumed.
+            ${SYNC_CONNECTED_SQL} AS sync_connected
        FROM mt5_accounts a
-       LEFT JOIN accounts acc ON acc.account_id = a.mt5_login
+       LEFT JOIN accounts acc ON acc.account_id = a.mt5_login ${SYNC_ELIGIBILITY_JOINS}
        -- THE LATEST challenge row, not the ACTIVE one, and the distinction is the same
        -- one challengeGroupsForUser draws: an account whose phase has passed has no
        -- active row at all, and "Phase 1, passed" is still the phase that account is.

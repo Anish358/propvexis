@@ -1,5 +1,8 @@
 import { query } from '../../platform/db.js';
 import { PLATFORM_IDS } from './platforms.js';
+import {
+  SYNC_ELIGIBILITY_JOINS, SYNC_CONNECTED_SQL, SYNC_CREDENTIAL_USABLE_SQL,
+} from './eligibility.js';
 
 // The sync queue: which account gets a server-side terminal next, and what
 // happens when that goes wrong.
@@ -156,17 +159,7 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS, perPlatform = PL
            SELECT a.id,
                   CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule' END,
                   a.platform
-             FROM mt5_accounts a
-             -- LEFT, NOT INNER, AND THIS IS THE THIRD TIME THE DISTINCTION HAS
-             -- MATTERED. A cTrader account has no mt5_credentials row at all --
-             -- its credential is an OAuth token pair on ctrader_identities, at
-             -- cTID grain. Under an inner join this query matched nothing for it:
-             -- no error, no failed job, no row ever considered, and the account
-             -- simply never synced. Same shape as leasedPayloadQuery and the
-             -- read_only filter before it.
-             LEFT JOIN mt5_credentials c  ON c.account_id = a.id
-             LEFT JOIN ctrader_identities ci
-                    ON ci.id = a.ctrader_identity_id AND ci.revoked_at IS NULL
+             FROM mt5_accounts a ${SYNC_ELIGIBILITY_JOINS}
              LEFT JOIN intervals i ON i.platform = a.platform
             WHERE a.is_active
               -- A CLOSED ACCOUNT LEAVES THE ROTATION (migration 0033), and this line has
@@ -178,22 +171,12 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS, perPlatform = PL
               -- chose. Archived accounts have never been in here for the same reason.
               AND a.closed_at IS NULL
               AND a.kind = 'synced'
-              -- "Can this account actually sync", asked per platform rather than
-              -- assumed to mean one table. Loosening the join must not loosen the
-              -- RULE: an MT5 account with no stored password still cannot sync,
-              -- and queueing it only produces a job the worker can fail.
-              AND CASE a.platform
-                    WHEN 'ctrader' THEN ci.id IS NOT NULL
-                    ELSE c.account_id IS NOT NULL
-                  END
-              -- read_only = FALSE means DIFFERENT THINGS PER PLATFORM, so this
-              -- rule is scoped to the one it is about. On MT5 it is a master
-              -- password awaiting deletion and must never be retried. On
-              -- TradeLocker EVERY credential is legitimately read_only = FALSE,
-              -- because the platform offers no read-only alternative at all --
-              -- left unscoped, this single line would silently queue no
-              -- TradeLocker account ever, with no error anywhere.
-              AND (a.platform <> 'mt5' OR c.read_only IS NOT FALSE)
+              -- "Can this account actually sync", and "is the way in one we are
+              -- willing to use" -- ONE definition of each, shared with the Sync
+              -- Trades button, the per-account route and the accounts list. Four
+              -- hand-written copies had already drifted apart; see eligibility.js.
+              AND ${SYNC_CONNECTED_SQL}
+              AND ${SYNC_CREDENTIAL_USABLE_SQL}
               AND NOT EXISTS (
                     SELECT 1 FROM sync_jobs j
                      WHERE j.account_id = a.id AND j.status IN ('queued', 'leased'))
@@ -388,23 +371,66 @@ export function lastJobsForUserQuery(userId) {
 export function syncableAccountsQuery(userId) {
   return {
     text: `SELECT a.id, a.label, a.platform
-             FROM mt5_accounts a
-             LEFT JOIN mt5_credentials c  ON c.account_id = a.id
-             LEFT JOIN ctrader_identities ci
-                    ON ci.id = a.ctrader_identity_id AND ci.revoked_at IS NULL
+             FROM mt5_accounts a ${SYNC_ELIGIBILITY_JOINS}
             WHERE a.user_id = $1
               AND a.is_active
               AND a.kind = 'synced'
               AND a.import_method = 'auto_sync'
-              -- The same per-platform question dueAccountsQuery asks. Asking it
-              -- once, here, is what keeps "Sync now" from offering a button that
-              -- can only produce a job the worker fails.
-              AND CASE a.platform
-                    WHEN 'ctrader' THEN ci.id IS NOT NULL
-                    ELSE c.account_id IS NOT NULL
-                  END
+              -- The same per-platform question the scheduler asks, from the same
+              -- string. Asking it once is what keeps "Sync now" from offering a
+              -- button that can only produce a job the worker fails.
+              AND ${SYNC_CONNECTED_SQL}
             ORDER BY a.id;`,
     values: [userId],
+  };
+}
+
+/**
+ * The user's Auto Sync accounts that CANNOT sync because their connection is gone.
+ *
+ * The complement of syncableAccountsQuery over the same population, and it exists so a
+ * refusal can name a state the trader is able to fix. "No accounts are connected for
+ * Auto Sync" told the owner nothing while two of their accounts sat one
+ * re-authorization away from working.
+ */
+export function autoSyncAccountsNeedingReconnectQuery(userId) {
+  return {
+    text: `SELECT a.id, a.label, a.platform
+             FROM mt5_accounts a ${SYNC_ELIGIBILITY_JOINS}
+            WHERE a.user_id = $1
+              AND a.is_active
+              AND a.kind = 'synced'
+              AND a.import_method = 'auto_sync'
+              AND NOT ${SYNC_CONNECTED_SQL}
+            ORDER BY a.id;`,
+    values: [userId],
+  };
+}
+
+/**
+ * Can THIS one account sync right now — same question, same string.
+ *
+ * WHY THE ROUTE NEEDS ITS OWN READ. POST /api/accounts/:id/sync asked only whether the
+ * account HAD a cTrader identity (`ctrader_identity_id != null`), while every other
+ * consumer additionally required that identity to be LIVE. So an account whose grant
+ * had been revoked passed the route's check, got a job queued -- and
+ * ctraderLeasedPayloadQuery, which does require a live identity, then returned no row
+ * for it. That is the lease / report-nothing / expire / reclaim spin, forever, with no
+ * error anywhere: exactly the failure ctraderLeasedPayloadQuery's own header warns
+ * about, reached through a different door.
+ *
+ * `credential_usable` is reported separately so the caller can keep MT5's specific
+ * message ("your stored credential can trade") rather than collapsing two different
+ * problems into one sentence a trader cannot act on.
+ */
+export function accountSyncConnectedQuery(userId, accountId) {
+  return {
+    text: `SELECT a.id,
+                  ${SYNC_CONNECTED_SQL} AS connected,
+                  ${SYNC_CREDENTIAL_USABLE_SQL} AS credential_usable
+             FROM mt5_accounts a ${SYNC_ELIGIBILITY_JOINS}
+            WHERE a.id = $2 AND a.user_id = $1;`,
+    values: [userId, accountId],
   };
 }
 
@@ -578,9 +604,13 @@ export const completeJob = async (jobId, stats) => (await run(completeQuery(jobI
 export const failJob = async (jobId, error) => (await run(failQuery(jobId, error)))[0] ?? null;
 export const reclaimExpired = () => run(reclaimQuery());
 export const lastJob = async (accountId) => (await run(lastJobQuery(accountId)))[0] ?? null;
+export const accountSyncConnected = async (userId, accountId) =>
+  (await run(accountSyncConnectedQuery(userId, accountId)))[0] ?? null;
 export const lastManualJob = async (accountId) => (await run(lastManualJobQuery(accountId)))[0] ?? null;
 export const jobForWorker = async (jobId, workerId) => (await run(jobForWorkerQuery(jobId, workerId)))[0] ?? null;
 export const heartbeat = (workerId, version, note) => run(heartbeatQuery(workerId, version, note));
 export const staleWorkers = (maxAgeMs) => run(staleWorkersQuery(maxAgeMs));
 export const lastJobsForUser = (userId) => run(lastJobsForUserQuery(userId));
 export const syncableAccounts = (userId) => run(syncableAccountsQuery(userId));
+export const autoSyncAccountsNeedingReconnect = (userId) =>
+  run(autoSyncAccountsNeedingReconnectQuery(userId));
