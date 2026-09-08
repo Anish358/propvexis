@@ -309,10 +309,33 @@ export function PanelLink({ render, className, children, ...rest }) {
  *
  * UNDERLINED, NOT PILLED, and that is DESIGN-LANGUAGE's own documented tab rule rather
  * than something Rhea introduced: a thin light line under the active label, muted and
- * unlined when inactive. It is drawn here rather than reusing the shared `Tabs`
- * primitive because this strip is the panel's own top EDGE — it carries the card's
- * hairline and its 15px title weight — where `Tabs` is a control that sits inside
- * content. Same interaction rule, different member of the layout. */
+ * unlined when inactive.
+ *
+ * ── WHY IT IS NOT THE SHARED `Tabs`, AND HALF THAT REASON HAS EXPIRED (2026-09-08) ────
+ *
+ * This said it was drawn here "rather than reusing the shared `Tabs` primitive because
+ * this strip is the panel's own top EDGE — it carries the card's hairline and its 15px
+ * title weight — where `Tabs` is a control that sits inside content."
+ *
+ * THE UNSPOKEN HALF WAS TIMING. This was written on 2026-09-07, when `Tabs` still
+ * rendered legacy `.u-tabs`/`.u-tab` — so "reuse the shared Tabs" would have meant
+ * reusing legacy CSS, which was never going to happen. `Tabs` moved onto
+ * `@shadcn/tabs` (`variant="line"`) on 2026-09-08, and that objection went with it.
+ *
+ * WHAT IS STILL TRUE IS ALSO NOT THE EDGE ARGUMENT. `Tabs` exposes only
+ * `tabs={[{ value, label }]}`, so a caller cannot reach an individual tab — and this
+ * strip needs four things a shipped trigger would take as classes: 16px semibold rather
+ * than 14px medium, `--action-2` rather than `bg-foreground` for the active line,
+ * measured padding, and `border-b-2` on the button rather than the registry's `after:`.
+ * None of those is a reason to own a second component; the ARRAY API is.
+ *
+ * DEFERRED TO CYCLE 0 (owner, 2026-09-08). The kit is where the app decides whether it
+ * has one tab style with two skins or two genuinely different objects — a title-weight
+ * strip that IS a card's edge is a defensible second object, and the point is to decide
+ * it rather than inherit it. If it comes out as one, the change is exporting `TabsList`
+ * and `TabsTrigger` from the barrel and making this a composition. Doing that now would
+ * re-open an approved primitive for a change the kit may redo. See
+ * CYCLE-00-KIT-BRIEF.md §4.5, which carries the full finding. */
 export function PanelTabs({ className, children, ...rest }) {
   return (
     <div
