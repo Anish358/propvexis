@@ -175,6 +175,11 @@ export function KpiLabel({ info, trailing, className, children, ...rest }) {
   );
 }
 
+/* PILL, NOT THE SMALL-CHROME STEP (owner, 2026-09-09). It asked for `rounded-sm` until
+ * the ladder shift left it the squarest thing on a much rounder page. §5 puts badges and
+ * pills on `--r-full` and §6 sends a badge to the control step; on a 22px chip both clamp
+ * to 11px, so the two rules agree and this is simply the step it should always have been.
+ */
 /* The count chip — "128 trades". Neutral, always: it is a magnitude, not a verdict, and
  * the old version tinted it with the hero's outcome colour, which made "you took 128
  * trades" look like part of the good or bad news. */
@@ -183,7 +188,7 @@ export function KpiPill({ className, children, ...rest }) {
     <span
       data-slot="kpi-pill"
       className={cn(
-        'shrink-0 rounded-sm border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
+        'shrink-0 rounded-full border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
         className,
       )}
@@ -368,7 +373,7 @@ export function KpiChip({ tone = 'flat', className, children, ...rest }) {
     <span
       data-slot="kpi-chip"
       className={cn(
-        'rounded-sm px-[5px] py-px font-mono text-[10px] leading-4 font-semibold tracking-[-0.2px] whitespace-nowrap',
+        'rounded-full px-[5px] py-px font-mono text-[10px] leading-4 font-semibold tracking-[-0.2px] whitespace-nowrap',
         className,
       )}
       style={{ color, background }}

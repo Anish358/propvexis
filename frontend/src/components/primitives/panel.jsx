@@ -136,7 +136,7 @@ export function PanelChip({ className, children, ...rest }) {
     <span
       data-slot="panel-chip"
       className={cn(
-        'shrink-0 rounded-sm border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
+        'shrink-0 rounded-full border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
         className,
       )}

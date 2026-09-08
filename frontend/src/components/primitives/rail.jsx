@@ -341,7 +341,7 @@ export function RailSoon({ className, ...rest }) {
     <span
       data-slot="rail-soon"
       className={cn(
-        'shrink-0 rounded-sm border border-[var(--line-strong)] bg-[var(--zinc-900)] px-1.5 py-0.5',
+        'shrink-0 rounded-full border border-[var(--line-strong)] bg-[var(--zinc-900)] px-1.5 py-0.5',
         'text-[10px] leading-[14px] font-[550] tracking-[0.04em] text-[var(--text-3)] uppercase',
         className,
       )}
