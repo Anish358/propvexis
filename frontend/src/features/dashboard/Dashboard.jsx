@@ -20,9 +20,12 @@ import Explain from '../../components/Explain.jsx';
 // cards' hover treatment had to be rewritten against that box; see the
 // `.dash-stat--refined` block in legacy/app.css.
 //
-// Tabs and EmptyState come from the same place now, but are NOT library-backed:
-// they still render `.u-tabs` / `.u-empty` because no generated equivalent exists.
-// The import path is the seam, not a claim about the implementation.
+// Tabs and EmptyState come from the same place now, AND ARE library-backed as of
+// 2026-09-08 — Batch 6 of the primitive review rebuilt them on `@shadcn/tabs`
+// (variant="line") and `@shadcn/empty`, and deleted the `.u-tabs` / `.u-empty` rules
+// they used to render. This note said the opposite, on the grounds that "no generated
+// equivalent exists"; the registry had both. The import path was the seam then and is
+// the seam now, which is why neither of them changed a line in this file.
 //
 // Modal is here for SetTargetModal below — the TWELFTH modal, which the Phase 4b audit
 // counted as eleven because it is declared inline in a page rather than in its own
