@@ -178,7 +178,10 @@ const SURFACE = [
      them. Dropping the class here would unstyle the inside of all 13 dialogs. */
   'modal',
   'relative w-full max-w-md max-h-[86vh] overflow-hidden overflow-y-auto',
-  'rounded-[24px] bg-popover p-6 text-sm text-popover-foreground',
+  /* `rounded-3xl` is 24px — the dialog step §6 assigns, under the ladder's own name
+     rather than typed out (2026-09-08). Same pixels; the generated dialog asks for
+     `min(--radius-4xl, 24px)` and lands in the same place. */
+  'rounded-3xl bg-popover p-6 text-sm text-popover-foreground',
   'shadow-xl ring-1 ring-[var(--detached-line)] outline-none',
   /* AN OVERLAY PORTALED IN HERE MUST NOT TAKE UP A ROW (2026-09-08, found by the owner
      on the review page: opening a menu inside a modal made the modal taller).

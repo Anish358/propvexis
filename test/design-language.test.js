@@ -154,7 +154,10 @@ test('§6 — a dialog takes its own 24px step, not the overlay radius', () => {
   const shell = readFileSync(
     new URL('../frontend/src/components/primitives/modal.jsx', import.meta.url), 'utf8',
   );
-  assert.match(shell, /rounded-\[24px\]/,
+  //  since 2026-09-08 — the same 24px under the ladder's own name rather
+  // than typed out. The owner asked for the ladder everywhere instead of hand-typed
+  // numbers; this assertion moved with the spelling, not with the value.
+  assert.match(shell, /rounded-3xl/,
     'the dialog shell must carry the 24px step — see DESIGN-LANGUAGE §6');
   assert.ok(!/\.modal \{/.test(css),
     '.modal must stay deleted from legacy CSS — the shell owns its surface');

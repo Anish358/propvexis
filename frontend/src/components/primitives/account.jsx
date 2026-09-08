@@ -154,7 +154,7 @@ export function AccountTab({
       data-slot="account-tab"
       aria-pressed={selected}
       className={cn(
-        'flex shrink-0 items-center gap-3 rounded-[12px] border py-3 pr-6 pl-[18px] text-left whitespace-nowrap',
+        'flex shrink-0 items-center gap-3 rounded-[var(--r-xl)] border py-3 pr-6 pl-[18px] text-left whitespace-nowrap',
         HOVER_MOTION,
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         selected
@@ -202,7 +202,7 @@ export function AccountTabMore({ className, children, ...rest }) {
       type="button"
       data-slot="account-tab-more"
       className={cn(
-        'flex shrink-0 items-center gap-1.5 rounded-[12px] border border-dashed border-[var(--line-strong)] px-4 py-3',
+        'flex shrink-0 items-center gap-1.5 rounded-[var(--r-xl)] border border-dashed border-[var(--line-strong)] px-4 py-3',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--text-3)]',
         HOVER_MOTION,
         'hover:border-[var(--line-hover)] hover:text-[var(--text)]',
@@ -461,7 +461,7 @@ export function Meter({
   return (
     <div
       data-slot="meter"
-      className={cn('flex min-w-0 flex-col gap-3.5 rounded-[12px] px-[22px] pt-5 pb-[21px]', STATE_MOTION, className)}
+      className={cn('flex min-w-0 flex-col gap-3.5 rounded-[var(--r-xl)] px-[22px] pt-5 pb-[21px]', STATE_MOTION, className)}
       style={{
         // A critical meter washes; every other state sits on the sunken surface. See
         // the header on why a quiet meter stays quiet.

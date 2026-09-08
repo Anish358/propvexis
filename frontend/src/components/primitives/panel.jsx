@@ -579,7 +579,10 @@ export function SkeletonLine({ w = '100%', h = '0.75rem', className, ...rest }) 
  * DOM, not by reading the markup, which looked entirely correct.
  *
  * Taking it as an inline style means a caller in any file gets the width it asked for. */
-export function SkeletonBlock({ h = '4rem', w, radius = 12, className, ...rest }) {
+/* `radius` defaults to the tile step rather than a bare 12 (2026-09-08). A skeleton
+ * stands in for a tile, so it should be shaped like one — and when the tile step moves,
+ * the placeholder moves with it instead of being found later. */
+export function SkeletonBlock({ h = '4rem', w, radius = 'var(--r-xl)', className, ...rest }) {
   return (
     <div
       data-slot="skeleton-block"
