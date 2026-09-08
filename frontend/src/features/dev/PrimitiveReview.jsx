@@ -2115,6 +2115,42 @@ export default function PrimitiveReview() {
         ]}
       />
 
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Turned down on 8 Sep</span>
+          <span style={S.mono}>two values, same construction</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="ok">your call, applied</Tag>
+        </div>
+        <div style={S.note}>
+          You said these were too colourful for the theme and pointed at shadcn&rsquo;s,
+          where the box stays plain and only the writing carries the tone. Two things
+          moved, and the rule itself did not.
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>Each tone no longer tints its own
+          background</strong>
+          {' '}
+          — all four now sit on exactly the same surface a plain message sits on, so a
+          message is a normal box with a coloured mark rather than a coloured box. And
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>the edge dropped from 32% to 20%</strong>.
+          That number matters: at 32% a red edge landed on #5d2c2f, brighter than any grey
+          edge anywhere in the app (the loudest is #2d2d31). At 20% it lands at about that
+          weight while staying clearly red.
+        </div>
+        <div style={{ ...S.note, borderTop: '1px solid var(--line-inset)' }}>
+          <strong style={{ color: 'var(--text)', fontWeight: 600 }}>What I did not do, and why: </strong>
+          shadcn colours the words — its error title, sentence, links and bullets are all
+          red. Ours keeps them plain, because your own rule says colour belongs on the icon
+          and the edge and nowhere else, and a red sentence in a message bar would read
+          like a losing number in a table. The icon also stays at full strength: it is one
+          16px mark carrying the whole signal, and dimming it turns &ldquo;quieter&rdquo;
+          into &ldquo;easier to miss&rdquo;. If you want the shadcn treatment instead, say
+          so — it is a change to a locked rule, so it needs to be a decision rather than a
+          nudge.
+        </div>
+      </div>
+
       <Spec
         name="Loading, waiting, progress"
         file="primitives/skeleton.jsx · spinner.js · progress.jsx"

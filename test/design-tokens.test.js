@@ -153,6 +153,13 @@ const alertJsx = readFileSync(
   fileURLToPath(new URL('../frontend/src/components/ui/alert.jsx', import.meta.url)),
   'utf8',
 );
+
+// OUR wrapper, comment-stripped: it argues about its own class names at length, and a
+// header that DISCUSSES a class must not read as one that applies it.
+const alertPrimJsx = code(readFileSync(
+  fileURLToPath(new URL('../frontend/src/components/primitives/alert.jsx', import.meta.url)),
+  'utf8',
+));
 // bridge.css is the shadcn-token seam and is NOT part of appCss, which is the token
 // layer only. The destructive mapping lives there, so read it directly.
 const bridgeCss = readFileSync(
@@ -467,5 +474,56 @@ test('an overlay separates from the page, and its rows separate from IT', () => 
   assert.ok(
     depthOf('overlay-hover') - depthOf('line') >= 8,
     'an overlay row highlight must not land on the border colour around it',
+  );
+});
+
+test('a system message is a neutral box with a coloured mark, not a coloured box', () => {
+  /* §17 IS 🔒 LOCKED AND THIS DOES NOT MOVE IT. The rule is that colour may land on the
+   * GLYPH and a 1px EDGE and nowhere else — not on the words, not washed across the
+   * surface. What the owner changed on 2026-09-08 is how much (four tones side by side
+   * read as "too colorful, doesn't go with our theme"), so this asserts the construction
+   * the rule describes, at the weight that was chosen.
+   *
+   * THE NUMBERS ARE THE ARGUMENT. A tone edge composites over our card (#111114) to:
+   *
+   *     destructive  32% -> #5d2c2f     20% -> #412225
+   *     warning      32% -> #5a3e11     20% -> #3f2d12
+   *
+   * and the loudest NEUTRAL edge this app draws is a chip at #2d2d31. At 32% every tone
+   * edge was brighter than any neutral one; at 20% they sit at about a chip's weight and
+   * stay unmistakably tinted. */
+  const generated = alertJsx;
+
+  // The generated variants each wash their own background. Ours must cancel that: §17
+  // sets 4% as a CEILING, not a requirement, and shadcn's own destructive alert sits on
+  // the plain card surface.
+  assert.match(generated, /bg-destructive\/4/, 'the generated alert no longer washes its surface — this override may be redundant now');
+  assert.match(
+    alertPrimJsx, /bg-transparent/,
+    'alert.jsx must put every tone on the default variant\'s surface, so a message is a '
+      + 'neutral box with a coloured mark rather than a coloured box',
+  );
+
+  for (const tone of ['destructive', 'warning', 'info', 'success']) {
+    assert.match(
+      alertPrimJsx, new RegExp(`border-${tone}/20(?![0-9])`),
+      `alert.jsx must soften the ${tone} edge to 20% — at the generated 32% it composites `
+        + 'brighter than any neutral edge in the app',
+    );
+  }
+
+  /* THE GLYPH KEEPS FULL STRENGTH, and this is the half that must NOT be quietened. It is
+   * one 16px mark and it carries the whole signal; dimming it turns "quieter" into "harder
+   * to notice", which is the failure §17 was amended to prevent. Asserted on the generated
+   * file because our wrapper deliberately leaves it alone. */
+  assert.match(generated, /\[&>svg\]:text-destructive\b(?!\/)/, 'the error glyph must stay full-strength');
+
+  /* AND THE WORDS STAY NEUTRAL — the half of §17 that has never moved. shadcn's own alert
+   * colours its title and description; ours must not, or a red sentence in a message bar
+   * becomes indistinguishable from a losing figure in a table. */
+  assert.doesNotMatch(
+    alertPrimJsx, /text-(?:destructive|warning|info|success)\b(?!-)/,
+    'alert.jsx is colouring TEXT. §17 allows the glyph and the edge and nothing else — '
+      + 'colour on words is what makes a system message read like a data value.',
   );
 });
