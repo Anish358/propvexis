@@ -53,7 +53,17 @@ import { cn } from '@/lib/utils';
  * application's problem, and what a library can usefully own is the anatomy. Every part
  * below wraps the generated one; none of them forks it.
  *
- * ⚠ THE REGISTRY ITEM SHIPS A BROKEN `cn` IMPORT. `@shadcn/table` at base-rhea writes
+ * ⚠ TWO REGISTRY FACTS THIS FILE GOT WRONG ONCE EACH, both recorded rather than tidied.
+ *
+ * THE FIRST: `@coss` WAS NEVER SEARCHED. §1 orders `@shadcn` then `@coss` for what
+ * shadcn does not ship, and `@shadcn/table` existing was treated as the end of the
+ * question. `@coss` ships `p-table-3` — "Table with TanStack Table and checkboxes" — and
+ * a checkbox WITH an indeterminate state, which this file then hand-drew. The anatomy
+ * below is still the shadcn table (that part of the ruling holds: a pattern is not a
+ * reason to pull a second implementation), but the selection box came off coss and the
+ * hand-drawn dash is gone. See `checkbox.jsx`.
+ *
+ * ⚠ THE SECOND: THE REGISTRY ITEM SHIPS A BROKEN `cn` IMPORT. `@shadcn/table` at base-rhea writes
  * `import { cn } from "cn"` and declares an npm package by that name as a dependency,
  * while the other 27 components in `components/ui` import `@/lib/utils`. Ours is
  * `clsx` + `tailwind-merge`; the npm one is not, so every `className` override in this
@@ -365,14 +375,17 @@ function DataTableCell({
 
 /* ── THE SELECTION BOX ──────────────────────────────────────────────────────────────
  *
- * Two things this has to solve that the registry does not.
+ * One thing this has to solve, and one it USED to.
  *
- * 1. THE GENERATED CHECKBOX HAS NO INDETERMINATE STATE AT ALL. `ui/checkbox.jsx` hard-
- *    renders a `CheckIcon` in its indicator and ignores children. Base UI's root does
- *    set `data-indeterminate`, so the dash and the filled box are drawn here, in the
- *    wrapper — which is exactly what the barrel's own note prescribes for a gap in the
- *    generated layer. A select-all that shows a TICK when only nine of four hundred
- *    rows are selected is a lie about what the bulk action will do.
+ * 1. THE INDETERMINATE DASH IS THE COMPONENT'S, NOT OURS — CORRECTED 2026-09-09.
+ *    This file drew the dash itself, with `data-[indeterminate]:before:` rules, and
+ *    wrote up "the registry has no indeterminate state" as a finding. That was true of
+ *    `@shadcn/checkbox` and FALSE of the registry: `@coss/checkbox` renders the dash
+ *    from `state.indeterminate`. §1 step 3 exists for exactly this — "@coss only for
+ *    what @shadcn does not ship" — and it was never searched, because the Cycle 00
+ *    brief's line "the kit needs almost no @coss" was taken as a check already done.
+ *    The owner spotted it. `checkbox.jsx` is on coss now and those rules are deleted;
+ *    all this component does is pass `indeterminate` through.
  *
  * 2. IT FADES IN, AND IT HAS A KEYBOARD TWIN. A box on every one of four hundred rows
  *    is noise, so it is revealed by the row. The shipped table reveals it on
@@ -385,15 +398,6 @@ function DataTableCell({
  * `stopPropagation` on click and change, because the row is interactive and the cell is
  * too — brief §4.1's "the row is interactive AND contains interactive cells; the design
  * must make that survivable". Ticking a box must not open the trade. */
-const INDETERMINATE = [
-  'data-[indeterminate]:border-primary data-[indeterminate]:bg-primary',
-  'data-[indeterminate]:text-primary-foreground',
-  'data-[indeterminate]:[&>[data-slot=checkbox-indicator]]:hidden',
-  'data-[indeterminate]:before:absolute data-[indeterminate]:before:h-0.5',
-  'data-[indeterminate]:before:w-2.5 data-[indeterminate]:before:rounded-full',
-  'data-[indeterminate]:before:bg-current',
-].join(' ');
-
 function DataTableSelect({
   checked = false, indeterminate = false, onCheckedChange, label,
   always = false, className, ...rest
@@ -414,7 +418,7 @@ function DataTableSelect({
         indeterminate={indeterminate}
         onCheckedChange={onCheckedChange}
         onClick={(e) => e.stopPropagation()}
-        className={cn(INDETERMINATE, className)}
+        className={className}
         {...rest}
       />
     </span>

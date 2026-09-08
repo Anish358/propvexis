@@ -228,27 +228,43 @@ test('the tick trails the label, so the value does not move when the list opens'
  * able to show a cursor while disabled, and must say which cursor. It deliberately covers
  * the two that were already right, because "textarea was fine" is exactly the kind of
  * thing that regresses when someone tidies a class list. */
+/* THE THIRD ENTRY IS THE ATTRIBUTE THIS CONTROL IS DRIVEN BY, added 2026-09-09.
+ *
+ * The header above says this test asserts the OUTCOME, not the spelling, and the test
+ * below it already makes the distinction in prose: "a Base UI option is a div with
+ * `data-disabled`, not a form control with the DOM property". This list did not carry
+ * that distinction, so it only ever accepted shadcn's spelling.
+ *
+ * WHAT MADE IT MATTER: `checkbox` moved from @shadcn to @coss on 2026-09-09 (only the
+ * coss one has an indeterminate state — see primitives/checkbox.jsx). The coss component
+ * writes `data-disabled:cursor-not-allowed`, the correct selector for a Base UI control,
+ * which does exactly the same job. The rule was satisfied and the test failed — a test
+ * enforcing an implementation rather than an outcome.
+ *
+ * IT IS STILL STRICT. Each control must declare the cursor under ITS OWN attribute and
+ * must not block pointer events under that same attribute, so a component cannot pass by
+ * declaring the cursor under one prefix and killing the pointer under the other. */
 const CONTROLS = [
-  ['button', () => classesContaining(prim('button.jsx'), 'disabled:pointer-events-auto', 'button.jsx')],
-  ['input', () => classesContaining(prim('input.jsx'), 'disabled:pointer-events-auto', 'input.jsx')],
-  ['textarea', () => classesContaining(ui('textarea.jsx'), 'disabled:cursor-not-allowed', 'ui/textarea.jsx')],
-  ['checkbox', () => classesContaining(ui('checkbox.jsx'), 'disabled:cursor-not-allowed', 'ui/checkbox.jsx')],
-  ['select trigger', () => classesContaining(ui('select.jsx'), 'data-[size=default]:h-8', 'ui/select.jsx trigger')],
+  ['button', () => classesContaining(prim('button.jsx'), 'disabled:pointer-events-auto', 'button.jsx'), 'disabled:'],
+  ['input', () => classesContaining(prim('input.jsx'), 'disabled:pointer-events-auto', 'input.jsx'), 'disabled:'],
+  ['textarea', () => classesContaining(ui('textarea.jsx'), 'disabled:cursor-not-allowed', 'ui/textarea.jsx'), 'disabled:'],
+  ['checkbox', () => classesContaining(ui('checkbox.jsx'), 'data-disabled:cursor-not-allowed', 'ui/checkbox.jsx'), 'data-disabled:'],
+  ['select trigger', () => classesContaining(ui('select.jsx'), 'data-[size=default]:h-8', 'ui/select.jsx trigger'), 'disabled:'],
 ];
 
 test('a disabled control can be hovered, and says not-allowed when it is', () => {
-  for (const [name, get] of CONTROLS) {
+  for (const [name, get, on] of CONTROLS) {
     const list = get();
     assert.ok(
-      has(list, 'disabled:cursor-not-allowed'),
-      `${name} does not declare disabled:cursor-not-allowed — a disabled control must say so under the pointer`,
+      has(list, `${on}cursor-not-allowed`),
+      `${name} does not declare ${on}cursor-not-allowed — a disabled control must say so under the pointer`,
     );
     assert.ok(
-      !has(list, 'disabled:pointer-events-none'),
+      !has(list, `${on}pointer-events-none`),
       `${name} still blocks pointer events while disabled, so its cursor rule is inert. `
-        + 'Add disabled:pointer-events-auto in the wrapper — tailwind-merge drops the '
+        + `Add ${on}pointer-events-auto in the wrapper — tailwind-merge drops the `
         + 'generated class. A disabled button and a disabled input fire no click and take '
-        + 'no focus by the platform\'s rules, not by this class.',
+        + "no focus by the platform's rules, not by this class.",
     );
   }
 });

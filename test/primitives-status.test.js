@@ -209,7 +209,17 @@ const APPROVED = new Set([
    * and a FieldLabel in a row — the same way `dialog.jsx` was approved under `modal.jsx`.
    * It originates no appearance of its own; what it fixes is a three-line consent
    * sentence being centred against a 16px box and rendered as bold as a heading. */
-  'input.jsx', 'textarea.js', 'select.jsx', 'checkbox.jsx',
+  /* `checkbox.jsx` LEFT THIS SET ON 2026-09-09, deliberately (owner). It is not a
+   * regression and not a downgrade — it is a DIFFERENT COMPONENT. It moved from
+   * @shadcn to @coss because only the coss one has an indeterminate state, which the
+   * trade log's select-all needs to tell "all four hundred" from "nine of four
+   * hundred". Approval is never inferred, least of all from a predecessor's, so it
+   * goes back to unreviewed until the owner has looked at the replacement.
+   *
+   * It also carried a real bug out with it: forcing `rounded-sm` made it a perfect
+   * circle the moment --r-sm moved 6 -> 8 on 09-08, because radius clamps to half a
+   * 16px box. `radius-clamp.test.js` is the new guard. */
+  'input.jsx', 'textarea.js', 'select.jsx',
   'label.jsx', 'field.jsx', 'consent-field.jsx',
 
   /* BATCH 3 — FEEDBACK, locked as a family (owner, 2026-09-08).
@@ -348,8 +358,21 @@ test('an approved primitive carries the date it was approved', () => {
 const LOCKED_BATCHES = {
   'Batch 1 — Overlays (locked 2026-09-07)':
     ['menu.jsx', 'modal.jsx', 'popover.jsx', 'dialog.jsx'],
-  'Batch 2 — Form controls (locked 2026-09-07)':
-    ['input.jsx', 'textarea.js', 'select.jsx', 'checkbox.jsx',
+  /* SIX, NOT SEVEN, SINCE 2026-09-09. `checkbox.jsx` was unlocked from this batch on
+   * purpose: it is a different component now (@shadcn -> @coss, for the indeterminate
+   * state) and the owner has not seen the replacement.
+   *
+   * WHY UNLOCKING ONE DOES NOT UNLOCK THE FAMILY HERE, which is the question this map
+   * exists to force. Batch 2 was locked as a set because these controls "share a
+   * height, a corner and a text size". The tick box shares the height and the text
+   * size and is unchanged in both. It does NOT share the corner and now cannot: a
+   * 16px box clamps any radius to 8px, so the ladder's smallest step draws a circle,
+   * and the tick box is the app's one documented exception to §6 (see checkbox.jsx and
+   * radius-clamp.test.js). The corner is the only axis it moved on, and it was never
+   * on the family's axis to begin with. `consent-field.jsx` renders one and stays
+   * approved for the same reason — what it originates is the row, not the box. */
+  'Batch 2 — Form controls (locked 2026-09-07, checkbox unlocked 09-09)':
+    ['input.jsx', 'textarea.js', 'select.jsx',
       'label.jsx', 'field.jsx', 'consent-field.jsx'],
   'Batch 3 — Feedback (locked 2026-09-08)':
     ['alert.jsx', 'skeleton.jsx', 'spinner.js', 'progress.jsx'],

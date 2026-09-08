@@ -76,7 +76,20 @@ import {
 /* ---------------------------------------------------------------- scaffolding --- */
 
 const S = {
-  page: { padding: '28px 32px 96px', maxWidth: 1080, margin: '0 auto' },
+  /* THE PAGE IS FULL WIDTH AND THE PROSE IS NOT, and that split is the point.
+   *
+   * This was one container at `maxWidth: 1080`, which is right for reading and WRONG for
+   * reviewing a table. `.page-body` — what every real screen in this app sits in — has
+   * NO max width, only `padding: 16px 24px 40px`. So a fifteen-column table judged
+   * inside a 1080px column is being judged at a width it will never have: the columns
+   * come out narrower, the truncation lands in different places, and the horizontal
+   * scroll appears when the real page would not have one.
+   *
+   * So `page` is the shell at the real page's side padding, and `column` is the reading
+   * measure that the headings and batch notes stay inside. A specimen that needs the
+   * real width is rendered between two `column`s rather than inside one. */
+  page: { padding: '28px 24px 96px' },
+  column: { maxWidth: 1080, margin: '0 auto' },
   eyebrow: {
     fontSize: 11, letterSpacing: '.11em', textTransform: 'uppercase',
     color: 'var(--text-3)', fontWeight: 500,
@@ -148,14 +161,21 @@ function Tag({ children, tone = 'wait' }) {
 /* A single primitive under review. `states` are the two or three conditions worth
  * judging; `context` is the same component inside the arrangement it actually appears
  * in — a component approved in isolation is a component approved in a vacuum. */
-function Spec({ name, file, states, context, contextLabel, ask, approved }) {
+/* `pending` exists because this component could not say "no". Every branch of its tag
+ * printed "approved", which was fine while the page held nothing but locked batches and
+ * is wrong the moment a primitive is REOPENED — Cycle 00 unlocked the checkbox on
+ * 2026-09-09, and a specimen that labels itself approved while waiting for a signature
+ * is the page lying about its own purpose. */
+function Spec({ name, file, states, context, contextLabel, ask, approved, pending }) {
   return (
     <div style={S.card}>
       <div style={S.cardHead}>
         <span style={S.cardName}>{name}</span>
         <span style={S.mono}>{file}</span>
         <span style={{ flex: 1 }} />
-        {approved ? <Tag tone="ok">{`approved ${approved}`}</Tag> : <Tag tone="ok">approved 7 Sep 2026</Tag>}
+        {pending
+          ? <Tag tone="open">{pending}</Tag>
+          : <Tag tone="ok">{approved ? `approved ${approved}` : 'approved 7 Sep 2026'}</Tag>}
       </div>
 
       <div style={S.specimens}>
@@ -2420,6 +2440,7 @@ export default function PrimitiveReview() {
 
   return (
     <div style={S.page}>
+      <div style={S.column}>
       <div style={S.eyebrow}>Development only · not visible to customers</div>
       <h1 style={S.h1}>Primitive review</h1>
       <p style={S.lede}>
@@ -2441,6 +2462,8 @@ export default function PrimitiveReview() {
 
       <RedesignMap legacyClasses={LEGACY_CLASSES} />
 
+      </div>
+
       {/* ================================================================ CYCLE 00 ===
         *
         * THE KIT IS BEING REVIEWED THE WAY THE PRIMITIVES WERE, and that is the owner's
@@ -2457,14 +2480,14 @@ export default function PrimitiveReview() {
         * unlocks Cycle 01. The other five are mostly skins on components already
         * installed and come after this is signed off.
         */}
-      <div style={S.batchHead}>
+      <div style={{ ...S.batchHead, ...S.column }}>
         <span style={S.batchTitle}>Cycle 00 — the kit</span>
         <Tag tone="open">waiting on you</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
           the data table · piece 1 of 6
         </span>
       </div>
-      <p style={{ ...S.lede, margin: '8px 0 0' }}>
+      <p style={{ ...S.lede, ...S.column, margin: '8px auto 0' }}>
         <strong style={{ color: 'var(--text)' }}>There was no data table in this
         codebase.</strong>
         {' '}
@@ -2483,6 +2506,46 @@ export default function PrimitiveReview() {
       <DataTableStates />
       <DataTableSelection />
       <DataTableQuestions />
+
+      <div style={S.column}>
+
+      {/* ==================================================== THE REOPENED PRIMITIVE ===
+        *
+        * NOT A KIT PIECE — an approved one that came back. It is here rather than in
+        * Batch 2 below because Batch 2 is locked and folded away, and a component
+        * waiting on a signature must not be hidden inside a section labelled "all seven
+        * signed off". It rejoins the batch when it is signed.
+        */}
+      <Spec
+        name="Tick box — reopened, and it is a different component now"
+        pending="waiting on you"
+        file="primitives/checkbox.jsx · @coss"
+        ask={
+          'two things, and the first one is a bug you found. THE SHAPE: it was a rounded '
+          + 'square when you approved it on 7 Sep and it had become a perfect circle by '
+          + 'the 8th, because the radius ladder moved up a step and a 16px box cannot '
+          + 'wear an 8px corner — a corner clamps to half its box. It is 4px again here. '
+          + 'Check it reads as a SQUARE, not a radio button. THE THIRD STATE: the middle '
+          + 'box is "some but not all", which is what the trade log’s select-all shows '
+          + 'when you have picked nine of four hundred rows. The old one could not draw '
+          + 'that at all — it showed a tick, whatever was selected. Also worth a look: '
+          + 'the tick is this component’s own glyph rather than lucide’s, so the stroke '
+          + 'is a shade heavier, and there is a faint 1px highlight along the top edge.'
+        }
+        states={[
+          { label: 'Off', render: <Checkbox aria-label="Off" /> },
+          { label: 'On', render: <Checkbox aria-label="On" checked /> },
+          { label: 'Some, not all', render: <Checkbox aria-label="Partial" indeterminate /> },
+          { label: 'Disabled', render: <Checkbox aria-label="Disabled" disabled /> },
+          { label: 'On + disabled', render: <Checkbox aria-label="On and disabled" checked disabled /> },
+        ]}
+        contextLabel="the consent gate — the one place an unticked box stops a submit"
+        context={(
+          <ConsentField id="pr-consent-reopened">
+            I understand this password can place trades on my account.
+          </ConsentField>
+        )}
+      />
 
       <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
         <div style={S.cardHead}>
@@ -2922,6 +2985,7 @@ export default function PrimitiveReview() {
         </div>
       </div>
       </Folded>
+      </div>
 
     </div>
   );

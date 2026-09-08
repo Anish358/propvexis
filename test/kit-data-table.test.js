@@ -140,14 +140,36 @@ test('§17 — a row state is an edge, never a wash behind the figures', () => {
   assert.match(code, /inset_2px_0_0_0_var\(--warning\)/, 'the attention row is marked by an edge');
 });
 
-test('the registry checkbox has no indeterminate state, so this file draws one', () => {
-  /* A select-all that shows a TICK when nine of four hundred rows are selected is a lie
-   * about what the bulk action will do. `ui/checkbox.jsx` hard-renders a CheckIcon and
-   * ignores children; Base UI's root does set `data-indeterminate`, so the dash and the
-   * fill are absorbed HERE — which is what the barrel's own note prescribes for a gap in
-   * the generated layer. If this ever disappears, check the registry actually fixed it. */
-  assert.match(code, /data-\[indeterminate\]:before:/, 'the dash is drawn on the indeterminate state');
-  assert.match(code, /data-\[indeterminate\]:bg-primary/, 'indeterminate fills like checked — Base UI omits data-checked');
+test('the indeterminate dash comes from the component, not from this file', () => {
+  /* INVERTED ON 2026-09-09, AND THE OLD ASSERTION IS WORTH RECORDING because it was
+   * enforcing a mistake. It read "the registry checkbox has no indeterminate state, so
+   * this file draws one", and pinned the `data-[indeterminate]:before:` rules that faked
+   * a dash. That was true of `@shadcn/checkbox` and false of the REGISTRY: `@coss`
+   * ships one that renders the dash from `state.indeterminate`. §1 step 3 is "@coss for
+   * what @shadcn does not ship", and it was skipped — the Cycle 00 brief's line "the kit
+   * needs almost no @coss" was treated as a check having been performed.
+   *
+   * A TEST THAT PINS A HAND-BUILT THING IS A TEST THAT KEEPS IT. That is the same shape
+   * as the stale assertion Batch 3 found (it forbade the info and success tones on the
+   * grounds their tokens did not exist, months after they did) — a stale test is worse
+   * than a stale comment because it enforces. So this now asserts the opposite: the dash
+   * is the component's, and this file only passes the flag through. */
+  assert.doesNotMatch(
+    code, /data-\[indeterminate\]/,
+    'data-table.jsx is drawing an indeterminate state again. @coss/checkbox already '
+      + 'renders the dash — pass `indeterminate` through and let the component draw it.',
+  );
+  assert.match(
+    code, /indeterminate=\{indeterminate\}/,
+    'the select-all must still pass `indeterminate` down, or a partial selection draws '
+      + 'a TICK and lies about what the bulk action will do',
+  );
+  const generated = readFileSync(at('../frontend/src/components/ui/checkbox.jsx'), 'utf8');
+  assert.match(
+    generated, /state\.indeterminate/,
+    'the generated checkbox no longer draws its own indeterminate state. If it went back '
+      + 'to @shadcn, the trade log select-all is broken again — see checkbox.jsx.',
+  );
 });
 
 test('comparison literals stay OUT of cn(), so the collision test cannot false-positive', () => {
