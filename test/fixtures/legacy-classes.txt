@@ -149,7 +149,6 @@ cell-note
 cell-time
 cell-win
 chart-link
-chip
 closed
 col-select
 coming-soon

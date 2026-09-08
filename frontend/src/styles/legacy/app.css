@@ -521,20 +521,19 @@ label.full { margin-bottom: 16px; }
    23px value that used to sit here were the pre-polish values the four sibling cards
    fell back to, and keeping a superseded copy above the real one is how a later
    reader ends up editing the wrong rule. */
-/* Gauge + its win/be/loss pills stacked as one column (pills sit centered
-   under the arc, not next to the value) — used by Trade win % / Day win %. */
-.chip { font-size: 12px; font-weight: 400; padding: 4px 8px; border-radius: 10px; }
-.chip.win { background: var(--tint-profit-6); color: var(--profit); }
-.chip.loss { background: var(--tint-loss-4); color: var(--loss); }
-.chip.be { background: var(--be-bg); color: var(--be); }
+/* THE `.chip` FAMILY IS GONE (2026-09-09). It drew the win/be/loss pills under a KPI
+   gauge; `KpiChip` in the primitives is that component now, and it took the pill step
+   the same day. Deleted rather than re-rounded: the standing rule is replace, never
+   patch, and this file may only shrink. */
 /* THE RULE THIS DESCRIBED IS GONE (2026-09-08 dead-CSS prune). It read
    `.dash-stat-chips .chip` — gauge-column pills at -15% size and normal weight, winning
    on two classes over the global `.chip { font-weight: var(--fw-semibold) }`. Nothing
    renders `.dash-stat-chips` any more; the KPI cards are the `kpi` primitive.
 
-   Kept as a note rather than deleted because the CONFLICT it documents is still live:
-   `.chip` above sets weight 400 and a later global rule sets semibold, and the next
-   person to wonder which wins should find this rather than rediscover it. */
+   THE CONFLICT IT DOCUMENTED IS RESOLVED (2026-09-09): `.chip` set weight 400 and a
+   later global rule set semibold, and both sides are now deleted — the family with
+   its component, the name from the shared weight selector. Kept only as the record
+   of what was here, since nothing is left to rediscover. */
 
 .splitbar { height: 4.5px; border-radius: 3px; background: var(--loss)44; overflow: hidden; margin-top: 8px; }
 .splitbar-fill { height: 100%; background: var(--profit); border-radius: 3px; }
@@ -3243,7 +3242,7 @@ label.full { margin-bottom: 16px; }
    their own weight (`font-normal`) at the call site, per DESIGN-LANGUAGE §3 weight
    discipline: a two-character number in a 16px pill does not need emphasis to be
    read. */
-.pill, .chip, .cal-stats-pill, .cal-week-days,
+.pill, .cal-stats-pill, .cal-week-days,
 .import-stat, .log-untagged, .tp-badge, .rp-dir, .prop-phase, .prop-mode,
 .conn, .auto-hint, .po-src, .precision-chip, .rule-chip, .prop-reason-chip {
   font-weight: var(--fw-semibold);

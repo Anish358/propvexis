@@ -574,9 +574,9 @@ const VS_COLOUR = [
  * and the modal on this very page each disagree with it. They are not wrong — §6 gives a
  * menu `rounded-2xl` and a popover and a dialog `rounded-3xl` — the TABLE was. */
 const VS_SHAPE = [
-  ['Small chrome, menu rows', 'radius sm / md', '6 / 8px', '--r-md', true],
-  ['Nav rows, list rows, day cells', 'radius lg', '10px', '--r-lg', true],
-  ['Tiles and chips — and the CARD', 'radius xl', '14px', '--r-2xl', true],
+  ['Small chrome, menu rows', 'radius sm / md', '8 / 10px', '--r-md', true],
+  ['Buttons, nav rows, list rows, day cells', 'radius lg', '14px', '--r-lg', true],
+  ['Card and section shells', 'radius 2xl', '24px', '--r-2xl', true],
   ['CONTROLS — button, input, badge, menu panel', 'radius 2xl', '16px', '--radius-2xl', true],
   ['Popovers, and dialogs at min(4xl, 24px)', 'radius 3xl', '24px', '--radius-3xl', true],
   ['Body, a menu item', 'text-sm', '14px', '--fs-body', true],
@@ -2123,7 +2123,7 @@ function Folded({ title, tag, hint, children, open = false }) {
  * It is the honest measure of the redesign's progress in a way "screens done" is not: a
  * screen can be redesigned and still leave its old rules behind, which is the step §9 of
  * the plan says gets skipped. */
-const LEGACY_CLASSES = 969;
+const LEGACY_CLASSES = 968;
 
 const CYCLES = [
   {

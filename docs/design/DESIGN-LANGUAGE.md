@@ -472,6 +472,45 @@ anything under about 32px tall the number above is never what draws. A 20px badg
 at 10px whether it asks for 16 or 99. Check the height before reading a row as a
 guarantee.
 
+### THE PREVIEW TRAP, 2026-09-09 — A BRIDGE NAME IS NOT READABLE AT RUNTIME
+
+Two trial panes were built on this page to compare radii, and **both were broken in the
+same way**. Each scoped a bridge variable on a wrapper div — `--radius-sm`,
+then `--radius-2xl` — expecting everything inside to redraw. Nothing redrew.
+The owner reported "all three look exactly the same" twice, and was describing the
+output literally rather than judging perceptibility.
+
+**Tailwind resolves the indirection at BUILD time.** Read the built stylesheet, not the
+bridge:
+
+```css
+.rounded-sm  { border-radius: var(--r-sm) }   /* the bridge name is GONE */
+.rounded-2xl { border-radius: 16px }          /* inlined outright */
+.rounded-card{ border-radius: var(--r-card) }
+```
+
+So `--radius-sm` is a compile-time input, not a runtime variable. Setting it
+on an element is a no-op — **silently**, like every other trap in this codebase.
+
+**TO PREVIEW OR OVERRIDE A RADIUS:** scope the `--r-*` token (that name does
+survive into the CSS), or change the class. Never the bridge name. And before trusting
+any visual preview, `grep` the built CSS for the property you think you are
+moving — one line of proof ahead of a conclusion drawn from it.
+
+**THIS IS THE THIRD MEMBER OF A FAMILY**, and they are worth learning together because
+all three fail without an error:
+
+1. a utility class written outside `components/{ui,primitives}` compiles to
+   nothing (§1),
+2. `tailwind-merge` drops an override only when the modifier set MATCHES, so a
+   correct-looking class can lose silently (see the top-bar pills),
+3. a bridge variable set at runtime is read by nobody, because the name was resolved
+   away at build.
+
+**The lesson is one lesson:** in this stack, "I wrote the right thing" is not evidence.
+The built output is.
+
+---
 ### CLOSED 2026-09-09 (owner) — THE CONTROLS ARE ALREADY PILLS. DO NOT REOPEN THIS.
 
 The amendment below left one thing open: the mockup draws controls as full pills and
@@ -492,8 +531,11 @@ token gets a say:
 the app already agree; there was never a gap to close. A 99px control step would clamp
 straight back to 16px and change literally nothing, and the 14px alternative differs by
 two pixels on a shape that is already a semicircle at each end. The owner looked at all
-three rendered side by side and could not tell them apart, which is the correct answer
-rather than a failure of the pane.
+three rendered side by side and could not tell them apart — which turned out to be
+literally true, because the pane scoped a bridge name and moved nothing (see the trap
+above). **The conclusion survives anyway, and on better evidence than the pane:** a 32px
+box cannot draw more than 16px whatever it asks for, so the controls are already pills by
+arithmetic, not by observation.
 
 **AND THE CHANGE WOULD HAVE BEEN ACTIVELY WRONG.** `--radius-2xl` is not a
 "control" token. It also draws the **dropdown panel, the select panel, the textarea,
