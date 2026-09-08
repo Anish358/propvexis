@@ -243,11 +243,23 @@ function messageFor(state, acct, m) {
 
 /* Label, severity and which action the strip offers.
  *
- * `action` is an INTENT, not a button: 'lock' is the one real thing PropVexis can do
- * about a dying account (stop tracking it — it cannot reach into a prop firm and
- * disable a login), and 'challenge' opens the challenge the good news belongs to. The
- * card resolves each into a control, because only the card knows whether the account is
- * one it can act on. */
+ * `action` is an INTENT, not a button: 'challenge' opens the challenge the good news
+ * belongs to, 'balance' offers to adopt the broker's figure. The card resolves each into
+ * a control, because only the card knows whether the account is one it can act on.
+ *
+ * THE THREE DRAWDOWN STATES CARRY NO ACTION, and that is the point of them. They used to
+ * offer 'lock' — archive the account, PropVexis's only real lever on a dying one, since
+ * it cannot reach into a prop firm and disable a login. Removed by the owner 2026-09-06,
+ * for a reason the lifecycle work made plain: archiving takes an account's whole history
+ * out of every analytic the trader has, which is close to the worst thing to offer
+ * someone at the moment their account dies. Closing is what that moment calls for, and
+ * an account that has actually settled gets the Close account strip instead.
+ *
+ * A WARNING WITH NO BUTTON IS NOT A BROKEN WARNING. 'Max DD warning' and 'Daily DD
+ * warning' fire on a RUNNING account, where there is nothing for the app to do and
+ * everything for the trader to do — the strip's job there is to name the rule and quote
+ * the number, which it does. Archiving is still available, deliberately one deliberate
+ * step away, in Settings › Accounts. */
 const PRESENTATION = {
   /* AMBER, NOT RED. This is a configuration problem, not a dying account -- and the red
    * `breach` tone is the one container border in this app that carries meaning ("this
@@ -255,18 +267,17 @@ const PRESENTATION = {
    * emergency colour on something the trader fixes in one field, and would redden the
    * card edge for an account that is fine.
    *
-   * `action: 'balance'` is a THIRD intent, resolved by the card the way 'lock' and
-   * 'challenge' are -- only the card knows whether it holds an account record it can
-   * write to. */
+   * `action: 'balance'` is resolved by the card the way 'challenge' is -- only the card
+   * knows whether it holds an account record it can write to. */
   // 'Setup mismatch', not 'Check account setup': every other label here is a NOUN
   // PHRASE naming the state ('Account breach', 'Max DD warning', 'Target near'), and
   // an imperative among them reads as a different kind of thing. It is also the same
   // length as the others, which is what keeps it on one line beside its action button
   // — the longer version wrapped to two, and the strip is a fixed-height row.
   [ALERT.SETUP_MISMATCH]: { label: 'Setup mismatch', tone: 'caution', icon: 'warning', action: 'balance' },
-  [ALERT.BREACH]: { label: 'Account breach', tone: 'breach', icon: 'danger', action: 'lock' },
-  [ALERT.MAX_DD]: { label: 'Max DD warning', tone: 'severe', icon: 'warning', action: 'lock' },
-  [ALERT.DAILY_DD]: { label: 'Daily DD warning', tone: 'caution', icon: 'warning', action: 'lock' },
+  [ALERT.BREACH]: { label: 'Account breach', tone: 'breach', icon: 'danger', action: null },
+  [ALERT.MAX_DD]: { label: 'Max DD warning', tone: 'severe', icon: 'warning', action: null },
+  [ALERT.DAILY_DD]: { label: 'Daily DD warning', tone: 'caution', icon: 'warning', action: null },
   [ALERT.PHASE_PASSED]: { label: 'Phase passed', tone: 'success', icon: 'success', action: 'challenge' },
   [ALERT.TARGET_REACHED]: { label: 'Target reached', tone: 'success', icon: 'success', action: 'challenge' },
   [ALERT.TARGET_NEAR]: { label: 'Target near', tone: 'progress', icon: 'target', action: 'challenge' },

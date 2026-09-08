@@ -1,10 +1,10 @@
 import React, {
   useCallback, useEffect, useId, useMemo, useRef, useState,
 } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Clock, Flag,
-  Loader2, RefreshCw, SlidersHorizontal, Sparkles,
+  Loader2, RefreshCw, Scale, SlidersHorizontal, Sparkles,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine, Tooltip } from 'recharts';
 import MonthCalendar from '../calendar/MonthCalendar.jsx';
@@ -32,7 +32,7 @@ import {
   Menu, MenuContent, MenuItem, MenuTrigger,
   AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
-  ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain,
+  ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain, useSectionEntrance,
   LoadingNote, MeterRow,
   PanelBody, PanelCard, PanelChip, PanelHead, PanelHint, PanelLink, PanelMeta, PanelRow, PanelTab,
   PanelTabs, SkeletonBlock, SkeletonLine,
@@ -47,13 +47,14 @@ import {
 import { sevClass } from '../alerts/Notifications.jsx';
 import { NetPnlCard, TradeWinCard, ProfitFactorCard, DayWinCard, AvgWinLossCard } from './KpiCards.jsx';
 import { healthStatus } from '../prop/PropOS.jsx';
-import { tradingDaysRead } from '../prop/propAccounts.js';
+import { consistencyRead, isSettled, pctText, tradingDaysRead } from '../prop/propAccounts.js';
 import AccountAlertBanner from '../prop/AccountAlertBanner.jsx';
 import { accountAlertFor } from '../prop/accountAlert.js';
 import AccountDetails from '../prop/AccountDetails.jsx';
 import RecentTrades from '../trades/RecentTrades.jsx';
 import {
   fetchProp, updateAccount, fetchCalendar, fetchSyncStatus, syncNow,
+  acknowledgeOutcome, settlePhase,
 } from '../../lib/api.js';
 import { chartPalette, token } from '../../lib/theme.js';
 import { cumulativeSeries, pnlAxis } from './cumulativePnl.js';
@@ -132,9 +133,47 @@ function AlertGlyph({ severity }) {
 // only way to SEE this card — there is no jsdom here, so nothing else renders it.
 export function DailyBanner({
   notifications = [], prefs, patchBriefPrefs, setBriefSection, resetBriefPrefs,
-  markNotificationRead,
+  markNotificationRead, ...rest
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  /* ROWS BEING DISMISSED, so Clear can animate before the row goes.
+   *
+   * The alert has to stay MOUNTED while it collapses, and the list it lives in is
+   * derived from `notifications` — so marking it read immediately would unmount it
+   * mid-animation and the row would vanish exactly as before. Holding the id here keeps
+   * it rendered and tells BriefAlert to play its exit; the read is written when the
+   * animation ends.
+   *
+   * THE 120 IS --dur-fast RESTATED IN JS, and that is a real seam: the token is the
+   * source of truth for the CSS, but a setTimeout cannot read it without a
+   * getComputedStyle call per dismissal. If they drift the row unmounts early (a visible
+   * clip) or late (a gap that lingers). test/motion.test.js pins them equal.
+   *
+   * IT IS --dur-fast RATHER THAN --dur BECAUSE THE ROW IS LEAVING — §10, "enter at
+   * --dur, leave faster". See EXIT_MOTION in brief.jsx for what the 200ms version
+   * actually looked like on screen.
+   *
+   * The write is DEFERRED, not skipped: navigate away inside that 200ms and the alert
+   * stays unread. Judged acceptable for a read-marker — the alternative is rendering
+   * from a second list that lags `notifications`, which is a lot of machinery for a
+   * fifth of a second.
+   *
+   * The Set guard makes a double-click idempotent; §10 says a dismissed thing does not
+   * animate back, and re-entering the exit would do exactly that. */
+  const [exiting, setExiting] = useState(() => new Set());
+  const clearAlert = (id) => {
+    if (exiting.has(id)) return;
+    setExiting((prev) => new Set(prev).add(id));
+    setTimeout(() => {
+      markNotificationRead?.(id);
+      setExiting((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 120);
+  };
   /* UNREAD ONLY, AND THAT IS WHAT MAKES Clear WORK (2026-08-30).
    *
    * This read `!n.read_at || n.severity !== 'info'` — keep it if unread, OR if it is
@@ -226,12 +265,27 @@ export function DailyBanner({
    *
    * The other two windows (4h, 24h) stay reachable in the popover. Rhea offers two
    * because two is what fits in 88px, not because the other two stopped being useful. */
-  const RANGE = BRIEF_WINDOWS.filter((w) => w.id === 'today' || w.id === 'week')
-    .map((w) => ({ id: w.id, label: w.id === 'week' ? 'Week' : 'Today' }));
+  /* MEMOISED, AND IT IS NOT AN OPTIMISATION — IT IS A RENDER LOOP.
+   *
+   * This banner re-renders EVERY SECOND: `useBriefClock` ticks `now` so the header can
+   * show seconds. Rebuilding this array on each of those renders hands BriefRange a new
+   * `options` reference every second, and BriefRange measures its sliding pill in a
+   * layout effect keyed on `options` — so the effect re-ran, set pill state, forced a
+   * render, which built a new array, which re-ran the effect. A loop, at layout-effect
+   * timing, which is synchronous and blocks paint.
+   *
+   * BriefRange bails out of an identical measurement too, so either fix alone stops the
+   * spin. Both are here because they guard different things: this one stops the effect
+   * firing at all, that one stops any caller — including a future one — from doing this
+   * again. The dependency is empty because BRIEF_WINDOWS is a module constant. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const RANGE = useMemo(() => BRIEF_WINDOWS
+    .filter((w) => w.id === 'today' || w.id === 'week')
+    .map((w) => ({ id: w.id, label: w.id === 'week' ? 'Week' : 'Today' })), []);
   const rangeNote = BRIEF_WINDOWS.find((w) => w.id === prefs.window)?.label;
 
   return (
-    <BriefCard>
+    <BriefCard {...rest}>
       <BriefHeader
         title="Today's Brief"
         date={formatBriefDate(now, prefs.timezone)}
@@ -280,6 +334,10 @@ export function DailyBanner({
                  economic calendar whatever is filtered out of it. */
               label="Economic calendar"
               note={rangeNote}
+              /* WHAT MAKES THIS A DIFFERENT LISTING: the window, and whether the feed
+                 has arrived. Both replace every row in the column, so both fade — one
+                 mechanism, and no separate loading-vs-swap branch to keep in step. */
+              swapKey={events == null ? 'loading' : prefs.window}
               action={(
                 <BriefRange
                   value={prefs.window}
@@ -295,6 +353,9 @@ export function DailyBanner({
               ) : shown.map((e, i) => (
                 <BriefEvent
                   key={`${e.date}-${e.title}-${i}`}
+                  /* THE LADDER'S POSITION, and it is NOT the key. The key identifies the
+                     row to React; this tells it when to arrive. See BriefEvent. */
+                  index={i}
                   currency={e.country}
                   title={e.title}
                   time={formatBriefTime(e.date, prefs.timezone, now)}
@@ -321,7 +382,8 @@ export function DailyBanner({
                      unread count disagreeing with the list beside it.
                      EVERY ROW HERE IS UNREAD (see the filter above), so Clear is
                      offered on all of them and always removes the one it is on. */
-                  onClear={markNotificationRead ? () => markNotificationRead(n.id) : undefined}
+                  onClear={markNotificationRead ? () => clearAlert(n.id) : undefined}
+                  exiting={exiting.has(n.id)}
                 >
                   {n.body || n.message || ''}
                 </BriefAlert>
@@ -342,9 +404,10 @@ export function DailyBanner({
 // editor; both are gone (2026-08-30) until every page is finalised. The strip stays
 // because Sync Trades and the sync status still belong here, and it is the anchor the
 // page's spacing is built around.
-function DashActions({ lastSynced, onSync, syncing, syncNote }) {
+function DashActions({ lastSynced, onSync, syncing, syncNote, ...rest }) {
   return (
     <ActionStrip
+      {...rest}
       action={(
         /* NOT PRIMARY (Rhea). It was a LIGHT fill — the page's one primary action — and
            Rhea draws it as a quiet FILLED pill. Right, on reflection: the primary act on
@@ -529,8 +592,16 @@ function CumulativePnlCard({ days, unit }) {
                 axisLine={false}
               />
               {/* Break-even, drawn once and solid, so the two fills have a stated edge
-                  to meet at rather than only a colour change. */}
-              <ReferenceLine y={0} stroke={chartPalette().axis} strokeWidth={1} />
+                  to meet at rather than only a colour change.
+                  
+                  `gridStrong`, NOT `axis` (2026-09-01). `axis` is --text-3 #8a8a93 — a
+                  TEXT colour, correct for the tick labels it also feeds and far too loud
+                  for a rule: at full width it drew a near-white line straight across the
+                  card and read as a series in its own right. --line-strong is one step
+                  above the dashed CartesianGrid, which is the whole job — break-even has
+                  to outrank the other gridlines without outranking the curve. Same value
+                  Analytics already gives its own zero line. */}
+              <ReferenceLine y={0} stroke={chartPalette().gridStrong} strokeWidth={1} />
               <Tooltip contentStyle={chartPalette().tip} formatter={(v) => fmtVal(v, unit)} labelStyle={{ color: chartPalette().label }} />
               {/* NO ENTER ANIMATION. recharts wipes the series in from zero width on
                   every mount, which means the equity curve is briefly absent every time
@@ -759,10 +830,9 @@ function SetTargetModal({
 // account header (tab row) so switching which account you're looking at
 // doesn't require leaving the page.
 function AccountCard({
-  data, candidates, selectedId, onSelect, onOpen, accounts, onChanged, onLocked,
+  data, candidates, selectedId, onSelect, onOpen, accounts, onChanged, onAccountsChanged,
 }) {
   const [targetOpen, setTargetOpen] = useState(false);
-  const [locking, setLocking] = useState(false);
   const [fixingBalance, setFixingBalance] = useState(false);
   const acctRecord = accounts.find((a) => String(a.mt5_login) === String(data.account_id));
 
@@ -800,26 +870,42 @@ function AccountCard({
     }
   }
 
-  async function lockAccount() {
-    if (!acctRecord) return;
-    // eslint-disable-next-line no-alert
-    if (!confirm(
-      `Lock ${acctRecord.label || `account ${data.account_id}`}?\n\n`
-      + 'PropVexis cannot disable the account at your prop firm — only your firm can do '
-      + 'that. Locking here stops PropVexis tracking it: it leaves the account switcher '
-      + 'and every total, so you are not reading figures from an account you should not '
-      + 'be trading.\n\nYou can unlock it from Settings › Accounts.',
-    )) return;
-    setLocking(true);
+  /* AN OUTCOME NOBODY HAS ANSWERED YET (owner spec 2026-09-05).
+   *
+   * The phase has settled and the account is still open — which is exactly the window
+   * where the account keeps counting in every figure on this page and the trader has not
+   * yet said they have seen it. Read from the ACCOUNT rather than the challenge because
+   * `closed_at` is the one fact the scope resolves on; deriving it from the challenge
+   * here would give the page a second opinion about which accounts it is counting.
+   *
+   * NOTE THIS IS NOT AN EXCEPTION TO SCOPE. The strip appears because the account is
+   * genuinely still in this card's scope, not because this card ignores the switcher —
+   * so there is no per-endpoint special case hiding inside one component. */
+  const unanswered = Boolean(acctRecord) && acctRecord.closed_at == null && isSettled(data);
+  const [answering, setAnswering] = useState(false);
+
+  async function closeAccount() {
+    setAnswering(true);
     try {
-      await updateAccount(acctRecord.id, { is_active: false });
-      // BOTH reloads: the prop engine's view of the account AND the account list the
-      // scope switcher reads. Reloading one leaves the locked account still selectable
-      // in the top bar, which is the half of "stops tracking it" that matters most.
+      await acknowledgeOutcome(data.account_id);
       onChanged();
-      onLocked();
+      onAccountsChanged();  // the switcher and the scope both change here, not just the card
     } finally {
-      setLocking(false);
+      setAnswering(false);
+    }
+  }
+
+  /* "Not passed yet" / "Still trading" — reopen the phase and silence that verdict.
+   * The suppression is the server's (challenges.suppressed_outcome); without it the next
+   * ingest would re-settle the phase within seconds and the strip would be back. */
+  async function rejectOutcome() {
+    setAnswering(true);
+    try {
+      await settlePhase({ account_id: data.account_id, status: 'active' });
+      onChanged();
+      onAccountsChanged();
+    } finally {
+      setAnswering(false);
     }
   }
 
@@ -837,6 +923,10 @@ function AccountCard({
   const alert = accountAlertFor(data);
   const critical = alert ? BANNER_CRITICAL.has(alert.tone) : false;
   const days = tradingDaysRead(data.tradingDays);
+  /* The consistency rule, for the accounts that have one — `has: false` on the rest,
+     which is most of them, and the footer then draws nothing about it. The engine
+     computed the ratio and the verdict; this only reads them (see consistencyRead). */
+  const consistency = consistencyRead(data.consistency);
 
   return (
     /* NO HEADING. The design opens this card on the account chips, and it is right to:
@@ -860,10 +950,11 @@ function AccountCard({
           renders its message without a control rather than a control that cannot act. */}
       <AccountAlertBanner
         data={data}
-        onLock={acctRecord ? lockAccount : null}
-        locking={locking}
         onFixBalance={acctRecord ? fixStartBalance : null}
         fixingBalance={fixingBalance}
+        onCloseAccount={unanswered ? closeAccount : null}
+        onReject={unanswered ? rejectOutcome : null}
+        answering={answering}
       />
 
       {/* The three rule meters live in AccountDetails.jsx — Accounts › Details renders
@@ -912,6 +1003,54 @@ function AccountCard({
         ) : (
           <span>No minimum trading days required</span>
         )}
+
+        {/* THE CONSISTENCY RULE, BESIDE THE DAY COUNT (owner spec 2026-09-02) — the two
+            facts a firm checks before it pays a trader that are not drawdown meters, so
+            they belong on the same line rather than as a fourth card.
+
+            NOTHING AT ALL WHEN THE ACCOUNT HAS NO SUCH RULE. Most accounts do not have
+            one — FTMO runs none — and a footer that said "no consistency rule" would
+            spend a line telling every trader about a rule they are not under. That is
+            the opposite call from the day count above, which DOES state its absence,
+            and for a reason: every prop account has a minimum-trading-days rule with
+            some value, so "0" there is an answer that needs saying. A consistency cap
+            is a rule an account either carries or does not.
+
+            THE SECOND ICON IS DOING WORK. This footer wraps on a narrow card, and with
+            one leading calendar glyph a wrapped "Best day 42% of profit" reads as part
+            of the day count. The foot's own [&_svg] rules size and colour it, so it
+            costs no styling here.
+
+            OVER THE CAP IS AMBER, NEVER RED. Being over is a payout DELAY: the share
+            falls on its own as the trader keeps trading, and nothing is lost. A red
+            figure here beside the breach banner's red would say the account is gone. */}
+        {consistency.has ? (
+          <>
+            <AccountFootRule />
+            <Scale aria-hidden="true" />
+            {consistency.pct == null ? (
+              /* A CAP WITH NO RATIO YET — the account has the rule and no profit to
+                 distribute, so there is nothing to be over. Naming the rule is the
+                 whole of what can honestly be said; a "0% of profit" would read as
+                 perfect compliance rather than as nothing measured. */
+              <span>{pctText(consistency.cap)} consistency cap</span>
+            ) : (
+              <>
+                Best day
+                <AccountFootFigure tone={consistency.withinCap ? 'default' : 'warn'}>
+                  {pctText(consistency.pct)}
+                </AccountFootFigure>
+                of profit
+                <AccountFootRule />
+                <span>
+                  {consistency.withinCap
+                    ? `${pctText(consistency.cap)} consistency cap`
+                    : `Over the ${pctText(consistency.cap)} consistency cap`}
+                </span>
+              </>
+            )}
+          </>
+        ) : null}
       </AccountCardFoot>
 
       {targetOpen && acctRecord && (
@@ -946,6 +1085,19 @@ function AccountCard({
 // way to SEE this state — there is no jsdom here, and reproducing it in the app means
 // throttling a network request.
 export function DashSkeleton() {
+  /* THE SKELETON DOES NOT CASCADE, and it must not start — it appears as a stable whole.
+   *
+   * IT DID, FOR ONE COMMIT, and the owner caught it in a screenshot: a cascade holds each
+   * section at opacity 0 until its delay, so a staggered SKELETON is a Today's Brief card
+   * above half a second of empty page. Then the trades land, the whole placeholder tree is
+   * torn down mid-cascade, and the real page arrives on a different motion. Two competing
+   * arrivals on the same boxes, the first interrupted.
+   *
+   * A placeholder's job is to reserve the shape of what is coming (§15). Animating it
+   * spends the app's one arrival on boxes that are about to be destroyed, and delays the
+   * only thing it was drawn to do. `useSectionEntrance` is what claims the
+   * once-per-browser-load flag, so NOT calling it here is also what leaves the cascade for
+   * the real content below. */
   return (
     <SkeletonRegion label="Loading dashboard" className="dash-skeleton">
       <BriefCard>
@@ -1049,7 +1201,28 @@ export default function Dashboard() {
     unit = 'R', notifications = [], pinnedAccounts = [], setPinnedAccounts, tradeSettings = {},
     briefPrefs, patchBriefPrefs, setBriefSection, resetBriefPrefs, markNotificationRead,
   } = useOutletContext();
+  const navigate = useNavigate();
   const brief = briefPrefs || defaultBriefPrefs();
+
+  /* THE RELOAD CASCADE — six sections, 60ms apart, once per browser load.
+   *
+   * OWNER DECISION, 2026-09-03, and the scope of it is the part to read: sections arrive
+   * as WHOLE BLOCKS. The calendar's 35 day cells, the trade rows and the P&L line do not
+   * stagger — they are figures, and a figure animating toward its place is unreadable for
+   * exactly as long as the animation runs. The prototype this came from ladders all
+   * three; that half was declined.
+   *
+   * CALLED HERE AND NOT IN DashSkeleton, WHICH IS THE FIX FOR A REAL FLICKER. This hook
+   * claims the once-per-browser-load flag, so whichever branch calls it is the branch that
+   * gets the arrival. Calling it from the loading branch spent it on placeholder boxes,
+   * left the page empty behind their delays, and then had the real content replace them
+   * mid-cascade on a different motion. The skeleton's own header carries the detail.
+   *
+   * `section(4)` TWICE IS DELIBERATE. The calendar and the right-hand column take the
+   * same delay so they arrive as ONE unit, which is how the design draws them. They
+   * cannot be wrapped in a div to say so — they are children of `dash-main-grid` and a
+   * wrapper would break the grid (§2). Same delay, no wrapper, same reading. */
+  const section = useSectionEntrance();
 
   const beRounding = !!tradeSettings.beRounding;
 
@@ -1151,12 +1324,37 @@ export default function Dashboard() {
   /* Account Health, which is the one card with two whole arrangements — an empty state
    * and the real thing. Named rather than inlined for that reason alone; every other
    * card on this page is one element at its call site below. */
+  /* EVERY ACCOUNT CLOSED IS NOT THE SAME STORY AS NO ACCOUNTS (rule 3.7).
+   *
+   * The dashboard counts open accounts by default, so a trader whose accounts have all
+   * passed or breached lands here with nothing in scope — and the empty state below used
+   * to tell them they had never added a prop account, which is both wrong and alarming
+   * when they have eleven. It is also not a rare case: it is where every trader sits
+   * between blowing one challenge and buying the next.
+   *
+   * The way out is offered rather than described, because the switcher is the only thing
+   * that can fix it and a trader who has just been told they have no accounts is not
+   * going to look there. */
+  const hasClosedAccounts = accounts.some((a) => a.is_active !== false && !a.pending && a.closed_at != null);
+
   const accountSection = (!selectedAccount ? (
       <AccountCardShell>
-        <EmptyState
-          title="No prop accounts yet"
-          description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
-        />
+        {hasClosedAccounts ? (
+          <EmptyState
+            title="No active accounts"
+            description="Every account you have is passed, breached or retired. Add a new one to start tracking again — or bring the closed ones back into view."
+            actions={(
+              <Button variant="tinted" size="sm" onClick={() => setAccountId('all')}>
+                Show closed accounts
+              </Button>
+            )}
+          />
+        ) : (
+          <EmptyState
+            title="No prop accounts yet"
+            description="Add a prop account with challenge rules to see drawdown and profit-target tracking here."
+          />
+        )}
       </AccountCardShell>
     ) : (
       <AccountCard
@@ -1164,10 +1362,22 @@ export default function Dashboard() {
         candidates={candidates}
         selectedId={selectedAccount.account_id}
         onSelect={(id) => setPinnedAccounts([id])}
-        onOpen={() => setAccountId(String(selectedAccount.account_id))}
+        /* "View account" LEAVES THE DASHBOARD. It used to only set the app-wide
+           scope, which left the trader on the page they clicked from staring at
+           the same card — the link named a destination and then did not go there.
+           It now does both halves: select the account, then open Prop OS ›
+           Accounts on its Details tab, which is the single-account workspace that
+           card is a summary of. Details reads the same app-wide selection this
+           sets (PropAccounts, "one source of truth for the selected account"), so
+           the scope write is what carries the account across, and ?tab=details is
+           only which of that page's two views opens. */
+        onOpen={() => {
+          setAccountId(String(selectedAccount.account_id));
+          navigate('/prop/accounts?tab=details');
+        }}
         accounts={accounts}
         onChanged={loadProp}
-        onLocked={reloadAccounts}
+        onAccountsChanged={reloadAccounts}
       />
     ));
 
@@ -1200,6 +1410,12 @@ export default function Dashboard() {
   }
 
   return (
+    /* A PLAIN DIV, BECAUSE THE CASCADE IS THIS PAGE'S ARRIVAL. It used to be a
+       `ContentArrival`, which fades the whole page as one block — a second, competing
+       statement laid over the sections staggering in underneath it, and part of what read
+       as a flicker. The dashboard still replaces a skeleton to get here; the cascade is
+       what says so now, section by section, and it says it better than a flat fade over
+       the top of itself. */
     <div className="page">
       <DayTradesModal
         dayKeyStr={selectedDay}
@@ -1211,6 +1427,7 @@ export default function Dashboard() {
 
       <div className="page-body dash-page-body">
         <DailyBanner
+          {...section(0)}
           notifications={notifications}
           prefs={brief}
           patchBriefPrefs={patchBriefPrefs}
@@ -1219,11 +1436,17 @@ export default function Dashboard() {
           markNotificationRead={markNotificationRead}
         />
 
-        <DashActions lastSynced={lastSynced} onSync={onSync} syncing={syncing} syncNote={syncNote} />
+        <DashActions
+          {...section(1)}
+          lastSynced={lastSynced}
+          onSync={onSync}
+          syncing={syncing}
+          syncNote={syncNote}
+        />
 
         {/* KpiRow re-splits itself from a content floor, so there is no column count to
             keep in sync — see the header on kpi.jsx. */}
-        <KpiRow>
+        <KpiRow {...section(2)}>
           <NetPnlCard m={m} unit={unit} />
           <TradeWinCard m={m} />
           <ProfitFactorCard m={m} />
@@ -1235,10 +1458,10 @@ export default function Dashboard() {
           {/* Full width, and sized by its content: Account Health has no neighbour to
               line up with, and pinning it to a card height leaves dead surface under
               its footer. */}
-          <div className="dash-account-cell">{accountSection}</div>
+          <div className="dash-account-cell" {...section(3)}>{accountSection}</div>
 
-          <div className="dash-cal-cell">
-            <PanelCard className="dash-cal-panel">
+          <div className="dash-cal-cell" {...section(4)}>
+            <PanelCard narrow className="dash-cal-panel">
               <MonthCalendar
                 year={calYear}
                 month={calMonth}
@@ -1253,7 +1476,7 @@ export default function Dashboard() {
             </PanelCard>
           </div>
 
-          <div className="dash-side">
+          <div className="dash-side" {...section(4)}>
             <div className="dash-trades-cell">
               <ActivityCard trades={trades} unit={unit} beRounding={beRounding} />
             </div>

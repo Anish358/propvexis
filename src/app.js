@@ -213,7 +213,7 @@ systemRoutes(app);
 tradeRoutes(app, ctx);
 candleRoutes(app, ctx);
 accountRoutes(app, ctx);
-syncRoutes(app);
+syncRoutes(app, ctx);
 ctraderRoutes(app);
 strategyRoutes(app, ctx);
 payoutRoutes(app, ctx);

@@ -74,18 +74,65 @@ test('the gauge centres on the card, not on the label stack', () => {
     'KpiMain must not centre itself — that is the bug this row already had');
 });
 
-test('the outcome reds are the lighter step (owner call)', () => {
-  /* The prototype writes #22c55e/#ef4444 for the hero figure and the profit-factor
-   * ring. At 25px of mono on a raised card the structural red reads heavy and slightly
-   * muddy, and at ring scale it is the single largest area of colour in the row — the
-   * owner asked for the lighter step in both. That is a legal move rather than a drift:
-   * both are the outcome family §4 reserves for exactly this, and the bright pair is
-   * already what the trade rows one card over use. */
+test('the hero figure takes the metric ROLE, not a hardcoded size', () => {
+  /* IT WAS HARDCODED AT 25px AND THE TOKEN SAID 28 (fixed 2026-09-07).
+   *
+   * `--fs-primary-metric` moved 25 -> 28 when the owner put the type scale on preset
+   * b2qLMFPP6, for a stated reason: at 25 the app's biggest number was one pixel larger
+   * than a 24px page title, so the hero did not read as the hero. The token moved and
+   * this component did not, because it spelled the number out.
+   *
+   * `text-primary-metric` is the utility bridge.css builds from that token, and until
+   * this change nothing in the app used it — the whole "part 1" role block was dead.
+   * Asserting the ROLE rather than the pixels is the point: the next re-valuation
+   * reaches the hero on its own.
+   *
+   * The mono, the tabular figures and the tight tracking are unchanged and still
+   * asserted, because they are what make a changing number stop jittering. */
+  const kpi = readSrc('components/primitives/kpi.jsx');
+  // Bounded at the NEXT export, not at end-of-file: KpiDelta below carries a legitimate
+  // 10px mono chip, and an unbounded slice would fail this on a value it does not own.
+  const from = kpi.indexOf('export function KpiValue');
+  const value = kpi.slice(from, kpi.indexOf('export function', from + 30));
+  assert.match(value, /font-mono text-primary-metric leading-\[1\.1\]/,
+    'the hero figure must take --fs-primary-metric through its role utility');
+  assert.match(value, /tracking-\[-0\.6px\] tabular-nums/);
+  assert.ok(!/text-\[\d/.test(value), 'no hardcoded font size may return to the hero figure');
+});
+
+test('the outcome pair is ASYMMETRIC: structural green, one step lighter red', () => {
+  /* THIS TEST HAS BEEN WRITTEN THREE WAYS AND THE HISTORY IS THE POINT.
+   *
+   * The prototype writes #22c55e/#ef4444 for the figures and the ring. On 2026-08-30
+   * both were moved to the bright step, on the argument that the structural red reads
+   * heavy at 25px of mono. On 2026-09-01 the owner compared the two against the
+   * prototype and split the difference DELIBERATELY: green goes back to structural, red
+   * stays one step lighter.
+   *
+   * That is not a compromise, it is the observation the first change got half right —
+   * #ef4444 carries more optical mass than #22c55e, so a symmetric TOKEN pair makes a
+   * losing figure shout louder than a winning one of the same size. Matching them by
+   * eye means not matching them by name. Anyone tempted to restore symmetry here should
+   * read this paragraph first; it has been set both ways and this is the one that was
+   * kept.
+   *
+   * THE RING IS THE EXCEPTION, and for a stated reason: it is not type. Its track keeps
+   * the structural red the prototype hardcodes, because it is drawn against the
+   * structural green arc it forms a ratio with, and the two halves have to read as one
+   * pair. The owner asked for this one back specifically. */
   const kpiSrc = readSrc('components/primitives/kpi.jsx');
-  assert.match(kpiSrc, /pos: 'var\(--profit-bright\)'/);
-  assert.match(kpiSrc, /neg: 'var\(--loss-bright\)'/);
-  assert.match(kpiSrc, /stroke=\{empty \? 'var\(--chart-grid\)' : 'var\(--loss-bright\)'\}/);
-  // The ring's PROFIT arc keeps the structural green on purpose: it is drawn over the
-  // red base, not on the card, so it is the one place the structural colour carries.
+  assert.match(kpiSrc, /pos: 'var\(--profit\)'/, 'a winning figure is the structural green');
+  assert.match(kpiSrc, /neg: 'var\(--loss-bright\)'/, 'a losing figure is one step lighter');
+  // The ring, both halves, structural — track and arc.
+  assert.match(kpiSrc, /stroke=\{empty \? 'var\(--chart-grid\)' : 'var\(--loss\)'\}/,
+    "the ring's track must NOT follow the figure to the lighter red");
   assert.match(kpiSrc, /stroke="var\(--profit\)"/);
+  // And the chips stay bright regardless: they are drawn ON a 22% tint of their own hue,
+  // which is the substrate the bright pair exists for. Unaffected by any of the above.
+  assert.match(kpiSrc, /pos: \['var\(--profit-bright\)'/);
+  assert.match(kpiSrc, /neg: \['var\(--loss-bright\)'/);
+  // A gauge can never take the red at all — gaugeTone returns pos or flat, never neg —
+  // so the figure's colour change cannot leak into an arc. Pinned at the source.
+  const cards = readSrc('features/dashboard/KpiCards.jsx');
+  assert.match(cards, /const gaugeTone = \(value, breakEven\) => \(value >= breakEven \? 'pos' : 'flat'\)/);
 });

@@ -1,0 +1,1448 @@
+/* PrimitiveReview — the Test page. DEV ONLY.
+ *
+ * Every primitive waiting on owner sign-off, rendered as the REAL component, so the
+ * appearance being approved is the one that ships. Plan and rationale:
+ * docs/architecture/PRIMITIVE-REVIEW-PLAN.md. Rule: DESIGN-LANGUAGE §1.
+ *
+ * WHY A PAGE IN THE APP AND NOT STORYBOOK. Storybook renders in an isolated iframe.
+ * This codebase's recurring bugs are cascade bugs — the legacy layer, utilities that
+ * compile to nothing outside components/, tokens that resolve differently in context —
+ * so a component can look right in isolation and be broken in the app. Rendering inside
+ * the real shell is the whole point.
+ *
+ * WHY THIS FILE USES INLINE STYLES. Tailwind's `@source` covers components/{ui,
+ * primitives} only, so a utility class written in a page emits NOTHING, silently
+ * (§1, and `utility-collisions.test.js` fails the build for it). The gallery's own
+ * scaffolding is therefore inline `style` reading tokens.css directly. That is not a
+ * page originating appearance in the §2 sense — the specimens are the real primitives,
+ * and everything around them is dev scaffolding that never ships.
+ *
+ * REVIEW ONE BATCH AT A TIME. Related primitives are locked together, because a text
+ * box and a dropdown that sit on the same form must share a height and a radius —
+ * locking them one at a time guarantees the second one reopens the first.
+ *
+ * This page is deleted when nothing is left `@design unreviewed`.
+ */
+import React, { useRef, useState } from 'react';
+import { ChevronDown, Filter, MoreHorizontal, Trash2 } from 'lucide-react';
+/* THE REGISTRY COMPONENTS, IMPORTED RAW. Every other specimen on this page goes through
+ * `@/components/primitives` — our wrapper layer, which is exactly what re-means shadcn's
+ * vocabulary (§25) and applies our locked overrides. These two bypass it, so the pane
+ * below shows what the REGISTRY gives under our tokens, with none of our corrections.
+ * That is the only honest baseline for "does ours match the preview". */
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button as RawButton } from '@/components/ui/button';
+import {
+  Badge,
+  Button, ButtonLabel, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
+  MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Modal,
+  OverlayContainerContext, Popover, PopoverContent,
+  PopoverTrigger, Switch, ToggleGroupExclusive, ToggleGroupItem,
+} from '@/components/primitives';
+
+/* ---------------------------------------------------------------- scaffolding --- */
+
+const S = {
+  page: { padding: '28px 32px 96px', maxWidth: 1080, margin: '0 auto' },
+  eyebrow: {
+    fontSize: 11, letterSpacing: '.11em', textTransform: 'uppercase',
+    color: 'var(--text-3)', fontWeight: 500,
+  },
+  h1: {
+    fontSize: 26, lineHeight: '32px', fontWeight: 550, color: 'var(--text)',
+    letterSpacing: '-.2px', margin: '10px 0 0',
+  },
+  lede: {
+    fontSize: 13.5, lineHeight: '21px', color: 'var(--text-2)',
+    margin: '10px 0 0', maxWidth: '84ch',
+  },
+  batchHead: {
+    display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap',
+    margin: '40px 0 4px',
+  },
+  batchTitle: { fontSize: 17, fontWeight: 600, color: 'var(--text)' },
+  card: {
+    border: '1px solid var(--line)', borderRadius: 14,
+    background: 'var(--surface)', overflow: 'hidden', marginTop: 16,
+  },
+  cardHead: {
+    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+    padding: '13px 18px', borderBottom: '1px solid var(--line)',
+    background: 'var(--control-bg)',
+  },
+  cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text)' },
+  mono: {
+    fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 11.5,
+    color: 'var(--text-3)',
+  },
+  note: {
+    padding: '11px 18px', borderTop: '1px solid var(--line-inset)',
+    background: 'var(--surface-sunken)', fontSize: 12.5, lineHeight: '20px',
+    color: 'var(--text-2)',
+  },
+  specimens: { display: 'flex', flexWrap: 'wrap', gap: 20, padding: 18 },
+  specimen: { display: 'flex', flexDirection: 'column', gap: 9, minWidth: 150 },
+  specimenLabel: {
+    fontSize: 10.5, letterSpacing: '.07em', textTransform: 'uppercase',
+    color: 'var(--text-3)', fontWeight: 500,
+  },
+  stage: {
+    border: '1px dashed var(--line-hover)', borderRadius: 10,
+    padding: 16, display: 'flex', alignItems: 'center', gap: 10,
+    minHeight: 56, background: 'var(--bg)',
+  },
+};
+
+function Tag({ children, tone = 'wait' }) {
+  const tones = {
+    wait: { bg: 'var(--control-bg-strong)', fg: 'var(--text-2)', bd: 'var(--line-hover)' },
+    open: { bg: 'var(--accent-bg)', fg: 'var(--accent)', bd: 'var(--accent)' },
+    ok: { bg: 'var(--control-bg-strong)', fg: 'var(--text)', bd: 'var(--line-chip)' },
+  };
+  const t = tones[tone] || tones.wait;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', height: 20, padding: '0 9px',
+      borderRadius: 99, background: t.bg, border: `1px solid ${t.bd}`,
+      fontSize: 11, fontWeight: 500, color: t.fg, whiteSpace: 'nowrap',
+    }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* A single primitive under review. `states` are the two or three conditions worth
+ * judging; `context` is the same component inside the arrangement it actually appears
+ * in — a component approved in isolation is a component approved in a vacuum. */
+function Spec({ name, file, states, context, contextLabel, ask, approved }) {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>{name}</span>
+        <span style={S.mono}>{file}</span>
+        <span style={{ flex: 1 }} />
+        {approved ? <Tag tone="ok">{`approved ${approved}`}</Tag> : <Tag>awaiting sign-off</Tag>}
+      </div>
+
+      <div style={S.specimens}>
+        {states.map((s) => (
+          <div key={s.label} style={S.specimen}>
+            <span style={S.specimenLabel}>{s.label}</span>
+            <div style={S.stage}>{s.render}</div>
+          </div>
+        ))}
+      </div>
+
+      {context ? (
+        <div style={{ ...S.specimens, borderTop: '1px solid var(--line-inset)' }}>
+          <div style={{ ...S.specimen, flex: 1 }}>
+            <span style={S.specimenLabel}>In context — {contextLabel}</span>
+            <div style={S.stage}>{context}</div>
+          </div>
+        </div>
+      ) : null}
+
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
+        {ask}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------- the dialog, registry vs ours --- */
+
+/* THE REGISTRY COMPONENT, RENDERED UNMODIFIED, beside ours.
+ *
+ * Built after four rounds of hand-porting values from screenshots found one more
+ * difference every time. That approach was wrong: it reconstructs the component instead
+ * of rendering it. This pane imports `ui/alert-dialog.jsx` and `ui/button.jsx` DIRECTLY,
+ * so whatever it shows is what the registry produces under our tokens — no wrapper, no
+ * §6 radius correction, no re-meant `text-sm`.
+ *
+ * Anything that differs between the two panes is OUR layer, and is attributable to
+ * exactly one of: bridge.css re-meaning a name (§25), a locked rule overriding the
+ * preset (§6), or a bug. */
+function RegistryDialog() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  return (
+    <div ref={ref} style={{ position: 'relative', minHeight: 300 }}>
+      <OverlayContainerContext.Provider value={ref}>
+        <RawButton variant="outline" onClick={() => setOpen(true)}>Open registry dialog</RawButton>
+        <AlertDialog open={open} onOpenChange={setOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete your account and
+                remove your data from our servers.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setOpen(false)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => setOpen(false)}>Continue</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </OverlayContainerContext.Provider>
+    </div>
+  );
+}
+
+function OurDialog() {
+  return (
+    <div style={{ position: 'relative', minHeight: 300 }}>
+      <ModalSpecimen />
+    </div>
+  );
+}
+
+function DialogParity() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Dialog — registry component vs ours</span>
+        <span style={S.mono}>ui/alert-dialog.jsx, imported raw</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="open">open both</Tag>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, padding: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Registry — no wrapper, no overrides</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start' }}><RegistryDialog /></div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Ours — through primitives/modal.jsx</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start' }}><OurDialog /></div>
+        </div>
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Open both and compare. </strong>
+        The left pane is the registry component with nothing of ours applied — it is the
+        honest baseline. Every difference on the right is our layer, and traces to one of
+        three things: <span style={S.mono}>bridge.css</span> re-meaning a shadcn name
+        (§25), a locked rule overriding the preset (§6 radius), or a bug.
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------- palette reference --- */
+
+/* THE COMPLETE LOCKED PALETTE, and the preset it was aligned to.
+ *
+ * Not a before/after: the ramp settled on 2026-09-07 and DESIGN-LANGUAGE §4 carries the
+ * rule, so keeping the superseded proposals here would be the accumulating history §21
+ * tells the rulebook not to keep.
+ *
+ * EVERY VALUE ON THIS CARD IS READ FROM THE LIVE STYLESHEET at mount, never typed in.
+ * A hardcoded swatch strip is a second opinion that drifts from the tokens silently —
+ * this one cannot: if a value here looks wrong, tokens.css is wrong, not this page. The
+ * two contextual tokens are read TWICE, once from :root and once from inside a real
+ * [data-overlay-surface] subtree, which is the only honest way to show a relative token.
+ */
+const SURFACES = [
+  ['page', '--bg'],
+  ['rail', '--rail-bg'],
+  ['sunken — footer, meter cell', '--surface-sunken'],
+  ['CARD', '--surface'],
+  ['the one raised card', '--surface-raised'],
+  ['a row inside a card', '--row-bg'],
+  ['a pill control', '--control-bg'],
+  ['a filled quiet button', '--control-bg-strong'],
+  ['a row hover ON A CARD', '--surface-hover'],
+  ['a quiet active fill', '--sel-bg'],
+  ['a selected account chip', '--sel-well'],
+  ['the strongest quiet fill', '--sel-bg-strong'],
+];
+
+const OVERLAY = [
+  ['FLOATING PANEL', '--surface-2'],
+  ['a row highlighted in it', '--overlay-hover'],
+  ['its edge', '--overlay-line'],
+  ["a MODAL's outer ring — alpha", '--detached-line'],
+];
+
+const LINES = [
+  ['divider inside a card', '--line-inset'],
+  ["a card's edge", '--line'],
+  ["a control's edge", '--line-control'],
+  ['standard visible border', '--line-strong'],
+  ["a chip's edge", '--line-chip'],
+  ['selected chip', '--line-selected'],
+  ['a hover edge', '--line-hover'],
+];
+
+const TEXT = [
+  ['primary', '--text'],
+  ["the page's base colour", '--text-body'],
+  ['links, the clock', '--text-link'],
+  ['table heads, event names', '--text-2'],
+  ['SECONDARY — the most used', '--muted'],
+  ['tertiary — descriptions', '--text-3'],
+  ['eyebrows, quiet metadata', '--text-4'],
+  ['faintest readable', '--text-5'],
+  ['not-really-text', '--text-dim'],
+];
+
+const MEANING = [
+  ['ACTION — a primary button', '--action'],
+  ['its hover, the brand tile', '--action-2'],
+  ['BRAND — a fill, never text', '--accent'],
+  ['brand as text (AA)', '--accent-on-surface'],
+];
+
+const MONEY = [
+  ['PROFIT — structural', '--profit'],
+  ['profit on a tint', '--profit-bright'],
+  ['LOSS — structural, a figure', '--loss'],
+  ['loss on a tint', '--loss-bright'],
+  ['breakeven — the third outcome', '--be'],
+];
+
+const SYSTEM = [
+  ['DESTRUCTIVE — a dangerous action', '--destructive'],
+  ['success glyph / edge', '--success'],
+  ['info glyph / edge', '--info'],
+  ['warning', '--warning'],
+];
+
+/* THREE, not two, since 2026-09-07: a control's edge is contextual as well. This card
+   exists to show relative tokens honestly, so a missing row is the one failure it cannot
+   afford. */
+const CONTEXTUAL = ['--chrome-line', '--chrome-hover', '--chrome-line-control'];
+
+const ALL_TOKENS = [
+  ...SURFACES, ...OVERLAY, ...LINES, ...TEXT, ...MEANING, ...MONEY, ...SYSTEM,
+].map(([, t]) => t).concat(CONTEXTUAL, ['--input-line']);
+
+/* Read the tokens as the browser resolved them. A custom property's computed value has
+ * its var() references already substituted, so `--chrome-line: var(--line)` comes back
+ * as the hex — which is exactly what makes the contextual pair demonstrable. */
+function useResolvedTokens() {
+  const overlayRef = React.useRef(null);
+  const [vals, setVals] = React.useState({});
+  React.useEffect(() => {
+    const root = getComputedStyle(document.documentElement);
+    const out = {};
+    ALL_TOKENS.forEach((t) => { out[t] = root.getPropertyValue(t).trim(); });
+    if (overlayRef.current) {
+      const ov = getComputedStyle(overlayRef.current);
+      CONTEXTUAL.forEach((t) => { out[`overlay${t}`] = ov.getPropertyValue(t).trim(); });
+    }
+    setVals(out);
+  }, []);
+  return [vals, overlayRef];
+}
+
+function Swatch({ token }) {
+  return (
+    <span style={{
+      width: 22,
+      height: 22,
+      flex: 'none',
+      borderRadius: 6,
+      background: `var(${token})`,
+      border: '1px solid var(--line-chip)',
+    }}
+    />
+  );
+}
+
+function Swatches({ rows, vals }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {rows.map(([role, token]) => (
+        <div
+          key={token + role}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '22px minmax(0, 1fr) auto',
+            alignItems: 'center',
+            gap: 10,
+            padding: '5px 0',
+          }}
+        >
+          <Swatch token={token} />
+          <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <span style={{
+              fontSize: 12,
+              color: 'var(--text)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            >
+              {role}
+            </span>
+            <span style={{ ...S.mono, fontSize: 10.5 }}>{token}</span>
+          </span>
+          <span style={{ ...S.mono, fontSize: 10.5, whiteSpace: 'nowrap' }}>
+            {vals[token] || ''}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* The two relative tokens, each shown resolving on BOTH grounds. This is the card's one
+ * piece of live proof rather than live reporting: the right-hand swatches sit inside a
+ * real [data-overlay-surface] element, so they are not asserting that the override works
+ * — they are the override working. */
+function ContextualPair({ vals, overlayRef }) {
+  const row = (token, over) => (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <Swatch token={token} />
+      <span style={{ ...S.mono, fontSize: 10.5, whiteSpace: 'nowrap' }}>
+        {(over ? vals[`overlay${token}`] : vals[token]) || ''}
+      </span>
+    </span>
+  );
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingBottom: 2 }}>
+        <span style={{ ...S.mono, fontSize: 10 }}>on a CARD</span>
+        <span style={{ ...S.mono, fontSize: 10 }}>in an OVERLAY</span>
+      </div>
+      {CONTEXTUAL.map((token, i) => (
+        <div key={token} style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '3px 0' }}>
+          <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>{token}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {row(token, false)}
+            <span data-overlay-surface ref={i === 0 ? overlayRef : null}>
+              {row(token, true)}
+            </span>
+          </div>
+        </div>
+      ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingTop: 8 }}>
+        <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>--input-line</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Swatch token="--input-line" />
+          <span style={{ ...S.mono, fontSize: 10.5 }}>{vals['--input-line'] || ''}</span>
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.45 }}>
+          One of TWO translucent values, and neither needs a context — an alpha re-reads
+          on any ground. This one is a control&rsquo;s edge and fill;
+          {' '}
+          <span style={S.mono}>--detached-line</span>
+          {' '}
+          above is the other, and §4 says when each is allowed: opaque and graded where we
+          own the ground, alpha where we do not.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Group({ label, children }) {
+  return (
+    <div style={{ flex: '1 1 268px', minWidth: 250 }}>
+      <span style={S.specimenLabel}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function PaletteReference() {
+  const [vals, overlayRef] = useResolvedTokens();
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Palette — the complete locked set</span>
+        <span style={S.mono}>tokens.css · DESIGN-LANGUAGE §4</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">locked 7 Sep 2026</Tag>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 28, padding: 18 }}>
+        <Group label="Surfaces — the order is the design">
+          <Swatches rows={SURFACES} vals={vals} />
+        </Group>
+        <Group label="An overlay is not a card">
+          <Swatches rows={OVERLAY} vals={vals} />
+          <div style={{ height: 18 }} />
+          <span style={S.specimenLabel}>Chrome is contextual</span>
+          <ContextualPair vals={vals} overlayRef={overlayRef} />
+        </Group>
+        <Group label="Borders — seven graded weights">
+          <Swatches rows={LINES} vals={vals} />
+        </Group>
+        <Group label="Text — nine tiers">
+          <Swatches rows={TEXT} vals={vals} />
+        </Group>
+        <Group label="Action and brand">
+          <Swatches rows={MEANING} vals={vals} />
+          <div style={{ height: 18 }} />
+          <span style={S.specimenLabel}>Money — outcomes only</span>
+          <Swatches rows={MONEY} vals={vals} />
+        </Group>
+        <Group label="System message colour — §17">
+          <Swatches rows={SYSTEM} vals={vals} />
+          <span style={{
+            display: 'block', marginTop: 10, fontSize: 11, color: 'var(--text-4)', lineHeight: 1.5,
+          }}
+          >
+            A glyph and a 1px edge only — never body text, never a wash, and never inside a
+            data surface, where red and green mean money.
+          </span>
+        </Group>
+      </div>
+      <div style={S.note}>
+        Values come from the owner&rsquo;s
+        {' '}
+        <span style={S.mono}>PropVexis Dashboard Zinc</span>
+        {' '}
+        mockup. The three overlay tokens do not — that file contains no menu, popover or
+        dropdown, so they come from preset b2qLMFPP6.
+        {' '}
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>
+          A ramp must climb, and an overlay is never on it.
+        </strong>
+        {' '}
+        Asking one token to serve a card and a floating panel broke the panel, its row
+        highlight and its edge at once — the most expensive mistake in this palette&rsquo;s
+        history, and what the original &ldquo;the dropdown doesn&rsquo;t stand out&rdquo;
+        complaint actually was. The contextual pair above is the permanent fix: one name,
+        and the surface underneath supplies the value.
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------- ours against the preset --- */
+
+/* WHAT THIS CARD MAY CLAIM. Every preset value below was read off preset b2qLMFPP6
+ * itself — its dark block, converted from oklch — and the same six are hardcoded in the
+ * dropdown reference above, from the same source. Roles whose preset value nobody has
+ * verified are ABSENT rather than guessed: a comparison table that quietly infers half
+ * its left-hand column is worse than a shorter one, because it reads identical.
+ *
+ * `ours` is read live, so the right-hand column cannot drift out of agreement with
+ * tokens.css the way a typed one would. */
+const VS_COLOUR = [
+  ['A floating panel', '--popover', '#18181b', '--surface-2', true],
+  ['A row highlighted in it', '--accent', '#27272a', '--overlay-hover', true],
+  ['Primary text', '--foreground', '#fafafa', '--text', true],
+  ['Secondary text', '--muted-foreground', '#a1a1aa', '--muted', true],
+  ['A dangerous action', '--destructive', '#ff6467', '--destructive', true],
+  ["A control's edge and fill", '--input', 'rgba(255,255,255,.15)', '--input-line', true],
+  ['Brand fill, dark theme', '--primary', '#193cb8', '--accent', true],
+  ["A floating panel's edge", '--border', '#2f2f31 *', '--overlay-line', true],
+  ["A card's edge", '--border', '#26262a *', '--line', false],
+  ['CARD', '--card', '#18181b', '--surface', false],
+];
+
+/* REWRITTEN 2026-09-07 TO MIRROR §6, WHICH THIS HAD FALLEN A WHOLE AMENDMENT BEHIND.
+ * Two rows were describing the system as it was before the owner amended §6 the same
+ * day, and both were wrong in a way that matters on a page about OVERLAYS:
+ *
+ *   "BUTTONS, inputs, nav rows — radius lg — 10px"   Buttons are `rounded-2xl` = 16px
+ *                                                    now; the wrapper's 10px override is
+ *                                                    deleted. `--r-lg` is nav rows only.
+ *   "CARDS and floating overlays — 14px"             The card is 14px. The three overlays
+ *                                                    in front of you are 16 / 24 / 24.
+ *
+ * The second one is the trap: it reads as a rule being kept while the menu, the popover
+ * and the modal on this very page each disagree with it. They are not wrong — §6 gives a
+ * menu `rounded-2xl` and a popover and a dialog `rounded-3xl` — the TABLE was. */
+const VS_SHAPE = [
+  ['Small chrome, menu rows', 'radius sm / md', '6 / 8px', '--r-md', true],
+  ['Nav rows, list rows, day cells', 'radius lg', '10px', '--r-lg', true],
+  ['Tiles and chips — and the CARD', 'radius xl', '14px', '--r-2xl', true],
+  ['CONTROLS — button, input, badge, menu panel', 'radius 2xl', '16px', '--radius-2xl', true],
+  ['Popovers, and dialogs at min(4xl, 24px)', 'radius 3xl', '24px', '--radius-3xl', true],
+  ['Body, a menu item', 'text-sm', '14px', '--fs-body', true],
+  ['A label, a shortcut', 'text-xs', '12px', '--fs-label', true],
+];
+
+function VsRow({ role, presetName, presetValue, token, same, vals, colour }) {
+  const ours = vals[token] || '';
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) 150px 150px 96px',
+      alignItems: 'center',
+      gap: 12,
+      padding: '9px 0',
+      borderTop: '1px solid var(--line-inset)',
+    }}
+    >
+      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <span style={{ fontSize: 12.5, color: 'var(--text)' }}>{role}</span>
+        <span style={{ ...S.mono, fontSize: 10.5 }}>{token}</span>
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {colour ? (
+          <span style={{
+            width: 20,
+            height: 20,
+            flex: 'none',
+            borderRadius: 6,
+            background: presetValue.replace(' *', ''),
+            border: '1px solid var(--line-chip)',
+          }}
+          />
+        ) : null}
+        <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>{presetValue}</span>
+          <span style={{ ...S.mono, fontSize: 10 }}>{presetName}</span>
+        </span>
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {colour ? <Swatch token={token} /> : null}
+        <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-2)' }}>{ours}</span>
+      </span>
+      <Tag tone={same ? 'ok' : 'open'}>{same ? 'same' : 'ours, on purpose'}</Tag>
+    </div>
+  );
+}
+
+function PresetComparison() {
+  const [vals] = useResolvedTokens();
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Ours against preset b2qLMFPP6</span>
+        <span style={S.mono}>the left column is the preset, the right is live</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">2 deliberate differences</Tag>
+      </div>
+      <div style={{ padding: '4px 18px 18px' }}>
+        <span style={S.specimenLabel}>Colour</span>
+        {VS_COLOUR.map((r) => (
+          <VsRow
+            key={r[0] + r[3]}
+            role={r[0]}
+            presetName={r[1]}
+            presetValue={r[2]}
+            token={r[3]}
+            same={r[4]}
+            vals={vals}
+            colour
+          />
+        ))}
+        <div style={{ height: 22 }} />
+        <span style={S.specimenLabel}>Shape and type</span>
+        {VS_SHAPE.map((r) => (
+          <VsRow
+            key={r[0] + r[3]}
+            role={r[0]}
+            presetName={r[1]}
+            presetValue={r[2]}
+            token={r[3]}
+            same={r[4]}
+            vals={vals}
+            colour={false}
+          />
+        ))}
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>
+          Fourteen of sixteen roles are now the preset&rsquo;s own value.
+        </strong>
+        {' '}
+        The two that are not are both the mockup&rsquo;s doing, and both are decisions
+        rather than drift. A card
+        {' '}
+        (<span style={S.mono}>--surface</span>)
+        {' '}
+        is #111114 where the preset draws #18181b, because the mockup separates a card
+        from a floating panel and the preset does not — that separation is the whole
+        reason the dropdown reads now. And a
+        {' '}
+        <span style={S.mono}>card&rsquo;s edge</span>
+        {' '}
+        is one of seven graded opaque weights where the preset has a single white alpha:
+        one alpha gets stronger as the surface under it lightens, which is the opposite
+        of what the mockup asks for.
+        {' '}
+        <span style={{ color: 'var(--text-4)' }}>
+          * The preset draws every border as white at 10%, so it has no fixed hex — the
+          two starred values are what that composites to over a panel and over a card.
+        </span>
+        {' '}
+        Worth noting: the
+        {' '}
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>
+          card radius exception turned out not to be needed
+        </strong>
+        {' '}
+        — 14px was already the preset&rsquo;s xl step, so nothing had to be reserved.
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------ the dropdown, against the preset --- */
+
+/* A FAITHFUL REPRODUCTION OF PRESET b2qLMFPP6's DROPDOWN, hardcoded.
+ *
+ * Every value below is the preset's own, converted from the oklch in its dark block, so
+ * this pane is a REFERENCE and not a second opinion. It is deliberately NOT built from
+ * our tokens — the whole point is to have something our live menu can be wrong against.
+ *
+ *   panel      --popover              oklch(0.21  0.006 285.885)  #18181b
+ *   edge       --border               oklch(1 0 0 / 10%)          AN ALPHA — see below
+ *   divider    --border/50            oklch(1 0 0 / 5%)           half of it, as the registry draws it
+ *   text       --popover-foreground   oklch(0.985 0 0)            #fafafa
+ *   muted      --muted-foreground     oklch(0.705 0.015 286.067)  #a1a1aa
+ *   highlight  --accent               oklch(0.274 0.006 286.033)  #27272a
+ *   red        --destructive          oklch(0.704 0.191 22.216)   #ff6467
+ *   radius     --radius 10px -> sm 6 / md 8 / lg 10 / xl 14
+ *   item type  text-sm = 14px, label/shortcut text-xs = 12px
+ *
+ * If this and the live pane ever diverge again, the cause is almost certainly our bridge
+ * repointing one of shadcn's own names (text-sm, text-xs, --radius-xl,
+ * --color-muted-foreground) for the app at large. That happened once and menu.jsx now
+ * absorbs it.
+ */
+/* THE EDGE IS AN ALPHA AND THE DIVIDER IS HALF OF IT (corrected 2026-09-07, by the owner
+ * looking at the real preset zoomed in). Both values here were the single literal
+ * `#2f2f31` — white/10 pre-composited over the #18181b panel and then frozen. Two things
+ * were wrong with that, and together they are the whole "borders and dividers" mismatch:
+ *
+ *   THE EDGE IS DRAWN ON THE GROUND, NOT ON THE PANEL. The preset's dropdown carries
+ *   `ring-1 ring-foreground/10`, and a ring is an OUTSET box-shadow — it lands just
+ *   outside the panel, so it composites against whatever is BEHIND. That is exactly what
+ *   the owner saw: the same edge reads brighter where it crosses a card and dimmer over
+ *   the page. A pre-composited grey cannot do that; it is the same colour everywhere.
+ *   So this pane drew a #2f2f31 edge over the dark page (~#212124 in the real thing) and
+ *   our live menu, which is CORRECT, looked too faint beside it.
+ *
+ *   THE DIVIDER IS `bg-border/50`, NOT `border`. This pane reused the edge literal for
+ *   both, so its dividers were drawn at double strength.
+ *
+ * Our menu was right on both counts and the REFERENCE was wrong — which is the one
+ * failure a reference pane cannot have, because every comparison against it points at
+ * the wrong file. Matching our menu to it would have moved us away from the preset. */
+const P = {
+  panel: '#18181b',
+  edge: 'rgba(250,250,250,.10)',
+  divider: 'rgba(250,250,250,.05)',
+  text: '#fafafa',
+  muted: '#a1a1aa',
+  hi: '#27272a',
+  red: '#ff6467',
+};
+
+function PresetRow({ icon, children, shortcut, trailing, highlighted, danger }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 28,
+      padding: '6px 8px',
+      borderRadius: 14,
+      background: highlighted ? P.hi : 'transparent',
+      color: danger ? P.red : P.text,
+      fontSize: 14,
+    }}
+    >
+      <span style={{ display: 'flex', flex: 'none', color: 'currentColor' }}>{icon}</span>
+      <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{children}</span>
+      {shortcut ? (
+        <span style={{ fontSize: 12, letterSpacing: '.1em', color: P.muted }}>{shortcut}</span>
+      ) : null}
+      {trailing}
+    </div>
+  );
+}
+
+const ico = (d, extra) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+    {extra}
+  </svg>
+);
+
+/* The submenu, drawn open beside the row that owns it — as the reference screenshot
+ * shows it. Same panel values as the parent: a submenu is not a quieter surface. */
+function PresetSubmenu() {
+  return (
+    <div style={{
+      position: 'absolute',
+      left: 260,
+      top: 232,
+      width: 150,
+      padding: 4,
+      borderRadius: 14,
+      background: P.panel,
+      boxShadow: `0 0 0 1px ${P.edge}, 0 10px 30px rgba(0,0,0,.5)`,
+    }}
+    >
+      <PresetRow icon={ico('M22 7 13.03 12.7a2 2 0 0 1-2.06 0L2 7', <rect x="2" y="4" width="20" height="16" rx="2" />)}>Email</PresetRow>
+      <PresetRow icon={ico('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z')}>Message</PresetRow>
+      <div style={{ height: 1, background: P.divider, margin: '4px -4px' }} />
+      <PresetRow icon={ico('M12 8v8M8 12h8', <circle cx="12" cy="12" r="10" />)}>More…</PresetRow>
+    </div>
+  );
+}
+
+function PresetMenuReference() {
+  return (
+    <div style={{
+      position: 'relative',
+      width: 268,
+      padding: 4,
+      borderRadius: 14,
+      background: P.panel,
+      boxShadow: `0 0 0 1px ${P.edge}, 0 10px 30px rgba(0,0,0,.5)`,
+      fontFamily: 'inherit',
+    }}
+    >
+      <div style={{ padding: '4px 8px', fontSize: 12, color: P.muted }}>My Account</div>
+      <PresetRow icon={ico('M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2', <circle cx="12" cy="7" r="4" />)} shortcut="⇧⌘P">Profile</PresetRow>
+      <PresetRow icon={ico('M3 10h18M5 6h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z')} shortcut="⌘B">Billing</PresetRow>
+      <PresetRow icon={ico('M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.2a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.2a2 2 0 0 1 1 1.7V20a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.2a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.2a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z', <circle cx="12" cy="12" r="3" />)} shortcut="⌘S">Settings</PresetRow>
+
+      <div style={{ height: 1, background: P.divider, margin: '4px -4px' }} />
+
+      <div style={{ padding: '4px 8px', fontSize: 12, color: P.muted }}>View</div>
+      <PresetRow
+        icon={ico('M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 3v18')}
+        trailing={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={P.text} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5L20 7" /></svg>}
+      >
+        Sidebar
+      </PresetRow>
+      <PresetRow icon={ico('M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 15h18')}>Status Bar</PresetRow>
+
+      <div style={{ height: 1, background: P.divider, margin: '4px -4px' }} />
+
+      <PresetRow
+        highlighted
+        icon={ico('M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 11h-6', <circle cx="9" cy="7" r="4" />)}
+        trailing={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={P.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>}
+      >
+        Invite Users
+      </PresetRow>
+      <PresetRow icon={ico('M12 17h.01M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3', <circle cx="12" cy="12" r="10" />)}>Support</PresetRow>
+      <PresetRow danger icon={ico('M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9')} shortcut="⇧⌘Q">Sign Out</PresetRow>
+      <PresetSubmenu />
+    </div>
+  );
+}
+
+/* Our real Menu, forced open and portaled into the pane so it can be compared without
+ * hovering. `defaultOpen` is Base UI's; the container seam is what keeps the popup
+ * inside the pane instead of escaping to document.body. */
+function LiveMenuOpen() {
+  const ref = useRef(null);
+  return (
+    <div ref={ref} style={{ position: 'relative', minHeight: 380 }}>
+      <OverlayContainerContext.Provider value={ref}>
+        <Menu defaultOpen>
+          <MenuTrigger render={<Button variant="secondary" />}>
+            Complex Menu
+            <ChevronDown aria-hidden="true" />
+          </MenuTrigger>
+          {/* NO `sideOffset` HERE ON PURPOSE (2026-09-07). This read `sideOffset={6}`,
+              a number that matched neither the old default (8) nor the preset (4), and it
+              is why the offset change could not be seen on the page built to review it:
+              the specimen was overriding the very default it exists to show. This pane is
+              labelled THE REAL COMPONENT — a prop passed here is our scaffolding being
+              approved as the primitive's behaviour. Every other specimen on this page
+              already passes none. */}
+          <MenuContent align="start">
+            <MenuGroup>
+              <MenuGroupLabel>My Account</MenuGroupLabel>
+              <MenuItem>Profile</MenuItem>
+              <MenuItem>Billing</MenuItem>
+              <MenuItem>Settings</MenuItem>
+            </MenuGroup>
+            <MenuSeparator />
+            <MenuGroup>
+              <MenuGroupLabel>View</MenuGroupLabel>
+              <MenuCheckboxItem checked>Sidebar</MenuCheckboxItem>
+              <MenuCheckboxItem checked={false}>Status Bar</MenuCheckboxItem>
+            </MenuGroup>
+            <MenuSeparator />
+            {/* NESTED DATA. Sub/SubTrigger/SubContent were exported by the generated
+                file all along and simply never wrapped, so a nested menu was
+                unreachable from application code. Wired 2026-09-07. */}
+            <MenuSub>
+              <MenuSubTrigger>Invite Users</MenuSubTrigger>
+              <MenuSubContent>
+                <MenuItem>Email</MenuItem>
+                <MenuItem>Message</MenuItem>
+                <MenuSeparator />
+                <MenuItem>More…</MenuItem>
+              </MenuSubContent>
+            </MenuSub>
+            <MenuItem>Support</MenuItem>
+            <MenuItem variant="destructive">
+              <Trash2 aria-hidden="true" />
+              Sign Out
+            </MenuItem>
+          </MenuContent>
+        </Menu>
+      </OverlayContainerContext.Provider>
+    </div>
+  );
+}
+
+/* THIS TABLE HAD GONE OUT OF DATE IN THE SAME HOUR THE MENU WAS APPROVED, and the way it
+ * went out of date is the finding: it listed the four things our BRIDGE re-meant, and
+ * three of the four stopped being true when the type scale moved onto the preset later
+ * the same day. `text-sm` is 14px, `text-xs` is 12px and `--radius-xl` is 14px — the
+ * preset's own values. Only the muted colour is still ours.
+ *
+ * So three of `menu.jsx`'s overrides now restate what the tokens already say. They are
+ * CORRECT today and FROZEN — pinned to literals rather than bound to the scale, so the
+ * next scale move leaves the menu behind. That is an owner call on an approved
+ * primitive, not a silent cleanup, so it is written here rather than done. */
+const MENU_PARITY = [
+  ['panel', '#18181b', '--surface-2'],
+  ['highlighted row', '#27272a', '--overlay-hover'],
+  ['panel edge', 'white/10, on the GROUND', 'MATCHED — the generated ring-foreground/10; a ring is outset, so it composites'],
+  ['item text', '14px', 'MATCHED — text-sm is 14px now; ITEM still pins text-[14px]'],
+  ['label + shortcut', '12px', 'MATCHED — text-xs is 12px now; LABEL still pins text-[12px]'],
+  ['muted text', '#a1a1aa', 'STILL OURS — muted-foreground is #c9c9d1, so LABEL sets --muted'],
+  ['item radius', '14px', 'MATCHED — rounded-xl is 14px now; ITEM still pins rounded-[14px]'],
+  ['separator', 'white/5 — half the edge', 'MATCHED — the generated bg-border/50; this pane drew it at DOUBLE until 2026-09-07'],
+  ['destructive', '#ff6467', '--destructive (shipped earlier)'],
+  ['submenu edge', 'white/10, on the GROUND', 'MATCHED — the override is deleted; both panels wear the generated ring'],
+  ['distance from trigger', '4px', 'MATCHED — the default was 8, and THIS SPECIMEN overrode it to 6 until the prop was deleted'],
+];
+
+function DropdownParity() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Dropdown — preset reference vs ours</span>
+        <span style={S.mono}>b2qLMFPP6</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">matched · approved</Tag>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, padding: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Preset — hardcoded reference</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start', minHeight: 380, paddingTop: 62 }}>
+            <PresetMenuReference />
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Ours — the real component, on live tokens</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start', minHeight: 380 }}>
+            <LiveMenuOpen />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 18px 18px' }}>
+        <div style={{ border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '160px 130px 1fr',
+            background: 'var(--control-bg)',
+          }}
+          >
+            {['Part', 'Preset', 'Where ours gets it'].map((h) => (
+              <div key={h} style={{ padding: '9px 12px', fontSize: 11.5, fontWeight: 600, color: 'var(--text-2)' }}>{h}</div>
+            ))}
+          </div>
+          {MENU_PARITY.map(([part, preset, source]) => (
+            <div
+              key={part}
+              style={{
+                display: 'grid', gridTemplateColumns: '160px 130px 1fr',
+                borderTop: '1px solid var(--line-inset, #1a1a1d)', alignItems: 'baseline',
+              }}
+            >
+              <div style={{ padding: '9px 12px', fontSize: 12.5, color: 'var(--text)' }}>{part}</div>
+              <div style={{ padding: '9px 12px', ...S.mono, color: 'var(--text-2)' }}>{preset}</div>
+              <div style={{ padding: '9px 12px', fontSize: 12, color: 'var(--text-3)' }}>{source}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Five of these were invisible until measured &mdash; and three have since fixed themselves. </strong>
+        The generated item asks for
+        {' '}
+        <span style={S.mono}>text-sm rounded-xl text-muted-foreground</span>
+        {' '}
+        — shadcn&rsquo;s own names, which in the preset mean 14px, 14px and #a1a1aa. When
+        this menu was approved our bridge re-meant all three, so the same component
+        rendered smaller and brighter here, and
+        {' '}
+        <span style={S.mono}>menu.jsx</span>
+        {' '}
+        absorbed the difference rather than the bridge. Later the same day the type scale
+        moved ONTO the preset, so
+        {' '}
+        <span style={S.mono}>text-sm</span>
+        {' '}
+        is 14px,
+        {' '}
+        <span style={S.mono}>text-xs</span>
+        {' '}
+        is 12px and
+        {' '}
+        <span style={S.mono}>--radius-xl</span>
+        {' '}
+        is 14px on their own. Only the muted colour still needs us. The three redundant
+        pins are correct today but frozen as literals — un-pinning them is a change to an
+        approved component, so it is your call, not a tidy-up.
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ specimens --- */
+
+function MenuSpecimens() {
+  const [dense, setDense] = useState(true);
+
+  const simple = (
+    <Menu>
+      <MenuTrigger render={<Button variant="secondary" />}>
+        Actions
+        <ChevronDown aria-hidden="true" />
+      </MenuTrigger>
+      <MenuContent align="start">
+        <MenuItem>Edit trade</MenuItem>
+        <MenuItem>Duplicate</MenuItem>
+        <MenuItem>Add a note</MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+
+  /* Groups, a checkbox row and a destructive item — the three things the top bar and
+   * the filter bar actually need, and the three the current styling is weakest on. */
+  const full = (
+    <Menu>
+      <MenuTrigger render={<Button variant="secondary" />}>
+        Trade options
+        <ChevronDown aria-hidden="true" />
+      </MenuTrigger>
+      <MenuContent align="start">
+        {/* A bare MenuGroupLabel outside a MenuGroup took a page down once — it is
+            always a child of MenuGroup, never a sibling. */}
+        <MenuGroup>
+          <MenuGroupLabel>This trade</MenuGroupLabel>
+          <MenuItem>Open in chart replay</MenuItem>
+          <MenuItem>Tag a setup</MenuItem>
+          <MenuItem>Copy R multiple</MenuItem>
+        </MenuGroup>
+        <MenuSeparator />
+        <MenuGroup>
+          <MenuGroupLabel>View</MenuGroupLabel>
+          <MenuCheckboxItem checked={dense} onCheckedChange={setDense}>
+            Dense rows
+          </MenuCheckboxItem>
+          <MenuCheckboxItem checked={false}>Show commissions</MenuCheckboxItem>
+        </MenuGroup>
+        <MenuSeparator />
+        <MenuItem>
+          <Trash2 aria-hidden="true" />
+          Delete trade
+        </MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+
+  const longLabels = (
+    <Menu>
+      <MenuTrigger render={<Button variant="secondary" size="icon" />}>
+        <MoreHorizontal aria-hidden="true" />
+      </MenuTrigger>
+      <MenuContent align="start">
+        <MenuItem>Export the filtered selection as CSV</MenuItem>
+        <MenuItem>Recalculate R using the account&rsquo;s current risk</MenuItem>
+        <MenuItem>Short one</MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+
+  const toolbar = (
+    <Menu>
+      <MenuTrigger render={<Button variant="chrome" size="sm" pill />}>
+        <ButtonLabel>Actions</ButtonLabel>
+        <ChevronDown aria-hidden="true" />
+      </MenuTrigger>
+      <MenuContent align="start">
+        <MenuItem>Export as CSV</MenuItem>
+        <MenuItem>Recalculate R</MenuItem>
+        <MenuItem>Clear selection</MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+
+  return {
+    simple, full, longLabels, toolbar,
+  };
+}
+
+function ModalSpecimen() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>Open modal</Button>
+      {/* THE SKIN'S `gap-6`, SUPPLIED BELOW, because the shell deliberately does not carry
+          it: `modal.jsx` adopts `bg-popover p-6 text-sm shadow-xl ring-1 max-w-md` and
+          stops there, so each of the 13 dialogs spaces its own content. That is a real
+          difference from the registry pane on the left, where `DialogContent` is
+          `grid gap-6`, and it belongs in the specimen rather than hidden by it.
+          (It sits out here, not inside the ternary: a lone `{...}` in a consequent's
+          parentheses parses as an object literal, not a comment, and the build says so.) */}
+      {open ? (
+        <Modal open onClose={() => setOpen(false)} label="Close account" style={{ display: 'grid', gap: 24 }}>
+          {/* THE REAL PARTS, NOT HAND-TYPED NUMBERS (2026-09-07). This read
+              `fontSize: 16, fontWeight: 550` and `fontSize: 13, lineHeight: 20` as inline
+              styles — 13px is not even on the scale (12/14/16/18/24/28), and the whole
+              charter of this page is that "the appearance being approved is the one that
+              ships". Hand-typing it meant the parity card attributed OUR OWN scaffolding
+              to "our layer". `DialogTitle` is `text-base font-medium` (16/500) and
+              `DialogDescription` is `text-sm text-muted-foreground` — the primitives.
+
+              WORTH KNOWING BEFORE YOU APPROVE THIS: no shipping dialog uses these two
+              parts yet. All 13 draw their own header through legacy `.modal h2`, which is
+              17px — off the scale, and the reason this specimen never matched anything.
+              Approving the specimen is approving the direction the legacy rule moves to. */}
+          <DialogHeader>
+            <DialogTitle>Close FTMO-8842291?</DialogTitle>
+            <DialogDescription>
+              Its 412 trades stay in your history and keep counting toward your all-account
+              analytics. You will stop seeing it in the switcher.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+            {/* `primary` explicitly: this Button's default variant is `secondary`, so a
+                bare <Button> is an OUTLINE one and the confirm read as plain text. */}
+            <Button variant="primary" onClick={() => setOpen(false)}>Close account</Button>
+          </DialogFooter>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+function PopoverSpecimen() {
+  return (
+    <Popover>
+      <PopoverTrigger render={<Button variant="secondary" />}>
+        <Filter aria-hidden="true" />
+        Brief settings
+      </PopoverTrigger>
+      <PopoverContent align="start">
+        {/* ON THE SCALE (2026-09-07). These read 13px and 12.5px, neither of which is a
+            step — the scale is 12/14/16/18/24 plus the 28px metric. A specimen typed a
+            half-pixel off the system is the owner approving something the system cannot
+            reproduce. Bound to the tokens now, so the next scale move carries it. */}
+        <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 200 }}>
+          <div style={{ fontSize: 'var(--fs-body)', fontWeight: 550, color: 'var(--text)' }}>
+            What to show
+          </div>
+          <div style={{ fontSize: 'var(--fs-label)', lineHeight: '18px', color: 'var(--text-2)' }}>
+            A popover holds controls you change and then dismiss. A menu holds actions
+            you pick one of.
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ------------------------------------------------------------------- the page --- */
+
+const LATER_BATCHES = [
+  { n: 2, name: 'Form controls', qty: 8, parts: 'input · textarea · select · checkbox · switch · label · field · consent-field' },
+  { n: 3, name: 'Feedback', qty: 4, parts: 'alert · skeleton · spinner · progress' },
+  { n: 4, name: 'Flows', qty: 2, parts: 'wizard (21 pieces) · toggle-group', dep: 'after Batch 2 — the wizard is built from those controls' },
+  { n: 5, name: 'Small pieces', qty: 3, parts: 'avatar · separator · count-badge' },
+  { n: 6, name: 'Rebuild first, then review', qty: 4, parts: 'badge · empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
+];
+
+/* ===== VARIANT MATRIX - the states you can only check by using them =====
+ *
+ * Built 2026-09-07, at the owner's request, after three state bugs in a row that no
+ * screenshot could have caught: a blanket `aria-expanded` override that painted a
+ * PRIMARY button grey while its menu was open, a pill that held its fill where the preset
+ * lets go, and a switch whose off-state was tuned against a token mapping that had moved
+ * months earlier.
+ *
+ * WHY EVERY OTHER SPECIMEN ON THIS PAGE MISSED THEM. The panes above render one variant
+ * each, usually forced open (`defaultOpen`) so the panel can be compared without a
+ * pointer. That is right for comparing SURFACES and useless for comparing STATES: rest,
+ * hover, press, open, and open-then-move-away are five different pictures and a forced
+ * specimen shows one. The primary-button bug survived precisely because no specimen on
+ * this page had ever opened a menu from a primary button.
+ *
+ * So this section is deliberately NOT forced open. Use it: hover each one, click it, then
+ * move the cursor onto the panel and watch the trigger. button.jsx's open-state note
+ * carries the table of what each variant is supposed to do.
+ *
+ * The scaffolding is inline styles, per this file's header: Tailwind compiles only under
+ * components/{ui,primitives}, so a utility written here would emit nothing, silently. */
+
+/* THE FOUR REAL VARIANTS, in our vocabulary. `tinted` and `chrome` are deliberately NOT
+ * in this list and get their own row below: neither is a generated variant - `VARIANTS`
+ * has no key for either - so `buttonVariants({ variant: 'tinted' })` asks cva for a
+ * variant it does not define and compiles to NOTHING. Both are real only with `pill`,
+ * which is what supplies their surface. Putting them in this row would render two
+ * unstyled buttons and read as a bug in the matrix rather than a misuse of the API. */
+const TRIGGER_VARIANTS = ['primary', 'secondary', 'ghost', 'danger'];
+
+function MenuInVariant({ variant, pill = false }) {
+  const ref = useRef(null);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <span style={S.specimenLabel}>{pill ? `${variant} - pill` : variant}</span>
+      {/* The container seam again: without it the popup escapes to document.body and
+          leaves the row, which makes "move the cursor onto the panel" impossible to do
+          without losing the trigger off the edge of the card. */}
+      <div ref={ref} style={{ position: 'relative' }}>
+        <OverlayContainerContext.Provider value={ref}>
+          <Menu>
+            <MenuTrigger render={<Button variant={variant} pill={pill} />}>
+              {variant}
+              <ChevronDown aria-hidden="true" />
+            </MenuTrigger>
+            <MenuContent align="start">
+              <MenuItem>Open in chart replay</MenuItem>
+              <MenuItem>Tag a setup</MenuItem>
+              <MenuSeparator />
+              <MenuItem variant="destructive">Delete trade</MenuItem>
+            </MenuContent>
+          </Menu>
+        </OverlayContainerContext.Provider>
+      </div>
+    </div>
+  );
+}
+
+const TONES = ['neutral', 'brand', 'profit', 'loss', 'warn', 'ai'];
+
+function VariantMatrix() {
+  const [on, setOn] = useState(true);
+  const [unit, setUnit] = useState('R');
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Variant matrix</span>
+        <span style={S.mono}>hover / click / move onto the panel</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="open">manual check</Tag>
+      </div>
+
+      <div style={{ ...S.specimens, gap: 26 }}>
+        {TRIGGER_VARIANTS.map((v) => <MenuInVariant key={v} variant={v} />)}
+        <MenuInVariant variant="tinted" pill />
+        <MenuInVariant variant="chrome" pill />
+      </div>
+
+      <div style={{ ...S.specimens, borderTop: '1px solid var(--line-inset)' }}>
+        <div style={{ ...S.specimen, flex: 1 }}>
+          <span style={S.specimenLabel}>Badge - all six tones, first render off legacy</span>
+          <div style={{ ...S.stage, flexWrap: 'wrap' }}>
+            {TONES.map((t) => <Badge key={t} tone={t}>{t}</Badge>)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...S.specimens, borderTop: '1px solid var(--line-inset)' }}>
+        <div style={S.specimen}>
+          <span style={S.specimenLabel}>Switch - click it; the OFF half is what changed</span>
+          <div style={S.stage}>
+            <Switch checked={on} onCheckedChange={setOn} aria-label="Demo switch" />
+            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{on ? 'on' : 'off'}</span>
+          </div>
+        </div>
+        <div style={S.specimen}>
+          <span style={S.specimenLabel}>Toggle group - pill, left as it was by the audit</span>
+          <div style={S.stage}>
+            <ToggleGroupExclusive pill value={unit} onValueChange={setUnit}>
+              <ToggleGroupItem value="R">R</ToggleGroupItem>
+              <ToggleGroupItem value="$">$</ToggleGroupItem>
+            </ToggleGroupExclusive>
+          </div>
+        </div>
+      </div>
+
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>What to watch on the triggers. </strong>
+        Hover brightens. Click opens, and the colour should not jump. Then move the cursor
+        onto the panel:
+        {' '}
+        <span style={S.mono}>primary</span>
+        {' '}
+        and
+        {' '}
+        <span style={S.mono}>danger</span>
+        {' '}
+        fall back to rest, while
+        {' '}
+        <span style={S.mono}>secondary</span>
+        {' '}
+        and
+        {' '}
+        <span style={S.mono}>ghost</span>
+        {' '}
+        hold a fill. That split is the preset&rsquo;s rather than ours - it is what you
+        chose over our stricter reading of &sect;14, and the two halves disagreeing on
+        purpose is exactly what this row exists to make visible.
+      </div>
+    </div>
+  );
+}
+
+export default function PrimitiveReview() {
+  const menu = MenuSpecimens();
+
+  return (
+    <div style={S.page}>
+      <div style={S.eyebrow}>Development only · not visible to customers</div>
+      <h1 style={S.h1}>Primitive review</h1>
+      <p style={S.lede}>
+        Every reusable part waiting for your sign-off, as the real component rather than a
+        picture of one. Tell me what looks wrong in your own words — “too tall”, “I can’t
+        tell which one is selected” — and I change the component itself. When a whole batch
+        looks right, you say <strong style={{ color: 'var(--text)' }}>locked</strong> and
+        we move on. Batches are locked together because parts that sit side by side have to
+        agree on height, corners and spacing.
+        {' '}
+        <strong style={{ color: 'var(--text)' }}>17 of 36 approved.</strong>
+        {' '}
+        Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
+        the switch and the unit toggle. The dropdown was the first through — and it is the
+        one that made this page necessary: it had reached 30 screens while nobody had said
+        whether they liked it.
+      </p>
+
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>Batch 1 — Overlays</span>
+        <Tag tone="ok">🔒 locked 7 Sep 2026</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          all four signed off · new screens may use them · Batch 2 is next
+        </span>
+      </div>
+
+      <DropdownParity />
+      <VariantMatrix />
+      <DialogParity />
+      <PaletteReference />
+      <PresetComparison />
+
+      <Spec
+        name="Dropdown menu"
+        approved="7 Sep 2026"
+        file="primitives/menu.jsx"
+        ask={
+          'row height and the gap between rows; how much the highlighted row stands out; '
+          + 'whether the group headings read as headings or as disabled items; where the '
+          + 'tick sits on a checkbox row; whether the delete row is distinct enough without '
+          + 'being alarming; and what the panel does when a label is too long to fit. '
+          + 'Judge the PANEL here, not the button that opens it — the two rows use '
+          + 'different triggers on purpose: a solid secondary button above, so the panel '
+          + 'has something definite to hang off, and the top bar’s own chrome capsule '
+          + 'below, which is borderless at rest by design.'
+        }
+        states={[
+          { label: 'Simple list', render: menu.simple },
+          { label: 'Groups, tick rows, destructive', render: menu.full },
+          { label: 'Long labels · icon trigger', render: menu.longLabels },
+        ]}
+        contextLabel="a table toolbar — chrome + pill at sm, the real vocabulary from FilterBar.jsx"
+        context={(
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+            padding: '10px 12px', borderRadius: 12,
+            border: '1px solid var(--line)', background: 'var(--surface)',
+          }}
+          >
+            <Button variant="chrome" size="sm" pill>
+              <Filter aria-hidden="true" />
+              <ButtonLabel>Filters</ButtonLabel>
+            </Button>
+            <Button variant="chrome" size="sm" pill><ButtonLabel>This month</ButtonLabel></Button>
+            {menu.toolbar}
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>412 trades</span>
+          </div>
+        )}
+      />
+
+      <Spec
+        name="Modal"
+        approved="7 Sep 2026"
+        file="primitives/modal.jsx"
+        ask={
+          'how dark the background behind it goes; the width for a short message like this '
+          + 'one; the space around the text; and whether the two buttons at the bottom are '
+          + 'clearly different from each other.'
+        }
+        states={[{ label: 'A confirmation', render: <ModalSpecimen /> }]}
+      />
+
+      <Spec
+        name="Popover"
+        approved="7 Sep 2026"
+        file="primitives/popover.jsx"
+        ask={
+          'whether it reads as a different kind of thing from the dropdown above — it '
+          + 'should, because you change things in a popover and pick things in a menu. If '
+          + 'the two look identical, one of them is wrong.'
+        }
+        states={[{ label: 'Settings panel', render: <PopoverSpecimen /> }]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Dialog</span>
+          <span style={S.mono}>primitives/dialog.jsx</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="ok">approved 7 Sep 2026 — with Modal</Tag>
+        </div>
+        <div style={S.note}>
+          Dialog is the layer <em>underneath</em> Modal — every one of the app’s 11 modals is
+          a Modal, and Modal is built on Dialog. There is nothing to look at separately: what
+          you approve on the Modal above is what Dialog renders. It gets locked with Modal.
+        </div>
+      </div>
+
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>Not open yet</span>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          in order — each opens when the one before it is locked
+        </span>
+      </div>
+
+      {LATER_BATCHES.map((b) => (
+        <div key={b.n} style={{ ...S.card, marginTop: 10, background: 'var(--surface-sunken)' }}>
+          <div style={{ ...S.cardHead, background: 'transparent', borderBottom: 'none', padding: '13px 18px' }}>
+            <span style={{
+              fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 13,
+              color: 'var(--text-3)', minWidth: 16,
+            }}
+            >
+              {b.n}
+            </span>
+            <span style={S.cardName}>{b.name}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{b.qty} parts</span>
+            <span style={{ flex: 1 }} />
+            <span style={S.mono}>{b.parts}</span>
+          </div>
+          {b.dep ? (
+            <div style={{
+              padding: '0 18px 13px 46px', fontSize: 12.5, lineHeight: '19px',
+              color: 'var(--text-2)',
+            }}
+            >
+              {b.dep}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -47,8 +47,36 @@
 
   /* COLLISION 1 — "muted". Theirs is a subtle SURFACE; our --muted is a TEXT
      colour (an alias of --text-2). Their name is served from our neutral fill and
-     our --muted token is left completely alone. */
-  --color-muted: var(--sel-bg);
+     our --muted token is left completely alone.
+
+     AND IT IS THE SAME FILL AS `accent`, WHICH IS WHY THIS NOW POINTS WHERE ACCENT
+     POINTS (owner, 2026-09-07). This read `var(--sel-bg)` — a flat #1e1e21 — and that
+     was wrong three ways at once, found by putting the preset's own dropdown beside
+     ours and asking why an open trigger was a different colour:
+
+       THE PRESET TREATS THE TWO NAMES AS ONE COLOUR. In its dark palette `--muted` and
+       `--accent` are both oklch(0.274 0.006 286.033) = #27272a, the same declaration
+       twice. Ours mapped them to two different tokens, so a generated component asking
+       for `bg-muted` and one asking for `bg-accent` — a menu row's `focus:bg-accent` and
+       a button's `aria-expanded:bg-muted`, side by side — got two different fills for
+       what the preset draws identically.
+
+       --sel-bg IS THE WRONG IDEA, not merely the wrong number. tokens.css documents it
+       as "a quiet ACTIVE fill: active rail item, count chips" — a SELECTION. Feeding a
+       selection colour to every `bg-muted` made hover and open states read as "this is
+       selected" rather than "this is a quiet surface".
+
+       AND IT COULD NOT BE FIXED WITH THE PRESET'S LITERAL. #27272a is tuned against the
+       preset's #18181b card; our card is #111114, so a flat #27272a over-brightens every
+       card hover. `--chrome-hover` is the contextual token that already solves this for
+       `accent`: --surface-hover (#1c1c1f) on a card, --overlay-hover (#27272a) inside
+       [data-overlay-surface] — the preset's exact value on the ground the preset tuned
+       it for. See tokens.css "CHROME IS CONTEXTUAL".
+
+     `--color-muted-foreground` is NOT part of this and stays on --text-2: the preset's
+     muted-foreground is a text colour (#a1a1aa) with its own separate job, and menu.jsx
+     already overrides it where preset parity was asked for. */
+  --color-muted: var(--chrome-hover);
   --color-muted-foreground: var(--text-2);
 
   /* COLLISION 2 — "accent". The one the migration plan flagged. Theirs means a
@@ -56,18 +84,31 @@
      neutral hover token, which also satisfies the locked rule that chrome is
      grayscale and never brand-tinted (DESIGN-LANGUAGE N4). Our brand blue is
      exposed as `brand-*` in section 2. Our --accent token is never redefined. */
-  --color-accent: var(--surface-hover);
+  /* `accent` is `focus:bg-accent` on every generated menu, select and command item, and
+     also a ghost/outline button's hover. Both need the CURRENT surface's highlight, not
+     a fixed one — see tokens.css "CHROME IS CONTEXTUAL". */
+  --color-accent: var(--chrome-hover);
   --color-accent-foreground: var(--text);
 
-  /* Their single "destructive" means a failed action. A losing trade is NOT a
-     destructive action, so this maps to our loss colour only because the library
-     has no other slot — error-vs-loss is an open question (DESIGN-LANGUAGE §17).
-     Revisit when that is settled. */
-  --color-destructive: var(--loss);
+  /* Their single "destructive" means a failed action. §17 SETTLED THIS (2026-09-06):
+     red serves BOTH a losing trade and a dangerous action — the two are told apart by
+     where the colour lands, not by hue — but they take different SHADES of it, which
+     is a split the palette already makes: `--loss` for a figure, a lighter red for a
+     glyph or a label. `--destructive` is preset b2qLMFPP6's red-400, so a generated
+     component previews truthfully. It is deliberately NOT `--loss`; a P&L figure and a
+     Delete button are not the same red. */
+  --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--on-accent);
 
-  --color-border: var(--line);
-  --color-input: var(--line);
+  /* CONTEXTUAL — see tokens.css "CHROME IS CONTEXTUAL". `--chrome-line` is a card's edge
+     at :root and a panel's edge inside [data-overlay-surface], so `border` and
+     `bg-input/30` resolve against whatever surface the element actually sits on. Six
+     bugs came from these pointing at `--line` unconditionally. */
+  --color-border: var(--chrome-line);
+  /* NOT --chrome-line: `input` is a CONTROL's edge and fill, and the preset draws it as a
+     white alpha one step stronger than `border`. Every consumer reduces it further, and
+     an opaque grey reduced toward transparent darkens where an alpha lightens. */
+  --color-input: var(--input-line);
   --color-ring: var(--accent-ring);
 
   --color-sidebar: var(--sidebar-bg);
@@ -136,6 +177,13 @@
   --color-ai: var(--ai);
   --color-ai-bg: var(--ai-bg);
   --color-warning: var(--warning);
+  /* §17 AMENDED 2026-09-06 — a system message may colour its GLYPH and its EDGE.
+     These two were deliberately absent while §4 read "green and red are trade
+     outcomes only, never status". §4 now permits a glyph and a 1px edge, and the
+     generated alert spends them exactly there (border/32, bg/4, svg full), so the
+     variants compile without a fork. Do NOT reach for these to fill a surface. */
+  --color-success: var(--success);
+  --color-info: var(--info);
   --color-payout: var(--payout);
   --color-status-good: var(--status-good);
   --color-status-warn: var(--status-warn);
@@ -209,7 +257,7 @@
   --color-tint-ai-1: var(--tint-ai-1);
   --color-tint-ai-2: var(--tint-ai-2);
 
-  /* Chart categorical palette — from preset b2qKmlY80 (chartColor: green).
+  /* Chart categorical palette — from preset b2qLMFPP6 (chartColor: green).
      Adopted provisionally: green is this product's profit colour, so a
      categorical chart in these hues can read as an outcome. Revisit per
      DESIGN-LANGUAGE §12. --profit / --loss are untouched. */
@@ -235,14 +283,20 @@
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
   --radius-lg: var(--r-lg);
-  --radius-xl: var(--r-xl);
-  --radius-2xl: var(--r-2xl);
+  --radius-xl: 14px;      /* preset: calc(--radius + 4px) */
+  /* CONTROLS TAKE THE PRESET'S 2xl, NOT OUR CARD RADIUS (§6 amended 2026-09-07, owner).
+     `rounded-2xl` is what the generated button, input, textarea, badge, menu and
+     skeleton all ask for — every CONTROL — and in the preset it is Tailwind's 1rem.
+     Pointing it at `--r-2xl` (14px, our CARD radius) collapsed a distinction the preset
+     makes and left every control two pixels under-rounded before button.jsx then
+     overrode it to 10px on top. Surfaces keep their own step through `--radius-4xl`. */
+  --radius-2xl: 16px;
   /* Our scale stops at 2xl, so every larger library step resolves to our largest rather
      than inventing one — same reasoning as `--radius-4xl` further down. `3xl` is not
      hypothetical: the generated popover asks for `rounded-3xl`, and without this line it
      would silently fall back to Tailwind's 24px, putting two floating overlays on
      different radii and breaking DESIGN-LANGUAGE §6 (an overlay is a card that floats). */
-  --radius-3xl: var(--r-2xl);
+  --radius-3xl: 24px;     /* preset: Tailwind's 1.5rem */
   --radius-full: var(--r-full);
   --radius-input: var(--r-input);   /* our own step — inputs are their own shape */
 
@@ -253,23 +307,34 @@
   --text-card-title: var(--fs-card-title);
   --text-primary-metric: var(--fs-primary-metric);
 
-  /* Type scale, part 2 — TAILWIND'S LADDER, REPOINTED AT OUR SCALE.
-     This is the one mapping that changes every generated component at once, and
-     without it they are all a step too large: `text-sm` is 14px in Tailwind but
-     13px in this app, so a migrated button sat 1px above every unmigrated one and
-     a migrated card title 1px above every `.panel h3`. Since the preset defines
-     no font sizes (Q9), the defaults were what was showing through.
+  /* Type scale, part 2 — TAILWIND'S LADDER, BOUND TO OUR ROLE TOKENS.
+     This is the one mapping that reaches every generated component at once: a registry
+     component asks for `text-sm` and gets whatever `--fs-body` is here, so it never
+     names a pixel and never needs editing.
 
-     Only the four steps generated components actually use are repointed, plus
-     2xl because we own that value already. `xl` and anything above 2xl keep
-     Tailwind's defaults: we have no token for them, and inventing one here would
-     be inventing design (AI-2).
+     IT NO LONGER CHANGES ANY VALUE (2026-09-07), and that is worth stating plainly
+     because the comment here claimed the opposite for a day. This used to be a
+     CORRECTION — our scale ran 11/13/15/16 against Tailwind's 12/14/16/18, so every
+     generated component rendered a step smaller than it previewed at until these lines
+     repointed it. Moving the roles onto preset b2qLMFPP6 moved them onto Tailwind's own
+     ramp, which is where the preset takes them from, and all five steps now agree to
+     the pixel.
 
-         xs   11px  --fs-label          (Tailwind 12px)  badges, pills
-         sm   13px  --fs-body           (Tailwind 14px)  buttons, controls, body
-         base 15px  --fs-card-title     (Tailwind 16px)  CardTitle
-         lg   16px  --fs-section-title  (Tailwind 18px)  section headings
-         2xl  24px  --fs-page-title     (Tailwind 24px)  same value, our token
+     KEEP IT ANYWAY: it is a BINDING now rather than a correction. tokens.css stays the
+     single place a type size is decided, and a generated component follows a role change
+     for free. Delete these five lines and the two scales are merely equal today and free
+     to drift apart tomorrow, silently, in every registry component at once.
+
+         xs   12px  --fs-label          badges, pills, shortcuts
+         sm   14px  --fs-body           buttons, controls, menu items, body
+         base 16px  --fs-card-title     CardTitle
+         lg   18px  --fs-section-title  section headings
+         2xl  24px  --fs-page-title     the page's H1
+
+     `xl` and anything above 2xl keep Tailwind's defaults: we have no token for them, and
+     inventing one here would be inventing design (AI-2). So `text-xl` is 20px and
+     `text-2xl` is 24px — two different steps again, after a spell when the page title
+     was also 20px and the two collided.
 
      The `--text-*--line-height` companions are deliberately NOT overridden:
      Tailwind expresses them as unitless ratios, so they follow the new sizes on
@@ -390,12 +455,17 @@
   --foreground: var(--text);
   --secondary: var(--sel-bg);
 
-  /* Our radius scale stops at 2xl — 0.81rem, i.e. ~13px, NOT the 20px an earlier
-     version of this comment claimed. The preset replaced a px scale with a rem one
-     ~40% tighter (see tokens.css), and the old numbers outlived it in several
-     comments. The library's 4xl step has no equivalent, so it resolves to our
-     largest radius rather than inventing one. */
-  --radius-4xl: var(--r-2xl);
+  /* THE RADIUS SCALE IS THE PRESET'S (§6 amended 2026-09-07, owner): 6 / 8 / 10 / 14 /
+     16 / 24 / 32. It used to alias 2xl, 3xl and 4xl all onto `--r-2xl` (14px, our card
+     radius), which collapsed three distinct steps into one and left controls, popovers
+     and dialogs all rendering at a card's roundness.
+
+     THE CARD IS THE ONE EXCEPTION and it is pinned in `primitives/card.jsx`, not here:
+     the generated card asks for `min(--radius-4xl, 24px)` = 24px, and ours stays 14.
+     A single deviation belongs in the wrapper that owns it, which is the whole point of
+     that seam — putting it in the bridge would have dragged the dialog down with it,
+     since both components read the same token. */
+  --radius-4xl: 32px;     /* preset: Tailwind's 2rem — dialog reads min(4xl, 24px) = 24 */
 }
 
 /* ---------------------------------------------------------------------------
@@ -482,6 +552,37 @@
   :where(button[data-slot], [data-slot] button) {
     border-width: 0;
   }
+
+  /* THE FOURTH — 2026-09-07, found by putting our dialog beside the preset's and being
+     told the gap under the title was wrong. It was, and it was not typography.
+     
+     Preflight sets `margin: 0` on every heading and paragraph. Without it the UA sheet's
+     `h2 { margin-block: 0.83em }` and `p { margin-block: 1em }` stand — and Base UI's
+     `Dialog.Title` renders an `h2`, its `Description` a `p`. So a dialog description
+     arrived carrying a 14px margin ON TOP of `DialogHeader`'s 6px flex gap: 20px where
+     the reference has 6. A flex gap does not absorb a margin, so the two simply added.
+     
+     WHAT MADE IT EXPENSIVE TO FIND: it looks exactly like a type or spacing bug and is
+     neither. The header's gap, the type scale and the spacing base all measured correct
+     against the preset — the extra space was a browser default nobody declared. Two
+     rounds went into the title's font-size and line-height before the `p` was suspected.
+     
+     `.modal h2 { margin: 0 }` in legacy hid half of it: OUR dialogs zero the heading by
+     accident, so only the paragraph showed, and the REGISTRY pane on the Test page — which
+     carries no `.modal` class — was silently wrong on both. A parity pane that is itself
+     mis-rendered is worse than none, which is the real cost of leaving this out.
+     
+     SCOPED TO ELEMENTS THAT ARE A `data-slot`, not to `[data-slot] p`. Preflight would
+     have zeroed app prose too, but this app has never run it and legacy content may lean
+     on those defaults — so the reset reaches generated parts only. Same `:where()` zero
+     specificity as the three above: every author rule still wins, and this can only ever
+     remove a browser default. */
+  :where(
+    h1[data-slot], h2[data-slot], h3[data-slot],
+    h4[data-slot], h5[data-slot], h6[data-slot], p[data-slot]
+  ) {
+    margin: 0;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -567,6 +668,19 @@
    to know about while generating.
 --------------------------------------------------------------------------- */
 @theme {
+  /* `sm` EXISTS FOR THE COMPONENT LIBRARY, NOT FOR APP LAYOUT (§22 amended 2026-09-07).
+     `--breakpoint-*: initial` above wipes Tailwind's defaults, which is right for app
+     layout — §22's three max-width numbers are the only places this app reorganises.
+     But it also silently killed every `sm:` INSIDE a generated component, and those are
+     not app breakpoints: they are the component's own stacked-vs-side-by-side switch.
+     The alert-dialog is the proof — its entire desktop form is behind `sm:`
+     (`sm:flex-row sm:justify-end`, `sm:text-left`, `sm:max-w-md`), so it rendered
+     permanently in its phone layout: centred text, buttons stacked full-width.
+     Third variant family found dead this way, after `dark:` and the preset's `.dark {}`.
+     The app never renders below 900px as a desktop layout, so `sm` is always true in
+     practice and this restores the component's intended form. App layout still uses the
+     three max-width numbers and nothing else. */
+  --breakpoint-sm: 40rem;
   --breakpoint-md: 900px;
 }
 
@@ -588,7 +702,138 @@
    caller gates it behind `motion-safe:`, which is §10's rule: a reduced-motion user
    gets the banner, just not the pulse. The state change still happens.
 --------------------------------------------------------------------------- */
+/* pv-content-in — CONTENT ARRIVING IN A LIST THAT ALREADY EXISTED.
+
+   Used by BriefSection: the economic calendar swapping between Today and Week, and the
+   same column when the /api/calendar fetch lands and replaces its loading note. Both are
+   the same event — this listing is not the listing that was here a moment ago — and a
+   fade is the honest way to say so. A CROSSFADE rather than a slide or a wipe: nothing
+   about the new rows is positionally related to the old ones, so movement would imply a
+   relationship the data does not have.
+
+   OPACITY ONLY, for §2: layout is an invariant, and a list that travels on every toggle
+   is decoration. The caller keys the box so it remounts, then sets duration and curve
+   from the tokens at the use site — the same shape as pv-breathe below.
+
+   IT SETTLES, so §10 is satisfied and it needs no motion-safe gate of its own: the
+   global prefers-reduced-motion reset in legacy/app.css collapses its duration and the
+   new list still appears. */
+@keyframes pv-content-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @keyframes pv-breathe {
   0%, 100% { box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--loss) 28%, transparent); }
   50% { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--loss) 0%, transparent); }
+}
+
+/* ---------------------------------------------------------------------------
+   ENTRANCES — the reload choreography. DESIGN-LANGUAGE §10, amended 2026-09-03.
+
+   WHY THESE ARE PLAIN CSS RULES AND NOT TAILWIND UTILITIES. Utilities compile only
+   under components/{ui,primitives} (tailwind.css `@source`), and half the elements that
+   need an entrance are written in pages — app/Sidebar.jsx, features/dashboard. A utility
+   written there emits nothing at all, silently, which is the failure CLAUDE.md §1 says
+   has cost real debugging time five times. An attribute selector in this unlayered file
+   works everywhere the markup does.
+
+   THE SPLIT IS ATTRIBUTE vs INLINE STYLE, and it is deliberate: `data-entrance` names
+   the animation (a fixed thing, three of them, owned here) and the caller supplies only
+   `animation-delay` as an inline style (a per-index value, which is exactly what
+   CLAUDE.md means by "a caller-supplied dimension is a PROP, not a class").
+
+   DURATION IS SET BY THE SIZE OF WHAT MOVES. A page section or a piece of chrome is a
+   large surface and takes `--dur-slow`; a row inside a list is small and takes `--dur`.
+   That is why `row` overrides the duration and why brief.jsx can still keep its rule
+   that it never reaches for `--dur-slow`. §10 carries the amendment.
+
+   `backwards` IS NOT OPTIONAL. Without it a delayed element paints at full opacity for
+   every frame before its delay fires, so the whole cascade flashes into place first and
+   then animates — which is worse than no animation at all.
+--------------------------------------------------------------------------- */
+@keyframes pv-rise-in  { from { opacity: 0; transform: translateY(8px);  } to { opacity: 1; transform: none; } }
+@keyframes pv-drop-in  { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes pv-sweep-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+
+[data-entrance] {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease);
+  animation-fill-mode: backwards;
+}
+[data-entrance="up"]   { animation-name: pv-rise-in; }
+[data-entrance="down"] { animation-name: pv-drop-in; }
+[data-entrance="left"] { animation-name: pv-sweep-in; }
+/* A row in a list. Same travel, one duration down — see the note above. */
+[data-entrance="row"]  { animation-name: pv-rise-in; animation-duration: var(--dur); }
+
+/* THE GLOBAL REDUCED-MOTION RESET DOES NOT COVER DELAY, and that is a real bug rather
+   than a nicety. It collapses `animation-duration` to .001ms, which leaves a staggered
+   element holding `backwards` at opacity 0 for the whole of its delay and then snapping
+   in — so the reduced-motion user gets no animation and a third of a second of blank
+   chrome, which is the one outcome worse than the animation. The delay has to go too. */
+@media (prefers-reduced-motion: reduce) {
+  [data-entrance] { animation-delay: 0s !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   CHROME — the rail and the top bar, and NEITHER NEEDS A JS GATE.
+
+   `<Layout>` is a pathless layout route (App.jsx), so the rail and the top bar mount
+   once per document and persist across every client-side navigation. A CSS animation
+   fires once per element, which means "once per browser load" falls out of the DOM for
+   free here — the module-scope flag in page-entrance.jsx exists only for the ROUTED
+   page, which does remount on navigation.
+
+   THE RAIL SHELL IS SELECTED AT `sidebar-inner`, which exists only on desktop: the
+   generated Sidebar renders a Sheet under 900px whose inner div carries no data-slot at
+   all. So the drawer keeps the Sheet's own slide-in and does not get a second one
+   stacked on top of it. The nav rows inside it are guarded by hand in Sidebar.jsx for
+   the same reason — they remount on every drawer open.
+
+   The bar is sticky and stays sticky: this animates `transform` and `opacity` only,
+   never `position` or `top`.
+--------------------------------------------------------------------------- */
+[data-slot="sidebar-inner"] { animation: pv-sweep-in var(--dur-slow) var(--ease) backwards; }
+[data-slot="topbar"]        { animation: pv-drop-in  var(--dur-slow) var(--ease) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="sidebar-inner"],
+  [data-slot="topbar"] { animation-delay: 0s !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   LOADING SKELETONS BREATHE. DESIGN-LANGUAGE §10, amended 2026-09-03.
+
+   THE SECOND LOOPING ANIMATION IN THIS APP, and it earns the exception the same way the
+   stop-trading banner does: the CONDITION has not settled either. A skeleton is on screen
+   precisely because the app does not have the data yet, and it leaves the moment it does
+   — so this loops for exactly as long as the thing it describes is true, and stops
+   without anyone stopping it.
+
+   IT IS THE FIX FOR "THE PAGE LOOKS BLANK", which is what the owner reported and what a
+   screenshot showed: `SkeletonBlock` painted a flat `--surface-2` rectangle and nothing
+   else. A motionless grey box says THIS AREA IS EMPTY. A breathing one says STILL
+   WORKING — same pixels, opposite meaning, and the difference is the only thing telling
+   a trader whether to wait or to reload.
+
+   OPACITY, NOT A SWEEPING HIGHLIGHT. legacy CSS's `.u-skeleton` drags a gradient across
+   the box on a 1.4s loop, which needs `position: relative`, `overflow: hidden` and a
+   pseudo-element on every skeleton — three properties that would collide with the
+   dimensions these primitives take as props. Opacity needs none of them and reads
+   quieter, which matters when nineteen of them are on screen at once.
+
+   2s, WHICH IS DELIBERATELY SLOWER THAN ANYTHING ELSE HERE. §10's durations are for
+   things that settle; this is a heartbeat, and at 400ms nineteen boxes pulsing together
+   is a strobe. The curve is symmetric so neither half of the breath is the "action".
+
+   NOT GATED BEHIND `motion-safe:` at the call site — the global reduced-motion reset
+   collapses it, and a reduced-motion user still gets the skeleton, the `aria-busy` and
+   the "Loading…" note. The information survives; only the pulse goes.
+--------------------------------------------------------------------------- */
+@keyframes pv-breathe-soft { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+[data-slot="skeleton-block"],
+[data-slot="skeleton-line"] {
+  animation: pv-breathe-soft 2s cubic-bezier(.4, 0, .6, 1) infinite;
 }

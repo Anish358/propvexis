@@ -6,7 +6,9 @@ import { passBreachSummary } from '../domain/prop/insights.js';
 import { phaseOutcomeAlert, phasePassedAlert } from '../domain/alerts/alerts.js';
 import { insertNotifications } from '../domain/alerts/notifications.js';
 import { challengeHistory, challengesForScope, lastTradeByLogin, dailyTotalsForLogins, advanceChallenge } from '../domain/prop/challenges.js';
-import { applyChallengeOutcome, challengeGroupsForUser, reopenChallenge } from '../domain/prop/challengeGroups.js';
+import {
+  acknowledgeOutcome, applyChallengeOutcome, challengeGroupsForUser, reopenChallenge,
+} from '../domain/prop/challengeGroups.js';
 import { businessKpis, firmRollup, upcomingPayouts, recentTransactions, accountsBreakdown, passedChallenges, propCalendarEvents, propBrief } from '../domain/prop/propOverview.js';
 import { propStatesForScope } from '../domain/analytics/reports.js';
 import { PHASES } from '../domain/accounts/provision.js';
@@ -215,8 +217,18 @@ export default function propRoutes(app, ctx) {
     if (!acct) return reply.code(404).send({ error: 'account not found' });
 
     const reason = b.reason === 'daily_dd' || b.reason === 'max_dd' ? b.reason : null;
+    /* EVERY REOPEN SUPPRESSES THE OUTCOME IT UNDID (migration 0033), and it is not an
+       option the caller passes. Reopening MEANS "the engine was wrong about this" — from
+       the strip's "Not passed yet" and from Prop OS's manual override alike — and the
+       engine is still running: without a memory of the rejection, the next ingest reads
+       the same equity against the same rules and settles the row again within seconds.
+       An unsuppressed reopen is a button that works for exactly one tick.
+
+       What gets the trader out of it is correcting the rules the phase was judged
+       against, which clears the suppression (challenges.suppressed_outcome), because a
+       disputed pass is nearly always wrong rules rather than a miscount. */
     const settled = status === 'active'
-      ? await reopenChallenge(acct.id)
+      ? await reopenChallenge(acct.id, { suppress: true })
       : await applyChallengeOutcome(acct.id, { status, reason });
     if (!settled) {
       return reply.code(409).send({
@@ -241,6 +253,38 @@ export default function propRoutes(app, ctx) {
       for (const n of created) io.to(`user:${req.user.uid}`).emit('notification:new', n);
     }
     return reply.code(201).send(settled);
+  });
+
+  /* "CLOSE ACCOUNT" — the trader has seen the outcome (owner spec 2026-09-05).
+   *
+   * THIS IS THE ONLY THING THAT TAKES AN ACCOUNT OUT OF THE DASHBOARD. The engine
+   * settling a phase does not: from the moment it settles until the moment this route
+   * runs, the account keeps counting in every KPI, the calendar and recent trades,
+   * exactly as it did the day before. That is deliberate and it is what makes the whole
+   * design safe — the trade that CAUSED the pass does not vanish out from under a trader
+   * who is still mid-session, and Account Health needs no exception to the account scope
+   * to show the strip, because the account is genuinely still in scope.
+   *
+   * A 409 when there is nothing waiting, on the same reasoning as /settle: the write is
+   * guarded on `acknowledged_at IS NULL`, so a no-op means another tab (or a second
+   * click) already answered, and saying so beats an empty success the UI draws as a
+   * change.
+   */
+  app.post('/api/prop/acknowledge', { preHandler: app.requireAuth }, async (req, reply) => {
+    const login = Number((req.body ?? {}).account_id);
+    if (Number.isNaN(login)) return reply.code(400).send({ error: 'account_id required' });
+    const acct = await ownedAccountByLogin(req.user.uid, login);
+    if (!acct) return reply.code(404).send({ error: 'account not found' });
+
+    const closed = await acknowledgeOutcome(acct.id);
+    if (!closed) return reply.code(409).send({ error: 'This account has no outcome waiting to be closed' });
+
+    // The switcher, the scope and every figure on the page change together, so the
+    // account list is what the client reloads — `prop:updated` alone would leave the
+    // dashboard drawing an account it is no longer meant to count.
+    io.to(`user:${req.user.uid}`).emit('accounts:updated', { account_id: login });
+    io.to(`acct:${login}`).emit('prop:updated', { account_id: login });
+    return reply.code(201).send(closed);
   });
 
   // Advance/reset an account's challenge: close the active one (passed|breached) and

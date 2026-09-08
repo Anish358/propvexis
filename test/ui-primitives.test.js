@@ -13,9 +13,16 @@ const ui = read('../frontend/src/ui.jsx');
 const comingSoon = read('../frontend/src/components/ComingSoon.jsx');
 
 test('CSS defines the canonical component classes', () => {
+  /* `.u-badge` and `.u-badge--profit` LEFT THIS LIST on 2026-09-07 and that is the
+     intended direction, not a gap: Badge moved onto the generated component and its six
+     legacy rules were deleted (see legacy/app.css, "Badge — DELETED"). This list is the
+     contract of `ui.jsx`, the dead Phase-1 layer kept as a kill switch, so a class
+     leaving it means the switch no longer covers that component — which is what
+     finishing a migration looks like. The remaining entries are the ones still on
+     legacy; each should leave the same way. */
   for (const c of [
     '.u-btn', '.u-btn--primary', '.u-btn--danger',
-    '.u-card', '.u-badge', '.u-badge--profit',
+    '.u-card',
     '.u-tabs', '.u-tab', '.u-input', '.u-field',
     '.u-skeleton', '.u-empty',
   ]) {

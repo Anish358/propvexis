@@ -37,6 +37,8 @@ const shell = src('components/primitives/modal.jsx');
 const dialog = src('components/primitives/dialog.jsx');
 const barrel = src('components/primitives/index.js');
 const css = appCss;
+const bridge = readSrc('styles/bridge.css');
+const bridgeSpacing = bridge;
 
 // Strip comments before asserting on code. These files explain at length WHY the
 // hand-rolled backdrops, portals and stopPropagation calls are gone, so a naive grep
@@ -138,27 +140,115 @@ test('the popup is a CHILD of the backdrop — centring and dismissal both depen
     /<DialogOverlay[^>]*>\s*<DialogPopup/,
     'DialogPopup must render INSIDE DialogOverlay — as siblings, nothing centres the popup',
   );
-  assert.match(s, /<DialogOverlay className=\{backdrop\} forceRender>/,
+  /* MATCHED ON THE TWO GUARANTEES RATHER THAN ON THE WHOLE TAG (2026-09-03). This
+     pinned the literal `className={backdrop} forceRender`, which broke the moment the
+     backdrop grew its §10 entrance classes and started composing its className — even
+     though `forceRender`, the thing the assertion is actually about, never moved. A
+     regex over an entire JSX tag fails on any attribute change, including ones that
+     cannot affect what it is guarding. Both halves are still asserted: the caller's
+     class reaches the element, and the overlay force-renders. */
+  assert.match(s, /<DialogOverlay[^>]*\bbackdrop\b[^>]*>/,
+    "the caller's backdrop class must still reach the overlay");
+  assert.match(s, /<DialogOverlay[^>]*\bforceRender\b[^>]*>/,
     'the backdrop must forceRender, or a nested dialog would take its popup down with it');
 });
 
-test('the legacy CSS the shell leans on still declares what the shell assumes', () => {
-  // The shell restates none of this — it reuses the rule that already had it, so the
-  // 24px inset that `.modal`\'s `width: 100%` resolves against stays a single source of
-  // truth. Which means a change to these two rules is a change to every modal.
-  const rule = (sel) => {
-    const start = css.lastIndexOf(`${sel} {`);
-    assert.ok(start !== -1, `rule ${sel} exists`);
-    return css.slice(start, css.indexOf('}', start));
-  };
-  const backdrop = rule('.modal-backdrop');
-  for (const prop of ['position: fixed', 'inset: 0', 'align-items: center', 'justify-content: center']) {
-    assert.ok(backdrop.includes(prop), `.modal-backdrop must keep ${prop} — it centres the popup`);
+test("a dialog header takes the ALERT dialog's treatment, not the plain one's", () => {
+  /* §3, amended 2026-09-07. The registry ships two confirm surfaces and styles their
+   * headers differently — `AlertDialogTitle` is `text-lg font-medium`, `DialogTitle` is
+   * `text-base leading-none font-medium`. `Modal` is built on `Dialog` and is the shell
+   * for all 13 dialogs, every one of which is the ALERT shape, so it inherited the
+   * quieter of the two: 2px smaller AND a line box 12px shorter.
+   *
+   * BOTH HALVES MATTER, which is why both are pinned. Fixing the size alone leaves
+   * `leading-none` collapsing the title's line box, and it is the line box — not the
+   * font size — that supplies the ~5px of optical space under the title that made the
+   * preset's header look twice as open. That difference was reported as SPACING, and it
+   * is not: `--spacing` is 4px, Tailwind's own base, so every padding and gap in the two
+   * dialogs already resolves identically. Asserted below so the diagnosis cannot be
+   * mislaid the next time someone reaches for a gap.
+   *
+   * AND THE OVERRIDES STAY IN THE WRAPPER. `--text-2` is the owner-locked colour for
+   * labels and metadata app-wide; a dialog description is body copy, so it takes the
+   * preset's `--muted` (#a1a1aa) HERE rather than by repointing the bridge, which would
+   * re-colour every screen. Same call `menu.jsx` already made for menu labels. */
+  const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
+  const wrapper = code(dialog);
+
+  assert.match(wrapper, /const TITLE = 'text-lg leading-7'/,
+    'a dialog title is 18px on a 28px line box — leading-7 is that line box exactly');
+  assert.doesNotMatch(wrapper, /const TITLE = '[^']*leading-none/,
+    'leading-none is what collapsed the header; replacing the size alone does not fix it');
+  assert.match(wrapper, /const DESCRIPTION = '[^']*text-\[var\(--muted\)\]/,
+    "a description takes the preset's grey, not --text-2");
+  assert.match(wrapper, /DialogTitle|DialogDescription/,
+    'both parts must be wrapped, not re-exported bare');
+
+  /* THE OVERRIDE MUST NOT HAVE LEAKED INTO THE BRIDGE. If someone "fixes" this by
+   * repointing muted-foreground globally, the wrapper above goes quiet and every screen
+   * in the app changes colour instead. */
+  assert.match(bridge, /--color-muted-foreground:\s*var\(--text-2\)/,
+    'muted-foreground stays on --text-2 app-wide; the dialog is the exception, not the rule');
+
+  /* AND THE DIAGNOSIS: spacing was never the difference. */
+  assert.match(bridgeSpacing, /--spacing:\s*var\(--s-1\)/,
+    "the spacing base is the preset's own 4px — a density complaint is not a gap bug");
+});
+
+test("a generated heading or paragraph carries no browser margin", () => {
+  /* THE FOURTH MISSING-PREFLIGHT RESET, and the one that cost the most to find because
+   * it does not look like what it is.
+   *
+   * This app does not import Preflight (tailwind.css says why), so the UA sheet's
+   * `h2 { margin-block: .83em }` and `p { margin-block: 1em }` stand. Base UI renders
+   * `Dialog.Title` as an h2 and `Dialog.Description` as a p, so a dialog description
+   * arrived with a 14px margin ON TOP of DialogHeader's 6px flex gap — 20px where the
+   * reference has 6. A flex gap does not absorb a margin; they add.
+   *
+   * It was reported as spacing, then chased through the type scale, and it was neither:
+   * the gap, the sizes and the 4px spacing base all measured correct. The space came
+   * from a default nobody declared.
+   *
+   * PINNED AS A RULE, NOT AS THIS DIALOG. Any generated part that renders a heading or a
+   * paragraph has the same hole — Card, Alert, Sheet, AlertDialog — so the assertion is
+   * that the reset EXISTS and stays at zero specificity, which is what lets any author
+   * rule still win over it. */
+  assert.match(bridge, /:where\(\s*h1\[data-slot\]/,
+    'the Preflight margin substitute must cover generated headings');
+  assert.match(bridge, /p\[data-slot\]\s*\)\s*\{\s*margin:\s*0/,
+    "and paragraphs — Dialog.Description is a <p>, which is where this was found");
+  assert.doesNotMatch(bridge, /\[data-slot\] (p|h[1-6])/,
+    'it must not reach into app prose inside a generated container — this app never ran Preflight');
+
+  /* AND THE HALF THAT WAS HIDDEN. `.modal h2 { margin: 0 }` zeroed the heading for OUR
+   * dialogs by accident, so only the paragraph showed and the registry parity pane —
+   * which carries no `.modal` class — was wrong on both. If that legacy rule is ever
+   * deleted (it should be), the reset above is what keeps the heading right. */
+  assert.ok(css.includes('.modal h2 { margin: 0'),
+    'if this legacy rule goes, confirm the bridge reset still zeroes the dialog heading');
+});
+
+test('the shell owns its surface — it leans on no legacy rule', () => {
+  /* THIS TEST INVERTED ON 2026-09-07, and the inversion is the point. It used to assert
+   * that `.modal` and `.modal-backdrop` still declared what the shell assumed, because
+   * the shell restated none of it. Both rules are now DELETED and `modal.jsx` carries
+   * the generated dialog's own values instead — `bg-popover p-6 shadow-xl ring-1
+   * max-w-md`, with the overlay at `bg-black/30` rather than a 78% scrim.
+   *
+   * The old arrangement is what made every dialog render at the CARD colour behind a
+   * near-opaque scrim: an unlayered legacy rule beat the skin it was sitting on. */
+  assert.ok(!/^\.modal \{/m.test(css), '.modal must stay deleted — the shell owns its surface');
+  assert.ok(!/^\.modal-backdrop \{/m.test(css), '.modal-backdrop must stay deleted');
+
+  const shellCode = code(shell);
+  for (const util of ['bg-popover', 'p-6', 'shadow-xl', 'max-w-md', 'bg-black/30']) {
+    assert.ok(shellCode.includes(util), `the shell must carry ${util} itself now`);
   }
-  assert.match(backdrop, /padding: 24px/, '.modal-backdrop\'s padding is the modal\'s viewport gap');
-  // And the reason the popup cannot centre itself with utilities.
-  assert.match(rule('.modal'), /position: relative/,
-    '.modal is unlayered and declares position — a `fixed` utility on the popup would lose to it');
+  // Centring is still by CONTAINMENT, so the popup must not position itself.
+  assert.ok(shellCode.includes('relative w-full'),
+    'the popup stays `relative` — the backdrop centres it, per the test below');
+  assert.ok(!/fixed top-1\/2/.test(shellCode),
+    'the skin self-centres with fixed+translate; this shell must not, or it escapes the backdrop');
 });
 
 test('the shell cancels the inherited user-select that nesting introduced', () => {
@@ -169,17 +259,12 @@ test('the shell cancels the inherited user-select that nesting introduced', () =
   assert.match(code(shell), /'select-text'/, 'the popup must re-enable text selection');
 });
 
-test('Replay and the layout editor keep their OWN surface, and that is not cosmetic', () => {
-  // Both surfaces override most of what `.modal` declares — being later in the sheet —
-  // but each MISSES a different property, and inherits it if `.modal` is added
-  // alongside. Neither is a visual nitpick; both are A1 layout changes, which is why
-  // the base class is a prop with a default rather than a constant:
-  //
-  //   .rp-modal   declares no padding   -> would gain .modal's 24px, shrinking the chart
-  //
-  // `.dle-panel` was the second example (no max-width, and it was 620px against the
-  // .modal cap of 560). Its editor is gone; the rule it illustrates is not, so
-  // ReplayModal carries the argument alone now.
+test('Replay keeps its OWN surface, and that is still not cosmetic', () => {
+  /* `.rp-modal` declares no padding, so it must never carry a surface that supplies one.
+   * That was the argument when the default was `.modal` (24px padding). It survives the
+   * 2026-09-07 migration unchanged, because the default now supplies `p-6` — the same
+   * 24px, from the skin instead of from legacy CSS. The hazard is identical; only its
+   * source moved, which is why `surface` stays a prop rather than becoming a constant. */
   assert.match(code(src('ReplayModal.jsx')), /surface="rp-modal" backdrop="rp-backdrop"/);
   const body = (sel) => {
     const start = css.indexOf(`${sel} {`);
@@ -187,13 +272,9 @@ test('Replay and the layout editor keep their OWN surface, and that is not cosme
     return css.slice(start, css.indexOf('}', start));
   };
   assert.ok(!/padding:/.test(body('.rp-modal')),
-    '.rp-modal declares no padding — that is precisely why it must not carry .modal');
-  assert.ok(!/max-width:/.test(body('.dle-panel')),
-    '.dle-panel declares no max-width — that is precisely why it must not carry .modal');
-  // And the values it would inherit, so this test fails if .modal's own numbers move.
-  assert.match(css, /\.modal \{[^}]*padding: 24px/, '.modal still has the padding rp-modal would inherit');
-  assert.match(css, /\.modal \{[^}]*max-width: 560px/, '.modal still has the cap dle-panel would inherit');
-  assert.match(code(shell), /surface = 'modal'/, 'the shared surface stays the default');
+    '.rp-modal declares no padding — that is precisely why it must not carry the default surface');
+  assert.match(code(shell), /p-6/,
+    'and the default surface still supplies the padding it would inherit');
 });
 
 test('the shell composes its own overlay so the scrim stays a token', () => {
@@ -251,7 +332,10 @@ test('an overlay opened inside a modal portals INTO the modal, not beside its sc
   // The number that makes all of the above necessary. If this ever stops being the
   // largest value in the ladder, read the comment in overlay-container.js before
   // deleting anything here.
-  assert.match(css, /\.modal-backdrop \{[^}]*z-index: 2147483000/,
+  // The number moved from `.modal-backdrop` into the shell when that rule was deleted
+  // (2026-09-07). The invariant is unchanged: the scrim must outrank the dropdown tier,
+  // which is WHY overlays inside a modal are contained rather than raised.
+  assert.match(code(shell), /z-\[2147483000\]/,
     'the scrim outranks the dropdown tier — which is why overlays are contained, not raised');
 });
 

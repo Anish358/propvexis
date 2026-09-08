@@ -441,6 +441,29 @@ export async function settlePhase(fields) {
   return data;
 }
 
+/**
+ * CLOSE AN ACCOUNT the trader has agreed is finished — the strip's primary button.
+ *
+ * `{ account_id }`. This is the ONLY thing that takes an account out of the dashboard's
+ * default scope: the engine settling a phase does not, so between the settlement and
+ * this call the account keeps counting in every figure exactly as it did before. That
+ * is what stops the trade that CAUSED the pass vanishing out from under someone
+ * mid-session.
+ *
+ * The undo is `settlePhase({ status: 'active' })`, which reopens the phase AND silences
+ * the outcome so the engine does not immediately settle it again.
+ */
+export async function acknowledgeOutcome(accountId) {
+  const res = await apiFetch('/api/prop/acknowledge', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ account_id: accountId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `could not close the account (${res.status})`);
+  return data;
+}
+
 // Advance/reset a challenge: close the active one and open the next phase.
 //
 // THE PRE-0027 WRITE, kept for the firms that keep ONE login across phases (some upgrade

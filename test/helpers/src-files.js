@@ -63,9 +63,27 @@ export function resolveSrc(nameOrRel) {
   throw new Error(`no such file under frontend/src: '${nameOrRel}'`);
 }
 
+/* SOURCE IS READ WITH LF LINE ENDINGS, ALWAYS, WHATEVER THE CHECKOUT USED.
+ *
+ * These tests assert on source TEXT, and a great many of those assertions contain a
+ * literal newline — `/<UIFieldError\n(?:.*\n)*?\s+match\n/`, or an `indexOf('\n}\n')`
+ * that slices out one function's body. On a Windows checkout with core.autocrlf=true the
+ * file on disk holds CRLF, and in a JS regex `.` does not match a carriage return — so
+ * every one of those patterns fails against source that is perfectly correct.
+ *
+ * That produced a standing set of "known" local failures, which is the worst state a
+ * suite can be in: a handful of red tests everyone has been told to ignore is a handful
+ * of red tests nobody reads, and a real regression hiding among them is invisible.
+ * Normalising here fixes the whole class in one place, rather than sprinkling an
+ * optional carriage return through every assertion anyone will ever write.
+ *
+ * Nothing is lost: not one test in this suite has an opinion about line endings — they
+ * assert on what the code SAYS. Git owns the newline policy, which is where it belongs. */
+const lf = (text) => text.split('\r\n').join('\n');
+
 /** Read a source file by basename or relative path. */
 export const readSrc = (nameOrRel) =>
-  readFileSync(path.join(srcDir, resolveSrc(nameOrRel)), 'utf8');
+  lf(readFileSync(path.join(srcDir, resolveSrc(nameOrRel)), 'utf8'));
 
 /** Does a file with this basename exist ANYWHERE under frontend/src? For asserting
  *  a deleted file stayed deleted: a path-based `!existsSync` check silently starts

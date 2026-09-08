@@ -5,6 +5,7 @@ import { Badge, Button, Card } from '@/components/primitives';
 import { settlePhase } from '../../lib/api.js';
 import { fmtMoney } from '../../lib/metrics.js';
 import { healthStatus, roomStatus } from './PropOS.jsx';
+import { maxDdUsed, targetProgress } from './ruleFigures.js';
 import { tradingDaysRead } from './propAccounts.js';
 import { MiniMeter } from './AccountPortfolioCard.jsx';
 import { LifecycleRail } from './ChallengeLifecycle.jsx';
@@ -106,7 +107,8 @@ export default function ChallengeCard({
     ? healthStatus(live.state.health?.score ?? 0, live.state.breach?.breached)
     : 'na';
 
-  const maxUsed = state?.maxDd ? state.maxDd.limit - state.maxDd.roomLeft : null;
+  // Floored at 0 — see ruleFigures.js.
+  const maxUsed = maxDdUsed(state?.maxDd);
   const maxPct = state?.maxDd?.limit ? maxUsed / state.maxDd.limit : 0;
   const target = state?.profitTarget ?? null;
   const { capital, pnl } = phaseFigures(stage);
@@ -231,7 +233,7 @@ export default function ChallengeCard({
                 {target ? (
                   <MiniMeter
                     label={stage.id === 'funded' ? 'Payout Target' : 'Profit Target'}
-                    value={target.current}
+                    value={targetProgress(target)}
                     limit={target.target}
                     pct={target.pctToTarget}
                     tone={stage.id === 'funded' ? 'payout' : 'target'}

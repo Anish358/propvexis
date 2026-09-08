@@ -57,7 +57,21 @@ export const NAV = [
       { to: '/settings/session', label: 'Session' },
     ],
   },
+
+  // DEV ONLY — the primitive review gallery. `dev: true` is a DATA flag, not a check:
+  // this file is JSX-free and node:test imports it directly, so reading
+  // import.meta.env here would fail in CI and nowhere else (see newAccountFlow.js's
+  // note on the same trap). Sidebar.jsx and App.jsx do the actual gating.
+  //
+  // It exists to review primitives against the REAL app cascade rather than a mockup,
+  // and it goes away when nothing is left `@design unreviewed`.
+  // See docs/architecture/PRIMITIVE-REVIEW-PLAN.md.
+  { to: '/test', label: 'Test', icon: 'test', dev: true },
 ];
+
+// Nav entries that only exist in development. Exported so the rail, the router and the
+// nav tests all agree on which they are, rather than each re-deciding.
+export const isDevOnly = (item) => item.dev === true;
 
 // A module whose children the SIDEBAR does not list, because the page draws its own
 // section rail (Settings.jsx). It is declared here rather than checked inside the

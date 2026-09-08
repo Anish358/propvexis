@@ -1,3 +1,9 @@
+/* card.jsx
+ *
+ * @design approved 2026-09-06 — visible on the locked dashboard (the card shell under all of the above).
+ *   The owner signed that page off and DESIGN-LANGUAGE was written from it.
+ */
+
 import { Card as UICard } from '@/components/ui/card';
 
 export {
@@ -78,6 +84,17 @@ function Card({ hover = false, flush = false, spacing = 'md', gap = false, class
   return (
     <UICard
       className={[
+        /* THE CARD RADIUS IS THE ONE PLACE WE DEVIATE FROM THE PRESET (§6, owner
+         * 2026-09-07). The whole `--radius-*` scale is the preset's now — 6/8/10/14/16/
+         * 24/32 — and the generated card asks for `min(--radius-4xl, 24px)` = 24px.
+         * Ours stays 14, which is what the dashboard was signed off at and what the
+         * owner's mockup draws.
+         *
+         * It is pinned HERE and not in bridge.css deliberately: `dialog.jsx` and
+         * `alert-dialog.jsx` read the same `--radius-4xl`, so capping the token would
+         * have dragged every dialog back down to a card's roundness. A single deviation
+         * belongs in the wrapper that owns it. */
+        'rounded-[var(--r-2xl)]',
         SPACING[spacing] ?? SPACING.md,
         // See the header: the card imposes no vertical rhythm unless asked, because
         // the pages' own CSS already supplies it via child margins.
@@ -86,9 +103,16 @@ function Card({ hover = false, flush = false, spacing = 'md', gap = false, class
         // Clipping rides with `flush`, per the header — everything else must be free
         // to show a popover that overhangs its edge.
         flush ? '[--card-spacing:0px] overflow-hidden p-0' : 'overflow-visible px-(--card-spacing)',
-        // `.u-card--hover` brightened the border on hover. The library card has a
-        // ring rather than a border, so the equivalent is to brighten the ring.
-        hover && 'transition-[box-shadow] hover:ring-foreground/20',
+        /* NO HOVER STATE (owner, 2026-09-07, preset parity). This carried
+           `hover && 'transition-[box-shadow] hover:ring-foreground/20'` — a port of
+           legacy `.u-card--hover`, which brightened the border, translated to brightening
+           the ring the library card wears instead. The preset's card has no hover state
+           at all, and NO CALLER IN THIS APP EVER PASSED `hover`, so the rule was carried
+           forward from a vocabulary rather than from a need.
+           The prop is still SWALLOWED rather than deleted: it stays in `ui.jsx`'s
+           vocabulary (see the header), and a `hover` that fell through to `...rest` would
+           reach the DOM as an unknown attribute and warn. It now does nothing, which is
+           the preset's behaviour. */
         className,
       ].filter(Boolean).join(' ')}
       {...rest}

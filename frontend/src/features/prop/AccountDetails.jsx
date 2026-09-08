@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, Coins, Target } from 'lucide-react';
 import { Meter, MeterRow } from '@/components/primitives';
 import { fmtMoney } from '../../lib/metrics.js';
 import { roomStatus } from './PropOS.jsx';
+import { maxDdUsed, targetProgress } from './ruleFigures.js';
 
 // ---------------------------------------------------------------------------
 // Account Details — the three rule meters (Daily drawdown, Max drawdown, Profit
@@ -80,7 +81,9 @@ export default function AccountDetails({ data, onSetTarget = null }) {
   const maxSt = roomStatus(data.maxDd?.fracRemaining, data.maxDd?.breached);
   const daySt = roomStatus(data.dailyDd?.fracRemaining, data.dailyDd?.breached);
 
-  const maxUsed = data.maxDd ? data.maxDd.limit - data.maxDd.roomLeft : null;
+  // FLOORED AT 0 — see ruleFigures.js. `limit - roomLeft` goes negative on an account
+  // in profit, and this is the meter that ends accounts.
+  const maxUsed = maxDdUsed(data.maxDd);
   const maxPct = data.maxDd?.limit ? maxUsed / data.maxDd.limit : 0;
   const dayPct = data.dailyDd?.limit ? data.dailyDd.usedToday / data.dailyDd.limit : 0;
   const fundedProfit = data.currentEquity != null && data.startBalance != null
@@ -88,6 +91,23 @@ export default function AccountDetails({ data, onSetTarget = null }) {
     : null;
 
   return (
+    /* NOT KEYED ON THE ACCOUNT — THE BARS TWEEN ACROSS A SWITCH. Owner decision,
+     * 2026-09-03, taken over the objection recorded here so it is not silently undone.
+     *
+     * Adding `key={data.account_id}` would remount this row, and the meters would then
+     * paint the new account’s figures outright instead of travelling to them. That was
+     * the original build, for a real reason: a transition asserts that the thing it
+     * moves is the same thing it was a moment ago, and these bars measure ONE account’s
+     * consumed drawdown. Sliding from the 15K’s 66.7% to the 25K’s 33.3% draws a
+     * downward sweep — the most reassuring motion this card can make — on a click that
+     * changed nothing about the trader’s risk.
+     *
+     * The owner weighed that against the alternatives (fade the row in; grow each bar
+     * from zero) and chose the conventional tween, which is what every other dashboard
+     * does and what reads as least surprising. Recorded rather than argued: if the
+     * false-recovery reading ever shows up in real use, the fix is the key on this line
+     * plus the fade — both are one line each, and test/motion.test.js pins the current
+     * choice so a revert has to be deliberate. */
     <MeterRow>
       <UsageMeter
         label="Daily drawdown"
@@ -115,7 +135,7 @@ export default function AccountDetails({ data, onSetTarget = null }) {
       {data.profitTarget ? (
         <UsageMeter
           label={data.phase === 'funded' ? 'Payout target' : 'Profit target'}
-          used={data.profitTarget.current}
+          used={targetProgress(data.profitTarget)}
           limit={data.profitTarget.target}
           pct={data.profitTarget.pctToTarget}
           tone={data.phase === 'funded' ? 'payout' : 'target'}

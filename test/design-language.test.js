@@ -76,13 +76,17 @@ test('§7 — a surface that blocks the page is level 3; one that does not is le
 
 // ── §6 Radius ────────────────────────────────────────────────────────────────
 
-test('§6 — every floating overlay takes the card radius', () => {
-  // Decided rather than merely recorded: an overlay is a card that floats, so a menu and
-  // the card it opens over never disagree by two or three pixels.
+test('§6 — the radius scale matches the preset, and the card is the one exception', () => {
+  // The legacy overlays below still take --r-2xl. They are LEGACY rules on their way out
+  // (§1: delete, never patch); what governs generated components is the bridge mapping
+  // asserted further down.
   const overlays = [
     '.fp', '.fp-menu',
     '.bulk-menu', '.bs-pop', '.wcz-menu', '.explain-pop', '.toast',
-    '.modal', '.rp-modal', '.dle-panel',
+    /* `.modal` LEFT THIS LIST 2026-09-07 — the rule is deleted, not relaxed. The shell
+       owns its surface in `modal.jsx` now, and §6 gives a dialog its own 24px step (the
+       value `ui/dialog.jsx` asks for). Asserted below against the shell instead. */
+    '.rp-modal', '.dle-panel',
     // `.onb-card` left this list with the rule, when the first-run onboarding screen
     // became the Add Account wizard. Nothing replaces it, and that is not the rule
     // being relaxed: the wizard is a full-bleed PAGE, not a floating surface, so §6's
@@ -106,10 +110,42 @@ test('§6 — every floating overlay takes the card radius', () => {
   // `3xl` is the one that proves the test is worth having: the generated popover asks for
   // `rounded-3xl`, our scale stops at 2xl, and the mapping was MISSING — so the
   // notification feed would have rendered at Tailwind's 24px beside menus at 13px.
-  for (const step of ['2xl', '3xl', '4xl']) {
-    assert.match(bridgeCss, new RegExp(`--radius-${step}:\\s*var\\(--r-2xl\\)`),
-      `the preset's rounded-${step} must resolve to our card radius — see DESIGN-LANGUAGE §6`);
+  /* THE SCALE IS THE PRESET'S, AND THE CARD IS THE ONE EXCEPTION (§6 amended
+   * 2026-09-07, owner). `2xl`, `3xl` and `4xl` were all aliased onto `--r-2xl` (14px,
+   * our card radius), which collapsed three distinct steps into one — so controls,
+   * popovers and dialogs every one of them rendered at a card's roundness.
+   *
+   * What this test protects has not changed: a preset radius name must resolve to a
+   * value WE chose, never to whatever Tailwind happens to default to. It now checks
+   * that we chose the preset's, which is the same guarantee pointed at a new answer. */
+  const PRESET_RADIUS = { xl: '14px', '2xl': '16px', '3xl': '24px', '4xl': '32px' };
+  for (const [step, value] of Object.entries(PRESET_RADIUS)) {
+    assert.match(bridgeCss, new RegExp(`--radius-${step}:\\s*${value}`),
+      `the preset's rounded-${step} is ${value} — see DESIGN-LANGUAGE §6`);
   }
+  /* And the exception, pinned where a deviation belongs. The generated card asks for
+   * `min(--radius-4xl, 24px)` = 24px; ours stays 14. It is in the WRAPPER rather than
+   * the bridge because dialog.jsx and alert-dialog.jsx read the same token — capping it
+   * would have dragged every dialog down to a card's roundness. */
+  const cardPrim = readFileSync(
+    new URL('../frontend/src/components/primitives/card.jsx', import.meta.url), 'utf8',
+  );
+  assert.match(cardPrim, /rounded-\[var\(--r-2xl\)\]/,
+    'the card keeps our 14px radius — the single documented deviation from the preset');
+});
+
+test('§6 — a dialog takes its own 24px step, not the overlay radius', () => {
+  /* Amended 2026-09-07 (owner): every other floating surface keeps --r-2xl, but a
+   * dialog is much larger and reads as under-rounded at 14px. 24px is what the
+   * generated `ui/dialog.jsx` asks for, so the component matches the preview it was
+   * chosen from. The shell carries it because `.modal` no longer exists in CSS. */
+  const shell = readFileSync(
+    new URL('../frontend/src/components/primitives/modal.jsx', import.meta.url), 'utf8',
+  );
+  assert.match(shell, /rounded-\[24px\]/,
+    'the dialog shell must carry the 24px step — see DESIGN-LANGUAGE §6');
+  assert.ok(!/\.modal \{/.test(css),
+    '.modal must stay deleted from legacy CSS — the shell owns its surface');
 });
 
 test('§6 — the assignment rule is documented where it is enforced, on the Rhea scale', () => {
@@ -123,7 +159,11 @@ test('§6 — the assignment rule is documented where it is enforced, on the Rhe
    * scale is declared, and that the card step is documented as belonging to cards. */
   assert.match(tokensCss, /CARDS and floating overlays/,
     'tokens.css must still say which surface --r-2xl is for');
-  const RHEA = { '--r-sm': '5px', '--r-md': '6px', '--r-lg': '10px', '--r-input': '10px', '--r-xl': '12px', '--r-2xl': '14px', '--r-full': '99px' };
+  /* sm and md moved 5->6 and 6->8 (§6 amended 2026-09-07, owner): they take preset
+   * b2qLMFPP6's derived steps so a registry component arrives shaped right. The others
+   * did not move because they were ALREADY the preset's values — --r-lg 10px and
+   * --r-2xl 14px match it exactly, which nobody had noticed. */
+  const RHEA = { '--r-sm': '6px', '--r-md': '8px', '--r-lg': '10px', '--r-input': '10px', '--r-xl': '12px', '--r-2xl': '14px', '--r-full': '99px' };
   for (const [name, value] of Object.entries(RHEA)) {
     assert.match(tokensCss, new RegExp(`(?<![\\w-])${name}\\s*:\\s*${value}\\b`),
       `${name} must be ${value} on the Rhea scale — see DESIGN-LANGUAGE §6`);
@@ -195,4 +235,38 @@ test('§14 — a hover treatment on a menu row has a keyboard twin', () => {
     assert.match(legacyCss, new RegExp(`${esc}:hover`),
       `${sel} has a keyboard highlight but no hover — the pair must move together`);
   }
+});
+
+// ── §8 Dividers ──────────────────────────────────────────────────────────────
+
+test('§8 — a divider is full-width and never inset', () => {
+  /* Closed 2026-09-07 by adopting the preset's answer, which the generated components
+   * already drew: `Separator` is `h-px w-full bg-border`, and the menu separator is
+   * `-mx-1 my-1 h-px bg-border/50` — a NEGATIVE margin, so it goes full-bleed across a
+   * padded panel instead of stopping at the padding.
+   *
+   * The primitive is a bare re-export precisely because there was nothing to correct;
+   * this asserts the generated component still draws the rule, since a `shadcn add`
+   * could change it and the re-export would pass the change through silently. */
+  const gen = (f) => readFileSync(
+    new URL(`../frontend/src/components/ui/${f}`, import.meta.url), 'utf8',
+  );
+  assert.match(gen('separator.jsx'), /h-px/, 'a divider is 1px');
+  assert.match(gen('separator.jsx'), /w-full/, 'and spans its container — never inset');
+  assert.match(gen('dropdown-menu.jsx'), /-mx-1 my-1 h-px/,
+    'inside a padded panel a divider goes full-bleed, not to the padding');
+
+  /* And the half-strength half of the rule. The menu separator cannot use `bg-border/50`
+   * as generated — `border` is `--line`, an edge tuned to a #111114 CARD, invisible on a
+   * #18181b panel even at full strength. The wrapper keeps the STRUCTURE (the surface's
+   * own edge, halved) with the panel's edge instead. */
+  /* The wrapper needs NO override for this any more. `--color-border` is contextual, so
+   * the generated `bg-border/50` is already "half the current surface's edge" — a card's
+   * inside a card, a panel's inside a panel. What has to hold is that a floating panel
+   * declares the context; without it the divider silently falls back to a card's edge. */
+  const menu = readFileSync(
+    new URL('../frontend/src/components/primitives/menu.jsx', import.meta.url), 'utf8',
+  );
+  assert.match(menu, /data-overlay-surface/,
+    'a menu panel must declare the overlay context, or its divider uses a card edge');
 });

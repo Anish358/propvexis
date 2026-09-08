@@ -1,3 +1,10 @@
+/* toggle-group.jsx
+ *
+ * @design approved 2026-09-07 — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ */
+
 import React from 'react';
 import {
   ToggleGroup as UIToggleGroup,
@@ -61,7 +68,7 @@ const PILL = 'h-9 rounded-full border border-[var(--line-control)] bg-[var(--con
    a near-black bar is the strongest thing that can be drawn — so "which unit am I
    reading" is answerable from across a desk. */
 const PILL_ITEMS = [
-  '[&>*]:h-full [&>*]:rounded-full [&>*]:px-3 [&>*]:text-[13px] [&>*]:font-semibold',
+  '[&>*]:h-full [&>*]:rounded-full [&>*]:px-3 [&>*]:text-sm [&>*]:font-semibold',
   '[&>*[data-pressed]]:bg-[var(--action)] [&>*[data-pressed]]:text-[var(--on-action)]',
   '[&>*:not([data-pressed])]:text-[var(--text-3)]',
 ].join(' ');

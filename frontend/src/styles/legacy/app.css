@@ -178,17 +178,6 @@ body {
 .setup-liqrun { background: #14442e; color: #b9f0cf; }
 .setup-fractal { background: #4a2c14; color: #ffd2a8; }
 
-.prob-high { background: #14442e; color: var(--profit); }
-.prob-med { background: #5c4a14; color: #ffe08a; }
-.prob-low { background: #4a1d1a; color: #f0a6a2; }
-
-.mtf-a { background: #214a2c; color: #a6e0b8; }
-.mtf-a2 { background: #2c4a21; color: #c4e0a6; }
-.mtf-b { background: #1d3357; color: #bcd4ff; }
-.mtf-c { background: #244047; color: #b9e4f0; }
-.mtf-d { background: #4a3a14; color: #f0dba8; }
-.mtf-range { background: #3a2447; color: #e0c4f0; }
-
 /* Light theme for the palette above. These are rules rather than token
    overrides for the reason given at the top of this section, so the light
    variant has to be spelled out the same way. Same inversion as the token
@@ -196,14 +185,6 @@ body {
 /* ---- data-category palette (END) ---- */
 
 /* ---- modal ---- */
-.modal-backdrop {
-  position: fixed; inset: 0; background: var(--scrim-3);
-  display: flex; align-items: center; justify-content: center; padding: 24px;
-}
-.modal {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl);
-  width: 640px; max-width: 100%; padding: 24px; max-height: 90vh; overflow-y: auto;
-}
 .modal header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .modal h2 { margin: 0; font-size: 17px; }
 .modal .x { background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; }
@@ -255,7 +236,6 @@ label.full { margin-bottom: 16px; }
 
 /* ---- dashboard ---- */
 .dashboard { padding: 16px 24px; display: flex; flex-direction: column; gap: 16px; }
-.dash-loading { padding: 40px; color: var(--muted); text-align: center; }
 
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: var(--s-4); box-shadow: var(--sh-1); }
@@ -296,23 +276,11 @@ label.full { margin-bottom: 16px; }
 .page-body.dash-page-body { gap: 16px; }
 
 /* ---- page header ---- */
-.pagehead {
-  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-  padding: 16px 24px; border-bottom: 1px solid var(--line);
-}
-.ph-left { display: flex; align-items: center; gap: 16px; }
-.ph-menu { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
-.ph-menu span { width: 16px; height: 2px; background: var(--neutral-14); border-radius: 2px; }
-.ph-title { font-size: var(--fs-page-title); font-weight: var(--fw-semibold); }
-.ph-date { font-size: 12px; color: var(--muted); margin-top: 0px; }
-.ph-user { font-size: 16px; font-weight: 400; color: var(--ai); }
-.ph-right { display: flex; align-items: center; justify-content: flex-end; gap: 16px; grid-column: 3; justify-self: end; }
 /* With the page title/header gone, keep content off the top-bar edge on pages
    that don't wrap in a padded .dashboard container. */
 .prop-portfolio { padding-top: 24px; }
 .prop-single { padding: 24px; }
 .page > .panel { margin: 24px; }
-.live-dot { width: 12px; height: 12px; border-radius: 50%; position: relative; }
 .live-dot.on { background: var(--profit); box-shadow: 0 0 0 4px var(--profit)22, 0 0 12px var(--profit)88; }
 .live-dot.off { background: var(--neutral-10); }
 
@@ -320,54 +288,24 @@ label.full { margin-bottom: 16px; }
 .panel-title { font-size: var(--fs-card-title); font-weight: var(--fw-semibold); }
 
 /* ---- global filter bar ---- */
-.filterbar {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-  padding: 12px 24px; background: var(--neutral-2); border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 30;
-}
 /* PHASE 4c (2026-08-05) — `.fb-unit` / `.fb-unit-btn` are DELETED. The unit switch is
    a generated ToggleGroup now (FilterBar.jsx), and DESIGN-LANGUAGE "the preset
    outranks legacy CSS" is only implementable by removing the rule: this stylesheet is
    unlayered, so leaving it here would have silently beaten every utility the
    component emits. There were TWO copies of these three declarations — one here and a
    later override further down — which is its own argument for the deletion. */
-.fb-sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
-
-.fb-dates { display: inline-flex; align-items: center; gap: 8px; }
-.fb-date {
-  background: var(--panel); border: 1px solid var(--line); color: var(--text);
-  padding: 4px 8px; font-size: 12px; border-radius: 8px; color-scheme: dark;
-}
-.fb-date-sep { color: var(--muted); }
-.fb-clear {
-  margin-left: auto; background: var(--loss-bg); border: 1px solid var(--tint-loss-8); color: var(--loss);
-  padding: 8px 12px; font-size: 12px; border-radius: 8px; cursor: pointer; font-weight: 400;
-}
-.fb-clear:hover { background: var(--tint-loss-6); }
 
 .wcz { position: relative; }
-.wcz-btn {
-  background: var(--panel); border: 1px solid var(--line); color: var(--text);
-  padding: 8px 12px; font-size: 13px; border-radius: 8px; cursor: pointer;
-}
-.wcz-btn:hover { border-color: var(--line-strong); }
 .wcz-menu {
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 40; min-width: 220px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-2xl); padding: 8px;
   box-shadow: var(--sh-2);
 }
-.wcz-head { font-size: 11px; color: var(--muted); padding: 4px 8px 8px; }
 .wcz-opt { display: flex; align-items: center; gap: 8px; padding: 8px 8px; font-size: 13px; border-radius: 6px; cursor: pointer; }
 .wcz-opt:hover { background: var(--surface-hover); }
 .wcz-opt input { accent-color: var(--accent-on-surface); }
 .wcz-opt.blocked { cursor: not-allowed; color: var(--muted); }
 .wcz-opt.blocked:hover { background: transparent; }
-.wcz-reason { margin-left: auto; font-size: 10px; color: var(--neutral-11); font-style: italic; white-space: nowrap; }
-.wcz-reset {
-  width: 100%; margin-top: 8px; background: transparent; border: none; border-top: 1px solid var(--line);
-  color: var(--muted); padding: 8px; font-size: 12px; cursor: pointer;
-}
-.wcz-reset:hover { color: var(--text); }
 
 /* ---- Dashboard V1 ---- */
 .dash-banner {
@@ -399,12 +337,6 @@ label.full { margin-bottom: 16px; }
    section instead of another control. Warm tints because it is a sun — the one
    place in this card where colour is decoration, so it stays at the quietest
    step of the ladder. */
-.dash-banner-mark {
-  flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; border-radius: var(--r-full);
-  background: var(--tint-warn-2); border: 1px solid var(--tint-warn-6); color: var(--tint-warn-8);
-}
-.dash-banner-mark svg { width: 14px; height: 14px; }
 .dash-banner-head h3 { margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold); }
 /* Today's day + date, sitting with the title rather than centred between it and
    the gear: margin-right:auto absorbs the head's free space, which is also what
@@ -416,11 +348,6 @@ label.full { margin-bottom: 16px; }
 }
 /* Clock — a glyph instead of the dot separator this pair used to share, and
    tabular figures so the minute ticking over doesn't shift the text beside it. */
-.dash-banner-clock {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-variant-numeric: tabular-nums; color: var(--text-3);
-}
-.dash-banner-clock svg { width: 12px; height: 12px; }
 /* Quiet at rest so the control doesn't compete with the title — it only picks up
    a surface and border on hover. --r-md (8px), not the --r-lg button radius:
    this is a small square icon target, not a labelled button. Icon-only by
@@ -533,49 +460,16 @@ label.full { margin-bottom: 16px; }
 .dash-banner-empty { font-size: 12.5px; }
 /* Equal halves. `min-width: 0` is load-bearing on both — without it the event
    titles' ellipsis never engages and a long headline widens the column instead. */
-.dash-banner-news, .dash-banner-alerts { flex: 1 1 0; min-width: 0; }
 
 /* ---- upcoming economic events (left column) ----
    Each event is its own bordered row rather than a line of text: the row carries
    four facts (currency, headline, time, impact) and a flat list makes the reader
    re-find the columns on every line. */
-.dash-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.dash-event {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 10px; font-size: 12.5px; line-height: 1.3;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-xl);
-}
 /* Impact as a dot AND a badge at the other end of the row. The dot is scan-speed
    (four rows read as a shape), the badge is the actual word — colour is never the
    only carrier of the signal. */
-.dash-event-dot { flex: none; width: 6px; height: 6px; border-radius: var(--r-full); background: var(--text-3); }
-.dash-event.impact-high .dash-event-dot { background: var(--status-bad); }
-.dash-event.impact-medium .dash-event-dot { background: var(--status-warn); }
-.dash-event.impact-holiday .dash-event-dot { background: var(--status-info); }
 /* Plain text, not the pill it used to be: with a badge already ending the row, a
    second pill at the start made every event read as two tags around a title. */
-.dash-event-ccy {
-  flex: none; font-size: 10.5px; font-weight: var(--fw-medium); letter-spacing: 0.04em;
-  color: var(--text-3);
-}
-.dash-event-title {
-  flex: 1 1 auto; min-width: 0;
-  color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.dash-event-time { flex: none; color: var(--text-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.dash-event-impact {
-  flex: none; font-size: 10.5px; padding: 1px 7px; border-radius: var(--r-full);
-  background: var(--surface-hover); border: 1px solid var(--line); color: var(--text-3);
-}
-.dash-event.impact-high .dash-event-impact {
-  background: var(--tint-loss-3); border-color: var(--tint-loss-8); color: var(--tint-loss-13);
-}
-.dash-event.impact-medium .dash-event-impact {
-  background: var(--tint-warn-3); border-color: var(--tint-warn-6); color: var(--tint-warn-9);
-}
-.dash-event.impact-holiday .dash-event-impact {
-  background: var(--tint-payout-3); border-color: var(--tint-payout-5); color: var(--tint-payout-6);
-}
 
 /* ---- account alerts (right column) ----
    Full tinted rows, because an alert is a state and not a tag: the tint is what
@@ -586,14 +480,6 @@ label.full { margin-bottom: 16px; }
    hit, payout eligible), so green is the outcome it reports — but green is the
    money colour, and an info alert that is not about money would read wrong here.
    Revisit with §17 if a neutral info alert ever ships. */
-.dash-alert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.dash-banner-alert {
-  display: flex; align-items: flex-start; gap: 8px;
-  font-size: 12.5px; line-height: 1.35; padding: 8px 10px; border-radius: var(--r-xl);
-  background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
-}
-.dash-banner-alert svg { flex: none; width: 14px; height: 14px; margin-top: 1px; }
-.dash-banner-alert-title { min-width: 0; }
 .dash-banner-alert.crit {
   background: var(--tint-loss-2); border-color: var(--tint-loss-8); color: var(--tint-loss-13);
 }
@@ -613,7 +499,6 @@ label.full { margin-bottom: 16px; }
    and below reproduces the 62px the empty reserve occupied — filling the strip
    costs no extra page height. */
 .dash-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.dash-actions-left { display: flex; align-items: center; gap: 12px; }
 /* Status line, not a control: --text-2 and 12px keep it a step below the
    button beside it without dropping to --muted, which reads as disabled. */
 .dash-actions-status { font-size: 12px; color: var(--text-2); }
@@ -626,8 +511,6 @@ label.full { margin-bottom: 16px; }
    One class, not the two it used to need: `.u-btn--secondary`'s competing `color`
    is now a Tailwind variant living in a cascade layer, and this file is unlayered,
    so it wins on layer rather than on specificity. */
-.dash-actions-customize { color: var(--accent-on-surface); }
-.dash-actions-customize:hover { color: var(--blue-400); border-color: var(--accent-border-strong); }
 
 /* Column count comes from --kpi-count (set inline by Dashboard from the number
    of visible cards) so hiding a KPI in Customize re-splits the row evenly
@@ -644,16 +527,8 @@ label.full { margin-bottom: 16px; }
    23px value that used to sit here were the pre-polish values the four sibling cards
    fell back to, and keeping a superseded copy above the real one is how a later
    reader ends up editing the wrong rule. */
-.dash-stat-count {
-  display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 400;
-  color: var(--muted); background: var(--surface-2); border-radius: 999px; padding: 4px 8px;
-  text-transform: none; letter-spacing: 0;
-}
-.dash-stat-gauge-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* Gauge + its win/be/loss pills stacked as one column (pills sit centered
    under the arc, not next to the value) — used by Trade win % / Day win %. */
-.dash-stat-gauge-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.dash-stat-chips { display: flex; gap: 8px; margin-top: 4px; }
 .chip { font-size: 12px; font-weight: 400; padding: 4px 8px; border-radius: 10px; }
 .chip.win { background: var(--tint-profit-6); color: var(--profit); }
 .chip.loss { background: var(--tint-loss-4); color: var(--loss); }
@@ -664,7 +539,6 @@ label.full { margin-bottom: 16px; }
 .dash-stat-chips .chip { font-size: 10.2px; font-weight: var(--fw-regular); padding: 3.4px 6.8px; }
 .splitbar { height: 4.5px; border-radius: 3px; background: var(--loss)44; overflow: hidden; margin-top: 8px; }
 .splitbar-fill { height: 100%; background: var(--profit); border-radius: 3px; }
-.dash-stat-foot { display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px; }
 .dash-stat-foot .win { color: var(--profit); }
 .dash-stat-foot .loss { color: var(--loss); }
 
@@ -906,21 +780,11 @@ label.full { margin-bottom: 16px; }
 .dash-equity { display: flex; flex-direction: column; min-width: 0; }
 .dash-equity-head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
 .dash-equity-head h3 { margin: 0; font-size: var(--fs-section-title); font-weight: var(--fw-semibold); }
-
-.dash-acct-card { display: flex; flex-direction: column; gap: 16px; }
 /* Primary, full-width account card (Phase 2 layout) — the single selected
    prop account, spanning the dashboard's full width above the calendar row. */
-.dash-acct-card-wide { width: 100%; }
 /* ---- Account header (tab row) — plain text columns divided by hairlines,
    matching the metrics row's own divider style directly below it. Selection
    reads through name weight/color alone, no boxes or filled backgrounds. ---- */
-.dash-acct-header {
-  padding-bottom: 5px; border-bottom: 1px solid var(--line);
-}
-.dash-acct-tabs { display: flex; align-items: stretch; flex-wrap: nowrap; min-width: 0; }
-.dash-acct-tab-cell { display: flex; align-items: center; padding: 0 24px; flex: none; position: relative; min-width: 0; }
-.dash-acct-tab-cell:first-child { padding-left: 0; }
-.dash-acct-tab-cell:not(:first-child) { border-left: 1px solid var(--line); }
 /* Fixed-width account slots (not the +N link) — 288px (240px + 20%) each, so
    a cell's size never depends on how many accounts are visible (1, 2, or 3)
    or how long any one account's name is; long names just ellipsis-truncate
@@ -955,30 +819,11 @@ label.full { margin-bottom: 16px; }
 .dash-acct-tab-dot--good { background: var(--profit); }
 .dash-acct-tab-dot--warn { background: var(--status-warn); }
 .dash-acct-tab-dot--bad { background: var(--loss); }
-.dash-acct-tab-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; width: 100%; }
-.dash-acct-tab-name-row { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.dash-acct-tab-name {
-  font-size: 13px; font-weight: var(--fw-medium); color: var(--text-2); line-height: 1.2;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto;
-  transition: color 180ms var(--ease), font-weight 180ms var(--ease);
-}
 .dash-acct-tab.is-active .dash-acct-tab-name { font-size: 14px; font-weight: var(--fw-semibold); color: var(--text); }
 .dash-acct-tab:not(.is-active):hover .dash-acct-tab-name { color: var(--text); }
 /* Attention icon — only rendered for warn/bad (see AccountAlertIcon), so a
    healthy account never carries this element at all. */
-.dash-acct-tab-alert { display: inline-flex; flex: none; line-height: 0; }
-.dash-acct-tab-alert--warn { color: var(--status-warn); }
-.dash-acct-tab-alert--bad { color: var(--loss); }
-.dash-acct-tab-type {
-  font-size: 11px; font-weight: var(--fw-medium); color: var(--muted); line-height: 1.2;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
-}
 .dash-acct-more { display: flex; align-items: center; flex: none; }
-.dash-acct-more-btn {
-  display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none;
-  color: var(--text-2); font-size: 13px; font-weight: var(--fw-medium); padding: 4px 0; cursor: pointer;
-}
-.dash-acct-more-btn:hover { color: var(--text); }
 /* THE ACCOUNT OVERFLOW MENU. It used to carry `top`/`left`/`right` overrides on top of
    `.wcz-menu`'s `position: absolute`; the panel is a portaled `Menu` now and Base UI
    owns where it goes, so all that is left here is how WIDE it may be. A width, because
@@ -998,26 +843,16 @@ label.full { margin-bottom: 16px; }
    it after each name. */
 .dash-acct-menu-phase { flex: none; font-size: var(--fs-label); color: var(--muted); }
 
-@media (max-width: 760px) {
-  .dash-acct-tabs { overflow-x: auto; max-width: 100%; scrollbar-width: thin; }
-}
-
 /* Three equal sections (Daily DD / Max DD / Profit target) side by side,
    divided by hairlines — matches the Phase 2 wireframe's column split. */
-.dash-acct-usages-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: 4px 0; }
 .dash-acct-usages-grid > .dash-usage { padding: 0 24px; border-left: 1px solid var(--line); }
 .dash-acct-usages-grid > .dash-usage:first-child { padding-left: 0; border-left: none; }
-.dash-usage-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-.dash-usage-label { font-size: 11px; font-weight: 400; color: var(--text-2); }
 .prop-payout .dash-usage-label { color: var(--status); }
-.dash-usage-val { font-family: var(--font-mono); font-weight: 400; font-size: 14px; color: var(--status); }
 .dash-usage-val .muted { font-weight: 400; color: var(--muted); }
 /* Flex row — lets a trailing action (e.g. "Edit payout target") sit flush
    right of the descriptive text instead of inline after it. Safe for the
    plain-string subs on Daily/Max drawdown too: a single child in a flex row
    with justify-content: space-between renders identically to block. */
-.dash-usage-sub { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px; }
-.dash-usage-sub > span { min-width: 0; }
 /* Slimmer than the Prop OS page's own meters — this card is a glance, not a detail view. */
 .dash-usage .prop-meter-track, .dash-usage .prop-meter-fill { height: 7px; }
 .dash-usage-settarget {
@@ -1026,15 +861,6 @@ label.full { margin-bottom: 16px; }
 }
 .dash-usage-settarget--edit { color: var(--profit); }
 .dash-usage-settarget:hover { text-decoration: underline; }
-
-.dash-acct-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.dash-acct-days { font-size: 13px; color: var(--text-2); }
-
-.dash-acct-view {
-  background: transparent; border: none; color: var(--accent-on-surface);
-  font-size: 13px; font-weight: 400; padding: 0; cursor: pointer;
-}
-.dash-acct-view:hover { text-decoration: underline; }
 
 @media (max-width: 1100px) {
   .dash-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
@@ -1049,7 +875,6 @@ label.full { margin-bottom: 16px; }
 }
 
 @media (max-width: 760px) {
-  .dash-acct-usages-grid { grid-template-columns: 1fr; gap: 16px; }
   .dash-acct-usages-grid > .dash-usage { padding: 0; border-left: none; }
 }
 
@@ -1142,10 +967,6 @@ label.full { margin-bottom: 16px; }
   display: flex; flex-direction: column; padding: 24px 16px; height: 100vh;
   position: sticky; top: 0;
 }
-.sb-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; margin-bottom: 24px;
-}
 .sb-brand {
   display: flex; align-items: center; gap: 8px;
   font-weight: 800; font-size: 19px; letter-spacing: -0.02em;
@@ -1182,24 +1003,8 @@ label.full { margin-bottom: 16px; }
   display: flex; flex-direction: column; gap: 4px;
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
 }
-.sb-section { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin: 8px 8px 12px; }
-.sb-item {
-  display: flex; align-items: center; gap: 12px; padding: 12px 12px; border-radius: 8px;
-  color: var(--neutral-12); text-decoration: none; font-size: 14px; font-weight: 500;
-}
-.sb-item:hover { background: var(--surface-hover); color: var(--neutral-14); }
 .sb-item.active { background: var(--accent-bg); color: var(--accent-on-surface); }
-.sb-item svg { flex-shrink: 0; }
-
-.sb-account {
-  margin-top: auto; background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: 10px; padding: 16px;
-}
-.sb-account-label { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; display: flex; align-items: center; justify-content: space-between; }
-.sb-account-tag { font-size: 9px; letter-spacing: 1px; padding: 4px 8px; border-radius: 8px; background: var(--neutral-8); color: var(--neutral-12); }
 .sb-account-tag.live { background: var(--tint-profit-5); color: var(--profit); }
-.sb-account-balance { font-size: 22px; font-weight: var(--fw-semibold); margin-top: 4px; }
-.sb-account-start { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .sb-account-start .win { color: var(--profit); font-weight: 400; }
 .sb-account-start .loss { color: var(--loss); font-weight: 400; }
 
@@ -1227,19 +1032,6 @@ label.full { margin-bottom: 16px; }
 .at-cancel { background: transparent !important; border-color: var(--line) !important; color: var(--neutral-12) !important; }
 
 /* Manage-accounts modal */
-.modal-backdrop {
-  position: fixed; inset: 0; background: var(--scrim-4); z-index: 2147483000;
-  display: flex; align-items: center; justify-content: center; padding: 24px;
-  backdrop-filter: blur(2px);
-}
-.modal {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2xl);
-  width: 100%; max-width: 560px; max-height: 86vh;
-  /* hidden x + auto y: a lone `overflow-y: auto` makes overflow-x compute to
-     auto too, which spawns a stray horizontal scrollbar. Pin x to hidden. */
-  overflow: hidden auto;
-  box-shadow: var(--sh-3); position: relative; z-index: 1;
-}
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .modal-head h3 { margin: 0; font-size: var(--fs-section-title); }
 .modal-x { background: transparent; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
@@ -1250,21 +1042,11 @@ label.full { margin-bottom: 16px; }
 .acct-copy { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .acct-copy code { flex: 1; overflow-x: auto; white-space: nowrap; padding: 4px 8px; }
 .acct-copy button { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent-on-surface); border-radius: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer; }
-.acct-created { margin: 4px 24px 0; background: var(--tint-profit-3); border: 1px solid var(--profit-border); border-radius: 10px; padding: 12px; }
-.acct-created-head { color: var(--profit); font-size: 13px; font-weight: var(--fw-semibold); }
 .acct-add-row { display: flex; gap: 8px; }
 /* kind picker (manual bucket vs live EA sync) in the add-account form */
 .acct-kind { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.acct-kind-opt {
-  display: flex; gap: 12px; align-items: flex-start; padding: 12px 12px;
-  border: 1px solid var(--line); border-radius: 9px; cursor: pointer; background: var(--sidebar-bg);
-}
 .acct-kind-opt.sel { border-color: var(--accent-border); background: var(--accent-bg); }
 .acct-kind-opt.disabled { opacity: 0.55; cursor: not-allowed; }
-.acct-kind-opt input { margin-top: 4px; }
-.acct-kind-opt span { display: flex; flex-direction: column; gap: 4px; }
-.acct-kind-opt b { font-size: 13px; color: var(--text); }
-.acct-kind-opt small { font-size: 11.5px; color: var(--muted); }
 .acct-kind-upsell { font-size: 12px; color: var(--muted); margin: -4px 0 12px; }
 .acct-kind-upsell a { color: var(--accent-on-surface); }
 .import-account { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
@@ -1332,15 +1114,6 @@ label.full { margin-bottom: 16px; }
 .acct-opt-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Signed-in user + logout (bottom of sidebar) */
-.sb-user {
-  display: flex; align-items: center; gap: 12px; margin-top: 16px;
-  padding-top: 16px; border-top: 1px solid var(--line);
-}
-.sb-user-pic { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; }
-.sb-user-meta { min-width: 0; flex: 1; }
-.sb-user-name { font-size: 13px; font-weight: 400; color: var(--text); display: flex; align-items: center; gap: 8px; }
-.sb-user-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.sb-user-email { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-plan-badge {
   flex-shrink: 0; font-size: 9px; font-weight: 400; letter-spacing: 0.04em;
   padding: 4px 8px; border-radius: 6px; text-decoration: none;
@@ -1348,12 +1121,8 @@ label.full { margin-bottom: 16px; }
 }
 .sb-plan-badge.pro { background: var(--accent-bg); color: var(--accent-on-surface); border-color: var(--accent-border); }
 .sb-plan-badge.premium { background: var(--tint-warn-4); color: var(--tint-warn-9); border-color: var(--tint-warn-6); }
-.sb-upgrade { display: inline-block; margin-top: 4px; font-size: 11px; color: var(--accent-on-surface); text-decoration: none; }
-.sb-upgrade:hover { text-decoration: underline; }
 
 /* Free-plan upgrade prompt inside the accounts modal */
-.acct-upgrade { padding: 16px 24px; text-align: center; }
-.acct-upgrade p { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
 
 /* Billing / pricing page */
 .billing { padding: 24px 32px; max-width: 980px; }
@@ -1413,11 +1182,6 @@ label.full { margin-bottom: 16px; }
 .import-actions button { border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
 .import-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
 .import-done-head { color: var(--profit); font-size: 14px; font-weight: 400; margin-bottom: 8px; }
-.sb-logout {
-  background: transparent; border: 1px solid var(--line); color: var(--neutral-12);
-  border-radius: 8px; padding: 8px 12px; font-size: 12px; cursor: pointer; flex-shrink: 0;
-}
-.sb-logout:hover { background: var(--tint-loss-7); border-color: var(--red); color: var(--loss); }
 
 /* Loading splash + login screen */
 .app-splash {
@@ -1776,14 +1540,6 @@ label.full { margin-bottom: 16px; }
 .explain-pop b { color: var(--text); font-weight: 400; }
 
 /* Dashboard header: Total payout chip (top-right, in the title row) */
-.ph-payout {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 0px;
-  background: var(--tint-payout-1); border: 1px solid var(--tint-payout-4); border-radius: 10px;
-  padding: 8px 16px; cursor: pointer;
-}
-.ph-payout:hover { border-color: var(--tint-payout-5); background: var(--tint-payout-3); }
-.ph-payout-label { font-size: 10px; color: var(--tint-payout-6); }
-.ph-payout-val { font-size: 16px; font-weight: 400; color: var(--tint-payout-7); }
 
 /* Payouts modal */
 .payouts-modal { max-width: 480px; padding-bottom: 16px; }
@@ -1970,100 +1726,26 @@ label.full { margin-bottom: 16px; }
    (touch-action stops a touch-drag scrolling the panel instead of moving a tile). */
 .dle-panel.is-dragging { user-select: none; touch-action: none; }
 
-.dle-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.dle-head h2 { margin: 0; font-size: 15px; font-weight: var(--fw-semibold); }
-.dle-head-actions { display: flex; align-items: center; gap: 8px; }
-.dle-reset {
-  background: transparent; border: 1px solid var(--line); color: var(--text-2);
-  border-radius: var(--r-md); padding: 5px 12px; font-size: 12px; cursor: pointer;
-}
-.dle-reset:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
-.dle-reset:disabled { opacity: .45; cursor: default; }
-.dle-x {
-  background: transparent; border: none; color: var(--text-3); cursor: pointer;
-  font-size: 18px; line-height: 1; padding: 0 4px;
-}
-.dle-x:hover { color: var(--text); }
-.dle-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
-
-.dle-canvas { display: flex; flex-direction: column; gap: 10px; }
-
 /* A major section. The outline groups its contents; the section itself is only
    draggable by its grip, so a pointerdown inside it is unambiguously a widget
    drag rather than a section drag. */
-.dle-section {
-  border: 1px solid var(--line); border-radius: var(--r-md);
-  padding: 8px; background: transparent;
-}
-.dle-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.dle-section-name {
-  flex: 1 1 auto; min-width: 0;
-  font-size: 10px; color: var(--muted);
-}
-.dle-grip {
-  flex: none; display: inline-flex; padding: 3px; border-radius: var(--r-sm);
-  color: var(--text-3); cursor: grab; touch-action: none;
-}
-.dle-grip:hover { color: var(--text); background: var(--surface-hover); }
-.dle-grip:focus-visible { outline: none; color: var(--text); box-shadow: 0 0 0 2px var(--accent-on-surface); }
 
 /* Wireframe tile: outline + centered name, no content. Shared by KPI cards and
    grid widgets so both read as the same kind of object. */
-.dle-tile {
-  position: relative;
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
-  background: var(--surface-2);
-  cursor: grab; touch-action: none; min-width: 0;
-  /* transform is driven by the FLIP animation in JS — declaring a transition for
-     it here would fight the explicit one it sets per move. */
-  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-.dle-tile:hover { border-color: var(--accent-border-strong); background: var(--surface-hover); }
-.dle-tile:focus-visible { outline: none; border-color: var(--accent-on-surface); box-shadow: 0 0 0 2px var(--accent-bg); }
-.dle-tile-name {
-  font-size: 10px; color: var(--text-2); text-align: center; line-height: 1.25;
-  padding: 0 4px; overflow: hidden; text-overflow: ellipsis;
-}
 /* The tile in hand. It STAYS in the list and becomes the drop indicator — a
    dashed hole showing exactly where it will land — while the others animate
    around it. pointer-events:none is what lets the hit-test see the tile
    underneath the cursor instead of this one. */
-.dle-tile.is-ghost, .dle-section.is-ghost {
-  opacity: .45; border-style: dashed; border-color: var(--accent-on-surface);
-  background: var(--accent-bg); pointer-events: none; cursor: grabbing;
-}
 
 /* KPI row — five equal tiles, reorderable only among themselves. */
-.dle-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.dle-kpi { height: 38px; }
 
 /* The content grid, mirroring the real one: same column count, same dense
    auto-flow, same size vocabulary — just a shorter row unit. Because both read
    `widgetSpan()` from dashLayout.js, the miniature can't disagree with the page. */
-.dle-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--dle-cols, 3), minmax(0, 1fr));
-  grid-auto-rows: 40px;
-  grid-auto-flow: row dense;
-  gap: 6px;
-}
 
 /* Today's Brief has no inner widgets — one plain block stands in for it. */
-.dle-block {
-  display: flex; align-items: center; justify-content: center; height: 38px;
-  border: 1px dashed var(--line-strong); border-radius: var(--r-sm);
-  font-size: 10px; color: var(--text-3);
-}
 
 /* Visibility control, on every tile and section head. */
-.dle-eye {
-  position: absolute; top: 2px; right: 2px;
-  display: inline-flex; padding: 2px; border-radius: var(--r-sm);
-  background: transparent; border: none; color: var(--text-3); cursor: pointer;
-}
-.dle-section-head .dle-eye { position: static; }
-.dle-eye:hover { color: var(--text); background: var(--surface-hover); }
 
 /* Hidden widgets leave the wireframe entirely, so this tray is the only route
    back short of Reset Layout. */
@@ -2071,21 +1753,9 @@ label.full { margin-bottom: 16px; }
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
   padding-top: 10px; border-top: 1px solid var(--line);
 }
-.dle-hidden-label {
-  font-size: 10px; color: var(--muted);
-  margin-right: 2px;
-}
-.dle-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 8px; border-radius: var(--r-full);
-  background: transparent; border: 1px dashed var(--line-strong);
-  color: var(--text-2); font-size: 11px; cursor: pointer;
-}
-.dle-chip:hover { color: var(--text); border-color: var(--accent-on-surface); border-style: solid; }
 
 @media (max-width: 560px) {
   /* Five KPI tiles at phone width are ~40px each — unreadable. Two rows instead. */
-  .dle-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ---- trade replay (candlestick playback) ---- */
@@ -2498,32 +2168,13 @@ label.full { margin-bottom: 16px; }
 
 /* ---- Module sub-nav (accordion sidebar; IA config in nav.js) ---- */
 .sb-group-head { width: 100%; background: none; border: none; font: inherit; cursor: pointer; text-align: left; position: relative; }
-.sb-chev { margin-left: auto; opacity: .55; transition: transform .15s ease; }
 .sb-group.open .sb-chev { transform: rotate(180deg); }
 .sb-group.open > .sb-group-head { color: var(--text); }
-.sb-sub { display: flex; flex-direction: column; margin: 4px 0 8px; padding-left: 16px; border-left: 1px solid var(--line); margin-left: 16px; }
-.sb-sub-item {
-  /* Scaled 1.06x to match .sb-item (below) so the expanded sub-nav reads as
-     the same design system, not a smaller leftover next to bigger parents. */
-  display: flex; align-items: center; gap: 8.48px; padding: 8.48px 12.72px; border-radius: 6px;
-  color: var(--muted); text-decoration: none; font-size: 13.78px;
-}
-.sb-sub-item:hover { background: var(--surface-hover); color: var(--text); }
 .sb-sub-item.active { background: var(--accent-bg); color: var(--accent-on-surface); }
-.sb-soon {
-  margin-left: auto; font-size: 9px;
-  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px;
-}
-@media (prefers-reduced-motion: reduce) { .sb-chev { transition: none; } }
 
 /* ---- Coming-soon stubs ---- */
 .coming-soon { text-align: center; max-width: 520px; margin: 40px auto; }
 .coming-soon h3 { margin: 12px 0 8px; }
-.cs-badge {
-  display: inline-block; font-size: 10px;
-  color: var(--accent-on-surface); background: var(--accent-bg); border: 1px solid var(--accent-border);
-  border-radius: 999px; padding: 4px 12px;
-}
 
 /* ---- Live sync (server-side MT5 terminal farm) ---- */
 .sync-modal { padding-bottom: 16px; }
@@ -2576,10 +2227,9 @@ label.full { margin-bottom: 16px; }
 :focus-visible { outline: 2px solid var(--accent-on-surface); outline-offset: 2px; border-radius: 3px; }
 
 /* Numeric surfaces use the mono family for tabular alignment of prices / R / P&L. */
-.num, .kpi-value, .cal-pnl, .cal-week-val, .tp-result-value, .prop-hero-equity,
-.sb-account-balance, .prop-gauge-score, .po-total-val,
+.num, .kpi-value, .cal-pnl, .cal-week-val, .tp-result-value, .prop-hero-equity, .prop-gauge-score, .po-total-val,
 .billing-card-price, .prop-meter-foot, .prop-pcard-score,
-.jo-kpi-value, .jo-trade-val, .dv-stat-value, .dash-usage-val,
+.jo-kpi-value, .jo-trade-val,
 .strat-stat-v, .strat-adh-sum-v, .strat-adh-sum-pct {
   font-family: var(--font-mono); font-feature-settings: 'tnum' 1, 'cv01' 1;
 }
@@ -2631,18 +2281,16 @@ label.full { margin-bottom: 16px; }
 .u-card--hover { transition: border-color var(--dur-fast) var(--ease); }
 .u-card--hover:hover { border-color: var(--line-strong); }
 
-/* ---- Badge ---- */
-.u-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  font: 600 11px/1 var(--font-sans);
-  padding: 4px 8px; border-radius: var(--r-full); border: 1px solid transparent;
-}
-.u-badge--neutral { background: var(--surface-2); color: var(--text-2); border-color: var(--line); }
-.u-badge--brand { background: var(--accent-bg); color: var(--accent-on-surface); border-color: var(--accent-border); }
-.u-badge--profit { background: var(--profit-bg); color: var(--profit); border-color: var(--profit-border); }
-.u-badge--loss { background: var(--loss-bg); color: var(--loss); border-color: var(--loss-strong); }
-.u-badge--warn { background: var(--tint-warn-4); color: var(--warning); border-color: var(--tint-warn-6); }
-.u-badge--ai { background: var(--ai-bg); color: var(--ai); border-color: var(--tint-ai-2); }
+/* ---- Badge — DELETED 2026-09-07, moved to the generated component ----
+   `.u-badge` and its six `.u-badge--<tone>` rules lived here. `primitives/badge.jsx`
+   now renders `ui/badge.jsx` and carries the six tones as Tailwind classes; the colour
+   tokens are the same ones these rules named, except `warn`'s background and `ai`'s
+   border, which had reached for the fenced `--tint-*` legacy tints and are now
+   `--warning-bg` / `--ai-border` in tokens.css.
+   ONE CASUALTY, NAMED SO IT IS NOT A SURPRISE: `ui.jsx` — the dead Phase-1 layer kept
+   as a kill switch — still writes `u-badge` on line 49, and its Badge is now unstyled.
+   Nothing imports `ui.jsx`, so nothing renders it; the switch simply no longer covers
+   this one component. */
 
 /* ---- Tabs — design-system standard for any multi-view/filter/category
    switcher (Recent Trades/Open Positions, the Dashboard account selector,
@@ -2743,8 +2391,6 @@ label.full { margin-bottom: 16px; }
 .jo-recent-table td { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .jo-recent-table tbody tr:last-child td { border-bottom: none; }
 .jo-recent-table th.jo-rt-val, .jo-recent-table td.jo-rt-val { text-align: right; }
-.jo-rt-date { color: var(--text-3); }
-.jo-rt-symbol { font-weight: 400; }
 
 .jo-modules { display: grid; gap: 12px; }
 .jo-mod { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); text-decoration: none; color: var(--text); transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
@@ -3204,36 +2850,21 @@ label.full { margin-bottom: 16px; }
   padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: var(--z-nav);
 }
-.tb-left, .tb-right { display: flex; align-items: center; gap: 8px; }
 /* .tb-left can be empty (sidebar showing, unrecognized route). Collapse it away
    or .topbar's 12px gap leaves a phantom indent before the page-actions slot. */
-.tb-left:empty { display: none; }
 
 /* Current page name. Resolved from the same NAV config the sidebar renders, so
    the two can't drift. Inside a module it reads "Trade Journal › Analytics" —
    the module matters because both Journal and Prop OS have an Analytics page.
    Sized as a label, not a page heading: the sidebar already marks where you are,
    this just names it, so it stays quieter than the sidebar's active item. */
-.tb-title {
-  display: flex; align-items: center; gap: 6px;
-  margin: 0; min-width: 0;
-  /* 18px — deliberately between --fs-section-title (16px) and --fs-page-title
-     (24px), which would crowd a bar whose controls are 30px tall. Hierarchy
-     between module and page comes from color + weight below, so both parts stay
-     one size. */
-  font-size: 18px; font-weight: 400; white-space: nowrap;
-}
 /* PHASE 4c (2026-08-05) — `.tb-icon-btn` is DELETED. The theme switch is a generated
    ghost Button at `size="icon-sm"`, which is where its square, hover and focus ring
    come from now. The bell it was written to match is the same component at the same
    size, so "the group stays evenly spaced" is now true by construction rather than by
    two rules agreeing on 30px. */
-
-.tb-title-module { color: var(--text-3); }
 /* The separator is generated rather than markup — it only exists when there's a
    module to separate from. */
-.tb-title-module::after { content: '›'; margin-left: 6px; }
-.tb-title-page { color: var(--text); font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; }
 
 /* PHASE 4c (2026-08-05) — the unit toggle's second copy of `.fb-unit` / `.fb-unit-btn`
    is DELETED with the first (see the filter-bar section above). */
@@ -3522,11 +3153,6 @@ label.full { margin-bottom: 16px; }
    every label. Width is A1, so it stays here and `menu.jsx` passes `w-auto` to cancel
    the anchor width. */
 .tb-user-menu { min-width: 240px; }
-.tb-user-head { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px; }
-.tb-user-id { display: flex; flex-direction: column; min-width: 0; }
-.tb-user-name { font-size: 13px; font-weight: 400; color: var(--text); }
-.tb-user-email { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tb-user-plan { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 8px; font-size: 12px; }
 /* PRESET SKIN (2026-08-05). `.tb-menu-sep`, `.tb-menu-item` and its `.danger` variant
    are all deleted — the generated dropdown-menu owns item padding, radius, size, text
    colour, hover and the separator, and `variant="destructive"` replaces `.danger`
@@ -3557,8 +3183,6 @@ label.full { margin-bottom: 16px; }
 /* Sidebar — tighter nav + bottom-left sign-out footer */
 /* Nav item text/spacing scaled by 1.06 (13->13.78, 8/12->8.48/12.72) to match
    the 1.06x icon bump in Sidebar.jsx — radius stays a fixed system token. */
-.sb-item { padding: 8.48px 12.72px; border-radius: var(--r-md); font-size: 13.78px; gap: 12.72px; }
-.sb-item:hover { background: var(--surface-hover); color: var(--text); }
 
 /* Account switcher in the top bar — menu opens downward + right-aligned.
    PHASE 4c (2026-08-05) — the `.tb-acct .acct-switch-btn` override is DELETED along
@@ -3582,9 +3206,6 @@ label.full { margin-bottom: 16px; }
 .tb-acct .acct-menu { min-width: 220px; }
 
 /* Page header — ghost hamburger (fewer boxed elements) */
-.ph-menu { background: transparent; border: 1px solid transparent; }
-.ph-menu:hover { background: var(--surface-hover); }
-.ph-menu span { background: var(--text-2); }
 
 /* ============================================================
    Neutral chrome — active/selected states are grayscale, not tinted. Accent
@@ -3612,7 +3233,6 @@ label.full { margin-bottom: 16px; }
 .acct-kind-opt.sel { background: var(--sel-bg); border-color: var(--line-strong); }
 .nav button.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .prop-phase.active { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
-.cs-badge { background: var(--sel-bg); color: var(--text-2); border-color: var(--line); }
 .wcz-opt input, .ts-col-opt input { accent-color: var(--text-2); }
 .sb-plan-badge.pro { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 
@@ -3637,9 +3257,8 @@ label.full { margin-bottom: 16px; }
    ============================================================ */
 
 /* ---- Metric / eyebrow labels → Medium ---- */
-.kpi-label, .wcz-head, .dash-banner-label, .dash-usage-label, .billing-card-name,
-.ph-payout-label, .po-total-label, .tp-field-label, .tp-section-title,
-.strat-stat-l, .strat-arch-label, .strat-adh-sum-tag, .jo-kpi-label, .dv-stat-label,
+.kpi-label, .dash-banner-label, .billing-card-name, .po-total-label, .tp-field-label, .tp-section-title,
+.strat-stat-l, .strat-arch-label, .strat-adh-sum-tag, .jo-kpi-label,
 .log-grid th, .summary-table th, .day-table th, .jo-recent-table th, .prop-insight-dim h4 {
   font-weight: var(--fw-medium);
 }
@@ -3654,10 +3273,9 @@ label.full { margin-bottom: 16px; }
    their own weight (`font-normal`) at the call site, per DESIGN-LANGUAGE §3 weight
    discipline: a two-character number in a 16px pill does not need emphasis to be
    read. */
-.pill, .chip, .cal-stats-pill, .cal-week-days, .dash-event-impact, .dash-stat-count,
+.pill, .chip, .cal-stats-pill, .cal-week-days,
 .import-stat, .log-untagged, .tp-badge, .rp-dir, .prop-phase, .prop-mode,
-.conn, .auto-hint, .po-src, .sb-soon,
-.cs-badge, .precision-chip, .rule-chip, .prop-reason-chip {
+.conn, .auto-hint, .po-src, .precision-chip, .rule-chip, .prop-reason-chip {
   font-weight: var(--fw-semibold);
 }
 
@@ -3666,7 +3284,7 @@ label.full { margin-bottom: 16px; }
    the classes themselves. Both controls are generated components now and take their
    weight from the preset (`font-medium`), which is the 500 step this 600 rule was
    approximating before the foundation existed. */
-.modal button.primary, .modal button.danger, .fb-clear,
+.modal button.primary, .modal button.danger,
 .acct-template-apply, .cal-today-btn, .add-trade-btn, .at-actions button, .ea-download,
 .import-actions .primary, .view-tab, .ts-open-btn, .tp-replay-btn, .rp-tf-btn,
 .rp-retry, .rp-speed, .strat-add button, .strat-btn, .prop-controls .btn-primary,
@@ -3680,7 +3298,7 @@ label.full { margin-bottom: 16px; }
   /* PHASE 4c — `.notif-bell` became `.notif`, the bell's container. The class it used
      to name is gone, and the container is the more honest target anyway: hiding the
      wrapper hides the trigger AND anything it opens. */
-  .sidebar, .filterbar, .pagehead, .pagehead-actions, .notif, .toasts, .no-print { display: none !important; }
+  .sidebar, .notif, .toasts, .no-print { display: none !important; }
   /* THE PALETTE FLIP MOVED TO tokens.css (2026-08-30). It was a `:root` block here, and
      this file is layered while tokens.css is not — so it never applied and every
      Save-as-PDF came out on the dark palette. See the note beside it there. */
@@ -4633,10 +4251,6 @@ label.full { margin-bottom: 16px; }
     /* Momentum scrolling inside the drawer without the page behind it moving
        (Layout also locks body scroll while it is open). */
     overscroll-behavior: contain;
-  }
-  .shell-scrim {
-    position: fixed; inset: 0; z-index: 55;
-    background: var(--scrim-3);
   }
 
   /* Touch targets. 44x44 is the floor; the rail's items are laid out for a

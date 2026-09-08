@@ -18,7 +18,9 @@ import { fileURLToPath } from 'node:url';
 // the only thing that makes those land on OUR scale instead of Tailwind's defaults. So
 // it is exported separately: tests that assert on a preset-skinned surface must read it,
 // and they should have to say so rather than getting it by accident in `appCss`.
-const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
+// LF whatever the checkout used — the reasoning is on `lf` in helpers/src-files.js.
+const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8')
+  .split('\r\n').join('\n');
 
 export const tokensCss = read('../../frontend/src/styles/tokens.css');
 export const legacyCss = read('../../frontend/src/styles/legacy/app.css');

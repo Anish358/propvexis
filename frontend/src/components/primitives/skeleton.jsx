@@ -1,3 +1,10 @@
+/* skeleton.jsx
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
+ */
+
 import { Skeleton as SkeletonBase } from '@/components/ui/skeleton';
 
 /* Skeleton — PropVexis primitive. The worked example of why this layer exists:

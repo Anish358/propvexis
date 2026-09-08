@@ -12,7 +12,9 @@ import path from 'node:path';
 // route files, and still fails if the route is deleted.
 export const srcDir = fileURLToPath(new URL('../../src', import.meta.url));
 
-const read = (rel) => readFileSync(path.join(srcDir, rel), 'utf8');
+// LF whatever the checkout used — the reasoning is on `lf` in helpers/src-files.js.
+const lf = (text) => text.split('\r\n').join('\n');
+const read = (rel) => lf(readFileSync(path.join(srcDir, rel), 'utf8'));
 
 export const routeFiles = existsSync(path.join(srcDir, 'routes'))
   ? readdirSync(path.join(srcDir, 'routes')).filter((f) => f.endsWith('.js')).sort()

@@ -203,6 +203,22 @@ export function PropFields({ v, set }) {
         <span>Min trading days</span>
         <input type="number" step="1" value={v.min_trading_days} onChange={(e) => set('min_trading_days', e.target.value)} placeholder="0" />
       </label>
+      {/* THE CONSISTENCY RULE (migration 0032). No toggle here, unlike the Add Account
+          wizard: this form is a plain grid of numbers where BLANK already means "this
+          account has no such rule" for every optional field on it, and a switch in one
+          cell of the old look would be the only one of its kind. Clearing the box is
+          how the rule is turned off, and numOrNull sends that as null.
+          A 0 typed here is not refused by the PATCH route the way the wizard's provision
+          refuses it — but consistencyState reads any cap that is not > 0 as no rule at
+          all, so the worst a 0 can do is switch the rule off. */}
+      <label>
+        <span>Consistency (%)</span>
+        <input
+          type="number" step="0.1" value={v.consistency_pct}
+          onChange={(e) => set('consistency_pct', e.target.value)}
+          placeholder="none"
+        />
+      </label>
       {v.account_type === 'eval' && (
         <label>
           <span>Profit target (%)</span>
@@ -230,6 +246,7 @@ export const toPayload = (v) => ({
   payout_split_pct: numOrNull(v.payout_split_pct),
   dd_type: v.dd_type || 'static',
   min_trading_days: numOrNull(v.min_trading_days),
+  consistency_pct: numOrNull(v.consistency_pct),
   firm_id: v.firm_id || null,
   firm_name: v.firm_name || null,
   product_id: v.product_id || null,
@@ -244,6 +261,7 @@ export const formFrom = (a) => ({
   payout_split_pct: a?.payout_split_pct ?? '',
   dd_type: a?.dd_type || 'static',
   min_trading_days: a?.min_trading_days ?? '',
+  consistency_pct: a?.consistency_pct ?? '',
   firm_id: a?.firm_id ?? null,
   firm_name: a?.firm_name ?? null,
   product_id: a?.product_id ?? null,
@@ -261,6 +279,12 @@ export const applyTemplateToForm = (prev, fields) => ({
   payout_split_pct: fields.payout_split_pct ?? '',
   dd_type: fields.dd_type ?? 'static',
   min_trading_days: fields.min_trading_days ?? '',
+  /* consistency_pct is DELIBERATELY ABSENT, so applying a template leaves whatever the
+     trader typed. templateToFields resolves only the rules the firm templates actually
+     record, and not one of them carries a consistency cap — the numbers differ per firm
+     AND per phase and we hold none of them. Listing it here would read
+     `fields.consistency_pct ?? ''` and wipe a real cap on every template click, which
+     is a silent loss of the one rule on this form that nothing else can restore. */
   firm_id: fields.firm_id ?? null,
   firm_name: fields.firm_name ?? null,
   product_id: fields.product_id ?? null,

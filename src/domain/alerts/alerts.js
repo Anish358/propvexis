@@ -151,6 +151,34 @@ export function phaseOutcomeAlert({ accountId, label, phase, status, reason, cha
   };
 }
 
+/**
+ * AN ACCOUNT CLOSED ITSELF — the 7-day auto-acknowledgement speaking up.
+ *
+ * WHY IT IS A SEPARATE ALERT AND NOT A FLAG ON phaseOutcomeAlert. That one's dedupKey
+ * is `<account>:phase_passed:<challenge>`, and it has already fired for this exact
+ * challenge — on the day it settled. Reusing it would dedup this message into silence,
+ * which is the one outcome we are trying to avoid: the dashboard's totals are about to
+ * change and nobody has been told why. Its own key, its own message.
+ *
+ * IT DOES NOT CARRY THE AMOUNT, unlike the strip, and that is a deliberate trade rather
+ * than an oversight: the sweep closes accounts in bulk on a worker tick, and pricing
+ * each one would put a per-account P&L query inside a loop that runs on every poll. The
+ * message says which account left and where it went, which is what someone reading it
+ * on day 8 actually needs — the figure is one click away in Analytics.
+ */
+export function accountAutoClosedAlert({ accountId, label, phase, status, challengeId }) {
+  const acct = label || `Account ${accountId}`;
+  const name = PHASE_LABEL[phase] ?? phase;
+  return {
+    type: 'account_closed',
+    severity: 'info',
+    title: `${acct} moved to ${status === 'breached' ? 'Breached' : 'Passed'}`,
+    body: `${name} settled a week ago and had no further trades, so this account has left the dashboard's active view. Its history is unchanged in Analytics and the Trade Log.`,
+    dedupKey: `${accountId}:auto_closed:${challengeId}`,
+    data: { account_id: accountId, phase, status },
+  };
+}
+
 // Explicit milestone for a manual phase advance (emitted by the advance route, not
 // on ingest — passing a phase is an action, not a state threshold).
 export function phasePassedAlert({ accountId, label, fromPhase, toPhase, challengeId }) {

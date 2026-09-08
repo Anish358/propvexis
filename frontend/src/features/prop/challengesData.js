@@ -25,6 +25,7 @@ import { findFirm, findProduct, phasesFor, UNLISTED_FIRM_ID } from './propFirms.
 import {
   PHASE_LABEL, accountRow, byRisk, tradingDaysRead,
 } from './propAccounts.js';
+import { maxDdUsed, targetProgress } from './ruleFigures.js';
 
 const round2 = (n) => (n == null || Number.isNaN(n) ? null : Math.round(n * 100) / 100);
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -321,7 +322,7 @@ export function currentStageMetrics({ state = null, challenge = null } = {}) {
       label: funded ? 'Payout Target' : 'Profit Target',
       kind: funded ? 'payout' : 'target',
       rulePct: challenge?.profit_target_pct ?? null,
-      current: t.current,
+      current: targetProgress(t),
       limit: t.target,
       frac: clamp01(t.pctToTarget ?? 0),
       reached: Boolean(t.reached),
@@ -330,7 +331,7 @@ export function currentStageMetrics({ state = null, challenge = null } = {}) {
 
   const md = state.maxDd;
   if (md) {
-    const used = round2(md.limit - md.roomLeft);
+    const used = maxDdUsed(md);
     out.push({
       key: 'maxDd',
       label: 'Max Drawdown',

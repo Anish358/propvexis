@@ -23,6 +23,11 @@ function shapeChallenge(r) {
     max_dd_pct: num(r.max_dd_pct),
     profit_target_pct: num(r.profit_target_pct),
     min_trading_days: r.min_trading_days ?? 0,
+    /* The consistency cap this phase was run under, or null for the accounts that
+     * have no such rule (migration 0032). `num` and not `?? 0`, unlike the line
+     * above: 0 days is a real rule ("no minimum") while a 0% consistency cap is
+     * unsatisfiable by any profitable account, so absence must stay absent. */
+    consistency_pct: num(r.consistency_pct),
     min_days_reset_on_payout: r.min_days_reset_on_payout,
     start_date: r.start_date,
     /* Is this the account's FIRST challenge row? The engine needs it to know whether
@@ -211,7 +216,7 @@ export async function equitySnapshotsForEngine(logins) {
 export async function createChallengeForAccount(accountId) {
   const { rows: a } = await query(
     `SELECT id, account_type, dd_type, start_balance, daily_dd_pct, max_dd_pct,
-            profit_target_pct, min_trading_days
+            profit_target_pct, min_trading_days, consistency_pct
        FROM mt5_accounts WHERE id = $1`,
     [accountId]
   );
@@ -220,12 +225,20 @@ export async function createChallengeForAccount(accountId) {
   const funded = t.account_type === 'funded';
   const { rows } = await query(
     `INSERT INTO challenges (mt5_account_id, phase, status, dd_type, start_balance,
-                             daily_dd_pct, max_dd_pct, profit_target_pct, min_trading_days)
-     VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8)
+                             daily_dd_pct, max_dd_pct, profit_target_pct, min_trading_days,
+                             consistency_pct)
+     VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (mt5_account_id) WHERE status = 'active' DO NOTHING
      RETURNING *`,
+    // The consistency cap copies across on EVERY phase, funded included — unlike the
+    // profit target, which a funded account cannot have. Firms apply this rule on
+    // either side and often on both (Apex funded only, Take Profit Trader evaluation
+    // only, Alpha Futures both at different caps), so there is no phase this engine
+    // may decide the rule does not exist on. The trader corrects the number if the
+    // firm's differs for the phase they just reached.
     [t.id, funded ? 'funded' : 'p1', t.dd_type, t.start_balance, t.daily_dd_pct,
-     t.max_dd_pct, funded ? null : t.profit_target_pct, t.min_trading_days]
+     t.max_dd_pct, funded ? null : t.profit_target_pct, t.min_trading_days,
+     t.consistency_pct]
   );
   return rows.length ? shapeChallenge({ ...rows[0], mt5_login: null }) : null;
 }
@@ -241,6 +254,11 @@ export async function syncActiveChallengeRules(accountId, fields) {
     profit_target_pct: 'profit_target_pct',
     dd_type: 'dd_type',
     min_trading_days: 'min_trading_days',
+    // Editing the cap in Settings must reach the LIVE challenge, or the engine keeps
+    // judging the old number while the form shows the new one — the drift this whole
+    // mirror exists to prevent. Nullable on both sides, so switching the rule off
+    // propagates as a null rather than being dropped.
+    consistency_pct: 'consistency_pct',
   };
   const sets = [];
   const params = [];
@@ -248,6 +266,20 @@ export async function syncActiveChallengeRules(accountId, fields) {
     if (key in fields) { params.push(fields[key]); sets.push(`${col} = $${params.length}`); }
   }
   if (!sets.length) return;
+  /* AND CORRECTED RULES CLEAR A SUPPRESSED OUTCOME (migration 0033).
+   *
+   * When a trader presses "Not passed yet", the engine stops re-settling that phase —
+   * otherwise the next ingest reads the same equity against the same rules and reaches
+   * the same verdict within seconds. But suppression only buys time; it is not the fix.
+   * When someone says a pass is wrong, the engine has usually not miscounted — the rules
+   * it was given are wrong. Wrong target, wrong minimum days, wrong start balance, wrong
+   * start date (that one has bitten this project already: start_date defaulted to now(),
+   * which under-counted trading days on every account added mid-challenge).
+   *
+   * So fixing the rules is the actual repair, and re-judging against corrected rules is
+   * something we WANT to happen immediately. Clearing here is what makes the escape
+   * hatch a real one rather than a permanently muted account. */
+  sets.push('suppressed_outcome = NULL');
   params.push(accountId);
   await query(
     `UPDATE challenges SET ${sets.join(', ')}
@@ -267,7 +299,7 @@ export async function advanceChallenge(userId, login, { toPhase, mark = 'passed'
     // Ownership + template in one lock.
     const { rows: acctRows } = await client.query(
       `SELECT id, start_balance, account_type, dd_type, daily_dd_pct, max_dd_pct,
-              profit_target_pct, min_trading_days
+              profit_target_pct, min_trading_days, consistency_pct
          FROM mt5_accounts WHERE user_id = $1 AND mt5_login = $2 FOR UPDATE`,
       [userId, login]
     );
@@ -286,11 +318,12 @@ export async function advanceChallenge(userId, login, { toPhase, mark = 'passed'
     const funded = toPhase === 'funded';
     const { rows } = await client.query(
       `INSERT INTO challenges (mt5_account_id, phase, status, dd_type, start_balance,
-                               daily_dd_pct, max_dd_pct, profit_target_pct, min_trading_days)
-       VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8)
+                               daily_dd_pct, max_dd_pct, profit_target_pct, min_trading_days,
+                               consistency_pct)
+       VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [a.id, toPhase, a.dd_type, a.start_balance, a.daily_dd_pct, a.max_dd_pct,
-       funded ? null : a.profit_target_pct, a.min_trading_days]
+       funded ? null : a.profit_target_pct, a.min_trading_days, a.consistency_pct]
     );
     await client.query('COMMIT');
     // Re-shape with the account's login for a consistent return shape; carry the

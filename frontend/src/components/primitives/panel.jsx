@@ -1,3 +1,9 @@
+/* panel.jsx
+ *
+ * @design approved 2026-09-06 — visible on the locked dashboard (PanelCard, the dashboard's card anatomy).
+ *   The owner signed that page off and DESIGN-LANGUAGE was written from it.
+ */
+
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -23,13 +29,25 @@ import { cn } from '@/lib/utils';
  * strip, its table header band and its rows all bleed to the border. Padding those from
  * the card would leave a 22px gutter of --surface beside a header band that is supposed
  * to span the card, which is the one thing a table header must not do. */
-export function PanelCard({ flush = false, className, children, ...rest }) {
+/* `narrow` trims the SIDE inset from the frame's 24 to 14, and it is a prop rather than
+ * a class for the reason §1 lists five times: Tailwind compiles utilities only under
+ * components/{ui,primitives}, so `className="px-3.5"` written at a call site in
+ * features/ emits nothing at all — silently. The vertical inset is untouched; only the
+ * gutters move.
+ *
+ * IT EXISTS FOR THE CALENDAR (owner, 2026-09-01). That panel is the one whose content is
+ * a seven-column GRID, so its side padding is not framing — it is width taken off eight
+ * cells that are already the narrowest thing on the dashboard. 10px back per side is 20px
+ * across the grid. Every other panel keeps 24: their content is prose, rows or a chart,
+ * none of which get better by being 20px wider. */
+export function PanelCard({ flush = false, narrow = false, className, children, ...rest }) {
   return (
     <section
       data-slot="panel"
       className={cn(
         'flex min-w-0 flex-col rounded-[14px] border border-[var(--line)] bg-[var(--surface)]',
-        flush ? 'overflow-hidden' : 'gap-[18px] px-6 pt-[22px] pb-6',
+        flush ? 'overflow-hidden' : 'gap-[18px] pt-[22px] pb-6',
+        !flush && (narrow ? 'px-3.5' : 'px-6'),
         className,
       )}
       {...rest}
@@ -54,10 +72,10 @@ export function PanelHead({ sub, meta, action, className, children, ...rest }) {
       {...rest}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <h3 className="flex flex-wrap items-center gap-2.5 text-[16px] leading-6 font-[650] tracking-[-0.15px] text-[var(--text)]">
+        <h3 className="flex flex-wrap items-center gap-2.5 text-base leading-6 font-[650] tracking-[-0.15px] text-[var(--text)]">
           {children}
         </h3>
-        {sub && <p className="m-0 text-[13px] leading-5 text-[var(--muted)]">{sub}</p>}
+        {sub && <p className="m-0 text-sm leading-5 text-[var(--muted)]">{sub}</p>}
       </div>
       {(meta || action) && (
         <div className="flex shrink-0 items-center gap-3">
@@ -91,12 +109,12 @@ export function PanelMeta({ label, tone, className, children, ...rest }) {
   return (
     <span
       data-slot="panel-meta"
-      className={cn('flex items-baseline gap-2.5 text-[12px] leading-5', className)}
+      className={cn('flex items-baseline gap-2.5 text-xs leading-5', className)}
       {...rest}
     >
       {label && <span className="text-[var(--text-4)]">{label}</span>}
       <span
-        className="font-mono text-[14px] font-semibold tabular-nums"
+        className="font-mono text-sm font-semibold tabular-nums"
         style={{ color: TONE[tone] || 'var(--text)' }}
       >
         {children}
@@ -114,7 +132,7 @@ export function PanelChip({ className, children, ...rest }) {
       data-slot="panel-chip"
       className={cn(
         'shrink-0 rounded-[6px] border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
-        'text-[11.5px] leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
+        'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
         className,
       )}
       {...rest}
@@ -128,7 +146,7 @@ export function PanelChip({ className, children, ...rest }) {
  * faint, and outside the scroller, so it is available without competing with the grid. */
 export function PanelHint({ className, children, ...rest }) {
   return (
-    <p data-slot="panel-hint" className={cn('m-0 text-[11.5px] leading-4 text-[var(--text-5)]', className)} {...rest}>
+    <p data-slot="panel-hint" className={cn('m-0 text-xs leading-4 text-[var(--text-5)]', className)} {...rest}>
       {children}
     </p>
   );
@@ -151,7 +169,7 @@ export function PanelTableHead({ cols, className, children, ...rest }) {
            prototype's numbers. 14px on 12px text is the ratio the browser's `normal`
            gives this face anyway. */
         'grid items-center bg-[var(--control-bg)] px-[18px] py-[11px]',
-        'text-[12px] leading-[14px] font-semibold text-[var(--text-2)]',
+        'text-xs leading-[14px] font-semibold text-[var(--text-2)]',
         className,
       )}
       style={{ gridTemplateColumns: cols }}
@@ -218,7 +236,7 @@ export function PanelTableCell({
         'truncate',
         // Both line-heights are measured, not derived — see PanelTableRow and the
         // header above, which is a pixel tighter for the reason recorded there.
-        head ? 'text-[12px] leading-[14px] font-semibold' : 'text-[12.5px] leading-[15px]',
+        head ? 'text-xs leading-[14px] font-semibold' : 'text-xs leading-[15px]',
         ALIGN[align] || ALIGN.left,
         !head && mono && 'font-mono tabular-nums',
         !head && (strong ? 'font-semibold' : 'font-normal'),
@@ -265,7 +283,7 @@ export const PanelFill = React.forwardRef(function PanelFill({ className, childr
  * it lines up with the rows above it rather than with the card's edge. */
 export function PanelLink({ render, className, children, ...rest }) {
   const classes = cn(
-    'flex items-center gap-1.5 px-4 pt-3 pb-3.5 text-[12.5px] leading-[15px] font-[550] no-underline',
+    'flex items-center gap-1.5 px-4 pt-3 pb-3.5 text-xs leading-[15px] font-[550] no-underline',
     'text-[var(--text-link)] transition-colors hover:text-[var(--text)]',
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     /* 14px, AND IT HAD NO SIZE AT ALL BEFORE — so the arrow rendered at lucide's
@@ -317,7 +335,7 @@ export function PanelTab({ selected = false, className, children, ...rest }) {
       data-slot="panel-tab"
       className={cn(
         // leading-[18px] is the prototype's — see PanelTableRow on why these are measured.
-        'border-b-2 px-3.5 pt-[15px] pb-[13px] text-[15px] leading-[18px] font-semibold tracking-[-0.1px]',
+        'border-b-2 px-3.5 pt-[15px] pb-[13px] text-base leading-[18px] font-semibold tracking-[-0.1px]',
         'transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         selected
           ? 'border-[var(--action-2)] text-[var(--text)]'
@@ -354,7 +372,7 @@ export function PanelRow({ className, children, ...rest }) {
     <div
       data-slot="panel-row"
       className={cn(
-        'flex items-center gap-3 border-b border-[var(--line)] py-2 text-[13px] leading-5 last:border-b-0',
+        'flex items-center gap-3 border-b border-[var(--line)] py-2 text-sm leading-5 last:border-b-0',
         className,
       )}
       {...rest}
@@ -372,7 +390,7 @@ export function PanelRowHead({ className, children, ...rest }) {
     <div
       data-slot="panel-row-head"
       className={cn(
-        'flex items-center gap-3 border-b border-[var(--line)] pb-2 text-[11px] leading-4 font-medium text-[var(--muted)]',
+        'flex items-center gap-3 border-b border-[var(--line)] pb-2 text-xs leading-4 font-medium text-[var(--muted)]',
         className,
       )}
       {...rest}
@@ -475,7 +493,7 @@ export function ActionStatus({ icon, tone, className, children, ...rest }) {
   return (
     <span
       data-slot="action-status"
-      className={cn('flex items-center gap-2 text-[13px] leading-5 text-[var(--muted)]', className)}
+      className={cn('flex items-center gap-2 text-sm leading-5 text-[var(--muted)]', className)}
       {...rest}
     >
       {icon && <span className="shrink-0 [&_svg]:size-4" style={{ color: TONE[tone] || 'var(--muted)' }}>{icon}</span>}
@@ -564,7 +582,7 @@ export function LoadingNote({ className, children, ...rest }) {
   return (
     <span
       data-slot="loading-note"
-      className={cn('flex items-center gap-2 text-[12px] leading-4 text-[var(--muted)] [&_svg]:size-3.5', className)}
+      className={cn('flex items-center gap-2 text-xs leading-4 text-[var(--muted)] [&_svg]:size-3.5', className)}
       {...rest}
     >
       {children}

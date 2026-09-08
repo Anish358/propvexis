@@ -53,7 +53,7 @@ export const GROUP_STATUSES = ['active', 'passed', 'failed'];
  * ends in payouts, not in a pass.
  */
 export function resolveChallengeOutcome({ challenge, state } = {}) {
-  const none = { status: 'active', reason: null };
+  const none = { status: 'active', reason: null, day: null };
   if (!challenge || challenge.status !== 'active' || !state) return none;
 
   // No drawdown rules at all means nothing to be judged against — the same reading
@@ -61,13 +61,66 @@ export function resolveChallengeOutcome({ challenge, state } = {}) {
   if (!state.maxDd) return none;
 
   if (state.breach?.breached) {
-    return { status: 'breached', reason: state.breach.reason ?? null };
+    const reason = state.breach.reason ?? null;
+    // THE DAY, and only for the one outcome that HAS one. See recursOnItsOwn below:
+    // a daily-loss breach belongs to a trading day, a max-drawdown breach does not.
+    return { status: 'breached', reason, day: reason === 'daily_dd' ? state.dailyDd?.day ?? null : null };
   }
   if (state.profitTarget?.reached === true && state.tradingDays?.met === true) {
-    return { status: 'passed', reason: null };
+    return { status: 'passed', reason: null, day: null };
   }
   return none;
 }
+
+/**
+ * Has the trader already rejected THIS outcome? (migration 0033)
+ *
+ * WHY THIS EXISTS AT ALL. `reopenChallenge` puts a settled phase back to running, and
+ * it is the undo an automatic system has to have. But the engine that settled the row
+ * is still running: the next ingest reads the same equity against the same rules,
+ * reaches the same verdict, and settles it again. Without a memory of what the trader
+ * rejected, "Not passed yet" is a button that works for exactly one tick and then the
+ * strip returns, forever.
+ *
+ * SUPPRESSION IS STICKY BY DEFAULT, AND ONE OUTCOME OPTS OUT. The tempting rule — "a
+ * new day is a new event, so speak again" — is right for exactly one of the three
+ * verdicts this engine reaches, and wrong in a way that recreates the loop for the
+ * other two:
+ *
+ *   'passed'            — the target does not stop being reached. The trader is up, and
+ *                         tomorrow they are still up. Day-keyed, the strip would come
+ *                         back every single morning.
+ *   'breached/max_dd'   — the same. Equity below the overall floor stays below it; the
+ *                         account is gone and no new day changes that.
+ *   'breached/daily_dd' — the one that genuinely recurs. A daily-loss breach IS a
+ *                         trading day, so a breach on the 7th is a different event from
+ *                         the one on the 6th and deserves to be reported.
+ *
+ * So a suppressed outcome carries `day` only for a daily-loss breach, and a NULL day
+ * means "stay quiet until something else clears this". What clears it is the rules
+ * being edited (challenges.suppressed_outcome is dropped on a rules edit) — which is
+ * the right escape hatch, because when a trader says a pass is wrong the engine has
+ * usually not miscounted: the rules it was given are wrong.
+ *
+ * A DIFFERENT VERDICT ALWAYS SPEAKS. Rejecting a pass does not silence a later breach,
+ * and silencing one breach reason does not silence the other. Only the exact outcome
+ * the trader rejected stays quiet.
+ */
+export function isOutcomeSuppressed(suppressed, outcome) {
+  if (!suppressed || !outcome) return false;
+  if (suppressed.status !== outcome.status) return false;
+  if ((suppressed.reason ?? null) !== (outcome.reason ?? null)) return false;
+  // A stored day means "only this day"; no stored day means "until something clears it".
+  if (suppressed.day == null) return true;
+  return String(suppressed.day) === String(outcome.day ?? '');
+}
+
+/**
+ * Does this outcome come back on its own if we let it? Exported for the caller that
+ * writes the suppression, so the shape stored is decided by the same file that decides
+ * how it is read.
+ */
+export const recursOnItsOwn = (outcome) => outcome?.status === 'breached' && outcome?.reason === 'daily_dd';
 
 /**
  * Does this outcome end the whole challenge?

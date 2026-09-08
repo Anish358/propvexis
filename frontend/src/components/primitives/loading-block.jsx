@@ -1,5 +1,8 @@
 /* LoadingBlock — PropVexis primitive.
  *
+ * @status provisional — moved verbatim and still renders `.u-loading` / `.u-skeleton--*`.
+ *   Rebuild on `@shadcn skeleton` in real card shells at real dimensions, per §15.
+ *
  * A page-shaped skeleton for route-level loading: title, KPI row, chart. Moved here
  * verbatim from `ui.jsx`; the `.u-loading` / `.u-skeleton--*` classes are unchanged,
  * so nothing about it renders differently.
@@ -16,6 +19,10 @@
  * `aria-busy` lives on the container here rather than on each bar, which is the
  * counterpart the Skeleton primitive's header describes: the region announces that
  * content is coming, and the individual bars stay hidden from assistive tech.
+ *
+ * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
+ *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
+ *   adopt it until it is reviewed. See test/primitives-status.test.js.
  */
 
 function LoadingBlock({ label = 'Loading', kpis = 4 }) {

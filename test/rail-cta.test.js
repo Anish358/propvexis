@@ -48,7 +48,8 @@ test('it collapses to its icon, by RENDERING differently — never `hidden`', ()
 test('it is a Link, so it behaves like navigation', () => {
   // Middle-click, right-click, open-in-new-tab. A button with navigate() has none of
   // those, and this IS a destination.
-  assert.match(sidebar, /<RailCta render=\{<Link to="\/accounts\/new" \/>\}/);
+  // The prop may sit on its own line — the CTA grew an entrance and wrapped.
+  assert.match(sidebar, /<RailCta[\s\S]{0,120}?render=\{<Link to="\/accounts\/new" \/>\}/);
   assert.match(sidebar, /icon=\{<Plus aria-hidden="true" \/>\}/, 'lucide, per §23');
   assert.match(sidebar, /Add account/);
 });

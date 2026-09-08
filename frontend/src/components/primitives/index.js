@@ -67,11 +67,14 @@ export { ConsentField } from './consent-field.jsx';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { LoadingBlock } from './loading-block.jsx';
+export {
+  ContentArrival, PageEntrance, SECTION_STEP, useSectionEntrance,
+} from './page-entrance.jsx';
 // The shared shell all 11 modals adopt — Phase 4b's payoff. Built on Dialog above.
 export { Modal } from './modal.jsx';
 export {
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
-  MenuSeparator, MenuTrigger,
+  MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger,
 } from './menu.jsx';
 // Not a component — the seam that tells an overlay to render INSIDE the modal it was
 // opened from, instead of under its scrim. `Modal` provides it and `Menu` consumes it,
@@ -88,6 +91,9 @@ export {
 export { Separator } from './separator.js';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
+// The @coss switch, with its OFF state made visible in our dark theme — the preset
+// draws a dark thumb on a near-black track. See switch.jsx.
+export { Switch } from './switch.jsx';
 export { Tabs } from './tabs.jsx';
 export { Textarea } from './textarea.js';
 export {

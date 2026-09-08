@@ -1,3 +1,9 @@
+/* topbar.jsx
+ *
+ * @design approved 2026-09-06 — visible on the locked dashboard (the dashboard's top bar).
+ *   The owner signed that page off and DESIGN-LANGUAGE was written from it.
+ */
+
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -19,10 +25,20 @@ import { cn } from '@/lib/utils';
  * Recorded here rather than in a commit message because the next person to open this
  * file will wonder.
  *
- * Scaled one step down like the rest of the page: 88 -> 72 tall, 40 -> 24 padding (which
- * also lines the bar's inner edge up with the page's own gutter — the frame's 40 was
- * measured against a 1440 canvas and would sit proud of every card at 1920), 24 -> 20
- * title.
+ * Scaled one step down like the rest of the page: 88 -> 72 tall, 40 -> 24 padding — which
+ * also lines the bar's inner edge up with the page's own gutter, the frame's 40 having
+ * been measured against a 1440 canvas where it would sit proud of every card at 1920.
+ *
+ * THE TITLE IS BACK AT 24 (2026-09-07). That same pass took it 24 -> 20, and this is the
+ * one part of the scaling the owner's type ruling reverses: `--fs-page-title` is 24px and
+ * this h1 is the page title, so a hardcoded 20 would have made the bar the only place in
+ * the app where that role means something else. `leading-8` comes with it — 28px leading
+ * under a 24px face clips descenders on a two-line wrap.
+ *
+ * IT MAKES THE BAR ~4px TALLER on routes that pass `sub` (the dashboard's greeting), and
+ * that is safe here rather than everywhere: `min-h-16` lets the bar grow, and FilterBar
+ * republishes the measured height as --topbar-h, which is what the trade log's sticky
+ * column header positions against. A fixed bar would have clipped instead.
  */
 
 /* forwardRef: FilterBar measures this element with a ResizeObserver and publishes its
@@ -74,16 +90,16 @@ export const TopBar = React.forwardRef(function TopBar({ className, children, ..
 export function TopBarTitle({ module, sub, className, children, ...rest }) {
   return (
     <div data-slot="topbar-title" className={cn('flex min-w-0 flex-col gap-0.5', className)} {...rest}>
-      <h1 className="flex min-w-0 items-baseline gap-2 text-[20px] leading-7 font-[650] tracking-[-0.4px] text-[var(--text)]">
+      <h1 className="flex min-w-0 items-baseline gap-2 text-2xl leading-8 font-[650] tracking-[-0.4px] text-[var(--text)]">
         {module && (
-          <span className="shrink-0 text-[13px] leading-5 font-normal text-[var(--muted)]">
+          <span className="shrink-0 text-sm leading-5 font-normal text-[var(--muted)]">
             {module}
             <span aria-hidden="true"> ›</span>
           </span>
         )}
         <span className="truncate">{children}</span>
       </h1>
-      {sub && <p className="m-0 truncate text-[13px] leading-5 text-[var(--muted)]">{sub}</p>}
+      {sub && <p className="m-0 truncate text-sm leading-5 text-[var(--muted)]">{sub}</p>}
     </div>
   );
 }
