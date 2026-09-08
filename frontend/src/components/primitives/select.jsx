@@ -89,9 +89,29 @@ function SelectPopup({ className, ...rest }) {
   return <UISelectContent className={cn('p-1', className)} data-overlay-surface="" {...rest} />;
 }
 
+/* A DISABLED OPTION SAYS SO UNDER THE CURSOR TOO (owner, 2026-09-08).
+ *
+ * Same correction as `button.jsx` and `input.jsx`, and it is here for consistency rather
+ * than because anyone asked about options specifically: a rule applied to two of the three
+ * places it belongs is a rule nobody can rely on.
+ *
+ * The generated row declares `data-disabled:pointer-events-none`, and an element that
+ * takes no pointer events is one the cursor never enters — so `not-allowed` could never
+ * apply. `data-disabled:` rather than `disabled:` because a Base UI option is a div with a
+ * data attribute, not a form control with the DOM property.
+ *
+ * This is the wrapper coming BACK for one line, the day after it was deleted. That is the
+ * seam working as intended, not a regression: the row is still the generated component and
+ * the file still owns exactly the differences it can justify. */
+const DISABLED_CURSOR = 'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed';
+
+function SelectItem({ className, ...rest }) {
+  return <UISelectItem className={cn(DISABLED_CURSOR, className)} {...rest} />;
+}
+
 export {
   Select,
-  UISelectItem as SelectItem,
+  SelectItem,
   SelectPopup,
   SelectTrigger,
   UISelectValue as SelectValue,

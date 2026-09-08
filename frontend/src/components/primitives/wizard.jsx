@@ -8,7 +8,7 @@
 import React from 'react';
 import { SearchIcon, XIcon } from 'lucide-react';
 import { Button } from './button.jsx';
-import { Input } from './input.js';
+import { Input } from './input.jsx';
 import { Progress, ProgressIndicator, ProgressTrack } from './progress.jsx';
 import { cn } from '@/lib/utils';
 

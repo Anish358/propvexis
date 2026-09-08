@@ -35,12 +35,13 @@
    primitive directly in that wrapper and reuse the generated variants, rather
    than to hand-edit generated code. Flagged, not silently worked around.
 
-   NOT EVERY MODULE HERE IS LIBRARY-BACKED, AND THAT IS THE POINT. Four of them —
-   Badge, EmptyState, LoadingBlock, Tabs — still render the app's `.u-*` classes,
-   because no generated component can express what they do yet: Badge's tones are
-   four-sixths domain colours, EmptyState and LoadingBlock have no registry
-   equivalent at all, and Tabs is a documented interaction rule rather than a
-   default. Each file says so in its own header.
+   NOT EVERY MODULE HERE IS LIBRARY-BACKED, AND THAT IS THE POINT. THREE of them —
+   EmptyState, LoadingBlock and Tabs — still render the app's `.u-*` classes, because
+   no generated component can express what they do yet: EmptyState and LoadingBlock
+   have no registry equivalent at all, and Tabs is a documented interaction rule
+   rather than a default. Each file says so in its own header. (Badge was the fourth
+   until 2026-09-07, when it moved onto the generated component and its legacy rules
+   were deleted — which is what finishing one of these looks like.)
    They live here anyway, because the seam is about WHERE application code imports
    from, not about what is behind it. With all of them exported from one place, a
    page has exactly one component import, and swapping any single implementation
@@ -68,7 +69,7 @@ export { EmptyState } from './empty-state.jsx';
 export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './field.jsx';
 export { Checkbox } from './checkbox.jsx';
 export { ConsentField } from './consent-field.jsx';
-export { Input } from './input.js';
+export { Input } from './input.jsx';
 export { Label } from './label.jsx';
 export { LoadingBlock } from './loading-block.jsx';
 export {

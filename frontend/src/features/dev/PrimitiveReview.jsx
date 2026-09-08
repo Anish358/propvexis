@@ -1698,6 +1698,17 @@ function OverlayContainerSpecimen() {
                 <MenuItem>Archive</MenuItem>
               </MenuContent>
             </Menu>
+            {/* THE PICKER IS DELIBERATELY STILL HERE AND STILL BROKEN (2026-09-08).
+                It does not open inside a modal, and the reason is not ours to fix in a
+                className: the generated `SelectContent` renders `<Select.Portal>` with no
+                props at all, so there is no way to hand it the container the way `Menu`
+                takes one. Base UI then falls back to the parent portal — beside the
+                backdrop — where the panel paints under the scrim and the dialog's own
+                focus containment makes it inert.
+
+                Left in rather than removed, because a specimen that quietly omits the
+                broken case is how a limitation stops being visible. The owner has the
+                trade-off; see the note under this pane. */}
             <Select defaultValue="2step" items={TYPES}>
               <SelectTrigger style={{ width: 180 }}><SelectValue /></SelectTrigger>
               <SelectPopup>
@@ -2050,6 +2061,30 @@ export default function PrimitiveReview() {
         }
         states={[{ label: 'A menu and a picker, inside a modal', render: <OverlayContainerSpecimen /> }]}
       />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>The picker in that modal does not open</span>
+          <span style={S.mono}>a real limitation, not a bug in our code</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="open">your call</Tag>
+        </div>
+        <div style={S.note}>
+          The menu works; the picker beside it does nothing when you click it, and I have
+          left it there rather than quietly removing it. The reason is not something we can
+          fix with styling: the shipped picker gives no way to tell it
+          {' '}
+          <em>which window it belongs to</em>
+          , the way the menu does. So it opens behind the dark backdrop, where the pop-up
+          window&rsquo;s own focus rules also make it unclickable.
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>Nothing in the app hits this today</strong>
+          {' '}
+          — no pop-up window in PropVexis contains a picker, and this Test page is the only
+          place it appears. So there is nothing broken for a customer right now; the
+          question is what we do the first time a window needs one.
+        </div>
+      </div>
 
       {/* ================================================================ BATCH 3 === */}
       <div style={S.batchHead}>

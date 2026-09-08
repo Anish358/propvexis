@@ -143,6 +143,33 @@ const SIZES = { sm: 'sm', md: 'default', lg: 'lg' };
  * away, was fixed literally. See §25, and tokens.css "CHROME IS CONTEXTUAL". */
 const OUTLINE_EDGE = 'border-[var(--chrome-line-control)]';
 
+/* A DISABLED CONTROL SAYS SO UNDER THE CURSOR (owner, 2026-09-08).
+ *
+ * "the pills which are disabled should have cursor change when hover over disabled pill or
+ * text field" — and the reason it did not is worth writing down, because it looks like a
+ * missing class and is the opposite: an inert one.
+ *
+ * The generated button declares `disabled:pointer-events-none disabled:opacity-50`.
+ * `pointer-events: none` means the element receives no pointer events AT ALL, so the
+ * cursor never enters it and no `cursor` value can ever apply — the browser keeps showing
+ * whatever the parent has. The Input is the clearer proof: it declares BOTH
+ * `disabled:pointer-events-none` AND `disabled:cursor-not-allowed`, and the second has
+ * never once rendered. Textarea and Checkbox omit `pointer-events-none` and have been
+ * showing the right cursor all along, which is why the app was inconsistent about it
+ * without anyone having chosen to be.
+ *
+ * Restoring pointer events on a disabled control costs nothing: a disabled `<button>` and
+ * a disabled `<input>` fire no click and take no focus by the platform's own rules, not by
+ * this class. What it buys is the affordance — and a title/tooltip, which also needs the
+ * pointer to arrive.
+ *
+ * WRITTEN AS UTILITIES RATHER THAN CSS because that is the only mechanism that is
+ * deterministic here. A rule in bridge.css would have to out-specify
+ * `.disabled\:pointer-events-none:disabled` and would land in a race; passed through
+ * `cn()`, tailwind-merge sees the same variant (`disabled:`) and the same property group
+ * and DROPS the generated class outright. One class in, one class out. */
+const DISABLED_CURSOR = 'disabled:pointer-events-auto disabled:cursor-not-allowed';
+
 /* THE OPEN STATE IS THE PRESET'S, ONE VARIANT AT A TIME (owner, 2026-09-07 — reversing a
  * ruling made earlier the same day).
  *
@@ -313,6 +340,7 @@ const Button = React.forwardRef(function Button({
       // RADIUS correction and the chrome layer safe to state as utilities.
       className={cn(
         buttonVariants({ variant: VARIANTS[variant] ?? variant, size: SIZES[size] ?? size }),
+        DISABLED_CURSOR,
         (VARIANTS[variant] ?? variant) === 'outline' && OUTLINE_EDGE,
         isChrome && CHROME,
         // An engaged control keeps the hover but not the muted rest, so the two states

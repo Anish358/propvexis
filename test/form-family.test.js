@@ -205,6 +205,63 @@ test('the tick trails the label, so the value does not move when the list opens'
   );
 });
 
+/* ── a disabled control says so under the cursor (owner, 2026-09-08) ──────────────────
+ *
+ * "the pills which are disabled should have cursor change when hover over disabled pill or
+ * text field". The reason it did not looks like a missing class and is the opposite: an
+ * INERT one. `pointer-events: none` means the element receives no pointer events at all,
+ * so the cursor never enters it and no `cursor` value can ever apply.
+ *
+ * The Input is the proof. It has always declared BOTH `disabled:pointer-events-none` and
+ * `disabled:cursor-not-allowed`, and the second has never once rendered. Textarea and
+ * Checkbox omit `pointer-events-none` and have been correct all along — which is how the
+ * app came to be inconsistent about this without anyone having decided to be.
+ *
+ * The fix is a utility rather than CSS because that is the only DETERMINISTIC mechanism
+ * here: a stylesheet rule would have to out-specify `.disabled\:pointer-events-none:disabled`
+ * and would land in a specificity race, while `cn()` — tailwind-merge — sees the same
+ * variant and the same property group and drops the generated class outright. Verified:
+ * twMerge('disabled:pointer-events-none', 'disabled:pointer-events-auto') keeps only the
+ * second.
+ *
+ * This asserts the OUTCOME, not the spelling: every control the owner named must end up
+ * able to show a cursor while disabled, and must say which cursor. It deliberately covers
+ * the two that were already right, because "textarea was fine" is exactly the kind of
+ * thing that regresses when someone tidies a class list. */
+const CONTROLS = [
+  ['button', () => classesContaining(prim('button.jsx'), 'disabled:pointer-events-auto', 'button.jsx')],
+  ['input', () => classesContaining(prim('input.jsx'), 'disabled:pointer-events-auto', 'input.jsx')],
+  ['textarea', () => classesContaining(ui('textarea.jsx'), 'disabled:cursor-not-allowed', 'ui/textarea.jsx')],
+  ['checkbox', () => classesContaining(ui('checkbox.jsx'), 'disabled:cursor-not-allowed', 'ui/checkbox.jsx')],
+  ['select trigger', () => classesContaining(ui('select.jsx'), 'data-[size=default]:h-8', 'ui/select.jsx trigger')],
+];
+
+test('a disabled control can be hovered, and says not-allowed when it is', () => {
+  for (const [name, get] of CONTROLS) {
+    const list = get();
+    assert.ok(
+      has(list, 'disabled:cursor-not-allowed'),
+      `${name} does not declare disabled:cursor-not-allowed — a disabled control must say so under the pointer`,
+    );
+    assert.ok(
+      !has(list, 'disabled:pointer-events-none'),
+      `${name} still blocks pointer events while disabled, so its cursor rule is inert. `
+        + 'Add disabled:pointer-events-auto in the wrapper — tailwind-merge drops the '
+        + 'generated class. A disabled button and a disabled input fire no click and take '
+        + 'no focus by the platform\'s rules, not by this class.',
+    );
+  }
+});
+
+test('a disabled option in an open picker says so too', () => {
+  // Same rule, different attribute: a Base UI option is a div with `data-disabled`, not a
+  // form control with the DOM property. Applying the rule to two of the three places it
+  // belongs would be a rule nobody could rely on.
+  const row = classesContaining(prim('select.jsx'), 'data-disabled:pointer-events-auto', 'select.jsx SelectItem');
+  assert.ok(has(row, 'data-disabled:cursor-not-allowed'), 'a disabled option must say not-allowed');
+  assert.ok(!has(row, 'data-disabled:pointer-events-none'), 'a disabled option still blocks pointer events');
+});
+
 /* ── the rejected field says so twice (owner, 2026-09-07) ─────────────────────────────
  *
  * The owner chose "the box AND the sentence" over "only the sentence" for a field that

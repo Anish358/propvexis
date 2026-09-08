@@ -193,7 +193,7 @@ const APPROVED = new Set([
    * and a FieldLabel in a row — the same way `dialog.jsx` was approved under `modal.jsx`.
    * It originates no appearance of its own; what it fixes is a three-line consent
    * sentence being centred against a 16px box and rendered as bold as a heading. */
-  'input.js', 'textarea.js', 'select.jsx', 'checkbox.jsx',
+  'input.jsx', 'textarea.js', 'select.jsx', 'checkbox.jsx',
   'label.jsx', 'field.jsx', 'consent-field.jsx',
 ]);
 
@@ -246,7 +246,7 @@ const LOCKED_BATCHES = {
   'Batch 1 — Overlays (locked 2026-09-07)':
     ['menu.jsx', 'modal.jsx', 'popover.jsx', 'dialog.jsx'],
   'Batch 2 — Form controls (locked 2026-09-07)':
-    ['input.js', 'textarea.js', 'select.jsx', 'checkbox.jsx',
+    ['input.jsx', 'textarea.js', 'select.jsx', 'checkbox.jsx',
       'label.jsx', 'field.jsx', 'consent-field.jsx'],
 };
 
