@@ -5,8 +5,8 @@ import {
 import {
   identitiesEnabled, sealTokens, createIdentity, rotateTokens,
   listIdentities, revokeIdentity, discoveredForIdentity,
-  identitiesAwaitingDiscovery, freshAccessToken, upsertDiscovered, setCtid,
-  supersedeDuplicateIdentities, markDiscovered,
+  identitiesAwaitingDiscovery, freshAccessToken, upsertDiscovered, adoptCtid,
+  markDiscovered,
   markIdentityError, identityForUser,
 } from '../domain/sync/ctraderIdentities.js';
 import { workerTokenMatches } from '../domain/sync/workerAuth.js';
@@ -188,16 +188,19 @@ export default function ctraderRoutes(app) {
     const accounts = Array.isArray(req.body?.accounts) ? req.body.accounts : [];
     if (req.body?.ctid_user_id != null) {
       const ctidUserId = Number(req.body.ctid_user_id);
-      // BEFORE setCtid, never after: setting the cTID on this row while an older
-      // row still holds it live raises 23505 on uq_ctrader_identities_live and
-      // discovery fails permanently, for a reason nothing in the UI can explain.
-      // Clicking "Authorize" twice is enough to cause it.
-      const superseded = await supersedeDuplicateIdentities(id, ctidUserId);
-      if (superseded.length) {
-        req.log.info({ identity: id, superseded: superseded.map((r) => r.id) },
-          'ctrader: retired older identities for the same cTID');
+      /* ONE CALL, ONE TRANSACTION: adopt the older grants' accounts, retire those
+       * grants, then record the cTID — in that order, and all or nothing.
+       *
+       * It was three separate awaits, and the missing middle step is what killed the
+       * owner's accounts on prod: superseding an identity leaves every account that
+       * pointed at it naming a REVOKED grant, and every "can this sync" query requires
+       * a live one. Re-authorizing — the thing a trader does when sync looks unhealthy
+       * — silently disconnected everything. See adoptCtid. */
+      const { adopted, superseded } = await adoptCtid(id, ctidUserId);
+      if (superseded.length || adopted.length) {
+        req.log.info({ identity: id, superseded, adopted },
+          'ctrader: retired older identities for the same cTID and adopted their accounts');
       }
-      await setCtid(id, ctidUserId);
     }
     for (const a of accounts) await upsertDiscovered(id, a);
     // Stamped even when accounts is empty: "this grant owns no trading accounts"

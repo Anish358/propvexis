@@ -348,12 +348,25 @@ test('the platform step cannot select a Soon platform', () => {
   assert.match(src, /'soon'/);
 });
 
-test('the platform step narrows to the firm on the prop path', () => {
-  // Spec §7.2: for a prop account the firm implies the platform, with the rest behind
-  // "show all".
+test('the platform step lists EVERY platform — no firm narrowing, no toggle', () => {
+  /* OWNER DECISION 2026-09-08, reversing spec §7.2's narrowing.
+   *
+   * The prop path used to filter the grid to the chosen firm's own `platforms` list and
+   * hide the rest behind "Show all platforms (N more)". That depends on our catalog
+   * being right about every prop firm, and for the firm the owner actually trades it
+   * was not: GoatFundedTrader is recorded as ['mt5'] while issuing cTrader logins, so
+   * adding a real GFT cTrader account showed ONE card — MetaTrader 5 — and buried
+   * cTrader behind a toggle. Hiding the right answer is a worse failure than offering
+   * too many, so the grid is now the whole catalog and `status` carries the difference. */
   const src = readCode('PlatformStep.jsx');
-  assert.match(src, /findFirm\(/);
-  assert.match(src, /platforms/);
+  assert.doesNotMatch(src, /findFirm\(/, 'the firm no longer decides which platforms exist');
+  assert.doesNotMatch(src, /Show all platforms/, 'nothing is hidden, so nothing reveals it');
+  assert.doesNotMatch(src, /showAll/);
+  assert.match(src, /searchPlatforms\(query\)/, 'the search box is the only narrowing left');
+  // A platform we do not serve yet is still PRESENT and still unselectable — the same
+  // treatment the Soon cards already had.
+  assert.match(src, /disabled=\{card\.status !== 'live'\}/);
+  assert.match(src, /if \(card\.status !== 'live'\) return;/, 'and the handler refuses it too');
 });
 
 test('only the live path collects a broker, and it is free text', () => {

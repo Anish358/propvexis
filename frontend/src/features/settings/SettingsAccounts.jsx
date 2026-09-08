@@ -85,6 +85,25 @@ const fmtSync = (iso) => {
 function syncStatus(a) {
   if (a.is_active === false) return { label: 'Archived', tone: 'neutral' };
   if (a.kind === 'manual') return null;
+  /* RECONNECT OUTRANKS EVERY OTHER WORD IN THIS CELL, and this case is the reason the
+   * function was rewritten.
+   *
+   * `sync_connected` is the SAME predicate the scheduler and the Sync Trades button
+   * decide on (src/domain/sync/eligibility.js). Without it this cell could only ever
+   * say "Synced": it read `import_method` and the newest job, which are both HISTORICAL
+   * facts. So when the owner's two cTrader accounts silently fell out of the queue --
+   * their broker grant revoked out from under them by a later re-authorization -- this
+   * table went on calling both "Auto sync · Synced" for two days, while the button
+   * answered "no accounts are connected for Auto Sync". The page and the queue
+   * disagreed, and the page was the one being believed.
+   *
+   * It is checked BEFORE `pending` because the two can be true together and this is the
+   * actionable one: "Waiting" describes an account whose first trade has not arrived,
+   * which is a thing to wait for; a dead connection is a thing to fix, and no amount of
+   * waiting resolves it. */
+  if (a.sync_connected === false && a.import_method === 'auto_sync') {
+    return { label: 'Reconnect', tone: 'loss' };
+  }
   if (a.pending) return { label: 'Waiting', tone: 'warn' };
   return { label: 'Synced', tone: 'profit' };
 }
@@ -125,7 +144,10 @@ function RowMenu({ account, onEdit, onSetup, onSync, onSyncNow, syncing, onArchi
             account had no way to be refreshed on demand from this page. The
             15-minute cooldown is enforced server-side; the button is not the gate. */}
         {account.kind !== 'manual' && !archived && account.import_method === 'auto_sync' && (
-          <MenuItem onClick={onSyncNow} disabled={syncing}>
+          /* DISABLED ON A DEAD CONNECTION. The server refuses it with a 409 either way,
+             so an enabled item here is a control whose only outcome is an error toast —
+             and the row already says "Reconnect" beside it, which is the answer. */
+          <MenuItem onClick={onSyncNow} disabled={syncing || account.sync_connected === false}>
             {syncing ? 'Syncing…' : 'Sync now'}
           </MenuItem>
         )}

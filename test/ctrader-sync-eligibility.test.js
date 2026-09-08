@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { dueAccountsQuery } from '../src/domain/sync/queue.js';
 import { ACCOUNT_COLUMNS } from '../src/domain/accounts/accounts.js';
 
@@ -47,4 +49,39 @@ test('the account list carries the REAL login, not only the banded one', () => {
    * displayed as "MT5 4000048583094", which is neither its platform nor a number
    * the trader has ever seen. platform_login is the number cTrader shows them. */
   assert.match(ACCOUNT_COLUMNS, /platform_login/);
+});
+
+test('a SCHEDULED sync is labelled by the job history, not by an MT5 column', () => {
+  /* EVERY SCHEDULED cTRADER SYNC WAS LABELLED `first_sync`, FOR THE LIFE OF THE ACCOUNT.
+   *
+   * The label was `CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule'`,
+   * and verified_at is an MT5 fact — markVerified stamps it after a successful login.
+   * A cTrader account has no mt5_credentials row at all, so the LEFT JOIN leaves it
+   * NULL forever and the CASE could only ever pick the first arm.
+   *
+   * Harmless to the sync itself, which is why it survived: it made the job HISTORY
+   * unreadable. Prod showed eleven consecutive `first_sync` rows on two accounts that
+   * had been syncing for days, and that cost real time while diagnosing the
+   * orphaned-identity bug — the one signal that would have said "these accounts have
+   * been running fine" was reporting the opposite.
+   *
+   * The job-based question needs no CASE per platform: on MT5 it agrees with
+   * verified_at (markVerified and completeJob are driven by the same result), and on
+   * cTrader it is simply correct. Verified against the database for both branches — a
+   * text assertion cannot tell which arm a real row takes.
+   */
+  const t = dueAccountsQuery().text.replace(/\s+/g, ' ');
+  assert.doesNotMatch(t, /WHEN c\.verified_at IS NULL THEN 'first_sync'/,
+    'the label must not be derived from a column one platform does not have');
+  assert.match(t, /EXISTS \(SELECT 1 FROM sync_jobs d WHERE d\.account_id = a\.id AND d\.status = 'done'\) THEN 'schedule' ELSE 'first_sync' END/);
+});
+
+test('the MT5 lease payload keeps its OWN first_sync flag', () => {
+  /* Not the same thing, and it must not be folded into the label above. The worker's
+   * payload carries `first_sync: row.verified_at == null`, which answers "has this
+   * CREDENTIAL ever logged in successfully" — an MT5 question about an MT5 fact, used
+   * by the agent rather than by the sync history. Only the scheduler's label was wrong. */
+  const routes = readFileSync(
+    fileURLToPath(new URL('../src/routes/sync.js', import.meta.url)), 'utf8');
+  assert.match(routes, /first_sync: row\.verified_at == null/);
 });
