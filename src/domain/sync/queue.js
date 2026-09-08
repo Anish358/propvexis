@@ -157,7 +157,25 @@ export function dueAccountsQuery(intervalMs = SYNC_INTERVAL_MS, perPlatform = PL
            )
            INSERT INTO sync_jobs (account_id, reason, platform)
            SELECT a.id,
-                  CASE WHEN c.verified_at IS NULL THEN 'first_sync' ELSE 'schedule' END,
+                  -- FIRST SYNC = THIS ACCOUNT HAS NEVER COMPLETED ONE, asked of the JOB
+                  -- HISTORY rather than of a credential column.
+                  --
+                  -- It was c.verified_at IS NULL, which is an MT5 fact: markVerified
+                  -- stamps it after a successful login. A cTrader account has no
+                  -- mt5_credentials row at all, so the LEFT JOIN leaves it NULL forever
+                  -- and EVERY scheduled cTrader sync was labelled first_sync -- for the
+                  -- life of the account. Harmless to the sync itself, and it made the
+                  -- job history unreadable: prod showed a column of eleven first_sync
+                  -- rows on two accounts that had been syncing for days, which cost
+                  -- real time while diagnosing the orphaned-identity bug.
+                  --
+                  -- The job-based question is platform-agnostic and needs no CASE per
+                  -- platform: for MT5 it agrees with verified_at (markVerified and
+                  -- completeJob are set by the same result), and for cTrader it is
+                  -- simply correct. Same subquery shape the interval check below uses.
+                  CASE WHEN EXISTS (SELECT 1 FROM sync_jobs d
+                                     WHERE d.account_id = a.id AND d.status = 'done')
+                       THEN 'schedule' ELSE 'first_sync' END,
                   a.platform
              FROM mt5_accounts a ${SYNC_ELIGIBILITY_JOINS}
              LEFT JOIN intervals i ON i.platform = a.platform
