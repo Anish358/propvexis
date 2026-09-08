@@ -2318,27 +2318,6 @@ label.full { margin-bottom: 16px; }
    one, or use the Dashboard account selector's markup as a reference for
    cases that need richer per-tab content this simple label/value API can't
    hold (icons, multi-line, dividers, fixed widths). ---- */
-.u-tabs { display: inline-flex; gap: 20px; border-bottom: 1px solid var(--line); }
-.u-tab {
-  position: relative; background: transparent; border: none; color: var(--text-2);
-  font: 600 13px/1 var(--font-sans); padding: 8px 2px 10px; cursor: pointer;
-  transition: color 180ms var(--ease);
-}
-.u-tab::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-  /* THE INDICATOR IS NEUTRAL, NOT BRAND (2026-08-28). It drew in --accent, a blue, and
-     was the last blue left on the dashboard after the chart line went neutral — one
-     saturated 1px rule under "Recent Trades" with nothing else on the page to relate
-     it to. A selected tab is a position, not a brand moment; --text says "you are
-     here" without claiming to mean anything more. */
-  border-radius: 2px; background: var(--text); transform-origin: center;
-  transform: scaleX(0); opacity: 0;
-  transition: transform 220ms var(--ease), opacity 220ms var(--ease), height 180ms var(--ease);
-}
-.u-tab:hover { color: var(--text); }
-.u-tab:not(.is-active):hover::after { transform: scaleX(1); opacity: 1; height: 1px; }
-.u-tab.is-active { color: var(--text); }
-.u-tab.is-active::after { transform: scaleX(1); opacity: 1; height: 2.5px; }
 
 /* ---- Field + inputs ---- */
 .u-field { display: flex; flex-direction: column; gap: 8px; }
@@ -2357,27 +2336,9 @@ label.full { margin-bottom: 16px; }
 .u-field-error { font-size: 12px; color: var(--loss); }
 
 /* ---- Skeleton (loading placeholder) ---- */
-.u-skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: var(--r-sm); }
-.u-skeleton::after {
-  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
-  animation: u-shimmer 1.4s infinite;
-}
 @keyframes u-shimmer { 100% { transform: translateX(100%); } }
-.u-skeleton--text { height: 12px; border-radius: var(--r-full); }
-.u-skeleton--title { height: 22px; width: 40%; }
-.u-skeleton--block { height: 120px; border-radius: var(--r-lg); }
-.u-skeleton--circle { border-radius: 50%; }
-.u-skel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
-.u-loading { padding: 16px 24px 40px; display: flex; flex-direction: column; gap: 16px; }
-@media (prefers-reduced-motion: reduce) { .u-skeleton::after { animation: none; } }
 
 /* ---- Empty state ---- */
-.u-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 48px 24px; max-width: 460px; margin: 0 auto; }
-.u-empty-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2); }
-.u-empty-title { font-size: 17px; font-weight: 400; color: var(--text); }
-.u-empty-desc { font-size: 13px; color: var(--text-2); line-height: 1.55; }
-.u-empty-actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
 
 /* ---- Journal Overview (module front door, Phase 2) ---- */
 .jo-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
@@ -3229,7 +3190,7 @@ label.full { margin-bottom: 16px; }
    Neutral chrome — active/selected states are grayscale, not tinted. Accent
    (blue) is reserved for primary buttons + data lines only, PLUS the one
    documented exception: the shared Tabs component's thin active-underline
-   (see ".u-tabs" above) — a hairline indicator, not a background tint.
+   (the Tabs primitive draws it) — a hairline indicator, not a background tint.
    ============================================================ */
 .sb-item.active, .sb-sub-item.active { background: var(--sel-bg); color: var(--text); }
 .sb-item.active::before { display: none; }        /* no colored active bar (Linear has none) */
@@ -3466,7 +3427,7 @@ label.full { margin-bottom: 16px; }
    tiles cannot drift from the master card.
    ---- */
 
-/* The three-tab switcher. Stretched to full width because `.u-tabs`'s hairline stops
+/* The three-tab switcher. Stretched to full width because the Tabs rail stops
    at the last label, which reads as an underlined fragment rather than a nav bar. */
 .fin-tabs { display: flex; width: 100%; }
 
@@ -3527,8 +3488,7 @@ label.full { margin-bottom: 16px; }
 
 /* Four dimension labels have to fit a third-width card, so this tab row wraps — and
    a wrapped row loses the hairline it would otherwise draw through its own middle. */
-.fin-breakdown-tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; border-bottom: none; }
-.fin-breakdown-tabs .u-tab { padding: 6px 2px 8px; }
+.fin-breakdown-tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 
 .fin-ring { position: relative; margin-top: 4px; }
 .fin-ring-center {
@@ -3690,10 +3650,9 @@ label.full { margin-bottom: 16px; }
    rather than dividing the page. */
 .pa-tabs { align-self: flex-start; }
 .pa-slices { align-self: flex-start; margin-bottom: -4px; }
-/* `.u-tab` sets `font:` shorthand and is not a flex box, so a count pill inside
+/* HISTORICAL: `.u-tab` set a `font:` shorthand and was not a flex box, so a count pill inside
    it would sit on the text baseline. This only makes the row a flex line — the
    tab's own type, colour and underline treatment are untouched. */
-.pa-slices .u-tab { display: inline-flex; align-items: center; gap: 6px; }
 .pa-tab-count { flex: none; }
 
 /* Auto-fit rather than a fixed column count: the number of accounts is the
@@ -3787,7 +3746,6 @@ label.full { margin-bottom: 16px; }
    resolved yet. */
 .pa-equity { min-height: 0; }
 .pa-chart { height: 260px; min-width: 0; }
-.pa-equity .u-empty { flex: 1 1 auto; }
 .pa-viewall { font-size: 12px; color: var(--accent-on-surface); text-decoration: none; flex: none; }
 .pa-viewall:hover { text-decoration: underline; }
 
@@ -3828,12 +3786,11 @@ label.full { margin-bottom: 16px; }
 /* The prop-firm selector. Same treatment as the Accounts sub-tabs: it belongs to
    the sections beneath it rather than dividing the page, so it sits closer to them.
    Scrolls rather than wraps — a wrapped row would leave an active underline
-   floating mid-control, since `.u-tab::after` draws under its own tab. */
+   floating mid-control, since the tab underline draws under its own tab. */
 .pc-firms { align-self: flex-start; max-width: 100%; overflow-x: auto; margin-bottom: -4px; }
-/* `.u-tab` sets a `font:` shorthand and is not a flex box, so a count pill inside it
+/* HISTORICAL: `.u-tab` set a `font:` shorthand and was not a flex box, so a count pill inside it
    would sit on the text baseline. This only makes the row a flex line — the tab's
    own type, colour and underline treatment are untouched. */
-.pc-firms .u-tab { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 
 /* ---- one prop firm, and the challenges under it ---- */
 /* The firm sections are direct children of `.page-body`, so the locked 16px section
@@ -4042,8 +3999,8 @@ label.full { margin-bottom: 16px; }
    The `set-` namespace. As with the Prop OS modules, everything this one needs
    that already exists is REUSED rather than restated, and that is most of the
    page: every panel is the `Card` primitive on the preset's skin, the tab row is
-   `.u-tabs` via the Tabs primitive, the accounts table is `.prop-table` with the
-   `.fin-table` column model, empty states are `.u-empty`, badges are `.u-badge`
+   the Tabs primitive, the accounts table is `.prop-table` with the
+   `.fin-table` column model, empty states are the EmptyState primitive, badges are `.u-badge`
    and the plan pill is `.sb-plan-badge`. What is below is the section rail, the
    label/value rows, and what eight columns of account admin need on top of
    `.prop-table`.
@@ -4124,7 +4081,6 @@ label.full { margin-bottom: 16px; }
    one would sit on the text baseline. Makes the row a flex line and nothing else —
    the tab's type, colour and underline are untouched. Same two lines as
    `.pa-slices`. */
-.set-tabs .u-tab { display: inline-flex; align-items: center; gap: 6px; }
 .set-tab-count { flex: none; }
 .set-error { margin-bottom: 12px; }
 

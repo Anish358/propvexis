@@ -211,7 +211,10 @@ export function FinanceBreakdownCard({ ledger = [] }) {
         </div>
       </div>
 
-      <Tabs className="fin-breakdown-tabs" tabs={BREAKDOWN_DIMS} value={dim} onChange={setDim} />
+      {/* `rail={false}`, where this used to be `.fin-breakdown-tabs { border-bottom: none }`
+          in legacy CSS. That rule now sits in the lowest cascade layer and would lose to the
+          utility the primitive sets, so the opt-out moved into the API. */}
+      <Tabs rail={false} className="fin-breakdown-tabs" tabs={BREAKDOWN_DIMS} value={dim} onChange={setDim} />
 
       {bd.slices.length === 0 ? (
         <EmptyState

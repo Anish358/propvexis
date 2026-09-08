@@ -22,11 +22,24 @@ import { fileURLToPath } from 'node:url';
 
 const DIR = fileURLToPath(new URL('../frontend/src/components/primitives/', import.meta.url));
 
-const PROVISIONAL = {
-  'empty-state.jsx': 'moved verbatim from ui.jsx; replace with @shadcn empty',
-  'loading-block.jsx': 'moved verbatim; rebuild on @shadcn skeleton per §15',
-  'tabs.jsx': 'replace with @shadcn tabs',
-};
+/* EMPTY SINCE 2026-09-08, and that is the resting state this map was built to reach.
+ *
+ * Batch 6 was "rebuild first, then review" — three primitives that could not be looked
+ * at because they still rendered `.u-*` markup that was going to be replaced. All three
+ * are rebuilt: EmptyState on @shadcn/empty, Tabs on @shadcn/tabs `variant="line"`, and
+ * LoadingBlock on the Skeleton primitive next door. Twenty-six legacy rules deleted with
+ * them, per the standing rule that every edit moves legacy/app.css toward zero.
+ *
+ * TWO OF THE THREE WERE HELD BACK BY REASONS THAT HAD EXPIRED. `empty-state.jsx` argued
+ * "no registry has an empty state" while its own status line named the component that
+ * replaced it; `tabs.jsx` argued it was too opinionated for the library, and the library
+ * ships our exact underline pattern as `variant="line"`. Only LoadingBlock's argument
+ * was still live, and it was answered rather than ignored — see its header.
+ *
+ * TO REOPEN IT: a primitive that APPLIES a legacy `.u-*` class goes back in here with a
+ * reason and an `@status provisional` block. An empty map is not a claim that nothing
+ * will ever be provisional again — it is a claim that nothing is TODAY. */
+const PROVISIONAL = {};
 
 /* Strip comments, so a header that DISCUSSES `.u-card` is not mistaken for one that
  * renders it. button.jsx and card.jsx are why this matters: both explain at length how
@@ -105,9 +118,12 @@ test('a provisional primitive stays exported, because call sites must not churn'
     'loading-block.jsx': 'LoadingBlock',
     'tabs.jsx': 'Tabs',
   };
-  for (const [file, name] of Object.entries(names)) {
-    assert.ok(file in PROVISIONAL, `${file} should be in PROVISIONAL`);
-    assert.match(barrel, new RegExp(`\\b${name}\\b`), `${name} must stay exported from the barrel`);
+  /* ALL THREE HAVE NOW GRADUATED (2026-09-08), and the assertion that OUTLIVES a
+     migration is this one: the whole promise of the seam is that finishing one touches
+     the barrel and not the thirty screens that import the name. Kept after PROVISIONAL
+     emptied, for the same reason Badge's line below was kept. */
+  for (const [, name] of Object.entries(names)) {
+    assert.match(barrel, new RegExp(`(^|[^A-Za-z])${name}([^A-Za-z]|$)`, 'm'), `${name} must stay exported from the barrel`);
   }
   /* AND THE ONE THAT GRADUATED. `badge.jsx` was in the map above until 2026-09-07,
      when it moved onto the generated component and its legacy rules were deleted. The
@@ -241,6 +257,22 @@ const APPROVED = new Set([
    * limitation rather than a defect in this file: the generated SelectContent exposes no
    * way to pass a portal container. Owner ruling 2026-09-08 was to leave and note it. */
   'overlay-container.js',
+
+  /* BATCH 5 — SMALL PIECES, locked as a family (owner, 2026-09-08).
+   *
+   * A glance each, and all three byte-identical to base-rhea — so the only things of
+   * ours in the batch were two locked-rule corrections already recorded on the count
+   * badge (§5 puts a pill on --r-full; §4 keeps a filter count grayscale).
+   *
+   * BOTH FINDINGS WERE IN THE REVIEW APPARATUS AGAIN, which is now four times out of
+   * five batches. The count badge "felt off on hover" because the SPECIMEN put it beside
+   * the bell as a sibling rather than inside it, so moving the pointer onto the badge
+   * left the button and dropped its hover fill — the app has never composed it that way.
+   * And the divider was drawing `bg-border`, which on a card is A CARD'S EDGE (#1b1b1e),
+   * where §4's ramp names `--line-strong` (#29292c) as "THE standard visible border —
+   * dashed empties, SEPARATORS". That one was a real component fix, and it was a
+   * correction to the ramp's own intent rather than a value chosen by eye. */
+  'avatar.js', 'separator.jsx', 'count-badge.jsx',
 ]);
 
 const modules = files.filter((f) => f !== 'index.js');
@@ -296,6 +328,8 @@ const LOCKED_BATCHES = {
       'label.jsx', 'field.jsx', 'consent-field.jsx'],
   'Batch 3 — Feedback (locked 2026-09-08)':
     ['alert.jsx', 'skeleton.jsx', 'spinner.js', 'progress.jsx'],
+  'Batch 5 — Small pieces (locked 2026-09-08)':
+    ['avatar.js', 'separator.jsx', 'count-badge.jsx'],
 };
 
 test('a locked batch stays locked, as a set', () => {

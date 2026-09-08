@@ -25,7 +25,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AlertCircle, AlertTriangle, Bell, CheckCircle2, ChevronDown, Filter, Info,
+  AlertCircle, AlertTriangle, Bell, CheckCircle2, ChevronDown, Filter, Inbox, Info,
   MoreHorizontal, Trash2,
 } from 'lucide-react';
 /* THE REGISTRY COMPONENTS, IMPORTED RAW. Every other specimen on this page goes through
@@ -59,7 +59,8 @@ import {
   OverlayContainerContext, Popover, PopoverContent,
   PopoverTrigger, Progress, ProgressIndicator, ProgressLabel, ProgressTrack,
   ProgressValue,
-  Avatar, AvatarFallback, AvatarGroup, CountBadge, Separator,
+  Avatar, AvatarFallback, AvatarGroup, CountBadge, EmptyState, LoadingBlock, Separator,
+  Tabs,
   Select, SelectItem, SelectPopup, SelectTrigger, SelectValue,
   Skeleton, Spinner, Switch, Textarea, ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
@@ -1859,6 +1860,84 @@ function LoadingFamily() {
   );
 }
 
+/* ================================================================= BATCH 6 ===
+ * REBUILT, THEN REVIEWED — "nothing here yet" · page loading block · tabs.
+ *
+ * THIS BATCH IS DIFFERENT FROM THE OTHER FIVE. The three were never reviewable: they
+ * still rendered the app's own `.u-*` markup, so looking at them would have been looking
+ * at something already scheduled for deletion. The plan's answer was to rebuild them
+ * FIRST and review the result — which is what happened on 2026-09-08, and what is drawn
+ * below is the rebuild, not the thing that was there yesterday.
+ *
+ * TWO OF THE THREE WERE HELD BACK BY REASONS THAT HAD EXPIRED, which by now is the most
+ * reliable finding of the whole review:
+ *
+ *   · `empty-state.jsx` argued at length that it would stay hand-written — "no registry
+ *     has an empty state, because what belongs in one is a product decision" — while its
+ *     own status line, two paragraphs above, already named `@shadcn empty` and the parts
+ *     it ships. The registry has it, with exactly those parts.
+ *   · `tabs.jsx` argued it was "the LAST primitive scheduled for library adoption"
+ *     because its underline interaction "is a documented design-system rule rather than
+ *     a default, and a generated tab list arrives with its own idea of all of that". The
+ *     generated tab list ships OUR rule as `variant="line"`: transparent track, and an
+ *     `after:` underline that fades in on the active tab.
+ *
+ * Only `loading-block.jsx` had a live argument, and it was answered rather than waved
+ * away — see its header for what the rebuild costs (the shimmer) and why that is a gain.
+ *
+ * TWENTY-SIX LEGACY RULES WENT WITH THEM, which is the point of the batch as much as the
+ * appearance is: `legacy/app.css` is down to 994 class names and the `u-*` layer is now
+ * just the button, the card and the form field.
+ */
+function RebuiltSix() {
+  const [tab, setTab] = useState('summary');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 26, width: '100%' }}>
+      <div>
+        <span style={S.specimenLabel}>Tabs — the underline is the registry&rsquo;s now</span>
+        <div style={{ marginTop: 10 }}>
+          <Tabs
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: 'summary', label: 'Summary' },
+              { value: 'transactions', label: 'Transactions' },
+              { value: 'funded', label: 'Funded' },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div>
+        <span style={S.specimenLabel}>Nothing here yet</span>
+        <div style={{
+          marginTop: 10, border: '1px solid var(--line)', borderRadius: 14,
+          background: 'var(--surface)',
+        }}
+        >
+          <EmptyState
+            icon={<Inbox aria-hidden="true" />}
+            title="No payouts yet"
+            description="When you record a withdrawal it will appear here, with the fees and the cycle it belonged to."
+            actions={<Button variant="primary" size="sm">Record a payout</Button>}
+          />
+        </div>
+      </div>
+
+      <div>
+        <span style={S.specimenLabel}>Page loading block</span>
+        <div style={{
+          marginTop: 10, border: '1px solid var(--line)', borderRadius: 14,
+          background: 'var(--surface)', overflow: 'hidden',
+        }}
+        >
+          <LoadingBlock kpis={4} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ================================================================= BATCH 5 ===
  * SMALL PIECES — profile picture · dividing line · number badge.
  *
@@ -1987,7 +2066,6 @@ function SmallPieces() {
  * outstanding. */
 const LATER_BATCHES = [
   { n: 4, name: 'Flows', qty: 1, parts: 'wizard (21 pieces)', dep: 'DEFERRED 8 Sep — the Add Account flow is being redesigned; it comes back after' },
-  { n: 6, name: 'Rebuild first, then review', qty: 3, parts: 'empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
 ];
 
 /* ===== VARIANT MATRIX - the states you can only check by using them =====
@@ -2138,7 +2216,7 @@ export default function PrimitiveReview() {
         we move on. Batches are locked together because parts that sit side by side have to
         agree on height, corners and spacing.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>29 of 36 approved.</strong>
+        <strong style={{ color: 'var(--text)' }}>32 of 36 approved.</strong>
         {' '}
         Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
         the switch and the unit toggle. The dropdown was the first through — and it is the
@@ -2150,10 +2228,11 @@ export default function PrimitiveReview() {
         The seven form controls were signed off after four rounds — the last of which
         replaced the picker with the registry component outright.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>Batch 5 — Small pieces is open, at the top.</strong>
+        <strong style={{ color: 'var(--text)' }}>Batch 6 is open, at the top.</strong>
         {' '}
-        Three parts, a glance each. Batch 4 — the Add Account wizard — was skipped on 8 Sep
-        because that flow is being redesigned; it comes back afterwards.
+        The last three, and the only ones that had to be REBUILT before they could be looked
+        at. Batch 4 — the Add Account wizard — was skipped on 8 Sep because that flow is being
+        redesigned; it comes back afterwards. Everything else is signed off.
       </p>
 
       {/* ================================================= THE UNBATCHED ONE === */}
@@ -2205,10 +2284,59 @@ export default function PrimitiveReview() {
         </div>
       </div>
 
+      {/* ================================================================ BATCH 6 === */}
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>Batch 6 — Rebuilt, then reviewed</span>
+        <Tag tone="open">open · 3 to sign off</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          the last three on the old CSS — rebuilt on 8 Sep, and this is the rebuild
+        </span>
+      </div>
+
+      <Spec
+        name="Rebuilt on the registry"
+        file="primitives/empty-state.jsx · tabs.jsx · loading-block.jsx"
+        ask={
+          'these three are new, not adjusted — yesterday they were still drawing the old '
+          + 'stylesheet. So look at them as if for the first time. The tabs: is the '
+          + 'underline under the active one clear enough, and does hovering a different '
+          + 'one preview it without shouting? The empty block: the icon is smaller than it '
+          + 'was and has lost its box outline, and the title and description both moved '
+          + 'onto our type scale — does it still read as a deliberate state rather than a '
+          + 'gap? The loading block: it now pulses instead of sweeping a shine across each '
+          + 'bar, which is the one thing the rebuild deliberately gave up.'
+        }
+        states={[{ label: 'All three, rebuilt', render: <RebuiltSix /> }]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>What the rebuild deleted</span>
+          <span style={S.mono}>26 rules out of the old stylesheet</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="ok">994 classes left</Tag>
+        </div>
+        <div style={S.note}>
+          The point of this batch is as much what went away as what it looks like. Twenty-six
+          rules left the old stylesheet with these three, and the part of it that this review
+          started against — the shared button, card, tab, skeleton and empty-state layer — is
+          now down to the button, the card and the form field.
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>Two of the three were held back by reasons
+          that had expired.</strong>
+          {' '}
+          The empty block insisted no component library ships an empty state, on the line
+          below one naming the component that replaced it. The tabs insisted our underline
+          was too particular for a library, and the library ships that underline as an
+          option. That is the fifth and sixth time this review has found a rule outliving
+          its reason — which is exactly what the standing rule you set now catches.
+        </div>
+      </div>
+
       {/* ================================================================ BATCH 5 === */}
       <div style={S.batchHead}>
         <span style={S.batchTitle}>Batch 5 — Small pieces</span>
-        <Tag tone="open">open · 3 to sign off</Tag>
+        <Tag tone="ok">🔒 locked 8 Sep 2026</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
           profile picture · dividing line · number badge — a glance each
         </span>
@@ -2216,6 +2344,7 @@ export default function PrimitiveReview() {
 
       <Spec
         name="Small pieces"
+        approved="8 Sep 2026"
         file="primitives/avatar.js · separator.js · count-badge.jsx"
         ask={
           'a glance each, but not nothing. The number badge is the only one carrying a '

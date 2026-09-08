@@ -1,53 +1,100 @@
-/* Tabs — PropVexis primitive.
- *
- * @status provisional — still renders `.u-tabs` / `.u-tab`. Replace with `@shadcn tabs`,
- *   and say plainly which of this and PanelTabs is for what. Cycle 00.
- *
- * THE ONE TAB / SWITCHER PATTERN FOR THE APP. Use this for any multi-view, filter or
- * category switcher instead of inventing a new tab style. Underline-based: a thin
- * accent line under the active label, muted and underline-less when inactive, a
- * faint underline preview on hover. No filled pill, no bordered box.
- *
- * `tabs` = [{ value, label }].
- *
- * If a switcher needs richer per-tab content than a single label — icons, multi-line
- * text, dividers, fixed widths, as the Dashboard's account selector does — it cannot
- * use this API, but it MUST still follow the same underline interaction pattern. See
- * Dashboard.jsx's AccountHeader / `.dash-acct-tab` for that reference implementation.
- *
- * Moved here verbatim from `ui.jsx`, still on `.u-tabs` / `.u-tab`. Tabs is the LAST
- * primitive scheduled for library adoption (UI-MIGRATION-PLAN §19, Phase 4a) and the
- * reason is visible in the paragraph above: it is the most opinionated component in
- * the app, its interaction pattern is a documented design-system rule rather than a
- * default, and a generated tab list arrives with its own idea of all of that. It is
- * also the only primitive here with real keyboard obligations — arrow-key roving
- * focus, which this hand-rolled version does not implement and Base UI does. That is
- * the payoff when it lands, and it lands on its own, not as a side effect of a page
- * migration.
+/* tabs.jsx
  *
  * @design unreviewed — the owner has not signed off how this LOOKS. It is not a
  *   §1 step-1 stop: reuse it in existing screens, but a redesigned screen may not
  *   adopt it until it is reviewed. See test/primitives-status.test.js.
  */
 
-const cx = (...parts) => parts.filter(Boolean).join(' ');
+import React from 'react';
+import {
+  Tabs as UITabs, TabsList, TabsTrigger,
+} from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
-function Tabs({ tabs = [], value, onChange, className }) {
+/* Tabs — PropVexis primitive.
+ *
+ * THE ONE TAB / SWITCHER PATTERN FOR THE APP. Use this for any multi-view, filter or
+ * category switcher instead of inventing a new tab style. Underline-based: a thin line
+ * under the active label, muted and underline-less when inactive, a faint underline
+ * preview on hover. No filled pill, no bordered box.
+ *
+ * `tabs` = [{ value, label }] — unchanged, so no caller moved.
+ *
+ * If a switcher needs richer per-tab content than a single label — icons, multi-line
+ * text, dividers, fixed widths, as the Dashboard's account selector does — it cannot use
+ * this API, but it MUST still follow the same underline interaction pattern.
+ *
+ * ── REBUILT OFF LEGACY CSS ON 2026-09-08, AND THE REASON IT WAITED WAS WRONG ──────────
+ *
+ * This file said Tabs was "the LAST primitive scheduled for library adoption" because "it
+ * is the most opinionated component in the app, its interaction pattern is a documented
+ * design-system rule rather than a default, and a generated tab list arrives with its own
+ * idea of all of that."
+ *
+ * THE REGISTRY SHIPS OUR PATTERN AS A VARIANT. `@shadcn/tabs` at base-rhea has
+ * `variant="line"`: the list goes transparent and loses its radius, and the trigger draws
+ * `after:h-0.5 after:bg-foreground after:opacity-0`, fading to `opacity-100` when active.
+ * That is the underline rule, from the registry, with nothing hand-built — so the whole
+ * argument for holding this component back had expired. Fifth expired justification found
+ * in this layer during the review, after two in `select.jsx`, one in `wizard.jsx` and one
+ * in `empty-state.jsx`.
+ *
+ * TWO THINGS THE WRAPPER STILL SUPPLIES, and both are rules rather than taste:
+ *
+ * 1. THE RAIL. Legacy drew `border-bottom: 1px solid var(--line)` under the whole list —
+ *    the line the tabs sit on, which is what makes an underline read as a SELECTED tab
+ *    rather than as an underlined word. The generated `line` variant has no rail.
+ * 2. THE HOVER PREVIEW. Legacy showed a 1px underline on a non-active tab under the
+ *    cursor, against 2.5px when active. It is what tells you the labels are clickable
+ *    before you click one. The generated trigger fades its underline in on ACTIVE only.
+ *
+ * The active underline is left at the generated `h-0.5` (2px) rather than restored to
+ * legacy's 2.5px — 2.5px is not a value on any scale in this app, and the half-pixel was
+ * a legacy literal rather than a decision.
+ *
+ * `gap-5` restates legacy's 20px between labels, which the generated `line` variant sets
+ * to `gap-1`. A 4px gap between text labels reads as one run-on word.
+ */
+
+/* The rail, and the hover preview. `after:` on the trigger is the generated underline, so
+ * the hover rule reaches the same element the active rule does — one underline, two
+ * strengths, rather than a second element that has to line up with the first. */
+/* THE RAIL IS A PROP, NOT A CLASS A CALLER CAN CANCEL, and that is a cascade fact
+ * rather than a preference. Legacy let one caller opt out with
+ * `.fin-breakdown-tabs { border-bottom: none }` — a legacy rule, which now sits in the
+ * LOWEST layer and would lose to any Tailwind utility this component sets. So an opt-out
+ * expressed in CSS can no longer work, and it has to be expressed in the API. One caller
+ * uses it (Finance's breakdown switcher, which sits inside a card that already has an
+ * edge), and it now says so in JSX. */
+const LIST = 'w-full justify-start gap-5';
+const RAIL = 'border-b border-border';
+const TRIGGER = [
+  'px-0 py-1.5 rounded-none',
+  'text-muted-foreground data-active:text-foreground hover:text-foreground',
+  'group-data-[variant=line]/tabs-list:hover:not-data-active:after:opacity-40',
+].join(' ');
+
+/* `className` GOES ON THE LIST, not on the root, because that is where legacy put it and
+ * seven call sites still pass a legacy class to it — `.fin-tabs` sets `display: flex;
+ * width: 100%`, `.pc-firms` sets `overflow-x: auto`, `.pa-slices` sets `align-self`.
+ * Every one of those describes the ROW of tabs. Landing them on a new outer wrapper would
+ * have applied a row's layout to a column and broken all seven silently, which is the
+ * opposite of what this seam promises. */
+function Tabs({ tabs = [], value, onChange, rail = true, className }) {
   return (
-    <div className={cx('u-tabs', className)} role="tablist">
-      {tabs.map((t) => (
-        <button
-          key={t.value}
-          type="button"
-          role="tab"
-          aria-selected={t.value === value}
-          className={cx('u-tab', t.value === value && 'is-active')}
-          onClick={() => onChange?.(t.value)}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
+    <UITabs
+      value={value}
+      onValueChange={(next) => onChange?.(next)}
+      className="gap-0"
+    >
+      <TabsList variant="line" className={cn(LIST, rail && RAIL, className)}>
+        {tabs.map((t) => (
+          <TabsTrigger key={t.value} value={t.value} className={TRIGGER}>
+            {t.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </UITabs>
   );
 }
 

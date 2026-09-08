@@ -291,7 +291,10 @@ test('empty states fade in', () => {
   // else on the dashboard has nothing to bite on.
   const empty = readCode('components/primitives/empty-state.jsx');
   assert.match(empty, /const ENTRANCE = 'animate-\[pv-content-in_var\(--dur\)_var\(--ease\)_backwards\]';/);
-  assert.match(empty, /cx\('u-empty', ENTRANCE, className\)/);
+  // `cn(ENTRANCE, className)` since 2026-09-08 — the block moved onto @shadcn/empty and
+  // the `.u-empty` class it used to carry is deleted. What this test protects is that
+  // the FADE survived the rebuild, which is what a rebuild loses by accident.
+  assert.match(empty, /cn\(ENTRANCE, className\)/);
 });
 
 test('the wizard keeps @starting-style and says why it is not a contradiction', () => {
