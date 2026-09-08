@@ -2407,6 +2407,194 @@ function VariantMatrix() {
   );
 }
 
+/* ============================================== THE CONTROL RADIUS TRIAL ===
+ *
+ * AN OPEN DECISION, 9 Sep 2026 — the only thing on this page still waiting on the owner.
+ *
+ * The ladder shifted yesterday and the controls did not all move with it. Our button
+ * wrapper overrides the generated `rounded-2xl` to `rounded-lg`, so buttons followed `--r-lg` up
+ * to 14px — while inputs, select triggers, badges and tabs still draw the generated 16px
+ * straight from `--radius-2xl`, which the shift deliberately left alone. They are two pixels
+ * apart on the same form. The mockup is a third answer again: every control a full pill.
+ *
+ * WHY A PANE AND NOT A COMMIT. Two pixels is invisible in a table of numbers and obvious
+ * on a form, and 99px is not a tweak — it reshapes every control in the product. None of
+ * the three can be judged from prose, so all three render here at the real radius.
+ *
+ * HOW IT PREVIEWS WITHOUT SHIPPING. Each column scopes the bridge variables the controls
+ * actually read — `--radius-2xl`, plus `--radius-lg` and `--radius-md` for the pill column — to a
+ * wrapper div. That is the SAME mechanism the real change would use; the only difference
+ * is that it stops at the column instead of reaching the root. Nothing here is a drawing
+ * of a radius, it IS the radius.
+ *
+ * TWO THINGS IT CANNOT SHOW. The select dropdown PANEL portals to the body, so it escapes
+ * the scope and keeps today's value — judge the trigger, not the panel. And the legacy
+ * pages carry their own radii, so a 99px decision would have to land there separately.
+ */
+
+const TRIAL_COLUMNS = [
+  {
+    key: 'a',
+    title: '14px',
+    sub: 'lined up with buttons',
+    /* Point the control step at the same token the buttons already follow. */
+    vars: { '--radius-2xl': 'var(--r-lg)' },
+    note: 'Inputs, selects, badges and tabs come DOWN 2px to meet the buttons. Closes '
+      + 'the mismatch without touching the ladder you approved yesterday.',
+  },
+  {
+    key: 'b',
+    title: '16px',
+    sub: 'as it is today',
+    /* No override at all — this column IS the running app, mismatch included. */
+    vars: {},
+    note: 'The status quo, mismatch and all: the button is 14px and the input above it '
+      + 'is 16px. Look at the two together, not at either one alone.',
+  },
+  {
+    key: 'c',
+    title: '99px',
+    sub: 'full pills, like the mockup',
+    vars: { '--radius-2xl': '99px', '--radius-lg': '99px', '--radius-md': '99px' },
+    note: 'Every control fully rounded, matching the mockup. Watch how far it sits from '
+      + 'the 24px card holding it — that distance is the real question here.',
+  },
+];
+
+const TRIAL_TYPES = [
+  { value: '2step', label: '2 Step' },
+  { value: '1step', label: '1 Step' },
+];
+
+function TrialColumn({ column, tab, onTab }) {
+  return (
+    <div style={{ ...S.specimen, flex: '1 1 300px', minWidth: 280, gap: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
+          {column.title}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{column.sub}</span>
+      </div>
+
+      {/* The card is deliberately at the real card radius: the controls are being judged
+          against the surface they sit on, not in a vacuum. */}
+      <div
+        style={{
+          ...column.vars,
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--r-card)',
+          background: 'var(--surface)',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <Field>
+          <FieldLabel>Account name</FieldLabel>
+          <Input defaultValue="FTMO 100K" />
+        </Field>
+
+        <Field>
+          <FieldLabel>Challenge type</FieldLabel>
+          <Select defaultValue="2step" items={TRIAL_TYPES}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectPopup>
+              <SelectItem value="1step">1 Step</SelectItem>
+              <SelectItem value="2step">2 Step</SelectItem>
+            </SelectPopup>
+          </Select>
+        </Field>
+
+        <Tabs
+          value={tab}
+          onChange={onTab}
+          tabs={[
+            { value: 'summary', label: 'Summary' },
+            { value: 'rules', label: 'Rules' },
+          ]}
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Badge>Funded</Badge>
+          <Badge variant="secondary">Phase 2</Badge>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button>Save</Button>
+          <Button variant="outline">Cancel</Button>
+          <Button variant="ghost" size="icon" aria-label="More">
+            <MoreHorizontal />
+          </Button>
+        </div>
+      </div>
+
+      <div style={{
+        fontSize: 12, lineHeight: '19px', color: 'var(--text-2)', marginTop: 10,
+      }}
+      >
+        {column.note}
+      </div>
+    </div>
+  );
+}
+
+function ControlRadiusTrial() {
+  /* One tab value per column, so clicking a tab in one does not move the other two —
+   * they are meant to be compared in the same state. */
+  const [tabs, setTabs] = useState({ a: 'summary', b: 'summary', c: 'summary' });
+
+  return (
+    <>
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>The one decision still open</span>
+        <Tag tone="open">waiting on you</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          what shape the controls take
+        </span>
+      </div>
+
+      <div style={{ ...S.card, marginTop: 12 }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Control radius</span>
+          <span style={S.mono}>bridge.css · --radius-2xl</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="open">A, B or C</Tag>
+        </div>
+
+        <div style={S.note}>
+          The ladder shift moved buttons to 14px and left inputs, selects, badges and tabs
+          at the generated 16px — they are
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>two pixels apart on the same form</strong>
+          {' '}
+          right now, which is column B. Each column below is the real radius rather than a
+          drawing of one: it scopes the same variable the real change would set. The
+          dropdown
+          {' '}
+          <em>panel</em>
+          {' '}
+          portals to the body, so it escapes the preview — judge the trigger.
+        </div>
+
+        <div style={{
+          display: 'flex', gap: 24, padding: 18, flexWrap: 'wrap', alignItems: 'flex-start',
+        }}
+        >
+          {TRIAL_COLUMNS.map((c) => (
+            <TrialColumn
+              key={c.key}
+              column={c}
+              tab={tabs[c.key]}
+              onTab={(v) => setTabs((t) => ({ ...t, [c.key]: v }))}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function PrimitiveReview() {
   const menu = MenuSpecimens();
 
@@ -2428,6 +2616,8 @@ export default function PrimitiveReview() {
         {' '}
         <strong style={{ color: 'var(--text)' }}>What comes next is below.</strong>
       </p>
+
+      <ControlRadiusTrial />
 
       <RedesignMap legacyClasses={LEGACY_CLASSES} />
 
