@@ -752,6 +752,38 @@
   to   { opacity: 1; }
 }
 
+/* pv-row-flash — A ROW THAT JUST ARRIVED FROM THE BROKER.
+
+   The one animation in this app whose duration is set by HUMAN REACTION TIME rather
+   than by the size of what moves. A trader closes a position in MT5 and looks back at
+   the browser a second later; the flash exists so the row they are looking for
+   identifies itself. At --dur (200ms) it is over before they have looked up, which
+   makes it an animation that costs something and delivers nothing.
+
+   SO ITS 2s IS NOT ON §10's LADDER, AND THAT IS THE SAME CARVE-OUT THE SKELETON PULSE
+   ALREADY HAS. §10 gives three durations for animations that SETTLE and lets a loop run
+   slower ("opacity at 2s, slower than every settling duration on purpose — a heartbeat,
+   not an event"). This settles, so it is not a loop; but it is not carrying a state
+   change the eye is already looking at either. It is a one-shot attention signal, which
+   is a third category §10 does not name yet. Flagged to the owner with the §1 amendment
+   rather than decided here — the VALUE is the shipped one, so nothing regressed while
+   the rule catches up.
+
+   --profit-bg, NOT --tint-profit-7. The legacy rule this replaces reached into the
+   `--tint-*` family, which is fenced off for legacy only and dies with app.css.
+
+   NO `forwards`. The row must return to its own background when the flash ends, or it
+   would sit permanently transparent and its hover and selected fills would stop
+   painting. Held by kit-data-table.test.js.
+
+   It needs no motion-safe gate: the global prefers-reduced-motion reset collapses the
+   duration, and the row is simply there — which is §10's rule that a reduced-motion
+   user gets the result instantly, never nothing. */
+@keyframes pv-row-flash {
+  from { background-color: var(--profit-bg); }
+  to   { background-color: transparent; }
+}
+
 @keyframes pv-breathe {
   0%, 100% { box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--loss) 28%, transparent); }
   50% { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--loss) 0%, transparent); }

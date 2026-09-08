@@ -301,8 +301,22 @@ const ROW_TONE = {
   attention: 'shadow-[inset_2px_0_0_0_var(--warning)]',
 };
 
+/* THE ARRIVAL FLASH — owner-approved 2026-09-09, and it is a REBUILD rather than a new
+ * behaviour: the shipped table already flashes a row green for two seconds when a trade
+ * lands from MT5, and dropping it would have been a silent feature deletion. The
+ * animation filter permits it exactly — "animate only real state changes the user must
+ * follow" — and a position closing in MT5 and appearing here is the clearest one in the
+ * app.
+ *
+ * WHAT CHANGED IN THE REBUILD: the keyframe moved from `legacy/app.css` (frozen, and
+ * dies with that file) into `bridge.css` beside the app's other five, and its colour came
+ * off `--tint-profit-7` onto `--profit-bg`, because the `--tint-*` family is fenced off
+ * for legacy only. The 2s is unchanged, deliberately — see the keyframe's own note for
+ * why that duration is not on §10's ladder and what is being asked of the owner. */
+const FLASH = 'animate-[pv-row-flash_2s_var(--ease)]';
+
 function DataTableRow({
-  selected = false, interactive = false, tone, className, children, ...rest
+  selected = false, interactive = false, tone, flash = false, className, children, ...rest
 }) {
   return (
     <TableRow
@@ -316,6 +330,9 @@ function DataTableRow({
         'hover:bg-[var(--surface-hover)]',
         selected && 'bg-[var(--sel-bg)] hover:bg-[var(--sel-bg-strong)]',
         tone && ROW_TONE[tone],
+        // Last, so it paints over the resting fill for the two seconds it runs. It does
+        // not fill forwards, so hover and selection resume the moment it ends.
+        flash && FLASH,
         className,
       )}
       {...rest}

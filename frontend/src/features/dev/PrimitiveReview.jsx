@@ -70,7 +70,7 @@ import {
  * which is 400 lines that have nothing to do with the primitive batches above. Same
  * rules apply there — real components, inline-styled scaffolding. */
 import {
-  DataTableParity, DataTableQuestions, DataTableSelection, DataTableStates,
+  DataTableArrival, DataTableParity, DataTableQuestions, DataTableSelection, DataTableStates,
 } from './KitDataTable.jsx';
 
 /* ---------------------------------------------------------------- scaffolding --- */
@@ -2505,6 +2505,7 @@ export default function PrimitiveReview() {
       <DataTableParity />
       <DataTableStates />
       <DataTableSelection />
+      <DataTableArrival />
       <DataTableQuestions />
 
       <div style={S.column}>

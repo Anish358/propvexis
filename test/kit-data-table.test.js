@@ -213,6 +213,42 @@ test('comparison literals stay OUT of cn(), so the collision test cannot false-p
   );
 });
 
+test('the arrival flash lives in the bridge, is tokened, and does not fill forwards', () => {
+  /* THE BEHAVIOUR ALREADY SHIPPED and the owner approved keeping it (2026-09-09), so this
+   * pins the three things the REBUILD could get wrong. All three are silent failures.
+   *
+   * NO `forwards`. The keyframe ends on `background-color: transparent`. If the animation
+   * filled forwards, that transparent would stick and the row's hover and selected fills
+   * would stop painting for the rest of the session — on the one row the trader most
+   * wants to click. Nothing would error.
+   *
+   * NOT `--tint-*`. The legacy rule reached into that family, which is fenced off for
+   * legacy only and dies with app.css. A rebuild that kept the token would have to be
+   * redone the day that file goes.
+   *
+   * IN bridge.css, NOT legacy/app.css. `@keyframes` are global and layer-free, so the
+   * only thing that matters is which file survives — and app.css is frozen anyway
+   * (legacy-frozen.test.js would refuse a new name in it). */
+  const bridge = readFileSync(at('../frontend/src/styles/bridge.css'), 'utf8');
+  assert.match(bridge, /@keyframes pv-row-flash/, 'the arrival keyframe belongs in bridge.css');
+  assert.match(bridge, /background-color: var\(--profit-bg\)/, 'it must use --profit-bg, not a legacy --tint-*');
+  assert.doesNotMatch(
+    bridge.slice(bridge.indexOf('@keyframes pv-row-flash')).slice(0, 200), /--tint-/,
+    'the arrival keyframe must not reach into the legacy --tint-* family',
+  );
+  assert.match(code, /animate-\[pv-row-flash_2s_var\(--ease\)\]/, 'the row plays it at 2s on the token curve');
+  assert.doesNotMatch(
+    code, /pv-row-flash[^']*forwards/,
+    'the flash must NOT fill forwards — it ends on transparent, which would then stick '
+      + "and permanently kill that row's hover and selected fills",
+  );
+  assert.match(
+    legacyCss, /\.row-flash/,
+    'the shipped .row-flash rule is still in app.css. It goes when the Trade Log migrates '
+      + 'in Cycle 01, together with its name in test/fixtures/legacy-classes.txt.',
+  );
+});
+
 test('the table is exported from the barrel, because that is the only door', () => {
   const parts = [
     'DataTable', 'DataTableBody', 'DataTableCell', 'DataTableDash', 'DataTableHeadCell',

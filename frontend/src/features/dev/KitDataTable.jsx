@@ -132,7 +132,7 @@ const COLS = 15;
  * so it owns its scroll. The Trade Log takes the default, `scroll="page"`, where the
  * head sticks under the top bar. Both paths are exercised by the pair of panes below.
  */
-function KitTable({ trades, state = 'ready', unit = 'R', selected, onToggle, onToggleAll }) {
+function KitTable({ trades, state = 'ready', unit = 'R', selected, onToggle, onToggleAll, flashId }) {
   const sel = selected || new Set();
   const here = trades.reduce((n, t) => n + (sel.has(t.id) ? 1 : 0), 0);
   const all = trades.length > 0 && here === trades.length;
@@ -181,6 +181,7 @@ function KitTable({ trades, state = 'ready', unit = 'R', selected, onToggle, onT
                 interactive
                 selected={sel.has(t.id)}
                 tone={t.tagged ? undefined : 'attention'}
+                flash={t.id === flashId}
                 onClick={() => {}}
                 title={t.tagged ? 'Edit tags' : 'Click to tag this trade'}
               >
@@ -487,6 +488,53 @@ export function DataTableSelection() {
   );
 }
 
+/* THE ARRIVAL FLASH. A behaviour, so it needs a button rather than a still — you cannot
+ * review a two-second animation from a screenshot. The button replays it on the top row,
+ * which is what actually happens when a position closes in MT5 and the socket pushes it. */
+export function DataTableArrival() {
+  const [flashId, setFlashId] = useState(null);
+  const replay = () => {
+    setFlashId(null);
+    // Two frames, not zero: React batches, so clearing and re-setting in one tick never
+    // unsets the class and the animation does not restart.
+    requestAnimationFrame(() => requestAnimationFrame(() => setFlashId(TRADES[0].id)));
+  };
+  return (
+    <div style={F.card}>
+      <div style={F.head}>
+        <span style={F.name}>A trade arriving from MT5</span>
+        <span style={F.mono}>pv-row-flash · bridge.css</span>
+        <span style={{ flex: 1 }} />
+        <Button variant="secondary" size="sm" onClick={replay}>
+          <RefreshCw aria-hidden="true" />
+          <ButtonLabel>Play it again</ButtonLabel>
+        </Button>
+      </div>
+      <div style={F.pane}>
+        <KitTable trades={TRADES} flashId={flashId} />
+      </div>
+      <div style={F.note}>
+        <strong style={F.strong}>Press the button and watch the top row. </strong>
+        This is the behaviour that already ships — you approved keeping it. What changed is
+        underneath: the keyframe moved out of the frozen legacy stylesheet into
+        {' '}
+        <code style={F.mono}>bridge.css</code>
+        {' beside the app’s other five, and its green came off a legacy '}
+        <code style={F.mono}>--tint-*</code>
+        {' value onto '}
+        <code style={F.mono}>--profit-bg</code>
+        .
+        {' '}
+        <strong style={F.strong}>Two things to judge. </strong>
+        Is two seconds right — long enough that you catch it after looking away at MT5,
+        short enough not to nag? And is the green strong enough to find without being
+        loud enough to read as a win? It is deliberately the same green a winning cell
+        uses, so the row does not invent a sixth meaning for the colour.
+      </div>
+    </div>
+  );
+}
+
 /* THE OPEN QUESTIONS. Four, and each one is a decision the kit cannot make for itself
  * because it is a product or a taste call rather than a rule. */
 export function DataTableQuestions() {
@@ -519,15 +567,14 @@ export function DataTableQuestions() {
         header now too close in height to the rows it labels?
         <br />
         <br />
-        <strong style={F.strong}>4. The new-trade flash. </strong>
-        When a trade arrives from MT5 its row flashes green for two seconds. I have NOT
-        rebuilt it: the flash is a keyframe, and app keyframes live in
-        {' '}
-        <code style={F.mono}>bridge.css</code>
-        {' — a foundation file. Adding one there is a foundation change and those need your '}
-        approval, so it is deferred to Cycle 01 with your answer rather than slipped in.
-        The behaviour itself is worth keeping: a trade appearing is exactly the kind of
-        real state change the animation rule says to animate.
+        <strong style={F.strong}>4. The new-trade flash — BUILT 9 Sep, you approved the
+        keyframe. </strong>
+        It is in the pane above with a button to replay it. One thing is still open and it
+        is a rule rather than a value: its two seconds is not on §10’s ladder of three
+        durations. §10 sizes a duration by what MOVES; this one is sized by how long you
+        take to look back at the browser after closing a position in MT5. The skeleton
+        pulse already has that carve-out (“a heartbeat, not an event”) and this needs the
+        same sentence. Drafted for you with the §1 amendment.
       </div>
     </div>
   );
