@@ -48,7 +48,11 @@
    using this layer correctly, not waiting to.
    =========================================================================== */
 
-// NOTE: only the `default` and `error` variants render — see alert.jsx.
+// ALL FOUR TONES RENDER. This said "only the `default` and `error` variants render",
+// which was true while `--info` and `--success` did not exist and those variants resolved
+// to an unstyled box, silently. §17 (owner, 2026-09-06) gave a system message a glyph and
+// an edge, the two tokens landed as aliases, and alert.jsx has recorded the full ladder
+// since — error · warning · info · success. See it there.
 export { Alert, AlertAction, AlertDescription, AlertTitle } from './alert.jsx';
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './avatar.js';
 export { Badge } from './badge.jsx';
@@ -82,8 +86,11 @@ export {
 // TradePreview drawer is the candidate). Exported because the barrel is the only door.
 export { OverlayContainerContext, useOverlayContainer } from './overlay-container.js';
 export { Popover, PopoverContent, PopoverTrigger } from './popover.jsx';
-// The @coss select, with its trigger matched to our Input and its popup rendered from
-// the Base UI parts so it takes §6's overlay radius and §7's elevation — see select.jsx.
+// The generated @shadcn select, near enough untouched. This used to read "the @coss
+// select, with its trigger matched to our Input and its popup rendered from the Base UI
+// parts" — a 250-line wrapper that was re-installed away on 2026-09-07 when the registry
+// turned out to have rewritten the component into every override it carried. Two classes
+// left, both about forms rather than looks. See select.jsx.
 export { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './select.jsx';
 export {
   Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue,

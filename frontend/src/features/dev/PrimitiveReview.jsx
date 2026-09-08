@@ -24,7 +24,10 @@
  * This page is deleted when nothing is left `@design unreviewed`.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Filter, MoreHorizontal, Trash2 } from 'lucide-react';
+import {
+  AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, Filter, Info,
+  MoreHorizontal, Trash2,
+} from 'lucide-react';
 /* THE REGISTRY COMPONENTS, IMPORTED RAW. Every other specimen on this page goes through
  * `@/components/primitives` — our wrapper layer, which is exactly what re-means shadcn's
  * vocabulary (§25) and applies our locked overrides. These two bypass it, so the pane
@@ -46,6 +49,7 @@ import {
   SelectTrigger as RawSelectTrigger, SelectValue as RawSelectValue,
 } from '@/components/ui/select';
 import {
+  Alert, AlertAction, AlertDescription, AlertTitle,
   Badge,
   Button, ButtonLabel, Checkbox, ConsentField, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input,
@@ -53,8 +57,10 @@ import {
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Modal,
   OverlayContainerContext, Popover, PopoverContent,
-  PopoverTrigger, Select, SelectItem, SelectPopup, SelectTrigger, SelectValue,
-  Switch, Textarea, ToggleGroupExclusive, ToggleGroupItem,
+  PopoverTrigger, Progress, ProgressIndicator, ProgressLabel, ProgressTrack,
+  ProgressValue,
+  Select, SelectItem, SelectPopup, SelectTrigger, SelectValue,
+  Skeleton, Spinner, Switch, Textarea, ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
 
 /* ---------------------------------------------------------------- scaffolding --- */
@@ -1644,6 +1650,203 @@ function OpenQuestions() {
   );
 }
 
+/* ============================================ THE ONE THAT WAS IN NO BATCH ===
+ *
+ * `overlay-container.js` renders NOTHING. It is a React context holding a ref, and the
+ * batches were drawn from things you can look at, so it was never assigned to one — which
+ * left the arithmetic short: 24 approved plus 11 batched is 35, not 36.
+ *
+ * IT HAS EXACTLY ONE VISIBLE CONSEQUENCE, and that is what this pane shows rather than
+ * asking anyone to approve an abstraction. Base UI portals an overlay into its nearest
+ * parent portal, not to the page — so a menu opened inside a modal lands as a SIBLING of
+ * the modal's backdrop, where the positioner's hardcoded z-index of 50 loses to the
+ * scrim's 2147483000 and the menu paints underneath it: focused, keyboard-operable, and
+ * invisible. This context is how an overlay says "I belong to that modal" instead of
+ * asking for a bigger number.
+ *
+ * So: open the modal, then open the menu and the picker inside it. If you can see them,
+ * the component works. That is the entire review, and it is the honest one — there is no
+ * appearance here to have an opinion about.
+ */
+function OverlayContainerSpecimen() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Open a modal with overlays inside it
+      </Button>
+      {open ? (
+        <Modal open onClose={() => setOpen(false)} label="Overlay containment" style={{ display: 'grid', gap: 24 }}>
+          <DialogHeader>
+            <DialogTitle>Overlays inside a modal</DialogTitle>
+            <DialogDescription>
+              Both controls below open panels of their own. Without this context they would
+              render underneath the dark backdrop behind this dialog — reachable by
+              keyboard, invisible to you.
+            </DialogDescription>
+          </DialogHeader>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Menu>
+              <MenuTrigger render={<Button variant="secondary" />}>
+                <Filter aria-hidden="true" />
+                A menu
+              </MenuTrigger>
+              <MenuContent align="start">
+                <MenuItem>Export CSV</MenuItem>
+                <MenuItem>Duplicate</MenuItem>
+                <MenuSeparator />
+                <MenuItem>Archive</MenuItem>
+              </MenuContent>
+            </Menu>
+            <Select defaultValue="2step" items={TYPES}>
+              <SelectTrigger style={{ width: 180 }}><SelectValue /></SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="1step">1 Step</SelectItem>
+                <SelectItem value="2step">2 Step</SelectItem>
+                <SelectItem value="instant">Instant Funding</SelectItem>
+              </SelectPopup>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOpen(false)}>Close</Button>
+          </DialogFooter>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/* ================================================================= BATCH 3 ===
+ * FEEDBACK — alert · skeleton · spinner · progress.
+ *
+ * These four say what is happening: something went wrong, something is coming, something
+ * is running, something is this far along. They are one batch because they are the app
+ * talking about ITSELF rather than about trades — and because §17, the rule for how a
+ * system message may spend colour, governs the first one and nothing else in the app.
+ *
+ * WHAT THE PRE-REVIEW AUDIT FOUND (2026-09-07), run under the standing rule that the
+ * registry is checked BEFORE anything is wrapped or hand-built:
+ *
+ *   · ALL FOUR ARE THE SHIPPED COMPONENT, and all four are byte-identical to what their
+ *     registry serves today. `skeleton` and `spinner` are shadcn base-rhea; `alert` and
+ *     `progress` are @coss. Nothing is hand-built, nothing has drifted, and there is no
+ *     rewrite waiting the way there was for the picker.
+ *   · `alert` IS @coss ON PURPOSE and it is worth knowing why: shadcn's own alert ships
+ *     two variants, default and destructive. §17 needs a four-step ladder — error,
+ *     warning, info, success — and @coss ships exactly that. §1's build order working,
+ *     not a shortcut past it.
+ *   · `progress` carries the batch's ONE override: the generated indicator animates over
+ *     500ms and §10 allows two durations, 200 and 120. Worth noting that shadcn's own
+ *     progress has since dropped its duration entirely, so if we ever move off the coss
+ *     one that override goes with it.
+ *   · NOTHING IN THE APP RENDERS THE SPINNER. Not one screen — checked. It is drawn below
+ *     so it can be judged, but it is being approved with no call sites.
+ */
+
+/* §17 IS WHAT THIS PANE IS FOR, and it is the rule settled on 2026-09-06: a system message
+ * may colour its GLYPH and a 1px EDGE; it may not colour its WORDS or wash its surface,
+ * and nothing inside a data surface may use status colour at all. The generated component
+ * already spends colour in exactly those two places, so there is nothing of ours in here —
+ * which means what is being judged is whether the RULE reads right in practice, not
+ * whether we implemented it. */
+const ALERT_TONES = [
+  { v: 'error', icon: AlertCircle, title: 'We could not start the connection', body: 'Nothing was saved. You can try authorizing again.' },
+  { v: 'warning', icon: AlertTriangle, title: 'You are 88% through today’s loss limit', body: 'One more losing trade at your usual size would breach it.' },
+  { v: 'info', icon: Info, title: 'Your EA has not reported since Friday', body: 'Trades placed since then will appear once it reconnects.' },
+  { v: 'success', icon: CheckCircle2, title: 'Payout recorded', body: '$4,120 added to your withdrawal history.' },
+];
+
+function AlertTones() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      {ALERT_TONES.map(({ v, icon: Icon, title, body }) => (
+        <Alert key={v} variant={v}>
+          <Icon aria-hidden="true" />
+          <AlertTitle>{title}</AlertTitle>
+          <AlertDescription>{body}</AlertDescription>
+        </Alert>
+      ))}
+    </div>
+  );
+}
+
+function AlertShapes() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      <Alert variant="error">
+        <AlertCircle aria-hidden="true" />
+        <AlertTitle>Sync failed</AlertTitle>
+        <AlertDescription>
+          Your last 3 trades did not import. This usually means the terminal was closed
+          mid-write; retrying is safe and will not duplicate anything.
+        </AlertDescription>
+        <AlertAction>
+          <Button variant="secondary" size="sm">Retry</Button>
+        </AlertAction>
+      </Alert>
+      <Alert variant="info">
+        <Info aria-hidden="true" />
+        <AlertDescription>
+          One line, no heading &mdash; which is what most of the app&rsquo;s alerts
+          actually are.
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+/* THE OTHER THREE TOGETHER, because they are one question asked three ways: "something is
+ * happening, wait." A skeleton says it about a REGION, a spinner about an ACTION, a
+ * progress bar about a JOB WITH A KNOWN END. If they do not read as one family, the user
+ * learns three vocabularies for one idea. */
+function LoadingFamily() {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 30, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9, width: 230 }}>
+        <span style={S.specimenLabel}>Skeleton — a region</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Skeleton style={{ height: 28, width: 140 }} />
+          <Skeleton style={{ height: 14, width: '100%' }} />
+          <Skeleton style={{ height: 14, width: '78%' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <Skeleton style={{ height: 56, flex: 1 }} />
+            <Skeleton style={{ height: 56, flex: 1 }} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <span style={S.specimenLabel}>Spinner — an action</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, minHeight: 56 }}>
+          <Spinner />
+          <Spinner style={{ width: 20, height: 20 }} />
+          <Spinner style={{ width: 28, height: 28 }} />
+          <Button variant="primary" disabled>
+            <Spinner />
+            <ButtonLabel>Connecting…</ButtonLabel>
+          </Button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 230 }}>
+        <span style={S.specimenLabel}>Progress — a job with an end</span>
+        {[0, 40, 100].map((v) => (
+          <Progress key={v} value={v}>
+            <ProgressTrack><ProgressIndicator /></ProgressTrack>
+          </Progress>
+        ))}
+        <Progress value={62}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <ProgressLabel>Importing trades</ProgressLabel>
+            <ProgressValue />
+          </div>
+          <ProgressTrack><ProgressIndicator /></ProgressTrack>
+        </Progress>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------- the page --- */
 
 /* THE COUNTS MOVE AS THINGS GET SIGNED OFF, and two of them moved on 2026-09-07 without
@@ -1653,7 +1856,6 @@ function OpenQuestions() {
  * one thing this page must not do — it is the only place anyone reads how much is
  * outstanding. */
 const LATER_BATCHES = [
-  { n: 3, name: 'Feedback', qty: 4, parts: 'alert · skeleton · spinner · progress' },
   { n: 4, name: 'Flows', qty: 1, parts: 'wizard (21 pieces)', dep: 'after Batch 2 — the wizard is built from those controls. toggle-group was signed off early, on the variant matrix' },
   { n: 5, name: 'Small pieces', qty: 3, parts: 'avatar · separator · count-badge' },
   { n: 6, name: 'Rebuild first, then review', qty: 3, parts: 'empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
@@ -1816,10 +2018,100 @@ export default function PrimitiveReview() {
         {' '}
         <strong style={{ color: 'var(--text)' }}>Batch 2 is closed too.</strong>
         {' '}
-        The seven form controls were signed off the same day, after four rounds — the last
-        of which replaced the picker with the registry component outright. Nothing is open
-        right now; Batch 3 (Feedback) is next.
+        The seven form controls were signed off after four rounds — the last of which
+        replaced the picker with the registry component outright.
+        {' '}
+        <strong style={{ color: 'var(--text)' }}>Batch 3 — Feedback is open, at the top.</strong>
+        {' '}
+        Four parts, and the odd one out sits above it: the piece of plumbing that was never
+        in a batch at all.
       </p>
+
+      {/* ================================================= THE UNBATCHED ONE === */}
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>The one that was in no batch</span>
+        <Tag tone="open">needs a decision, not an opinion</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          24 approved + 11 still batched = 35, and there are 36
+        </span>
+      </div>
+
+      <Spec
+        name="Overlay container"
+        file="primitives/overlay-container.js"
+        ask={
+          'nothing, really — and that is the point. This one draws no pixels: it is the '
+          + 'wiring that tells a menu opened inside a pop-up window that it belongs to that '
+          + 'window. Without it the menu opens underneath the dark backdrop, where you '
+          + 'cannot see it but your keyboard can still reach it. So the check is simply: '
+          + 'open the window below, open the menu and the picker inside it, and confirm you '
+          + 'can see them. If you can, it works. It has no appearance to approve, so it '
+          + 'should be signed off the way the dialog was signed off underneath the modal.'
+        }
+        states={[{ label: 'A menu and a picker, inside a modal', render: <OverlayContainerSpecimen /> }]}
+      />
+
+      {/* ================================================================ BATCH 3 === */}
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>Batch 3 — Feedback</span>
+        <Tag tone="open">open · 4 to sign off</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          the message bar, the loading placeholder, the spinner and the progress bar — the
+          app talking about itself
+        </span>
+      </div>
+
+      <Spec
+        name="Message bar"
+        file="primitives/alert.jsx"
+        ask={
+          'the four tones against each other. The rule you settled last week says a system '
+          + 'message may colour its ICON and a hairline EDGE, and may never colour its '
+          + 'WORDS or wash the whole box — so check that the red one reads as urgent '
+          + 'without the sentence itself turning red, and that the four make a sensible '
+          + 'ladder: an error should be louder than a tip, and the green one must not read '
+          + 'as profit. Then the second pane: whether a message with a button in it still '
+          + 'reads as a message rather than a card, and whether a one-line one without a '
+          + 'heading looks deliberate.'
+        }
+        states={[
+          { label: 'The four tones', render: <AlertTones /> },
+          { label: 'With an action · with no heading', render: <AlertShapes /> },
+        ]}
+      />
+
+      <Spec
+        name="Loading, waiting, progress"
+        file="primitives/skeleton.jsx · spinner.js · progress.jsx"
+        ask={
+          'whether these three feel like one family. They are the same sentence said three '
+          + 'ways — a placeholder for a region that has not loaded, a spinner for an action '
+          + 'in flight, a bar for a job with a known end — so they should share a weight '
+          + 'and a grey. Specifically: is the placeholder pulse too fast or too slow, is '
+          + 'the spinner the right size next to button text, and is the empty progress bar '
+          + 'visible enough to read as "nothing yet" rather than as a gap?'
+        }
+        states={[{ label: 'All three, side by side', render: <LoadingFamily /> }]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Before you sign off the spinner</span>
+          <span style={S.mono}>primitives/spinner.js</span>
+          <span style={{ flex: 1 }} />
+          <Tag>no call sites</Tag>
+        </div>
+        <div style={S.note}>
+          <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Nothing in the app renders it. </strong>
+          Not one screen — I checked every file. Buttons that are working show their own
+          text (&ldquo;Connecting…&rdquo;), and regions that are loading use the
+          placeholder. So you would be approving how something looks before anything uses
+          it, which is the opposite of the problem this page was built for. It is still
+          worth approving — it costs nothing and the moment a button needs one we should
+          not be inventing it — but the specimen beside a button above is the only place it
+          has ever appeared.
+        </div>
+      </div>
 
       {/* ================================================================ BATCH 2 === */}
       <div style={S.batchHead}>
