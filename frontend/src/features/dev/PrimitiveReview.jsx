@@ -2056,6 +2056,202 @@ function SmallPieces() {
  *     2026-08-28, before this file was written. Deleted; the grids are plain `grid` now.
  *   · Nothing else. Every value in the file traces to a rule, and the file says which.
  */
+/* ============================================================ FOLDING AWAY ===
+ *
+ * THE PAGE IS A QUEUE, AND A FINISHED QUEUE THAT STILL SHOWS EVERY FINISHED ITEM IS NOT
+ * ONE (owner, 2026-09-08: "find a way to hide the approved and locked things... dont want
+ * to overcrowde it"). Every locked batch collapses to a single line and opens on click.
+ *
+ * `<details>` RATHER THAN REACT STATE, and it is not laziness. The browser gives us the
+ * open/closed behaviour, the keyboard handling and the accessibility semantics for free,
+ * and it keeps working if this page is ever printed or opened with JS half-loaded. State
+ * here would be three lines to reimplement what the platform already does correctly.
+ *
+ * The marker is removed and drawn by hand because Safari and Firefox disagree about the
+ * default triangle's size and position, and a review page that looks different per browser
+ * is the one thing this page must not be.
+ *
+ * NOTHING IS DELETED BY FOLDING. Every locked specimen still renders when opened — that is
+ * the whole reason the page survives the review: change one token and you can check all 36
+ * parts at once. Folding is about what you see FIRST, not about what is here. */
+function Folded({ title, tag, hint, children, open = false }) {
+  return (
+    <details open={open} style={{ marginTop: 22 }}>
+      <summary
+        style={{
+          display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap',
+          cursor: 'pointer', listStyle: 'none', userSelect: 'none',
+        }}
+      >
+        {/* The chevron rotates via the parent's open state — a sibling selector would need
+            a stylesheet, and a utility class here would compile to nothing. */}
+        <span style={{ fontSize: 11, color: 'var(--text-3)', width: 10 }}>▸</span>
+        <span style={S.batchTitle}>{title}</span>
+        {tag}
+        {hint ? <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{hint}</span> : null}
+      </summary>
+      <div style={{ paddingLeft: 22 }}>{children}</div>
+    </details>
+  );
+}
+
+/* ======================================================= THE REDESIGN MAP ===
+ *
+ * WHY IT LIVES ON THIS PAGE. The primitive review was never the project — it was the
+ * PREREQUISITE for it. §1 says a redesigned screen may only use parts the owner has signed
+ * off, so the review is what unblocks the redesign, and until now the two were tracked in
+ * two untracked documents nobody opens. Putting the map here means the thing that says
+ * "what next" sits directly under the thing that says "with what".
+ *
+ * SOURCE OF TRUTH IS STILL `docs/architecture/SCREEN-REDESIGN-PLAN.md`. This is a view of
+ * it, not a second copy of the decisions — the cycle order, the families and the archetypes
+ * are that document's, and the counts below were measured when it was authored (2026-09-06)
+ * except where marked live.
+ */
+/* HOW MANY CLASS NAMES THE OLD STYLESHEET STILL DECLARES.
+ *
+ * A NUMBER IN A COMMENT IS A NUMBER THAT ROTS, and this page has spent a week finding
+ * exactly that failure in other files. So it is not a comment — `legacy-css-count.test.js`
+ * counts the real declarations and fails if this disagrees. It cannot drift without
+ * someone being told, and updating it is one line when a cycle deletes a screen's CSS.
+ *
+ * It is the honest measure of the redesign's progress in a way "screens done" is not: a
+ * screen can be redesigned and still leave its old rules behind, which is the step §9 of
+ * the plan says gets skipped. */
+const LEGACY_CLASSES = 969;
+
+const CYCLES = [
+  {
+    n: 0,
+    what: 'The kit',
+    detail: 'Every shared piece, every state, and the filter bar. Nothing else can start until this exists.',
+    screens: 'unlocks all 30',
+    state: 'next',
+  },
+  {
+    n: 1,
+    what: 'Trade Log',
+    detail: 'The table archetype, and the busiest page in the app. Five screens are assembled from it.',
+    screens: '5 screens',
+  },
+  {
+    n: 2,
+    what: 'Analytics',
+    detail: 'The chart archetype and the biggest family — Psychology, Progress, Reports, Strategies, Backtesting all follow it.',
+    screens: '7 screens',
+  },
+  {
+    n: 3,
+    what: 'Journal, Day, Calendar',
+    detail: 'The workspace archetype. The Calendar is the heaviest user of the old stylesheet outside Prop OS.',
+    screens: '3 screens',
+  },
+  {
+    n: 4,
+    what: 'Settings + Add Account',
+    detail: 'The form archetype: six settings sections and the account wizard. Small and low risk, which is why it sits before Prop OS.',
+    screens: '8 screens',
+    note: 'this is the cycle the wizard comes back for review in',
+  },
+  {
+    n: 5,
+    what: 'Prop OS',
+    detail: 'Overview, Challenges, Finance, Accounts. The biggest and most complex, and deliberately scheduled after four families have proven the kit.',
+    screens: '4 screens',
+  },
+  {
+    n: 6,
+    what: 'Auth + Onboarding',
+    detail: 'The front door for every new signup. It does not jump the queue ahead of the in-app screens — that was decided rather than assumed.',
+    screens: '6 screens',
+  },
+  {
+    n: 7,
+    what: 'Alerts, Reports, Tools',
+    detail: 'The leftovers, assembled from a kit that is fully proven by this point.',
+    screens: '4 screens',
+  },
+  {
+    n: 8,
+    what: 'Delete the old stylesheet',
+    detail: 'The finish line. A screen is not done until its old CSS is deleted, so by here there should be nothing left to remove.',
+    screens: 'the end',
+  },
+];
+
+function RedesignMap({ legacyClasses }) {
+  return (
+    <div style={{ ...S.card, marginTop: 16 }}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>The redesign, in order</span>
+        <span style={S.mono}>docs/architecture/SCREEN-REDESIGN-PLAN.md</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="open">cycle 0 is next</Tag>
+      </div>
+
+      <div style={{ ...S.note, borderTop: 'none' }}>
+        Thirty screens, seven families, one archetype each — the other twenty-three are
+        assembled from those seven rather than designed. The rule that makes it hold: a
+        tweak touching more than one screen goes into the kit or the tokens, never into
+        the page. Otherwise you get thirty slightly different tables.
+        {' '}
+        <strong style={{ color: 'var(--text)' }}>The parts above are what the kit is built
+        from</strong>
+        {' '}
+        — which is why the review came first, and why an unapproved part cannot be used by
+        a redesigned screen.
+      </div>
+
+      {CYCLES.map((c) => (
+        <div
+          key={c.n}
+          style={{
+            display: 'flex', gap: 14, alignItems: 'flex-start',
+            padding: '13px 18px', borderTop: '1px solid var(--line-inset)',
+            background: c.state === 'next' ? 'var(--surface-sunken)' : 'transparent',
+          }}
+        >
+          <span style={{
+            ...S.mono,
+            minWidth: 18,
+            color: c.state === 'next' ? 'var(--accent)' : 'var(--text-3)',
+            paddingTop: 2,
+          }}
+          >
+            {c.n}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13.5, fontWeight: 550, color: 'var(--text)' }}>{c.what}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{c.screens}</span>
+              {c.state === 'next' ? <Tag tone="open">next</Tag> : null}
+            </div>
+            <div style={{ fontSize: 12.5, lineHeight: '20px', color: 'var(--text-2)', marginTop: 3 }}>
+              {c.detail}
+            </div>
+            {c.note ? (
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4, fontStyle: 'italic' }}>
+                {c.note}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ))}
+
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>How you will know it is working: </strong>
+        the old stylesheet shrinks. It was 1,126 class names when this started and is
+        {' '}
+        <strong style={{ color: 'var(--text)' }}>{legacyClasses} now</strong>
+        {' '}
+        — but almost all of that came from replacing components, not from deleting dead
+        rules. Each cycle above should take a visible bite out of it, and cycle 8 only
+        exists to confirm there is nothing left.
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------- the page --- */
 
 /* THE COUNTS MOVE AS THINGS GET SIGNED OFF, and two of them moved on 2026-09-07 without
@@ -2064,9 +2260,14 @@ function SmallPieces() {
  * legacy CSS the same day and is approved. A queue that overstates what is left is the
  * one thing this page must not do — it is the only place anyone reads how much is
  * outstanding. */
-const LATER_BATCHES = [
-  { n: 4, name: 'Flows', qty: 1, parts: 'wizard (21 pieces)', dep: 'DEFERRED 8 Sep — the Add Account flow is being redesigned; it comes back after' },
-];
+/* `LATER_BATCHES` IS GONE (2026-09-08). It listed the batches still queued, under a
+ * heading reading "Not open yet — each opens when the one before it is locked". With every
+ * batch locked it had one entry, the deferred wizard, sitting at the very bottom of the
+ * page under a heading that described it wrongly: the wizard is not waiting its turn, it
+ * is waiting for a redesign.
+ *
+ * The one outstanding thing now has its own note directly under the redesign map, where it
+ * belongs — beside cycle 4, which is the cycle it comes back in. */
 
 /* ===== VARIANT MATRIX - the states you can only check by using them =====
  *
@@ -2209,41 +2410,59 @@ export default function PrimitiveReview() {
       <div style={S.eyebrow}>Development only · not visible to customers</div>
       <h1 style={S.h1}>Primitive review</h1>
       <p style={S.lede}>
-        Every reusable part waiting for your sign-off, as the real component rather than a
-        picture of one. Tell me what looks wrong in your own words — “too tall”, “I can’t
-        tell which one is selected” — and I change the component itself. When a whole batch
-        looks right, you say <strong style={{ color: 'var(--text)' }}>locked</strong> and
-        we move on. Batches are locked together because parts that sit side by side have to
-        agree on height, corners and spacing.
+        <strong style={{ color: 'var(--text)' }}>35 of 36 approved. Nothing is waiting on
+        you.</strong>
         {' '}
-        <strong style={{ color: 'var(--text)' }}>35 of 36 approved — the queue is empty.</strong>
+        Every batch is locked, so they are folded away below — click one to open it. The
+        page stays exactly as useful as it was: change one colour and you can check all 36
+        parts at once instead of clicking through the whole app.
         {' '}
-        Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
-        the switch and the unit toggle. The dropdown was the first through — and it is the
-        one that made this page necessary: it had reached 30 screens while nobody had said
-        whether they liked it.
+        The one part still unsigned is the Add Account wizard, and it is unsigned on
+        purpose — that flow is being redesigned, and leaving it unapproved is what stops
+        the new one inheriting the old.
         {' '}
-        <strong style={{ color: 'var(--text)' }}>Batch 2 is closed too.</strong>
-        {' '}
-        The seven form controls were signed off after four rounds — the last of which
-        replaced the picker with the registry component outright.
-        {' '}
-        <strong style={{ color: 'var(--text)' }}>Nothing is waiting on you.</strong>
-        {' '}
-        Every batch is locked. The one part still unsigned is the Add Account wizard, and it
-        is unsigned on purpose — that flow is being redesigned, and leaving it unapproved is
-        what stops the new one inheriting the old. This page stays: change one colour and you
-        can check all 36 parts at once instead of clicking through the whole app.
+        <strong style={{ color: 'var(--text)' }}>What comes next is below.</strong>
       </p>
 
-      {/* ================================================= THE UNBATCHED ONE === */}
+      <RedesignMap legacyClasses={LEGACY_CLASSES} />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>The one part still unsigned</span>
+          <span style={S.mono}>primitives/wizard.jsx</span>
+          <span style={{ flex: 1 }} />
+          <Tag>deferred to cycle 4</Tag>
+        </div>
+        <div style={S.note}>
+          The Add Account wizard — one component, 21 parts. It is unsigned
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>on purpose</strong>
+          , not by omission: that flow is being redesigned in cycle 4, and an unapproved
+          part may stay where it is but may not be adopted by a redesigned screen. So
+          leaving it unsigned is exactly what stops the new flow inheriting the old wizard.
+          It comes back for review as part of that cycle. Its code stays where it is —
+          eleven shipping pages render it.
+        </div>
+      </div>
+
       <div style={S.batchHead}>
-        <span style={S.batchTitle}>The one that was in no batch</span>
-        <Tag tone="ok">approved 8 Sep 2026</Tag>
+        <span style={S.batchTitle}>The parts, all signed off</span>
+        <Tag tone="ok">🔒 6 batches</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          signed off by confirming it works — it has no appearance to judge
+          folded — open one to check a component, or after changing a token
         </span>
       </div>
+
+      <Folded
+        title="The one that was in no batch"
+        tag={<Tag tone="ok">approved 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            signed off by confirming it works — it has no appearance to judge
+          </>
+        )}
+      >
+      {/* ================================================= THE UNBATCHED ONE === */}
 
       <Spec
         name="Overlay container"
@@ -2284,15 +2503,18 @@ export default function PrimitiveReview() {
           question is what we do the first time a window needs one.
         </div>
       </div>
+      </Folded>
 
+      <Folded
+        title="Batch 6 — Rebuilt, then reviewed"
+        tag={<Tag tone="ok">🔒 locked 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            the last three on the old CSS — rebuilt on 8 Sep, reviewed as the rebuild, locked
+          </>
+        )}
+      >
       {/* ================================================================ BATCH 6 === */}
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Batch 6 — Rebuilt, then reviewed</span>
-        <Tag tone="ok">🔒 locked 8 Sep 2026</Tag>
-        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          the last three on the old CSS — rebuilt on 8 Sep, reviewed as the rebuild, locked
-        </span>
-      </div>
 
       <Spec
         name="Rebuilt on the registry"
@@ -2334,15 +2556,18 @@ export default function PrimitiveReview() {
           its reason — which is exactly what the standing rule you set now catches.
         </div>
       </div>
+      </Folded>
 
+      <Folded
+        title="Batch 5 — Small pieces"
+        tag={<Tag tone="ok">🔒 locked 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            profile picture · dividing line · number badge — a glance each
+          </>
+        )}
+      >
       {/* ================================================================ BATCH 5 === */}
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Batch 5 — Small pieces</span>
-        <Tag tone="ok">🔒 locked 8 Sep 2026</Tag>
-        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          profile picture · dividing line · number badge — a glance each
-        </span>
-      </div>
 
       <Spec
         name="Small pieces"
@@ -2391,15 +2616,18 @@ export default function PrimitiveReview() {
           replaces them. Nothing about that blocks anything.
         </div>
       </div>
+      </Folded>
 
+      <Folded
+        title="Batch 3 — Feedback"
+        tag={<Tag tone="ok">🔒 locked 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            all four signed off · new screens may use them · Batch 4 is next
+          </>
+        )}
+      >
       {/* ================================================================ BATCH 3 === */}
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Batch 3 — Feedback</span>
-        <Tag tone="ok">🔒 locked 8 Sep 2026</Tag>
-        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          all four signed off · new screens may use them · Batch 4 is next
-        </span>
-      </div>
 
       <Spec
         name="Message bar"
@@ -2490,15 +2718,18 @@ export default function PrimitiveReview() {
           has ever appeared.
         </div>
       </div>
+      </Folded>
 
+      <Folded
+        title="Batch 2 — Form controls"
+        tag={<Tag tone="ok">🔒 locked 7 Sep 2026</Tag>}
+        hint={(
+          <>
+            all seven signed off · new screens may use them · Batch 3 is next
+          </>
+        )}
+      >
       {/* ================================================================ BATCH 2 === */}
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Batch 2 — Form controls</span>
-        <Tag tone="ok">🔒 locked 7 Sep 2026</Tag>
-        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          all seven signed off · new screens may use them · Batch 3 is next
-        </span>
-      </div>
 
       <FormGeometry />
       <FormStates />
@@ -2537,15 +2768,18 @@ export default function PrimitiveReview() {
       />
 
       <OpenQuestions />
+      </Folded>
 
+      <Folded
+        title="Batch 1 — Overlays"
+        tag={<Tag tone="ok">🔒 locked 7 Sep 2026</Tag>}
+        hint={(
+          <>
+            all four signed off · new screens may use them · kept below for comparison
+          </>
+        )}
+      >
       {/* ================================================================ BATCH 1 === */}
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Batch 1 — Overlays</span>
-        <Tag tone="ok">🔒 locked 7 Sep 2026</Tag>
-        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          all four signed off · new screens may use them · kept below for comparison
-        </span>
-      </div>
 
       <DropdownParity />
       <VariantMatrix />
@@ -2629,40 +2863,8 @@ export default function PrimitiveReview() {
           you approve on the Modal above is what Dialog renders. It gets locked with Modal.
         </div>
       </div>
+      </Folded>
 
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Not open yet</span>
-        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          in order — each opens when the one before it is locked
-        </span>
-      </div>
-
-      {LATER_BATCHES.map((b) => (
-        <div key={b.n} style={{ ...S.card, marginTop: 10, background: 'var(--surface-sunken)' }}>
-          <div style={{ ...S.cardHead, background: 'transparent', borderBottom: 'none', padding: '13px 18px' }}>
-            <span style={{
-              fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 13,
-              color: 'var(--text-3)', minWidth: 16,
-            }}
-            >
-              {b.n}
-            </span>
-            <span style={S.cardName}>{b.name}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{b.qty} parts</span>
-            <span style={{ flex: 1 }} />
-            <span style={S.mono}>{b.parts}</span>
-          </div>
-          {b.dep ? (
-            <div style={{
-              padding: '0 18px 13px 46px', fontSize: 12.5, lineHeight: '19px',
-              color: 'var(--text-2)',
-            }}
-            >
-              {b.dep}
-            </div>
-          ) : null}
-        </div>
-      ))}
     </div>
   );
 }
