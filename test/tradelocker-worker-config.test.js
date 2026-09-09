@@ -42,13 +42,26 @@ test('a fetched config is cached per host and never re-fetched', async () => {
   assert.equal(calls, 1, 'the second and third calls must be served from the process-lifetime cache');
 });
 
-test('a config missing a required ordersHistory field throws at fetch time, not mid-backfill', async () => {
+test('a config missing commission does NOT throw — commission is optional', async () => {
+  // Confirmed against a real TradeLocker demo account (server "FTLOCK"): a
+  // commission-free / spread-only broker's /trade/config genuinely never
+  // carries a `commission` column. Rejecting that config at fetch time made
+  // Auto Sync unable to onboard the broker at all -- this is the bug fixed.
+  const noCommission = JSON.parse(JSON.stringify(FIXTURE));
+  noCommission.d.ordersHistoryConfig.columns =
+    noCommission.d.ordersHistoryConfig.columns.filter((c) => c.id !== 'commission');
+  const fetchImpl = async () => jsonResponse(200, noCommission);
+  const config = await getConfig({ host: 'https://demo.tradelocker.com/backend-api/', token: 't', accNum: 1, fetchImpl });
+  assert.deepEqual(config, noCommission);
+});
+
+test('a config missing a genuinely required ordersHistory field still throws at fetch time, not mid-backfill', async () => {
   const broken = JSON.parse(JSON.stringify(FIXTURE));
-  broken.d.ordersHistoryConfig.columns = broken.d.ordersHistoryConfig.columns.filter((c) => c.id !== 'commission');
+  broken.d.ordersHistoryConfig.columns = broken.d.ordersHistoryConfig.columns.filter((c) => c.id !== 'avgPrice');
   const fetchImpl = async () => jsonResponse(200, broken);
   await assert.rejects(
     getConfig({ host: 'https://demo.tradelocker.com/backend-api/', token: 't', accNum: 1, fetchImpl }),
-    /commission/,
+    /avgPrice/,
   );
 });
 

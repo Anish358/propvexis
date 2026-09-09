@@ -38,6 +38,21 @@ const sideOf = (raw) => {
 const iso = (ms) => (ms == null ? null : new Date(ms).toISOString());
 
 /**
+ * A row's commission, or null.
+ *
+ * ABSENT COLUMN vs BLANK VALUE are different facts and must resolve
+ * differently. A commission-free broker's /trade/config never carries a
+ * `commission` column at all (confirmed against a real TradeLocker demo
+ * account, server "FTLOCK") -- that is a documented, structural zero, not an
+ * unknown, so every row on that broker resolves to 0. A config that DOES carry
+ * the column but leaves one row's value blank is still unknown and must stay
+ * null -- see num()'s own comment for why treating that as zero is a silent
+ * money error. Only the column's presence decides which rule applies.
+ */
+const commissionOf = (resolver, row) =>
+  (resolver.has('commission') ? num(resolver.get(row, 'commission')) : 0);
+
+/**
  * Money, or null.
  *
  * NULL IS A REAL ANSWER HERE. P&L is not cosmetic -- fixed_r and every downstream
@@ -113,7 +128,7 @@ export function pairOrders({ rows = [], resolver, instrument = {}, bandedLogin }
       qty: num(resolver.get(row, 'filledQty')),
       price: num(resolver.get(row, 'avgPrice')),
       at: num(resolver.get(row, 'createdDate')),
-      commission: num(resolver.get(row, 'commission')),
+      commission: commissionOf(resolver, row),
     };
     if (!fill.side || fill.id == null) { malformed.push(fill.id); continue; }
     if (!groups.has(positionId)) groups.set(positionId, []);

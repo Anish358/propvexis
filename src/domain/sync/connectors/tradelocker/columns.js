@@ -29,10 +29,19 @@ const SECTIONS = {
  * worker/tradelocker/backfill.js). Grouping wrong pairs one instrument's fill
  * against another's, so this is exactly as load-bearing as the eight fields
  * pairing.js reads directly, and belongs on the same fail-fast list.
+ *
+ * `commission` is deliberately NOT here. Confirmed against a real TradeLocker
+ * demo account (server "FTLOCK") by fetching its actual /trade/config: a
+ * commission-free / spread-only broker's ordersHistoryConfig never carries a
+ * `commission` column at all -- not blank, ABSENT. Requiring it made Auto Sync
+ * unable to onboard that broker, or presumably any other with the same pricing
+ * model. pairing.js checks for it with resolver.has('commission') at read time
+ * instead, and treats a wholly absent column as a real, documented zero -- see
+ * the comment on that check for why that is different from a blank row value.
  */
 export const ORDERS_HISTORY_FIELDS = Object.freeze([
   'id', 'positionId', 'side', 'status', 'filledQty', 'avgPrice',
-  'createdDate', 'commission', 'tradableInstrumentId',
+  'createdDate', 'tradableInstrumentId',
 ]);
 
 /**
