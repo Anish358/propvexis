@@ -40,6 +40,12 @@ INIT_ATTEMPTS = 2
 INIT_RETRY_SECS = 15
 # How long to let the terminal settle after launching it before probing the pipe.
 LAUNCH_SETTLE_SECS = 20
+# How long a credentialed launch config sits on disk before being scrubbed back
+# to the credential-free version -- see _launch_with_config. Long enough that
+# the just-launched process has certainly read its own /config argument (that
+# happens at process start, well before its pipe is answerable), short enough
+# that a plaintext investor password does not linger.
+CONFIG_SCRUB_DELAY_SECS = 5
 
 # What -10005 actually means, in practice, on a server-side terminal.
 #
@@ -122,7 +128,10 @@ class Terminal:
         fresh = login is not None and not (Path(self.exe_path).parent / 'config' / 'accounts.dat').exists()
         last = None
         for attempt in range(1, INIT_ATTEMPTS + 1):
-            self._launch_with_config()
+            if fresh:
+                self._launch_with_config(login, password, server)
+            else:
+                self._launch_with_config()
             ok = (
                 mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms,
                                 login=int(login), password=password, server=server)
@@ -149,7 +158,7 @@ class Terminal:
         # tell them nothing they can act on.
         raise Mt5Error(f'initialize failed after {INIT_ATTEMPTS} attempts: {last} -- {IPC_HINT}')
 
-    def _launch_with_config(self):
+    def _launch_with_config(self, login=None, password=None, server=None):
         """Start the terminal ourselves, with the startup config applied.
 
         mt5.initialize() can launch the terminal, but not with a /config file — and
@@ -159,21 +168,46 @@ class Terminal:
 
         Harmless when a terminal is already up: MT5 refuses a second instance on the
         same data directory, and initialize() then attaches to the first.
+
+        WHEN login IS GIVEN (a genuinely fresh terminal, no saved account -- see
+        _start), the credential ALSO goes into this ini's own [Common] section,
+        not only into initialize()'s kwargs. Hit for real 2026-09-10: a fresh
+        terminal shows its own "Open an Account" wizard as a GUI-level reflex,
+        independent of whatever the Python API does in parallel -- initialize()
+        can succeed (the account IS logged in, the window title proves it) while
+        that wizard sits open and still blocks the message loop the API needs,
+        reproducing the exact same IPC-refused symptom. Only the terminal's OWN
+        startup config suppresses that wizard, because it resolves the account
+        before the terminal ever decides there is nothing configured to ask
+        about. The credential is scrubbed back out a few seconds later (see
+        CONFIG_SCRUB_DELAY_SECS) -- long enough for the just-launched process to
+        have read its own /config argument, short enough that a plaintext
+        investor password does not sit on disk.
         """
         cfg = Path(self.exe_path).parent / 'propvexis-start.ini'
+        content = START_CONFIG
+        if login is not None:
+            content += f'\n[Common]\nLogin={login}\nPassword={password}\nServer={server}\n'
         try:
-            if cfg.read_text() != START_CONFIG:
-                cfg.write_text(START_CONFIG)
-        except OSError:
-            cfg.write_text(START_CONFIG)
+            cfg.write_text(content)
+        except OSError as err:
+            log.warning('could not write the startup config: %s', err)
+            return
         try:
             subprocess.Popen([self.exe_path, '/portable', f'/config:{cfg}'],
                              close_fds=True)
-            # The terminal needs a moment before its pipe is answerable; initialize()
-            # does its own waiting after this.
-            time.sleep(LAUNCH_SETTLE_SECS)
         except OSError as err:
             log.warning('could not launch the terminal directly: %s', err)
+        finally:
+            if login is not None:
+                time.sleep(CONFIG_SCRUB_DELAY_SECS)
+                try:
+                    cfg.write_text(START_CONFIG)
+                except OSError as err:
+                    log.warning('could not scrub the credentialed startup config: %s', err)
+        # The terminal needs a moment before its pipe is answerable; initialize()
+        # does its own waiting after this.
+        time.sleep(LAUNCH_SETTLE_SECS)
 
     def close(self):
         if self._open:
