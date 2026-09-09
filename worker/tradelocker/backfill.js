@@ -222,10 +222,33 @@ export async function backfillAccount({
   let pnlCount = 0;
   let emptyRun = 0;
 
-  for (const w of windows) {
-    const rows = await fetchOrdersHistoryWindow({
-      host, token, accNum, accountId, resolver, from: w.from, to: w.to, fetchImpl,
-    });
+  for (const [index, w] of windows.entries()) {
+    let rows;
+    try {
+      rows = await fetchOrdersHistoryWindow({
+        host, token, accNum, accountId, resolver, from: w.from, to: w.to, fetchImpl,
+      });
+    } catch (err) {
+      // Without the Developer Program key, TradeLocker's rate limit is shared
+      // across every user on our egress IP (design spec §4.2, §8 item 6) -- a
+      // 429 on some later window, well into a backfill, is an EXPECTED
+      // production failure mode, not a bug. Failing the whole job over it
+      // would be worse than doing nothing: window 1's trades are already
+      // durably posted via api.ingest() above, a committed call this job's
+      // final status cannot retract, and throwing here would also lose the
+      // tl_account_id/is_live_env write and reconcile() that only run on the
+      // success path in runJob(). So: stop the walk and hand back whatever
+      // was collected, same as the natural two-empty-windows exit below --
+      // UNLESS this is the very first window, where nothing has been
+      // collected yet and there is no partial result to prefer over
+      // surfacing the failure loudly.
+      if (index === 0) throw err;
+      log.info?.(
+        { account: job.account_id, from: w.from, to: w.to, err: err.message },
+        'tradelocker window fetch failed after partial progress -- stopping backfill walk gracefully',
+      );
+      break;
+    }
     if (!rows.length) {
       emptyRun += 1;
       await onWindow(w);

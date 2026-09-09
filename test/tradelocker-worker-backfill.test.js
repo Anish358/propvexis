@@ -231,6 +231,77 @@ test('backfillAccount posts trades, sums non-null pnl, and stops after two empty
   assert.ok(ordersCalls < 10, `expected an early stop, got ${ordersCalls} ordersHistory calls`);
 });
 
+test('backfillAccount stops gracefully and keeps window 1\'s trades when a LATER window\'s fetch throws (e.g. a 429)', async () => {
+  const posted = [];
+  const api = { ingest: async (token, trades) => { posted.push(...trades); return { ok: true }; } };
+  const logged = [];
+
+  let ordersCalls = 0;
+  const fetchImpl = routedFetch([
+    [/trade\/accounts$/, () => jsonResponse(200, { s: 'ok', d: [{ id: '4242', currency: 'USD' }] })],
+    [/instruments$/, () => jsonResponse(200, {
+      s: 'ok',
+      d: { instruments: [{ tradableInstrumentId: 1, name: 'EURUSD', routes: [{ id: 1, type: 'TRADE' }] }] },
+    })],
+    [/trade\/instruments\/1/, () => jsonResponse(200, { s: 'ok', d: { lotSize: 100000, quotingCurrency: 'USD' } })],
+    [/ordersHistory/, () => {
+      ordersCalls += 1;
+      // Window 1 (newest) succeeds with real trades; window 2 fails the way a
+      // shared, no-Developer-Program-key rate limit would (design spec §4.2).
+      if (ordersCalls === 1) {
+        return jsonResponse(200, {
+          d: {
+            ordersHistory: [
+              row(1, 1, 9001, 'buy', '1', '1.0900', 1_756_000_000_000),
+              row(2, 1, 9001, 'sell', '1', '1.0925', 1_756_000_050_000),
+            ],
+            hasMore: false,
+          },
+        });
+      }
+      return jsonResponse(429, { error: 'rate limited' });
+    }],
+  ]);
+
+  const job = { account_id: 1, ingest_token: 'tok', cursor_at: null };
+  const result = await backfillAccount({
+    host: 'https://demo.tradelocker.com/backend-api/', token: 't', accNum: 1, accountId: 4242,
+    resolver, api, job, bandedLogin: 5_000_000_004_242, fetchImpl,
+    log: { info: (obj) => logged.push(obj), error: () => {} },
+  });
+
+  assert.equal(result.posted, 1, 'window 1\'s trade must survive the later window\'s failure');
+  assert.equal(posted.length, 1);
+  assert.equal(ordersCalls, 2, 'must stop right after the failing window, not retry or keep walking');
+  assert.ok(
+    logged.some((entry) => entry?.err),
+    'the window-fetch failure must be logged, not silently dropped',
+  );
+});
+
+test('backfillAccount still throws when the FIRST window\'s fetch fails -- nothing collected yet, no partial result to prefer', async () => {
+  const api = { ingest: async () => { throw new Error('must not be called'); } };
+
+  const fetchImpl = routedFetch([
+    [/trade\/accounts$/, () => jsonResponse(200, { s: 'ok', d: [{ id: '4242', currency: 'USD' }] })],
+    [/instruments$/, () => jsonResponse(200, {
+      s: 'ok',
+      d: { instruments: [{ tradableInstrumentId: 1, name: 'EURUSD', routes: [{ id: 1, type: 'TRADE' }] }] },
+    })],
+    [/trade\/instruments\/1/, () => jsonResponse(200, { s: 'ok', d: { lotSize: 100000, quotingCurrency: 'USD' } })],
+    [/ordersHistory/, () => jsonResponse(429, { error: 'rate limited' })],
+  ]);
+
+  const job = { account_id: 1, ingest_token: 'tok', cursor_at: null };
+  await assert.rejects(
+    () => backfillAccount({
+      host: 'https://demo.tradelocker.com/backend-api/', token: 't', accNum: 1, accountId: 4242,
+      resolver, api, job, bandedLogin: 5_000_000_004_242, fetchImpl, log: { info: () => {}, error: () => {} },
+    }),
+    /429/,
+  );
+});
+
 test('backfillAccount fetches each instrument\'s details at most once per job, across windows', async () => {
   const api = { ingest: async () => ({ ok: true }) };
   let detailsCalls = 0;
