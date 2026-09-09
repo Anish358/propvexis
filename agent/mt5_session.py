@@ -102,6 +102,27 @@ class Terminal:
         """Start the terminal with no account. Diagnostics only — prefer login()."""
         self._start(INIT_TIMEOUT_MS)
 
+    def _process_running(self):
+        """True when THIS install's terminal64.exe is currently alive.
+
+        Shelled out to `tasklist` rather than an extra dependency (no psutil in
+        requirements.txt) -- this agent runs on exactly one box, startup cost of
+        a subprocess call is irrelevant next to the multi-second IPC calls
+        around it. Any failure to tell (tasklist missing, timeout) assumes a
+        process MIGHT be running -- the safer default, since wrongly skipping
+        the credentialed path costs a slower failure, while wrongly taking it
+        risks disturbing a live, already-authorized session (Landmine 2).
+        """
+        exe_name = Path(self.exe_path).name
+        try:
+            out = subprocess.check_output(
+                ['tasklist', '/FI', f'IMAGENAME eq {exe_name}', '/FO', 'CSV', '/NH'],
+                text=True, timeout=10,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return True
+        return exe_name.lower() in out.lower()
+
     def _start(self, timeout_ms, login=None, password=None, server=None):
         if self._open:
             return
@@ -120,12 +141,18 @@ class Terminal:
         #
         # Passing login/password/server makes the terminal log in as it starts,
         # so there is no wizard to block on — but ONLY do this when there is no
-        # saved account to disturb; passing credentials to an ALREADY-authorized
-        # terminal is the separate, opposite hang this module also documents
-        # (see login()'s docstring). `accounts.dat`'s absence is the signal: it is
-        # written once MT5 has ever held a session, so its absence means there is
-        # nothing yet for a credentialed initialize() to disconnect.
-        fresh = login is not None and not (Path(self.exe_path).parent / 'config' / 'accounts.dat').exists()
+        # LIVE terminal process to disturb; passing credentials to an
+        # ALREADY-authorized terminal is the separate, opposite hang this module
+        # also documents (see login()'s docstring).
+        #
+        # THE SIGNAL IS A RUNNING PROCESS, NOT accounts.dat's mere existence.
+        # First tried gating on the file (2026-09-09) -- wrong: it can exist
+        # while holding no saved password (nothing here ever ticks "Save
+        # password"), so a cold terminal still pops an interactive Login dialog
+        # asking for one nobody types, the exact same stuck-modal failure this
+        # was meant to fix. A running process is the actual landmine-2 hazard;
+        # its absence means both nothing to disturb AND nothing to reconnect to.
+        fresh = login is not None and not self._process_running()
         last = None
         for attempt in range(1, INIT_ATTEMPTS + 1):
             if fresh:
@@ -194,7 +221,17 @@ class Terminal:
             log.warning('could not write the startup config: %s', err)
             return
         try:
-            subprocess.Popen([self.exe_path, '/portable', f'/config:{cfg}'],
+            # /skipupdate: hit for real 2026-09-10 -- LiveUpdate finds a newer
+            # build, downloads it, then tries to replace the running exe, which
+            # throws a UAC elevation prompt ("Client Terminal AVX2" wants to make
+            # changes). `pvsync` is deliberately a standard, non-admin user (see
+            # module docstring), so nobody can ever answer that prompt -- it just
+            # sits there and blocks the pipe forever, indistinguishable from
+            # every other stuck-modal failure this module works around. This
+            # switch is the documented way unattended/VPS MT5 deployments avoid
+            # it; it does not disable updates that are ALREADY applied, only the
+            # in-process nag to install a new one.
+            subprocess.Popen([self.exe_path, '/portable', f'/config:{cfg}', '/skipupdate'],
                              close_fds=True)
         except OSError as err:
             log.warning('could not launch the terminal directly: %s', err)
