@@ -5,14 +5,19 @@
 //   enabled    may this platform be CHOSEN in the Add Account flow at all
 //   connector  non-null means Auto Sync is available for it
 // 'other' is enabled with no connector, because a trader whose platform is absent
-// from this list must still have a way through the flow. mt4/ctrader/tradelocker
-// are the reverse of neither: listed, not yet selectable, badged "Soon" in the UI.
+// from this list must still have a way through the flow. mt4 is the reverse of
+// neither: listed, not yet selectable, badged "Soon" in the UI.
 //
-// A THIRD STATE EXISTS AND TRADELOCKER IS IN IT: credential fields and a note but
-// `connector: null`. The connector module is built and registered; the PLATFORM
-// is the switch, and it stays off until a live account proves the derived P&L
-// reconciles. `enabled` and `connector` are still the only two things any caller
-// reads, so nothing downstream has to know about the distinction.
+// A THIRD STATE EXISTED AND TRADELOCKER WAS IN IT, until Task 8 (2026-09-09):
+// credential fields and a note but `connector: null`. The connector module was
+// built and registered while the PLATFORM stayed the switch, off until a live
+// account proved the derived P&L reconciles -- spec §13.2's biggest technical
+// risk, since TradeLocker gives no realized-P&L field and every money figure is
+// ours to derive. Task 7's live demo-account run (auth, discovery, backfill,
+// reconcile) proved it, so the switch is now flipped: `connector: 'tradelocker'`,
+// `enabled: true`. `enabled` and `connector` are still the only two things any
+// caller reads, so nothing downstream had to know about the distinction while it
+// existed.
 //
 // WHY THIS FILE IS NOT THE ONE THE UI READS. The backend cannot import
 // frontend/src — deploy rsyncs `src db scripts ea` plus `frontend/dist`, so such
@@ -94,20 +99,22 @@ export const PLATFORMS = [
   {
     id: 'tradelocker',
     label: 'TradeLocker',
-    // The connector MODULE is built (domain/sync/connectors/tradelocker/) and
-    // registered. This stays null — and the platform stays disabled — until a
-    // real account has synced AND its computed P&L has reconciled against
-    // /trade/accounts/{id}/state. TradeLocker gives us no realized-P&L field, so
-    // every money figure is derived by us; spec §13.2 names that as the largest
-    // technical risk in the connector, and it is only checkable against a live
-    // account. Flipping this early would offer Auto Sync we cannot stand behind.
-    connector: null,        // P2 — see the spec before flipping
-    enabled: false,
-    importMethods: ['file', 'manual'],
+    // Task 8 (2026-09-09): FLIPPED LIVE. The connector MODULE was built
+    // (domain/sync/connectors/tradelocker/) and registered well before this, with
+    // `connector: null` holding the platform off until a real account had synced
+    // AND its computed P&L reconciled against /trade/accounts/{id}/state --
+    // TradeLocker gives us no realized-P&L field, so every money figure is derived
+    // by us, which spec §13.2 names as the connector's largest technical risk.
+    // Task 7's live demo-account run proved it: auth, discovery, backfill and
+    // reconcile all checked out, including two bugs the live account surfaced
+    // (a broker with no commission field, and a rate limit mid-backfill) that are
+    // now fixed. That is what gates this flip -- see the spec before reverting it.
+    connector: 'tradelocker',
+    enabled: true,
+    importMethods: ['auto_sync', 'file', 'manual'],
     assetTypes: ['forex', 'cfd'],
-    // Collected now though Auto Sync is off: the fields are what the wizard's
-    // ConnectStep renders from, and they are the shape the credential validation
-    // and the consent copy are written against.
+    // The fields the wizard's ConnectStep renders from, and the shape the
+    // credential validation and the consent copy are written against.
     credentialFields: [
       { name: 'email', label: 'TradeLocker email', type: 'email', required: true, placeholder: 'you@example.com' },
       { name: 'server', label: 'Broker server', type: 'text', required: true, placeholder: 'OSP-DEMO' },

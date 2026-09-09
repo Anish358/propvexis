@@ -2,10 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getConnector } from '../src/domain/sync/connectors/index.js';
 import { mt5Connector } from '../src/domain/sync/connectors/mt5.js';
+import { tradelockerConnector } from '../src/domain/sync/connectors/tradelocker/index.js';
 
-test('getConnector resolves mt5 and nothing else in Phase A', () => {
+test('getConnector resolves mt5 and TradeLocker; mt4/ctrader/other stay unresolved here', () => {
+  // ctrader is OAuth-driven and resolved through its own path, not this
+  // credential-based registry -- it is not in CONNECTORS and never has been.
   assert.equal(getConnector('mt5'), mt5Connector);
-  for (const id of ['mt4', 'ctrader', 'tradelocker', 'other']) {
+  assert.equal(getConnector('tradelocker'), tradelockerConnector, 'flipped live by Task 8');
+  for (const id of ['mt4', 'ctrader', 'other']) {
     assert.equal(getConnector(id), null, `${id} must not resolve until its connector ships`);
   }
 });

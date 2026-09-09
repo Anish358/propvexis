@@ -67,13 +67,14 @@ test('the connector knows its own login band, so nothing recomputes 5e12', () =>
   assert.equal(tradelockerConnector.fromBandedLogin(5_000_000_004_242), 4242);
 });
 
-test('the module is registered, but the PLATFORM is still the switch', () => {
-  // The registry entry exists so Task 7's worker has something to resolve. Auto
-  // Sync stays off because platforms.js says `connector: null` — one switch, not
-  // two, which is why getConnector resolves THROUGH the platform registry.
+test('the module is registered, and Task 8 flipped the platform switch on', () => {
+  // The registry entry exists so the worker has something to resolve, and
+  // getConnector resolves THROUGH the platform registry — platforms.js's
+  // `connector: 'tradelocker'` is the one switch, not two. Task 7's live
+  // reconciliation is what allowed Task 8 to flip it.
   assert.equal(CONNECTORS.tradelocker, tradelockerConnector);
-  assert.equal(getConnector('tradelocker'), null,
-    'TradeLocker must not Auto Sync until a real account has synced and reconciled');
+  assert.equal(getConnector('tradelocker'), tradelockerConnector,
+    'TradeLocker Auto Sync is live: a real account has synced and reconciled');
 });
 
 test('the platform states plainly that the credential can trade', () => {
@@ -102,14 +103,15 @@ test('the credential form asks for email, server and password, in that order', (
   for (const f of fields) assert.equal(f.required, true);
 });
 
-test('TradeLocker stays Soon on BOTH sides until a real account has reconciled', () => {
-  // Spec §13.2: derived P&L may not reconcile against /state, and we only learn
-  // that against a live account. Flipping either catalog before then would offer
-  // Auto Sync we cannot stand behind.
-  assert.equal(findPlatform('tradelocker').enabled, false);
-  assert.equal(findPlatform('tradelocker').connector, null);
-  assert.equal(findPlatformCard('tradelocker').status, 'soon');
-  assert.equal(findPlatform('tradelocker').importMethods.includes('auto_sync'), false);
+test('TradeLocker is live on BOTH sides, now that a real account has reconciled', () => {
+  // Spec §13.2: derived P&L needed to reconcile against /state, and that was only
+  // learnable against a live account. Task 7 proved it; Task 8 flipped both
+  // catalogs together, which is what platform-catalog.test.js's drift check
+  // exists to keep true.
+  assert.equal(findPlatform('tradelocker').enabled, true);
+  assert.equal(findPlatform('tradelocker').connector, 'tradelocker');
+  assert.equal(findPlatformCard('tradelocker').status, 'live');
+  assert.equal(findPlatform('tradelocker').importMethods.includes('auto_sync'), true);
 });
 
 test('POLICY PIN: flipping the platform on must also teach provision about email', async () => {
