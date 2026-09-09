@@ -101,11 +101,34 @@ export function setBrokerCurrencyQuery(accountId, currency) {
   };
 }
 
+/**
+ * TradeLocker's own identifiers for this account (Ruling A) and which host
+ * authenticated it (Ruling B), written once at discovery and read directly by
+ * every later job — never recomputed. No new column: migration 0030 already has
+ * tl_account_id/tl_acc_num, and is_live_env is 0029's, reused as-is.
+ *
+ * `isLive` is coerced to a real boolean at the call site (never left NULL by
+ * this write) — the whole point of Ruling B is that the host is decided ONCE;
+ * writing a NULL back here would leave every later job probing forever.
+ */
+export function recordTradeLockerAccountQuery(accountId, { tlAccountId, tlAccNum, isLive }) {
+  return {
+    text: `UPDATE mt5_accounts
+              SET tl_account_id = $2, tl_acc_num = $3, is_live_env = $4
+            WHERE id = $1
+          RETURNING id, tl_account_id, tl_acc_num, is_live_env;`,
+    values: [accountId, tlAccountId, tlAccNum, isLive === true],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Thin DB wrappers
 // ---------------------------------------------------------------------------
 
 const run = async (q) => (await query(q.text, q.values)).rows;
+
+export const recordTradeLockerAccount = async (accountId, facts) =>
+  (await run(recordTradeLockerAccountQuery(accountId, facts)))[0] ?? null;
 
 /**
  * Record both, returning what changed. Never throws on unusable input: this is metadata

@@ -18,6 +18,22 @@ const order = (id, positionId, side, qty, price, ms, commission = '0', status = 
 const pair = (rows, instrument = USD, bandedLogin = 1) =>
   pairOrders({ rows, resolver, instrument, bandedLogin });
 
+// A commission-free broker's /trade/config (confirmed against a real
+// TradeLocker demo account, server "FTLOCK"): no `commission` column at all,
+// not merely blank rows under one.
+const CONFIG_NO_COMMISSION = { d: { ordersHistoryConfig: { columns: [
+  { id: 'id' }, { id: 'tradableInstrumentId' }, { id: 'qty' }, { id: 'side' },
+  { id: 'status' }, { id: 'filledQty' }, { id: 'avgPrice' },
+  { id: 'positionId' }, { id: 'createdDate' }, { id: 'lastModified' },
+] } } };
+const resolverNoCommission = buildResolver(CONFIG_NO_COMMISSION, 'ordersHistory');
+
+const orderNoCommission = (id, positionId, side, qty, price, ms, status = 'Filled') =>
+  ['' + id, '278', qty, side, status, qty, price, '' + positionId, '' + ms, '' + ms];
+
+const pairNoCommission = (rows, instrument = USD, bandedLogin = 1) =>
+  pairOrders({ rows, resolver: resolverNoCommission, instrument, bandedLogin });
+
 test('an open and a close on one positionId become one trade', () => {
   const { trades } = pair(
     [order(1, 9001, 'buy', '1', '1.0900', 1_756_000_000_000),
@@ -121,6 +137,28 @@ test('an unknown commission does not become a free trade', () => {
   ]);
   assert.equal(trades[0].commission, null);
   assert.equal(trades[0].pnl_money, null);
+});
+
+test('a column-absent commission resolves as a real zero, not a fatal error or an unknown', () => {
+  // The bug this fixes: assertFields used to require `commission` on every
+  // config, which threw at worker start for any commission-free broker and
+  // made Auto Sync impossible for that broker entirely. Now the column's
+  // absence is treated as a documented structural zero.
+  const { trades } = pairNoCommission([
+    orderNoCommission(1, 9001, 'buy', '1', '1.0900', 1_756_000_000_000),
+    orderNoCommission(2, 9001, 'sell', '1', '1.0925', 1_756_000_050_000),
+  ]);
+  assert.equal(trades[0].commission, 0);
+  assert.equal(trades[0].pnl_money, 250, 'zero commission still lets pnl compute, unlike an unknown one');
+});
+
+test('a column-absent commission apportions to zero across partial closes too', () => {
+  const { trades } = pairNoCommission([
+    orderNoCommission(1, 9001, 'buy', '2', '1.0900', 1_756_000_000_000),
+    orderNoCommission(2, 9001, 'sell', '1', '1.0925', 1_756_000_050_000),
+    orderNoCommission(3, 9001, 'sell', '1', '1.0950', 1_756_000_090_000),
+  ]);
+  assert.deepEqual(trades.map((t) => t.commission), [0, 0]);
 });
 
 test('only Filled orders are paired — a cancelled order is not a trade', () => {

@@ -59,11 +59,10 @@ test('a platform with no connector still offers a way in', () => {
   }
 });
 
-test('mt5 and cTrader are the platforms that can Auto Sync', () => {
-  // TradeLocker's connector module is BUILT and registered, but its platform
-  // entry still says connector: null until a live account has synced and its
-  // derived P&L has reconciled -- so it must not appear here.
-  assert.deepEqual(autoSyncPlatforms().map((p) => p.id), ['mt5', 'ctrader']);
+test('mt5, cTrader and TradeLocker are the platforms that can Auto Sync', () => {
+  // TradeLocker's platform entry stayed `connector: null` until a live account
+  // had synced and its derived P&L had reconciled (Task 7); Task 8 flipped it.
+  assert.deepEqual(autoSyncPlatforms().map((p) => p.id), ['mt5', 'ctrader', 'tradelocker']);
 });
 
 test('mt4 exists but cannot Auto Sync — the EA is .mq5 and the farm is MT5-only', () => {
@@ -74,12 +73,13 @@ test('mt4 exists but cannot Auto Sync — the EA is .mq5 and the farm is MT5-onl
   assert.equal(mt4.importMethods.includes('ea'), false, 'the EA cannot attach to MT4');
 });
 
-test('tradelocker is listed but not yet connectable', () => {
+test('tradelocker is listed and connectable', () => {
+  // Flipped by Task 8, gated on Task 7's live reconciliation.
   for (const id of ['tradelocker']) {
     const p = findPlatform(id);
     assert.ok(p, `${id} must be listed so the catalog is the real roadmap`);
-    assert.equal(p.connector, null);
-    assert.equal(p.enabled, false);
+    assert.equal(p.connector, 'tradelocker');
+    assert.equal(p.enabled, true);
   }
 });
 
@@ -142,5 +142,5 @@ test('findPlatform and platformSupports fail safe on unknown input', () => {
   assert.equal(platformSupports('nope', 'file'), false);
   assert.equal(platformSupports('mt5', 'teleport'), false);
   assert.equal(platformSupports('mt5', 'auto_sync'), true);
-  assert.equal(platformSupports('tradelocker', 'auto_sync'), false);
+  assert.equal(platformSupports('tradelocker', 'auto_sync'), true);
 });
