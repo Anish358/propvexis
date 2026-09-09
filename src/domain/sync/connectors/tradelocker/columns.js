@@ -22,10 +22,17 @@ const SECTIONS = {
  * Named here rather than scattered through pairing.js so a config that has
  * stopped carrying one of them can be rejected at worker start -- once, loudly --
  * instead of throwing halfway through a backfill with some trades already posted.
+ *
+ * `tradableInstrumentId` is here though pairing.js itself never reads it --
+ * pairOrders is called once PER instrument, and it is the WORKER's backfill
+ * that groups a window's rows by this field before pairing ever runs (Task 7,
+ * worker/tradelocker/backfill.js). Grouping wrong pairs one instrument's fill
+ * against another's, so this is exactly as load-bearing as the eight fields
+ * pairing.js reads directly, and belongs on the same fail-fast list.
  */
 export const ORDERS_HISTORY_FIELDS = Object.freeze([
   'id', 'positionId', 'side', 'status', 'filledQty', 'avgPrice',
-  'createdDate', 'commission',
+  'createdDate', 'commission', 'tradableInstrumentId',
 ]);
 
 /**

@@ -14,6 +14,11 @@ import { CtraderConnection, backoffMs } from './connection.js';
 import { PropVexisApi } from './api.js';
 import { discoverAccounts, fetchCtidUserId } from './discover.js';
 import { backfillAccount } from './backfill.js';
+// TradeLocker SHARES THIS PROCESS (Task 7 ruling, design spec §4): plain HTTPS
+// with a token to refresh, same as this cTrader worker's socket, so leasing
+// both platforms from one poll loop is one process instead of two on a 911MB
+// box. Nothing about the cTrader socket lifecycle below is touched by this.
+import { runJob as runTradeLockerJob } from '../tradelocker/index.js';
 
 const log = {
   info: (o, m) => console.log(JSON.stringify({ level: 'info', m, ...o })),
@@ -94,7 +99,7 @@ class Worker {
     }
   }
 
-  async runJob(job) {
+  async runCtraderJob(job) {
     const conn = await this.connection(job.is_live);
     // NOT unconditionally: cTrader refuses a re-auth with ALREADY_LOGGED_IN, and
     // these sockets are long-lived, so every job after the first for an account
@@ -119,7 +124,10 @@ class Worker {
     await this.runDiscovery();
 
     let leased;
-    try { leased = await this.api.lease(3); } catch (err) {
+    // BOTH PLATFORMS, ONE LEASE CALL. leaseJobs (queue.js) already buckets a
+    // job's platform onto it, so tick() only has to read job.platform back and
+    // route -- see splitJobsByPlatform on the server side for the same split.
+    try { leased = await this.api.lease(3, ['ctrader', 'tradelocker']); } catch (err) {
       log.error({ err: err.message }, 'ctrader lease failed');
       return;
     }
@@ -129,12 +137,19 @@ class Worker {
       return;
     }
     for (const job of jobs) {
+      const platformLog = job.platform === 'tradelocker' ? 'tradelocker' : 'ctrader';
       try {
-        await this.runJob(job);
+        if (job.platform === 'tradelocker') {
+          await runTradeLockerJob(job, { api: this.api, log });
+        } else {
+          await this.runCtraderJob(job);
+        }
       } catch (err) {
-        log.error({ job: job.job_id, err: err.message }, 'ctrader job failed');
+        log.error({ job: job.job_id, platform: platformLog, err: err.message }, 'sync job failed');
         // Reporting the failure is what stops the lease expiring and the job
-        // being reclaimed forever with nothing recorded.
+        // being reclaimed forever with nothing recorded. Same call for both
+        // platforms -- routes/sync.js's result handler tells them apart by the
+        // job's OWN platform, never by anything this report body carries.
         await this.api.report(job.job_id, { ok: false, error: err.message }).catch(() => {});
       }
     }

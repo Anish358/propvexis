@@ -54,9 +54,17 @@ test('the comparison is constant-time, not ===', () => {
 
 test('only the lease response carries a plaintext password', () => {
   const src = syncSrc();
-  // openPassword is the only decrypt call site, and it is inside the lease handler.
+  // TWO decrypt call sites since Task 7 (MT5's and TradeLocker's symmetric
+  // block, both reusing openPassword against mt5_credentials) — the property
+  // that matters is not "exactly one", it is that EVERY call site lives inside
+  // the lease handler, never anywhere else a plaintext password could leak out.
   const decrypts = [...src.matchAll(/openPassword\(/g)].length;
-  assert.equal(decrypts, 1, 'exactly one decrypt call site');
+  assert.equal(decrypts, 2, 'one decrypt call site per platform with a stored password (MT5, TradeLocker)');
+  const lease = handler('post', '/api/sync/lease');
+  assert.equal(
+    [...lease.matchAll(/openPassword\(/g)].length, decrypts,
+    'every decrypt call site must be inside the lease handler, not merely present somewhere in the file',
+  );
   // The status endpoint returns the credential metadata row, which by
   // construction cannot contain the ciphertext (see credentialStatusQuery).
   assert.ok(!/password_ct/.test(src), 'the route layer never handles ciphertext directly');

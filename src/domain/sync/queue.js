@@ -346,6 +346,58 @@ export function ctraderLeasedPayloadQuery(jobIds, lookbackMs = 48 * 60 * 60 * 10
 }
 
 /**
+ * The payload for a leased TRADELOCKER job.
+ *
+ * SHAPED LIKE ctraderLeasedPayloadQuery, NOT leasedPayloadQuery, but the JOIN it
+ * needs is the MT5 one: TradeLocker's credential is a password against a server
+ * (spec §5 reuses mt5_credentials wholesale), not an OAuth grant at identity
+ * grain — so this is an INNER JOIN on mt5_credentials, same as leasedPayloadQuery,
+ * and it must stay strict for the same reason: a TradeLocker job with no
+ * credential is a real error and has to fail loudly, not vanish.
+ *
+ * Before this query existed, a TradeLocker job leased against splitJobsByPlatform's
+ * already-bucketed `tradelocker` key and was handed NOTHING — the exact
+ * lease-expire-reclaim spin ctraderLeasedPayloadQuery's own header warns about,
+ * reached by a third platform this time.
+ *
+ * `tl_account_id`/`tl_acc_num` ride along so the worker can skip discovery once
+ * Ruling A has already run once for this account, and `is_live_env` rides along
+ * NULLABLE and UNCOERCED — Ruling B's demo-then-live probe only happens while it
+ * is NULL; a caller that collapsed it to a boolean here would make every first
+ * job probe forever.
+ */
+export function tradelockerLeasedPayloadQuery(jobIds, lookbackMs = 48 * 60 * 60 * 1000) {
+  return {
+    text: `SELECT j.id            AS job_id,
+                  j.reason,
+                  j.attempts,
+                  j.cursor_at,
+                  a.id            AS account_id,
+                  a.mt5_login,
+                  a.ingest_token,
+                  c.login_email,
+                  c.server,
+                  c.password_ct,
+                  a.tl_account_id,
+                  a.tl_acc_num,
+                  -- Ruling B: demo vs. live, decided once at the account's first
+                  -- successful job and read here, never re-probed once known.
+                  a.is_live_env,
+                  GREATEST(
+                    COALESCE((SELECT max(t.close_time) FROM trades t
+                               WHERE t.account_id = a.mt5_login), 'epoch'::timestamptz)
+                      - make_interval(secs => $2),
+                    'epoch'::timestamptz
+                  )               AS since
+             FROM sync_jobs j
+             JOIN mt5_accounts a    ON a.id = j.account_id
+             JOIN mt5_credentials c ON c.account_id = a.id
+            WHERE j.id = ANY($1::bigint[]);`,
+    values: [jobIds, Math.round(lookbackMs / 1000)],
+  };
+}
+
+/**
  * Leased jobs bucketed by platform, so each goes to the query that can serve it.
  *
  * `unknown` is not a tidiness bucket. A job with an absent or unrecognised
@@ -618,6 +670,8 @@ export const leasedPayloads = (jobIds, lookbackMs) =>
   jobIds.length ? run(leasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
 export const ctraderLeasedPayloads = (jobIds, lookbackMs) =>
   jobIds.length ? run(ctraderLeasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
+export const tradelockerLeasedPayloads = (jobIds, lookbackMs) =>
+  jobIds.length ? run(tradelockerLeasedPayloadQuery(jobIds, lookbackMs)) : Promise.resolve([]);
 export const completeJob = async (jobId, stats) => (await run(completeQuery(jobId, stats)))[0] ?? null;
 export const failJob = async (jobId, error) => (await run(failQuery(jobId, error)))[0] ?? null;
 export const reclaimExpired = () => run(reclaimQuery());
