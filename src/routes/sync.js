@@ -74,6 +74,14 @@ export default function syncRoutes(app, ctx) {
     }
   };
 
+  // Owner-designated test accounts get an unlimited manual "Sync now" — see
+  // config.js syncCooldownExemptEmails. Everyone else keeps the 15-minute limit.
+  const cooldownFor = (email, previous) => (
+    config.syncCooldownExemptEmails.includes(String(email ?? '').toLowerCase())
+      ? { blocked: false, retryAfterMs: 0 }
+      : manualCooldown(previous)
+  );
+
   // Shared guard for the user-facing routes: the account must be the caller's,
   // must be a real MT5 account rather than a manual bucket, and the plan must
   // include live sync. Returns the account or sends the response itself.
@@ -503,7 +511,7 @@ export default function syncRoutes(app, ctx) {
       // start a 15-minute manual cooldown and refuse the trader's very first press.
       // See lastManualJobQuery.
       const previous = await lastManualJob(a.id);
-      const cooldown = manualCooldown(previous);
+      const cooldown = cooldownFor(req.user.email, previous);
       if (cooldown.blocked) {
         const mins = Math.ceil(cooldown.retryAfterMs / 60_000);
         skipped.push({
@@ -600,7 +608,7 @@ export default function syncRoutes(app, ctx) {
     // spend the human's allowance. The unattended cadence has its own limiter, and it
     // is three hours (dueAccountsQuery), not this fifteen minutes.
     const previous = await lastManualJob(acct.id);
-    const cooldown = manualCooldown(previous);
+    const cooldown = cooldownFor(req.user.email, previous);
     if (cooldown.blocked) {
       const retryAfter = Math.ceil(cooldown.retryAfterMs / 1000);
       // The message carries the WAIT, because the client renders `error` verbatim

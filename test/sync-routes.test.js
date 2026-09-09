@@ -152,9 +152,28 @@ test('Sync now enforces the cooldown SERVER-SIDE, not in the button', () => {
   const src = sourceOf('post', '/api/accounts/:id/sync');
   const from = src.indexOf("app.post('/api/accounts/:id/sync'");
   const body = src.slice(from, src.indexOf('\n  app.', from + 10));
-  assert.match(body, /manualCooldown\(/, 'the route must consult the cooldown');
+  assert.match(body, /cooldownFor\(req\.user\.email, previous\)/, 'the route must consult the cooldown');
   assert.match(body, /429/, 'a rate limit answers 429, not 202');
   assert.match(body, /Retry-After/, 'the client cannot count down without being told how long');
+});
+
+test('a designated test email bypasses the manual cooldown entirely', () => {
+  // Owner-designated accounts (config.syncCooldownExemptEmails) need to retrigger
+  // a sync repeatedly while debugging, without the 15-minute wait everyone else
+  // gets. The bypass is a wrapper around manualCooldown, not a second code path
+  // that could silently diverge from it.
+  const src = syncSrc();
+  const at = src.indexOf('const cooldownFor =');
+  assert.ok(at > 0, 'cooldownFor helper exists');
+  const helper = src.slice(at, src.indexOf('\n\n', at));
+  assert.match(helper, /syncCooldownExemptEmails\.includes/);
+  assert.match(helper, /manualCooldown\(previous\)/, 'the non-exempt path still calls the real cooldown');
+  // Both the bulk "Sync Trades" button and the single-account Sync now must use
+  // the wrapper, not call manualCooldown directly and skip the exemption.
+  assert.match(handler('post', '/api/sync/now'), /cooldownFor\(req\.user\.email, previous\)/);
+  assert.match(handler('post', '/api/accounts/:id/sync'), /cooldownFor\(req\.user\.email, previous\)/);
+  assert.ok(!/= manualCooldown\(previous\)/.test(handler('post', '/api/sync/now')));
+  assert.ok(!/= manualCooldown\(previous\)/.test(handler('post', '/api/accounts/:id/sync')));
 });
 
 test('the read_only refusal on Sync now is scoped to MT5', () => {
