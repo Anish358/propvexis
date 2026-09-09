@@ -96,25 +96,43 @@ class Terminal:
         """Start the terminal with no account. Diagnostics only — prefer login()."""
         self._start(INIT_TIMEOUT_MS)
 
-    def _start(self, timeout_ms):
+    def _start(self, timeout_ms, login=None, password=None, server=None):
         if self._open:
             return
-        # HAND THE CREDENTIALS TO initialize(); DO NOT initialize-then-login.
+        # HAND THE CREDENTIALS TO initialize() WHEN THE TERMINAL HAS NO SAVED
+        # ACCOUNT AT ALL. DO NOT initialize-then-login FOR THAT CASE.
         #
         # A terminal with no saved account opens its "open an account" wizard on
         # first run, and in that state the IPC handshake never completes — so
         # initialize() does not merely time out, it BLOCKS PAST ITS OWN TIMEOUT.
         # That looks like a hung agent rather than a misconfigured terminal.
-        # Observed on this box: six minutes against a 180s timeout, no error.
+        # Observed on this box TWICE now: six minutes against a 180s timeout with
+        # no error the first time (2026-08-18), then indefinitely (no return at
+        # all within the process's lifetime) after `config/accounts.dat` was
+        # cleared to fix the stale-account landmine below (2026-09-09) — clearing
+        # that file is exactly what puts the terminal into this no-account state.
         #
-        # Passing login/password/server makes the terminal log in as it starts, so
-        # there is no wizard to block on.
+        # Passing login/password/server makes the terminal log in as it starts,
+        # so there is no wizard to block on — but ONLY do this when there is no
+        # saved account to disturb; passing credentials to an ALREADY-authorized
+        # terminal is the separate, opposite hang this module also documents
+        # (see login()'s docstring). `accounts.dat`'s absence is the signal: it is
+        # written once MT5 has ever held a session, so its absence means there is
+        # nothing yet for a credentialed initialize() to disconnect.
+        fresh = login is not None and not (Path(self.exe_path).parent / 'config' / 'accounts.dat').exists()
         last = None
         for attempt in range(1, INIT_ATTEMPTS + 1):
             self._launch_with_config()
-            if mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms):
+            ok = (
+                mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms,
+                                login=int(login), password=password, server=server)
+                if fresh else
+                mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms)
+            )
+            if ok:
                 self._open = True
-                log.info('terminal up: %s (attempt %d)', self.exe_path, attempt)
+                log.info('terminal up: %s (attempt %d, %s)', self.exe_path, attempt,
+                          'fresh login' if fresh else 'attach')
                 return
             last = mt5.last_error()
             log.warning('initialize attempt %d/%d failed: %s', attempt, INIT_ATTEMPTS, last)
@@ -166,10 +184,11 @@ class Terminal:
         """Point the terminal at this account.
 
         Attach to the terminal (launching it if needed -- see _start), then switch
-        accounts with mt5.login(). Credentials never go to initialize(): that path
+        accounts with mt5.login(). Credentials go to initialize() ONLY when the
+        terminal has no saved account at all (see _start) -- otherwise that path
         disconnects an already-authorized terminal and hangs.
         """
-        self._start(INIT_TIMEOUT_MS)
+        self._start(INIT_TIMEOUT_MS, login=login, password=password, server=server)
 
         # ALREADY ON THIS ACCOUNT? DO NOT RE-LOGIN.
         #
