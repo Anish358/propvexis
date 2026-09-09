@@ -74,9 +74,9 @@ export { EmptyState } from './empty-state.jsx';
 // no table engine lives in it, so the eleven other hand-rolled tables can adopt the look
 // without adopting TanStack.
 export {
-  DataTable, DataTableBody, DataTableCell, DataTableDash, DataTableHeadCell,
-  DataTableHeader, DataTableNote, DataTableNotice, DataTableRow, DataTableSelect,
-  DataTableSkeleton, DataTableStack,
+  DataTable, DataTableBody, DataTableCell, DataTableDash, DataTableFooter,
+  DataTableHeadCell, DataTableHeader, DataTableNote, DataTableNotice, DataTableRow,
+  DataTableSelect, DataTableSkeleton, DataTableStack,
 } from './data-table.jsx';
 export { Field, FieldDescription, FieldError, FieldItem, FieldLabel } from './field.jsx';
 export { Checkbox } from './checkbox.jsx';

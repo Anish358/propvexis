@@ -8,7 +8,7 @@
 import React from 'react';
 import { AlignLeft, ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Checkbox } from './checkbox.jsx';
 import { Skeleton } from './skeleton.jsx';
@@ -43,8 +43,9 @@ import { cn } from '@/lib/utils';
  *      a compact list inside a card.
  *
  * Everything else is cut from the dashboard on purpose — the header band is
- * PanelTableHead's exact recipe (12px semibold `--text-2` on `--control-bg`), so the two
- * read as one family even though they are two objects.
+ * PanelTableHead's recipe on `--control-bg`, at the dashboard's header-to-body RATIO
+ * rather than its absolute size, because difference 4 above changes the body. See the
+ * long note on the head cell.
  *
  * ── BUILT ON @shadcn/table, base-rhea (§1 step 2) ────────────────────────────────────
  *
@@ -92,6 +93,53 @@ import { cn } from '@/lib/utils';
  * time. `PanelTableCell` takes `align` for the same reason. So does this. */
 const ALIGN = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
+/* ── `narrow` — THE SELECTION COLUMN, AND A CLASS THAT COMPILED TO NOTHING ────────────
+ *
+ * No horizontal padding, and a width the caller sets through `widths` — 36px on the
+ * Trade Log, down from the shipped 44px, because the owner asked for the box closer to
+ * Date & Time. The shipped reason for narrowing it at all still holds: "it holds a 14px
+ * box, so giving it an equal share of the width would leave a gap the size of a data
+ * column". `w-11` stays as the FALLBACK for a table that supplies no widths — a
+ * `<colgroup>` takes precedence over a cell width in fixed layout, so a caller-supplied
+ * 36px wins and a caller who supplies nothing still gets a sane gutter.
+ *
+ * THE BOX IS CENTRED IN IT, AND IT WAS NOT. The body cell asked for
+ * `'w-11 px-0 text-center'` and then passed `ALIGN[align]` further down the same `cn()`
+ * — and `cn()` is tailwind-merge, so the LAST alignment wins and `text-center` was
+ * dropped. The header never asked at all. Both ended up `text-left`, which in a cell with
+ * zero padding means the tick box sat hard against the card's left border, under its 24px
+ * corner. The owner saw it as "the checkbox placement is off"; the cause is a utility that
+ * emitted nothing with no error, which is this codebase's signature failure.
+ *
+ * SO ALIGNMENT IS RESOLVED ONCE, HERE, and `narrow` wins. A caller cannot align the
+ * selection column, because there is only one right answer for a 16px box in a 44px
+ * gutter and both the header and the body have to agree on it or they visibly do not. */
+const NARROW = 'w-11 px-0 text-center';
+
+/* ── ONE RESOLUTION, READ BY THE HEADER AND THE BODY ─────────────────────────────────
+ *
+ * THE HEADER FOLLOWS ITS COLUMN (owner, 2026-09-09) — Net P&L right because its figures
+ * are, Entry centred because its figures are, a text column left. It briefly did not: the
+ * owner asked for centred headings, I wrote a `'center'` FALLBACK, and the fallback was
+ * unreachable because `align` had a default PARAMETER of `'left'` two lines above it. So
+ * every header rendered left, which is neither rule — and the test passed, because it
+ * asserted that the string `gutter(narrow, align, 'center')` appeared in the source rather
+ * than that any header was centred. A test that reads source instead of behaviour is a
+ * test that agrees with whatever you wrote.
+ *
+ * SO THE ALIGNMENT IS RESOLVED HERE, ONCE, and both cells call it with the same two
+ * values. A header and its column computing alignment separately is the same class of bug
+ * as a header and its column computing WIDTH separately, which is why widths moved into a
+ * `<colgroup>` an hour earlier. `narrow` still wins outright: there is one right answer
+ * for a 16px box in a 36px gutter. */
+const resolveAlign = (align, numeric, narrow) => {
+  if (narrow) return 'center';
+  return align || (numeric ? 'center' : 'left');
+};
+const gutter = (narrow, align) => (
+  narrow ? [NARROW] : ['px-3', ALIGN[align] || ALIGN.left]
+);
+
 /* ── WHAT THE ROW HAIRLINE IS, per §8 ───────────────────────────────────────────────
  *
  * The registry draws `border-b`, which is `--color-border` -> `--chrome-line` -> a
@@ -107,15 +155,33 @@ const HAIRLINE = 'border-b border-b-[var(--line-inset)]';
 
 /* ── THE SHELL ──────────────────────────────────────────────────────────────────────
  *
- * `cols` and `minColWidth` are the FIXED-LAYOUT floor, kept from the shipped table with
- * its reason intact: `table-layout: fixed` divides the width evenly across however many
- * columns are visible, so no column can claim more room than another because of what
- * happens to be in its cells. The old Comments column swallowing the table is what
- * bought that rule. The floor is per-column rather than a flat pixel count, so the
- * thirteen default columns fit a normal desktop while all twenty-one still stay legible
- * and scroll.
+ * ── `widths` — EVERY COLUMN WAS THE SAME WIDTH, AND THAT WAS WRONG (owner, 2026-09-09) ─
  *
- * It is a PROP because it is a caller-supplied dimension — see ALIGN above.
+ * `table-layout: fixed` divides the width EVENLY across the visible columns unless it is
+ * told otherwise, and nothing told it otherwise. So "Type" — which holds the word "Sell" —
+ * got exactly as much room as "Setup", which holds "Break & Retest" and truncated to
+ * "Break & Retes". The shipped table has the same fault and the same reason written in its
+ * CSS: even widths stop one column claiming the table, which is what the old Comments
+ * column did.
+ *
+ * THAT TRADE IS UNNECESSARY. Fixed layout is precisely the mode that lets a column be
+ * given a width safely — content still cannot claim more than it is allotted, which is the
+ * protection that was wanted. It only ever needed telling. So `widths` is a per-column
+ * array and it renders a `<colgroup>`.
+ *
+ * A COLGROUP RATHER THAN A WIDTH PER CELL, and that is the point of the choice: the header
+ * and the body then read the SAME declaration. Width on the cells is two declarations
+ * that have to agree, and this component has already shipped one head/body disagreement
+ * (the selection column's alignment) — a class that compiled to nothing on one side.
+ *
+ * A specified set that sums to less than the table distributes the surplus in proportion,
+ * so these numbers are ratios that happen to be honest minimums rather than a fixed
+ * layout that breaks at another width.
+ *
+ * `minColWidth` and `cols` REMAIN as the fallback for a table that supplies no widths —
+ * eleven small tables in this app still hand-roll their own and will adopt this component
+ * before they think about column widths. With `widths` given, the floor is their SUM,
+ * which is the honest number rather than a per-column guess.
  *
  * ── `scroll` EXISTS BECAUSE overflow-x AND A STICKY HEADER CANNOT BOTH BE FREE ───────
  *
@@ -148,18 +214,52 @@ const CONTAINER = {
   self: '[&_[data-slot=table-container]]:max-h-full [&_[data-slot=table-container]]:overflow-auto',
 };
 
+/* ── THE CORNERS ARE SQUARE (owner, 2026-09-09), AND THE CARD IS NEVER CLIPPED ────────
+ *
+ * There was an `edge` prop that rounded the four outer cells — 24px against a card's own
+ * border, 18px inside a padded one. The owner looked at both and chose straight: "instead
+ * of rounded corners for table keep them straight."
+ *
+ * IT IS ALSO THE SIMPLER ANSWER NOW THAT THE TABLE IS INSET. Sitting inside a padded
+ * `PanelCard` it never meets the card's curve, so there is nothing for a rounded corner to
+ * agree with — the radius was solving a problem the layout had already removed. A rounded
+ * header band floating 24px inside a rounded card is two curves at different radii with a
+ * gap between them, which reads as sloppier than a straight edge, not softer.
+ *
+ * ⚠ WHAT MUST NOT COME BACK IS THE CLIP. The corner problem's tempting fix is
+ * `overflow: hidden` on the card, and that was shipped here for an hour. Any overflow but
+ * `visible` makes an element a scroll container, a sticky child sticks to its nearest
+ * scroll container, and `top: var(--topbar-h)` stops meaning "below the top bar" and
+ * starts meaning "50px below the top of this card" — a header pinned in the middle of its
+ * own table. Same CSS fact the `scroll` prop is about, reached from the other direction,
+ * which is how it got past me twice in one component. Held by kit-data-table.test.js.
+ *
+ * THE LAST ROW'S HAIRLINE ALWAYS GOES, and that is not part of the corner question. §8: a
+ * divider divides two things, and below the final row there is nothing — it is a rule to
+ * nowhere. The registry agrees and drops it by default (`[&_tr:last-child]:border-0` on
+ * TableBody); ours has to say so again because the rule is drawn on the CELLS here, which
+ * that selector does not reach. */
+const NO_LAST_RULE = '[&_tbody_tr:last-child_td]:border-b-0';
+
 function DataTable({
-  cols, minColWidth = 92, scroll = 'page', stickyTop = 'var(--topbar-h, 50px)',
+  cols, widths, minColWidth = 92, scroll = 'page', stickyTop = 'var(--topbar-h, 50px)',
   className, style, children, ...rest
 }) {
   const pageScroll = scroll !== 'self';
-  const min = cols ? `${cols * minColWidth}px` : undefined;
+  const min = widths
+    ? `${widths.reduce((a, b) => a + b, 0)}px`
+    : (cols ? `${cols * minColWidth}px` : undefined);
   return (
     <div
       data-slot="data-table-shell"
       data-scroll={scroll}
       // See the block above. `overflow-x-auto` in both axes is what breaks a sticky head.
-      className={cn('w-full', CONTAINER[scroll] || CONTAINER.page, className)}
+      className={cn(
+        'w-full',
+        CONTAINER[scroll] || CONTAINER.page,
+        NO_LAST_RULE,
+        className,
+      )}
       style={{ '--pv-table-sticky-top': pageScroll ? stickyTop : '0px', ...style }}
       {...rest}
     >
@@ -167,6 +267,14 @@ function DataTable({
         className="table-fixed border-separate border-spacing-0"
         style={{ minWidth: min }}
       >
+        {/* Inline `style`, not a class: a width per column cannot be enumerated as a
+            utility, and a class written by the CALLER would compile to nothing anyway
+            (§1). This is the same reason SkeletonBlock takes `w` as a prop. */}
+        {widths ? (
+          <colgroup>
+            {widths.map((w, i) => <col key={i} style={{ width: `${w}px` }} />)}
+          </colgroup>
+        ) : null}
         {children}
       </Table>
     </div>
@@ -202,24 +310,46 @@ const JUSTIFY = { right: 'justify-end', center: 'justify-center', left: null };
 
 /* A column title.
  *
- * `sort` IS BUILT AND THE TRADE LOG WILL NOT USE IT YET. The brief asks for sorting;
- * the product has none — no `ORDER BY` the client can choose in `routes/trades.js`, no
- * sort state in `TradeLog.jsx`. §2 and the review checklist are explicit that a mockup
- * must not add a control the product cannot honour, so the affordance lives in the KIT,
- * where it costs nothing, and stays off on the SCREEN until sorting is a feature. Left
- * as an open question for the review rather than quietly shipped or quietly dropped.
+ * SORTING IS PART OF THIS COMPONENT AND ALWAYS ON (owner, 2026-09-09). It took three
+ * passes to land there, and the middle one was mine to get wrong.
+ *
+ * It began as "the brief asks for sorting, the product has none, so build the affordance
+ * and leave it off on the screen" — right under §2, which forbids a control the product
+ * cannot honour. Then: "I want sorting in the app too." I read that as a Cycle 01 change
+ * and flagged it as premature, since /trades still renders the legacy table and a sort
+ * bolted onto that would be deleted the week the page migrates. The owner meant something
+ * narrower and better: sorting belongs to THIS COMPONENT, permanently, so the day the
+ * Trade Log moves onto it the page gains sorting as a CONSEQUENCE of the migration rather
+ * than as a separate feature. §2 is satisfied either way — nothing is added to a page the
+ * product cannot honour, because the page has not changed yet.
+ *
+ * So there is no flag and no toggle. A column sorts if its caller hands it an `onSort`;
+ * Notes does not, because "has a note" is a yes/no and sorting by one is really a filter,
+ * and no column of a summary table does either. Client-side over the rows already in hand,
+ * so no API. Three clicks — descending, ascending, cleared — because no-sort is a real
+ * state and a trader who sorted by mistake needs the log's own order back.
  *
  * The glyph is `ChevronsUpDown` when a column is sortable but unsorted, and it FADES IN
  * on hover rather than being absent — §14: "a hover affordance fades, it does not
  * unmount", because a header that reflows under the pointer is harder to click. Its
- * keyboard twin is `group-focus-within`, which the same section requires and which the
- * shipped table's selection column does not have. */
+ * keyboard twin is `group-has-[:focus-visible]` and NOT `group-focus-within`, for the
+ * reason written out on DataTableSelect below: a mouse click leaves focus behind, so
+ * `:focus-within` would strand the chevron visible after a sort was cleared. */
 function DataTableHeadCell({
-  align = 'left', narrow = false, sort = null, sortable = false, onSort,
+  align, numeric = false, narrow = false, sort = null, onSort,
   className, children, ...rest
 }) {
+  /* `numeric` here does NOT make the label monospaced — it is the same input the body
+   * cell takes, passed so the two resolve to the same alignment from the same values
+   * rather than from two guesses that agree today. */
+  const a = resolveAlign(align, numeric, narrow);
   const Glyph = SORT_ICON[sort] || ChevronsUpDown;
-  const interactive = sortable || Boolean(onSort);
+  /* A COLUMN SORTS IF IT WAS GIVEN A HANDLER. There was a separate `sortable` flag beside
+   * this, from when sorting was a thing you switched on; with sorting permanent (owner,
+   * 2026-09-09) it was a second way to say the same thing, and two ways to express one
+   * state is how a header comes to show a chevron that does nothing. A column with no
+   * `onSort` — Notes, or every column of a summary table — simply has no affordance. */
+  const interactive = Boolean(onSort);
   return (
     <TableHead
       data-slot="data-table-head-cell"
@@ -231,9 +361,37 @@ function DataTableHeadCell({
         // the card's edge rather than --line-inset because it separates two BANDS, not
         // two rows of one list.
         'border-b border-b-[var(--line)]',
-        'text-xs leading-[14px] font-semibold text-[var(--text-2)]',
-        narrow ? 'w-11 px-0' : 'px-3',
-        ALIGN[align] || ALIGN.left,
+        /* ── 14px / 500, WHICH IS THE DASHBOARD'S RATIO AND NOT ITS NUMBER ─────────────
+         *
+         * This was `text-xs leading-[14px] font-semibold` — `PanelTableHead`'s recipe,
+         * copied verbatim so the two would read as one family. The owner said the header
+         * size was wrong and they were right, for a reason that only shows when you put
+         * the two tables side by side:
+         *
+         *   the dashboard   12px header over a 12px body   ratio 1 : 1
+         *   this table      12px header over a 14px body   ratio 12 : 14
+         *
+         * The body here is 14px because this is a full page's primary content rather than
+         * a compact list in a card (see the four differences at the top of this file). So
+         * copying the header's ABSOLUTE size onto it made the header proportionally
+         * smaller than it is on the dashboard — and 1px under what /trades ships today.
+         *
+         * Matching the RATIO is the faithful reading of "cut from the dashboard", and it
+         * costs nothing: the header/body distinction was never carried by size. It is
+         * carried by WEIGHT and COLOUR, which are still here — 500 against the body's 400,
+         * `--text-2` against `--text-body`, on a `--control-bg` band. Owner chose it from
+         * four candidates rendered over the same rows (2026-09-09).
+         *
+         * `leading-[18px]` is measured rather than taken off the scale, the same way every
+         * line-height in panel.jsx is and for the same reason recorded there: derived
+         * leadings round up a pixel at a time and the error only shows across a card. */
+        'text-sm leading-[18px] font-medium text-[var(--text-2)]',
+        /* A HEADING IS CENTRED, WHATEVER ITS COLUMN DOES (owner, 2026-09-09). The body
+           aligns by what the figure is for — a measurement across, a result down — and
+           the header does not follow it: a label names a column and sits over the middle
+           of it. The shipped table centres every header too, so this is the half of its
+           behaviour that was right. `align` remains for the exception nobody has yet. */
+        gutter(narrow, a),
         className,
       )}
       {...rest}
@@ -245,7 +403,11 @@ function DataTableHeadCell({
           className={cn(
             'inline-flex w-full items-center gap-1.5 outline-none',
             'rounded-sm focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]',
-            JUSTIFY[align],
+            /* THE BUTTON HAS TO BE ALIGNED SEPARATELY, and forgetting it is what made
+               every header left even where the cell said otherwise: a flex container
+               lays its children out by `justify-*`, and `text-*` on the <th> does
+               nothing to them. It reads the same resolved value as the cell above. */
+            JUSTIFY[a],
           )}
         >
           {children}
@@ -255,7 +417,7 @@ function DataTableHeadCell({
               'size-3 shrink-0 transition-opacity duration-[var(--dur-fast)]',
               sort
                 ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-60 group-focus-within:opacity-60',
+                : 'opacity-0 group-hover:opacity-60 group-has-[:focus-visible]:opacity-60',
             )}
           />
         </button>
@@ -269,6 +431,43 @@ function DataTableBody({ className, children, ...rest }) {
     <TableBody data-slot="data-table-body" className={className} {...rest}>
       {children}
     </TableBody>
+  );
+}
+
+/* ── THE FOOTER — A TABLE THAT TOTALS ITSELF ─────────────────────────────────────────
+ *
+ * Added 2026-09-09 for the finance summary specimen. Not every table has one: a trade log
+ * does not total, because the KPI row above it already does and §24 forbids saying it
+ * twice. A cost-and-return breakdown DOES — the whole point of the rows is what they add
+ * up to, and a total that lives anywhere but under its column is a total the reader has to
+ * carry in their head.
+ *
+ * WHAT THE REGISTRY GIVES AND WHAT IT CANNOT KEEP. `TableFooter` ships
+ * `border-t bg-muted/50 font-medium`, and two of those three are wrong here for reasons
+ * already recorded on the row: `bg-muted` resolves to `--chrome-hover`, the same token a
+ * hovered ROW uses, so a footer would read as permanently hovered; and `border-t` is
+ * `--color-border`, a card's EDGE, where §8 wants half of it inside a surface that has
+ * one. The rule above a total is `--line-strong` rather than `--line-inset` though — §4
+ * names it "THE standard visible border — dashed empties, SEPARATORS", and this one
+ * separates the sum from what it sums rather than one row from the next.
+ *
+ * `font-medium` is kept and is the only weight in the table above 400, which is the
+ * point: a total is the one figure in a summary you are allowed to find first. */
+function DataTableFooter({ className, children, ...rest }) {
+  return (
+    <TableFooter
+      data-slot="data-table-footer"
+      className={cn(
+        'bg-transparent',
+        '[&_td]:border-t [&_td]:border-t-[var(--line-strong)]',
+        '[&_td]:h-[37px] [&_td]:px-3 [&_td]:py-2 [&_td]:align-middle',
+        '[&_td]:text-sm [&_td]:text-[var(--text)]',
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </TableFooter>
   );
 }
 
@@ -367,33 +566,59 @@ function DataTableRow({
  * `truncate` on every cell is required by `table-fixed`: over-long content overflows
  * rather than widening its column, so every cell has to be able to end in an ellipsis.
  *
- * `tone` IS THE TRADER'S MONEY AND IT IS ALLOWED TO FILL THE CELL. §17 reserves the
- * surface for data colour explicitly. Breakeven is BLUE rather than grey — grey read as
- * "no data" beside the green and red rows, when in fact the trade closed flat, which is
- * a result. */
+/* `tone` COLOURS THE FIGURE. IT DOES NOT FILL THE CELL (owner, 2026-09-09).
+ *
+ * It used to do both, copying the shipped table — `.cell-win { background: var(--win-bg);
+ * color: var(--profit) }` — on the reading that §17 reserves a data surface for the
+ * trader's money and therefore permits a wash there. The owner looked at it and said
+ * remove it, and on reflection the wash was wrong for three separate reasons:
+ *
+ *   · IT SAYS THE SAME THING THREE TIMES. The row already carries a Status badge reading
+ *     "Win" in green and a figure printed in green. A green block behind that figure is a
+ *     third statement of one fact, and §24 is explicit: "two identical facts teach the
+ *     reader that neither is worth reading."
+ *   · IT IS THE LOUDEST THING IN THE TABLE, and it is not the most important. A column of
+ *     filled blocks reads before the figures inside them, so the eye lands on the colour
+ *     and then has to go back for the number.
+ *   · IT IS THE SAME CORRECTION §17 ALREADY MADE ELSEWHERE. The alert's surface wash came
+ *     off every tone on 2026-09-08 for exactly this reason ("too colorful — doesn't go
+ *     with our theme"). The figure keeps full-strength colour; the surface stays neutral.
+ *
+ * Breakeven is BLUE rather than grey — grey read as "no data" beside the green and red
+ * rows, when in fact the trade closed flat, which is a result. */
 const CELL_TONE = {
-  profit: 'bg-[var(--profit-bg)] text-[var(--profit)]',
-  loss: 'bg-[var(--loss-bg)] text-[var(--loss)]',
-  be: 'bg-[var(--be-bg)] text-[var(--be)]',
+  profit: 'text-[var(--profit)]',
+  loss: 'text-[var(--loss)]',
+  be: 'text-[var(--be)]',
   muted: 'text-[var(--muted)]',
+  /* A CAPTION RATHER THAN A FIGURE — a footer's "Spent on fees" beside its total.
+   * `--text-2` and not `--muted` because it is a LABEL, and the owner locked
+   * "`var(--text-2)` at full opacity is the standard label colour app-wide". */
+  label: 'text-[var(--text-2)]',
 };
 
+/* `strong` IS A PROP, NOT A CLASS, and the test caught me writing it as one. The summary
+ * specimen set `className="font-medium"` on its total row from a page file, where a
+ * Tailwind utility compiles to NOTHING (§1) — the total would have rendered at the same
+ * weight as every row above it, silently. `PanelTableCell` has carried a `strong` prop
+ * since the dashboard for exactly this reason. */
 function DataTableCell({
-  align, numeric = false, narrow = false, tone, className, children, ...rest
+  align, numeric = false, narrow = false, strong = false, tone, className, children, ...rest
 }) {
   // A figure defaults to CENTRED — see the block above. `align="right"` is the opt-in
-  // for the columns that are read down rather than across.
-  const a = align || (numeric ? 'center' : 'left');
+  // for the columns that are read down rather than across. Resolved by the shared
+  // helper, so the header over this cell cannot land anywhere else.
+  const a = resolveAlign(align, numeric, narrow);
   return (
     <TableCell
       data-slot="data-table-cell"
       className={cn(
         HAIRLINE,
         'h-[37px] py-2 align-middle',
-        narrow ? 'w-11 px-0 text-center' : 'px-3',
         'truncate text-sm text-[var(--text-body)]',
         numeric && 'font-mono tabular-nums',
-        ALIGN[a] || ALIGN.left,
+        strong && 'font-medium',
+        gutter(narrow, a),
         tone && CELL_TONE[tone],
         className,
       )}
@@ -418,13 +643,23 @@ function DataTableCell({
  *    The owner spotted it. `checkbox.jsx` is on coss now and those rules are deleted;
  *    all this component does is pass `indeterminate` through.
  *
- * 2. IT FADES IN, AND IT HAS A KEYBOARD TWIN. A box on every one of four hundred rows
- *    is noise, so it is revealed by the row. The shipped table reveals it on
- *    `tr:hover` and on the box's own `:focus-visible` — which means tabbing INTO the row
- *    (a link, a button) reveals nothing. §14 requires `group-hover` AND
- *    `group-focus-within`; both are here. Opacity, not display, so revealing one does
- *    not shift the row, and a TICKED box always shows because hiding it would hide the
- *    selection itself.
+ * 2. IT FADES IN, AND ITS KEYBOARD TWIN IS `:focus-visible` — NOT `:focus-within`.
+ *    A box on every one of four hundred rows is noise, so it is revealed by the row. §14
+ *    requires a keyboard twin for every hover treatment, and the first version used
+ *    `group-focus-within`, which satisfies the rule and breaks the interaction:
+ *
+ *    A MOUSE CLICK LEAVES FOCUS BEHIND. `:focus-within` matches focus from any source, so
+ *    ticking a box and then unticking it and moving the pointer away left that row's box
+ *    visible for the rest of the session — one row wearing a hover state nobody was
+ *    hovering. The owner found it. `:focus-visible` is the browser's own answer to
+ *    exactly this question: it matches only when focus arrived in a way that wants a
+ *    focus ring, which is keyboard navigation.
+ *
+ *    `group-has-[:focus-visible]` rather than the checkbox's own `has-[:focus-visible]`,
+ *    so tabbing to ANY focusable thing in the row reveals the column — the shipped table
+ *    gates on the box's own focus alone, so a keyboard user moving through a row's links
+ *    sees an empty gutter. Opacity, not display, so revealing one does not shift the row,
+ *    and a TICKED box always shows because hiding it would hide the selection itself.
  *
  * `stopPropagation` on click and change, because the row is interactive and the cell is
  * too — brief §4.1's "the row is interactive AND contains interactive cells; the design
@@ -440,7 +675,7 @@ function DataTableSelect({
         'inline-flex items-center justify-center transition-opacity duration-[var(--dur-fast)]',
         always || on
           ? 'opacity-100'
-          : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+          : 'opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100',
       )}
     >
       <Checkbox
@@ -482,7 +717,8 @@ function DataTableStack({ sub, className, children, ...rest }) {
  * which is the thing that section forbids by name.
  *
  * The colour lifts with the row's hover, which is §14 read literally: it intensifies what
- * the glyph already wears. `group-focus-within` is its keyboard twin. */
+ * the glyph already wears. `group-has-[:focus-visible]` is its keyboard twin — see
+ * DataTableSelect for why it is not `group-focus-within`. */
 function DataTableNote({ label = 'Has a note', className, ...rest }) {
   return (
     <span
@@ -490,7 +726,7 @@ function DataTableNote({ label = 'Has a note', className, ...rest }) {
       aria-label={label}
       className={cn(
         'inline-flex text-[var(--text-2)] transition-colors duration-[var(--dur-fast)]',
-        'group-hover:text-[var(--text)] group-focus-within:text-[var(--text)]',
+        'group-hover:text-[var(--text)] group-has-[:focus-visible]:text-[var(--text)]',
         className,
       )}
       {...rest}
@@ -580,7 +816,7 @@ function DataTableSkeleton({ cols = 8, rows = 8, label = 'Loading rows', ...rest
 }
 
 export {
-  DataTable, DataTableBody, DataTableCell, DataTableDash, DataTableHeadCell,
-  DataTableHeader, DataTableNote, DataTableNotice, DataTableRow, DataTableSelect,
-  DataTableSkeleton, DataTableStack,
+  DataTable, DataTableBody, DataTableCell, DataTableDash, DataTableFooter,
+  DataTableHeadCell, DataTableHeader, DataTableNote, DataTableNotice, DataTableRow,
+  DataTableSelect, DataTableSkeleton, DataTableStack,
 };

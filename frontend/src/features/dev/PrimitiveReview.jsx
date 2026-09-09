@@ -71,7 +71,7 @@ import {
  * rules apply there — real components, inline-styled scaffolding. */
 import {
   DataTableArrival, DataTableParity, DataTableQuestions, DataTableSelection, DataTableStates,
-  TradeLogPreview,
+  DataTableSummary, TradeLogPreview,
 } from './KitDataTable.jsx';
 
 /* ---------------------------------------------------------------- scaffolding --- */
@@ -2509,6 +2509,7 @@ export default function PrimitiveReview() {
         selection, then the arrival flash, then what is decided and what is left.
       </p>
 
+      <DataTableSummary />
       <DataTableParity />
       <DataTableStates />
       <DataTableSelection />

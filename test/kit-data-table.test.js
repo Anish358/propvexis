@@ -79,20 +79,55 @@ test('§14 — a selected row is not the same colour as a hovered one', () => {
   );
 });
 
-test('§14 — every hover treatment in the table has a keyboard twin', () => {
-  /* DERIVED, NOT LISTED. §14: "a row styled for :hover alone is interactive for the
-   * mouse and inert for the keyboard. Use group-hover PLUS group-focus-within." The
-   * shipped table fails this in the place it matters most — the selection box is
-   * revealed by `tr:hover` and by the box's own `:focus-visible`, so TABBING into a row
-   * reveals nothing at all. Listing the pairs would rot; this reads them out. */
+test('§14 — every hover treatment has a keyboard twin, and it is :focus-visible', () => {
+  /* DERIVED, NOT LISTED. §14: "a row styled for :hover alone is interactive for the mouse
+   * and inert for the keyboard. Use group-hover PLUS group-focus-within." The shipped
+   * table fails it where it matters most — the selection box is revealed by `tr:hover`
+   * and by the box's OWN `:focus-visible`, so tabbing through a row's links reveals
+   * nothing at all.
+   *
+   * ── AND §14's OWN SPELLING IS WRONG FOR A CLICKABLE AFFORDANCE (owner, 2026-09-09) ──
+   *
+   * The first version used `group-focus-within`, which is what §14 says and which broke
+   * the interaction the owner then found: tick a box, untick it, move the pointer away,
+   * and the box stays visible for the rest of the session — one row wearing a hover state
+   * nobody is hovering.
+   *
+   * A MOUSE CLICK LEAVES FOCUS BEHIND, and `:focus-within` matches focus from any source.
+   * `:focus-visible` is the browser's own answer to precisely this question: it matches
+   * only when focus arrived in a way that wants a focus ring, which is the keyboard. So
+   * the twin `group-has-[:focus-visible]` satisfies what §14 is FOR — a keyboard user
+   * sees the affordance — without the failure the literal wording produces.
+   *
+   * THIS TEST ACCEPTS EITHER FORM, deliberately. `:focus-within` is right for something
+   * that cannot be clicked (a row that reveals a read-only marker), and wrong for
+   * anything that can. Which one a component needs is a judgement; that it has ONE is
+   * not, and that is what this asserts. §14 needs the sentence — flagged to the owner
+   * with the §1 and §10 amendments. */
+  const TWIN = ['group-focus-within:', 'group-has-[:focus-visible]:'];
   const hovers = [...code.matchAll(/group-hover:([a-z0-9[\]()\-_,%./]+)/g)].map((m) => m[1]);
   assert.ok(hovers.length > 0, 'expected the table to use group-hover at all');
-  const twins = new Set([...code.matchAll(/group-focus-within:([a-z0-9[\]()\-_,%./]+)/g)].map((m) => m[1]));
-  const orphans = hovers.filter((h) => !twins.has(h));
+
+  const orphans = hovers.filter((h) => !TWIN.some((t) => code.includes(t + h)));
   assert.deepEqual(
     orphans, [],
-    'these hover treatments have no keyboard twin — a keyboard user never sees them:\n  '
-      + orphans.map((o) => `group-hover:${o}`).join('\n  '),
+    `these hover treatments have no keyboard twin — a keyboard user never sees them:\n  ${
+      orphans.map((o) => `group-hover:${o}`).join('\n  ')}`,
+  );
+
+  /* AND THE CLICKABLE ONES MUST BE ON `:focus-visible`. The selection box is the case that
+   * broke; naming it means a future edit back to `:focus-within` fails here rather than
+   * being found by the owner again. */
+  const select = code.slice(code.indexOf('function DataTableSelect'), code.indexOf('function DataTableStack'));
+  assert.ok(
+    select.includes('group-has-[:focus-visible]:opacity-100'),
+    'the selection box must reveal on :focus-visible, not :focus-within — a mouse click '
+      + 'leaves focus behind, so :focus-within strands the box visible after an untick',
+  );
+  assert.ok(
+    !select.includes('group-focus-within'),
+    'DataTableSelect is back on :focus-within, which strands the box visible after a '
+      + 'click. See the note in the component.',
   );
 });
 
@@ -117,11 +152,14 @@ test('the loading state reserves the real row, not a block where the table will 
    * exists to prevent." So the cell height is one value shared by the real cell and the
    * skeleton cell — if they can drift, the table twitches when data lands, and nobody
    * will connect that to this file. */
+  /* THREE, since the footer landed: the real cell, the skeleton cell, and a total's row.
+   * All three are the same 37px on purpose — a footer that is a different height from the
+   * rows it sums reads as a separate table stuck underneath. */
   const heights = code.match(/h-\[37px\]/g) || [];
   assert.equal(
-    heights.length, 2,
-    'the real cell and the skeleton cell must both be 37px — found ' + heights.length
-      + ' declarations of that height.',
+    heights.length, 3,
+    'the real cell, the skeleton cell and the footer cell must all be 37px — found '
+      + `${heights.length} declarations of that height.`,
   );
   assert.match(code, /aria-busy="true"/, '§15: the loading region says it is busy');
   assert.match(code, /aria-label=\{label\}/, '§15: say WHAT is loading, not just that something is');
@@ -285,6 +323,215 @@ test('the Trade Log preview shows the columns the Trade Log shows, and no more',
     `the preview shows ${shown.length} columns and the shipped default view has `
       + `${defaults.length}. They must match, or the pane is not the Trade Log.`,
   );
+});
+
+test('a table in a card rounds its own corners — clipping would kill the sticky header', () => {
+  /* THE TRAP, AND IT WAS SPRUNG. A table in a card has square corners against the card's
+   * rounded ones, and the obvious fix is `overflow: hidden` on the card. That makes the
+   * card a SCROLL CONTAINER, a sticky child sticks to its nearest scroll container, and
+   * `top: var(--topbar-h)` stops meaning "below the top bar" and starts meaning "50px
+   * below the top of this card". The owner's first look had the header floating over the
+   * second row.
+   *
+   * Same CSS fact as the `scroll` prop's, reached from the other direction — which is how
+   * it got past me twice in one component. The shipped page already solved it and says so
+   * in one line: "Rounding moves onto the outer cells, since the panel no longer clips."
+   *
+   * AND THE CORNERS ARE SQUARE, which is a separate decision (owner, 2026-09-09). They
+   * were briefly rounded — 24px meeting a card's border, 18px inset one step per §6 trap
+   * 3 — and the owner chose straight. Inset in a padded PanelCard the table never meets
+   * the card's curve, so the radius was answering a question the layout had closed.
+   *
+   * The two rules are pinned together because they LOOK related and are not: square
+   * corners are a preference that may change; not clipping is a mechanism that must not.
+   * If the corners come back, they go on the outer CELLS and never on a clip. */
+  assert.doesNotMatch(
+    code, /rounded-(?:tl|tr|bl|br)-/,
+    'the table corners are square (owner, 2026-09-09). If that is being reversed, round '
+      + 'the outer CELLS — never clip the card.',
+  );
+  assert.match(
+    code, /\[&_tbody_tr:last-child_td\]:border-b-0/,
+    'the last row drops its hairline always — below the final row there is nothing to '
+      + 'divide, so it is a rule to nowhere',
+  );
+  assert.doesNotMatch(
+    code, /overflow-hidden/,
+    'data-table.jsx must never clip its own overflow: any non-visible overflow makes it a '
+      + 'scroll container and the sticky header then pins inside the box instead of under '
+      + 'the top bar.',
+  );
+});
+
+test('a table can total itself, and the footer is not the registry as it ships', () => {
+  /* ADDED 2026-09-09 for the summary specimen. A trade log has no total — the KPI row
+   * above already carries one and §24 forbids saying it twice — but a cost-and-return
+   * breakdown exists FOR what its rows add up to.
+   *
+   * TWO OF THE REGISTRY'S THREE FOOTER CLASSES ARE WRONG HERE, both for reasons already
+   * recorded on the row: `bg-muted` resolves to `--chrome-hover`, the same token a HOVERED
+   * row uses, so a footer would read as permanently hovered; and `border-t` is
+   * `--color-border`, a card's edge. The rule above a total is `--line-strong` — §4 names
+   * it "THE standard visible border — dashed empties, SEPARATORS" — because it separates
+   * the sum from what it sums rather than one row from the next. */
+  assert.match(code, /function DataTableFooter/, 'the footer must exist');
+  assert.match(code, /border-t-\[var\(--line-strong\)\]/, 'the rule above a total is --line-strong');
+  const foot = code.slice(code.indexOf('function DataTableFooter'), code.indexOf('const ROW_TONE'));
+  assert.ok(!foot.includes('bg-muted'), 'bg-muted is the HOVER token — a footer would read as hovered');
+  assert.match(barrel, /DataTableFooter/, 'and it must be exported from the barrel');
+});
+
+test('the Trade Log preview is the approved card, not dev scaffolding', () => {
+  /* OWNER, 2026-09-09: "I like this type of fit better" — the review panes, which are a
+   * card with a titled head and their content inset, against the bare flush panel the
+   * preview had. So the preview moved onto `PanelCard` + `PanelHead`, which are APPROVED
+   * primitives visible on the locked dashboard.
+   *
+   * That is the difference between the Trade Log looking cut from the dashboard and
+   * looking approximately like it, and it is why this is worth pinning: the specimen
+   * cards below are inline-styled scaffolding that never ships, and it would be easy to
+   * reach for one here by habit. */
+  const preview = readFileSync(at('../frontend/src/features/dev/KitDataTable.jsx'), 'utf8');
+  /* Sliced to the NEXT export rather than to a named comment: this file gained two more
+   * specimens between the two markers the first version used, and the slice silently
+   * grew to span all three. A boundary that moves when a neighbour is added is a test
+   * that stops asserting what it says it asserts. */
+  const from = preview.indexOf('export function TradeLogPreview');
+  const to = preview.indexOf('export function', from + 10);
+  const fn = preview.slice(from, to === -1 ? undefined : to);
+  assert.ok(fn.includes('<PanelCard>'), 'the Trade Log preview must use the approved PanelCard');
+  assert.ok(fn.includes('<PanelHead'), 'and its head, which is where the title and the count live');
+  assert.ok(
+    !fn.includes('F.card') && !fn.includes('F.logPanel'),
+    'the preview must not use the review scaffolding — that is inline-styled dev chrome '
+      + 'and never ships',
+  );
+});
+
+test('§24 — the P&L cell colours its figure and does not fill its surface', () => {
+  /* THE OWNER SAID REMOVE IT, and the reasons survive the instruction. The shipped table
+   * paints `.cell-win { background: var(--win-bg) }`, so a winning row carries the fact
+   * three times: a green "Win" badge, a green figure, and a green block behind the
+   * figure. §24: "two identical facts teach the reader that neither is worth reading."
+   * It was also the loudest thing in the table without being the most important — a
+   * column of filled blocks reads before the numbers inside them.
+   *
+   * Same correction §17 already made on the alert, whose surface wash came off every tone
+   * on 2026-09-08 for the same complaint. The figure keeps full-strength colour. */
+  const tone = code.slice(code.indexOf('const CELL_TONE = {'), code.indexOf('function DataTableCell'));
+  assert.ok(tone.length > 20, 'could not find CELL_TONE');
+  assert.doesNotMatch(
+    tone, /bg-/,
+    'a P&L cell must not fill its background — the badge and the figure already carry the '
+      + 'outcome, and a third statement of it is what §24 forbids',
+  );
+  // Plain string containment, not a built regex. Three assertions in this suite have now
+  // been written with `new RegExp` over a template literal and silently matched nothing —
+  // the escapes do not survive the trip. `includes` cannot fail open.
+  for (const t of ['--profit', '--loss', '--be']) {
+    assert.ok(tone.includes(`text-[var(${t})]`), `${t} must still colour the figure`);
+  }
+});
+
+test('columns are sized to their content, through ONE declaration', () => {
+  /* EVERY COLUMN WAS THE SAME WIDTH until the owner asked (2026-09-09). `table-fixed`
+   * splits evenly unless told otherwise, so "Type" — holding the word "Sell" — had as
+   * much room as "Setup", holding "Break & Retest", which truncated to "Break & Retes".
+   * The shipped table has the same fault for the same recorded reason: even widths stop
+   * one column claiming the table, which the old Comments column once did.
+   *
+   * That trade was never necessary. Fixed layout is exactly the mode that lets a column
+   * be given a width safely — content still cannot exceed its allotment, which is the
+   * protection that was wanted.
+   *
+   * A `<colgroup>`, NOT A WIDTH PER CELL, and that is the whole point: the header and the
+   * body then read the SAME declaration. Widths on cells are two declarations that must
+   * agree, and this component has already shipped one head/body disagreement — the
+   * selection column's alignment, where a class silently compiled to nothing. */
+  assert.match(code, /<colgroup>/, 'widths are declared once, in a colgroup');
+  assert.match(
+    code, /style=\{\{ width: `\$\{w\}px` \}\}/,
+    'a per-column width is an inline style — it cannot be a utility, and a class written '
+      + 'by the caller would compile to nothing anyway (§1)',
+  );
+  assert.match(
+    code, /widths\.reduce/,
+    'with widths given, the scroll floor is their SUM rather than a per-column guess',
+  );
+
+  /* AND EVERY COLUMN IN THE SPEC CARRIES ONE. A missing width makes the colgroup emit
+   * `width: undefinedpx` and the floor NaN — both silent. */
+  const preview = readFileSync(at('../frontend/src/features/dev/KitDataTable.jsx'), 'utf8');
+  const spec = preview.slice(preview.indexOf('const COLUMNS = ['), preview.indexOf('const WITH_OPTIONAL'));
+  const ids = [...spec.matchAll(/id: '([a-z_]+)'/g)].map((m) => m[1]);
+  const withWidth = [...spec.matchAll(/id: '([a-z_]+)', width: \d+/g)].map((m) => m[1]);
+  assert.deepEqual(
+    ids.filter((id) => !withWidth.includes(id)), [],
+    'every column must declare a width, or the colgroup emits `undefinedpx` and the '
+      + 'minimum width is NaN — both silent',
+  );
+});
+
+test('a column heading resolves its alignment from the SAME values as its column', () => {
+  /* ── THIS TEST PASSED WHILE THE THING IT NAMED WAS NOT HAPPENING ─────────────────────
+   *
+   * It used to be "a column heading is centred whatever its column does" and it asserted
+   * that the string `gutter(narrow, align, 'center')` appeared in the source. It did
+   * appear. It also did nothing: `align` had a DEFAULT PARAMETER of `'left'` two lines
+   * above, so the `'center'` fallback was unreachable and every header rendered left —
+   * which was neither the old rule nor the new one. The owner found it in a screenshot.
+   *
+   * A TEST THAT READS SOURCE INSTEAD OF BEHAVIOUR AGREES WITH WHATEVER YOU WROTE. That is
+   * the third time today this suite has been the thing at fault rather than the component
+   * (a `\\b` that was a backspace, a regex whose escapes collapsed, and now this), and it
+   * is worth the paragraph: a lint-style test's only real failure mode is passing.
+   *
+   * ── WHAT IS ACTUALLY INVARIANT ───────────────────────────────────────────────────────
+   *
+   * The header follows its column (owner, 2026-09-09) — Net P&L right because its figures
+   * are, Entry centred because its figures are, text left. So the invariant is not a
+   * DIRECTION, which has now changed twice; it is that ONE function resolves it and both
+   * cells call it. A header and its column computing alignment separately is the same
+   * class of bug as computing WIDTH separately, which is why widths went into a colgroup.
+   *
+   * So this exercises the resolver on real inputs rather than grepping for a call. */
+  const mod = readFileSync(at('../frontend/src/components/primitives/data-table.jsx'), 'utf8');
+  const body = mod.slice(mod.indexOf('const resolveAlign'), mod.indexOf('const gutter'));
+  // eslint-disable-next-line no-new-func
+  const resolveAlign = new Function(`${body} return resolveAlign;`)();
+
+  assert.equal(resolveAlign(undefined, false, false), 'left', 'a text column reads left');
+  assert.equal(resolveAlign(undefined, true, false), 'center', 'a measurement reads centred');
+  assert.equal(resolveAlign('right', true, false), 'right', 'a RESULT opts into right');
+  assert.equal(resolveAlign('left', true, true), 'center', 'narrow wins outright — one box, one answer');
+
+  /* AND BOTH CELLS CALL IT. If either computes its own, they drift the first time one is
+   * touched — which is exactly how the selection column ended up with a header and a body
+   * that disagreed. */
+  const headSrc = mod.slice(mod.indexOf('function DataTableHeadCell'), mod.indexOf('function DataTableBody'));
+  const cellSrc = mod.slice(mod.indexOf('function DataTableCell'), mod.indexOf('function DataTableSelect'));
+  assert.ok(headSrc.includes('resolveAlign('), 'the HEAD cell must resolve through the shared helper');
+  assert.ok(cellSrc.includes('resolveAlign('), 'and so must the BODY cell, or the two drift');
+  assert.ok(
+    !/const a = align \|\| \(numeric/.test(mod),
+    'a cell is resolving alignment inline again instead of calling resolveAlign',
+  );
+
+  /* THE SORT BUTTON IS A FLEX CONTAINER and needs `justify-*`; `text-*` on the <th> does
+   * nothing to its children. Forgetting that is half of why every header looked left. */
+  const head = mod.slice(mod.indexOf('function DataTableHeadCell'), mod.indexOf('function DataTableBody'));
+  assert.ok(head.includes('JUSTIFY[a]'), 'the sort button must justify from the same resolved value');
+});
+
+test('the specimen hands the header the same two values as the body cell', () => {
+  /* The resolver above guarantees ONE answer; this guarantees both cells ask it the same
+   * QUESTION. Handing the header `align` alone while the body gets `align` + `numeric`
+   * would resolve a measurement's header to left and its figures to centre, and the two
+   * would be out by half a column with nothing failing. */
+  const preview = readFileSync(at('../frontend/src/features/dev/KitDataTable.jsx'), 'utf8');
+  const headJsx = preview.slice(preview.indexOf('<DataTableHeadCell'), preview.indexOf('{c.label}'));
+  assert.ok(headJsx.includes('align={c.align}'), 'the header must take the column\'s align');
+  assert.ok(headJsx.includes('numeric={c.numeric}'), 'and its numeric, or a measurement drifts');
 });
 
 test('the table is exported from the barrel, because that is the only door', () => {

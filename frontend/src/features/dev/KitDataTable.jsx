@@ -32,7 +32,8 @@ import {
   Alert, AlertDescription, AlertTitle, Badge, Button, ButtonLabel,
   DataTable, DataTableBody, DataTableCell, DataTableDash, DataTableHeadCell,
   DataTableHeader, DataTableNote, DataTableNotice, DataTableRow, DataTableSelect,
-  DataTableSkeleton, DataTableStack, EmptyState, Switch,
+  DataTableFooter, DataTableSkeleton, DataTableStack, EmptyState,
+  PanelCard, PanelHead, PanelMeta, Switch,
 } from '@/components/primitives';
 import TradesTable from '../trades/TradesTable.jsx';
 import { fmtDayShort, fmtNum, fmtTime, RULE_LABEL } from '../../lib/constants.js';
@@ -140,15 +141,15 @@ const GRADE = { 'A+': 4, A: 3, B: 2, C: 1 };
  */
 const COLUMNS = [
   {
-    id: 'datetime', label: 'Date & Time', sort: (t) => t.close_time,
+    id: 'datetime', width: 100, label: 'Date & Time', sort: (t) => t.close_time,
     cell: (t) => <DataTableStack sub={fmtTime(t.close_time)}>{fmtDayShort(t.close_time)}</DataTableStack>,
   },
   {
-    id: 'pair', label: 'Symbol', sort: (t) => t.symbol_base,
+    id: 'pair', width: 90, label: 'Symbol', sort: (t) => t.symbol_base,
     cell: (t) => <Badge>{t.symbol_base}</Badge>,
   },
   {
-    id: 'type', label: 'Type', sort: (t) => t.direction,
+    id: 'type', width: 68, label: 'Type', sort: (t) => t.direction,
     cell: (t) => (
       <Badge tone={t.direction === 'sell' ? 'loss' : 'profit'}>
         {t.direction === 'sell' ? 'Sell' : 'Buy'}
@@ -156,31 +157,31 @@ const COLUMNS = [
     ),
   },
   {
-    id: 'session', label: 'Session', sort: (t) => t.session,
+    id: 'session', width: 96, label: 'Session', sort: (t) => t.session,
     cell: (t) => <Badge>{t.session}</Badge>,
   },
   {
-    id: 'entry', label: 'Entry', numeric: true, align: 'center', sort: (t) => t.entry_price,
+    id: 'entry', width: 92, label: 'Entry', numeric: true, align: 'center', sort: (t) => t.entry_price,
     cell: (t) => fmtPrice(t.entry_price),
   },
   {
-    id: 'exit', label: 'Exit', numeric: true, align: 'center', sort: (t) => t.exit_price,
+    id: 'exit', width: 92, label: 'Exit', numeric: true, align: 'center', sort: (t) => t.exit_price,
     cell: (t) => fmtPrice(t.exit_price),
   },
   {
-    id: 'volume', label: 'Volume', numeric: true, align: 'center', sort: (t) => t.volume,
+    id: 'volume', width: 76, label: 'Volume', numeric: true, align: 'center', sort: (t) => t.volume,
     cell: (t) => fmtNum(t.volume, 2),
   },
   {
-    id: 'setup', label: 'Setup', sort: (t) => t.setup || '',
+    id: 'setup', width: 136, label: 'Setup', sort: (t) => t.setup || '',
     cell: (t) => (t.setup ? <Badge>{t.setup}</Badge> : <DataTableDash />),
   },
   {
-    id: 'probability', label: 'Probability', align: 'center', sort: (t) => GRADE[t.probability] || 0,
+    id: 'probability', width: 84, label: 'Probability', align: 'center', sort: (t) => GRADE[t.probability] || 0,
     cell: (t) => (t.probability ? <Badge>{t.probability}</Badge> : <DataTableDash />),
   },
   {
-    id: 'status',
+    id: 'status', width: 80,
     label: 'Status',
     align: 'center',
     sort: (t, unit) => tradeOutcome(t, unit) || '',
@@ -193,7 +194,7 @@ const COLUMNS = [
     /* THE ONE RIGHT-ALIGNED COLUMN (owner, 2026-09-09). A result is read DOWN the table
      * to answer "which of these is big", so its decimal points and minus signs have to
      * line up. The measurements above are read ACROSS, against their own row. */
-    id: 'result',
+    id: 'result', width: 108,
     label: 'Net P&L',
     numeric: true,
     align: 'right',
@@ -210,7 +211,7 @@ const COLUMNS = [
      * inline made this column as wide as all the others put together, which is why the
      * shipped table marks it too. The glyph brightens with the row's hover AND its focus.
      * Not sortable: "has a note" is a yes/no, and sorting by one is really a filter. */
-    id: 'comments', label: 'Notes', align: 'center',
+    id: 'comments', width: 62, label: 'Notes', align: 'center',
     cell: (t) => (t.comments ? <DataTableNote /> : <DataTableDash />),
   },
 ];
@@ -219,11 +220,11 @@ const COLUMNS = [
  * carry the missing value and the hover reason, which a comparison needs and a
  * "what ships" view should not invent. Slotted where `tradeColumns.js` puts them. */
 const SL = {
-  id: 'sl', label: 'SL Size', numeric: true, align: 'center', sort: (t) => t.sl_size_pips ?? -1,
+  id: 'sl', width: 84, label: 'SL Size', numeric: true, align: 'center', sort: (t) => t.sl_size_pips ?? -1,
   cell: (t) => (t.sl_size_pips == null ? <DataTableDash /> : fmtNum(t.sl_size_pips, 1)),
 };
 const RULES = {
-  id: 'adherence', label: 'Rules', sort: (t) => t.adherence?.status || '',
+  id: 'adherence', width: 112, label: 'Rules', sort: (t) => t.adherence?.status || '',
   cell: (t) => {
     const broke = (t.adherence?.brokenRules || []).map((r) => RULE_LABEL[r] || r);
     if (t.adherence?.status === 'followed') {
@@ -243,6 +244,18 @@ const WITH_OPTIONAL = [
   ...COLUMNS.slice(0, 7), SL, ...COLUMNS.slice(7, 9), RULES, ...COLUMNS.slice(9),
 ];
 
+/* THE SELECTION GUTTER. 36px, down from the shipped 44px — the owner asked for the box
+ * closer to Date & Time. It holds a 16px box, so 36 leaves 10px each side. */
+const SELECT_W = 36;
+
+/* WIDTHS ARE PER COLUMN NOW, AND THEY WERE NOT (owner, 2026-09-09). `table-fixed` splits
+ * evenly unless told otherwise, so "Type" — holding the word "Sell" — had exactly as much
+ * room as "Setup", holding "Break & Retest", which truncated. Each number below is the
+ * content it has to fit; they sum to the table's honest minimum, and any surplus is shared
+ * out in proportion, so these are ratios rather than a layout that breaks at another
+ * width. Read them off the spec so a column and its width cannot drift apart. */
+const widthsFor = (columns) => [SELECT_W, ...columns.map((c) => c.width)];
+
 /* ── THE TABLE ──────────────────────────────────────────────────────────────────────
  *
  * Assembled from the primitives the way a screen will assemble it in Cycle 01. Note what
@@ -254,7 +267,7 @@ const WITH_OPTIONAL = [
  */
 function KitTable({
   columns = COLUMNS, trades, state = 'ready', unit = 'R',
-  selected, onToggle, onToggleAll, flashId, sortable = false, scroll = 'self', maxHeight,
+  selected, onToggle, onToggleAll, flashId, scroll = 'self', maxHeight,
 }) {
   const [sort, setSort] = useState(null);
   const sel = selected || new Set();
@@ -262,6 +275,11 @@ function KitTable({
   const all = trades.length > 0 && here === trades.length;
   const cols = columns.length + 1;
 
+  /* NO `sortable` GATE ANY MORE (owner, 2026-09-09): sorting is part of the component and
+   * always on, so a column sorts iff its spec gives it a `sort` function. The gate existed
+   * while sorting was a switch, and it had to exist then — turning the switch off left the
+   * previous sort APPLIED, so a pane claiming to be "the Trade Log as it ships" showed
+   * rows ordered by Net P&L. With no switch there is no such state to get wrong. */
   const rows = useMemo(() => {
     if (!sort) return trades;
     const col = columns.find((c) => c.id === sort.id);
@@ -284,7 +302,12 @@ function KitTable({
   });
 
   return (
-    <DataTable cols={cols} scroll={scroll} style={maxHeight ? { maxHeight } : undefined}>
+    <DataTable
+      cols={cols}
+      widths={widthsFor(columns)}
+      scroll={scroll}
+      style={maxHeight ? { maxHeight } : undefined}
+    >
       <DataTableHeader>
         <tr>
           <DataTableHeadCell narrow>
@@ -297,12 +320,18 @@ function KitTable({
             />
           </DataTableHeadCell>
           {columns.map((c) => (
+            /* THE HEAD TAKES THE SAME TWO VALUES AS THE BODY CELL BELOW IT — `align`
+               and `numeric` — and the component resolves them once. It briefly took
+               nothing, on a "headings are always centred" rule that never rendered:
+               `align` had a default parameter, so the centred fallback was unreachable
+               and every header came out left. Owner, 2026-09-09: the header follows its
+               column. */
             <DataTableHeadCell
               key={c.id}
-              align={c.align || (c.numeric ? 'center' : 'left')}
-              sortable={sortable && Boolean(c.sort)}
+              align={c.align}
+              numeric={c.numeric}
               sort={sort && sort.id === c.id ? sort.dir : null}
-              onSort={sortable && c.sort ? () => toggleSort(c.id) : undefined}
+              onSort={c.sort ? () => toggleSort(c.id) : undefined}
             >
               {c.label}
             </DataTableHeadCell>
@@ -418,41 +447,79 @@ const F = {
    * `.log-panel .log-grid` descendant rules with it — which style the SHIPPED table's
    * corners — so the preview would be half legacy CSS and the comparison worthless.
    * Same values, none of the descendants. `--r-card` rather than `--r-2xl`: the legacy
-   * token still holds 24px for the old shells, but new work reads the card token. */
+   * token still holds 24px for the old shells, but new work reads the card token.
+   *
+   * ⚠ NO `overflow: hidden`, AND THAT IS THE BUG THE OWNER CAUGHT. It was here to clip
+   * the table's square corners to the card's rounded ones — which made the card a scroll
+   * container, which made it the sticky header's containing block, so the header pinned
+   * 50px INSIDE the card and floated over the second row. `.panel` has no overflow rule
+   * for exactly this reason; the table rounds its own outer cells instead (`flush`). */
   logPanel: {
     background: 'var(--panel)', border: '1px solid var(--line)',
     borderRadius: 'var(--r-card)', boxShadow: 'var(--sh-1)',
-    overflow: 'hidden', padding: 0,
+    padding: 0,
   },
   bare: {
     fontSize: 12.5, lineHeight: '20px', color: 'var(--text-3)',
     margin: '10px 0 0', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap',
   },
   toggle: { display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' },
+  split: {
+    display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 16,
+  },
+  asideNote: {
+    flex: '1 1 320px', minWidth: 300, fontSize: 12.5, lineHeight: '20px',
+    color: 'var(--text-2)', paddingTop: 4,
+  },
 };
 
 /* ═════════════════════════════════════════════════ THE TRADE LOG, AS THE PAGE SHIPS IT ══
  *
- * No review card, no heading, no note above it. `.page-body` > `.panel.log-panel` > the
- * table, at the real width, header sticky to the top bar, thirteen columns. Scroll the
- * page and the header should stay under the bar.
+ * ── IT IS A `PanelCard`, AND THE OWNER CHOSE THAT FIT (2026-09-09) ────────────────────
  *
- * THE TWO SWITCHES ARE THE ONLY APPARATUS, and each is here for a reason the owner asked
- * for directly.
+ * It was a bare panel with the table flush to its edges, which is what `.panel.log-panel`
+ * does today. Seeing it beside the review panes — which are cards with a titled head and
+ * their content inset — the owner preferred those: "I like this type of fit better. The
+ * thing that actually changes in the actual page would be the top header saying
+ * 'Selection — the header box…' with something like Trade Log."
  *
- * SORT was invisible because it was working as decided: it stays IN THE KIT and OFF ON
- * THE SCREEN, since the product has no sort — no sort state in `TradeLog.jsx`, no
- * orderable query in `routes/trades.js` — and §2 forbids a control the product cannot
- * honour. Off, this is the Trade Log. On, this is what the Trade Log becomes the day
- * sorting is a feature: click a header to sort, again to reverse, a third time to clear.
- * The chevron fades in on hover AND on focus, which is §14's keyboard twin.
+ * So this is the DASHBOARD'S OWN CARD rather than my dev scaffolding: `PanelCard` and
+ * `PanelHead` are approved primitives, visible on the locked dashboard, and using them
+ * is what makes the Trade Log look cut from it rather than approximately like it. The
+ * scaffolding cards below are still inline styles, because those are review apparatus and
+ * never ship.
  *
- * R / $ because the Net P&L column is the one that changes meaning with the display unit,
- * and it is the column whose alignment was just ruled on. Worth seeing both.
+ * ITS CORNERS ARE SQUARE (owner, 2026-09-09). They were briefly rounded — 18px, one step
+ * inside the card per §6 trap 3 — and the owner chose straight. Inset in a padded card
+ * the table never meets the card's curve anyway, so the radius was answering a question
+ * the layout had already closed.
+ *
+ * THE HEAD DOES NOT REPEAT THE TOP BAR (owner, 2026-09-09). It said "Trade Log", which the
+ * page's top bar already says — §24, "do not say the same thing twice". It now carries
+ * three facts the chrome does not: WHAT the rows are, WHICH ones (the active scope), and
+ * HOW MANY the filters left. The count doubles as the selection readout.
+ *
+ * SORTING IS PERMANENT AND HAS NO SWITCH (owner, 2026-09-09), and the sequence of that
+ * decision is worth keeping because I misread the middle step.
+ *
+ * It started as "the affordance lives in the kit and stays off on the screen", right
+ * under §2 — the product has no sort, and a control the product cannot honour must not
+ * appear. Then: "I want sorting in the app too", which I took as a Cycle 01 request and
+ * pushed back on, since /trades still renders the legacy table. The owner meant something
+ * narrower: "when this kit replaces the current one, with that I want sorting on — remove
+ * the toggle and keep it permanently on."
+ *
+ * WHICH IS BOTH SIMPLER AND STILL §2-SAFE. Nothing is added to a page the product cannot
+ * honour, because no page has changed; the component simply carries sorting, so the Trade
+ * Log gains it as a CONSEQUENCE of migrating rather than as separate feature work. And
+ * with no switch there is no "off" state to leave a stale sort applied in — which is a bug
+ * the switch actually had.
+ *
+ * The one control left is R / money, because Net P&L is the column whose alignment was
+ * just ruled on and it is worth seeing both.
  */
 export function TradeLogPreview() {
   const [selected, setSelected] = useState(() => new Set());
-  const [sortable, setSortable] = useState(false);
   const [unit, setUnit] = useState('R');
 
   const toggle = (id, on) => setSelected((s) => {
@@ -464,24 +531,43 @@ export function TradeLogPreview() {
 
   return (
     <div>
-      <div style={F.logPanel}>
+      <PanelCard>
+        {/* NOT "TRADE LOG" (owner, 2026-09-09). The page's top bar already says that, and
+            §24 is "do not say the same thing twice". Three facts here, none of them a
+            duplicate: WHAT the rows are (the top bar names the page, not its contents),
+            WHICH ones you are looking at, and HOW MANY the filters left.
+
+            ⚠ THE SUB HAS TO BE DERIVED IN CYCLE 01. It is the active scope — account and
+            period — and it is hardcoded here because this is a specimen. On the real page
+            it must read the account switcher and the date filter, or it becomes a label
+            that confidently describes rows it is not showing. §15: never invent a value to
+            fill a state; a stale scope is worse than no scope. */}
+        <PanelHead
+          sub="FTMO $100,000 · September 2026"
+          meta={(
+            <PanelMeta label={selected.size > 0 ? 'selected' : 'trades'}>
+              {selected.size > 0 ? `${selected.size} of ${TRADES.length}` : TRADES.length}
+            </PanelMeta>
+          )}
+        >
+          Closed trades
+        </PanelHead>
         <KitTable
           trades={TRADES}
           unit={unit}
           selected={selected}
           onToggle={toggle}
           onToggleAll={toggleAll}
-          sortable={sortable}
           scroll="page"
         />
-      </div>
+      </PanelCard>
       <p style={F.bare}>
-        <span>Thirteen columns — the Trade Log&rsquo;s default view. The header sticks as you scroll.</span>
+        <span>
+          Thirteen columns — the Trade Log&rsquo;s default view. The header sticks as you
+          scroll, and every column with an order sorts: click, click again to reverse, a
+          third time to clear.
+        </span>
         <span style={{ flex: 1 }} />
-        <label style={F.toggle}>
-          <Switch checked={sortable} onCheckedChange={setSortable} aria-label="Show the sort affordance" />
-          <span>{sortable ? 'Sorting on — click a header' : 'Sorting off, as the page ships'}</span>
-        </label>
         <label style={F.toggle}>
           <Switch
             checked={unit === 'USD'}
@@ -491,6 +577,153 @@ export function TradeLogPreview() {
           <span>{unit === 'USD' ? 'Money' : 'R'}</span>
         </label>
       </p>
+    </div>
+  );
+}
+
+/* THE COLUMN-HEADER SIZE WAS DECIDED HERE AND THE PANE IS GONE (owner, 2026-09-09).
+ *
+ * Four candidates rendered over the same rows — 12/600 (the dashboard's number), 14/500
+ * (its ratio), 13/600 (what ships) and 12/500 (lighter, same size). B won. The pane is
+ * deleted rather than kept, because a "pick one" that opens on a losing variant is a
+ * specimen showing the wrong thing to whoever looks next; the reasoning that matters
+ * survives in `data-table.jsx` beside the value it produced.
+ *
+ * The finding worth carrying forward: the header was wrong because it copied the
+ * dashboard's ABSOLUTE size onto a table with a different body size. Any other piece that
+ * borrows a value from the dashboard should check the ratio it sat in, not just the
+ * number. */
+
+/* ══════════════════════════════════════════ THE SAME TABLE, AS A SUMMARY (owner ask) ══
+ *
+ * "Make one more preview with the attached shadcn type table" — a card with a title, a
+ * sub and a status badge, a short table whose first column is text and whose figures run
+ * right, and a footer that totals itself.
+ *
+ * IT PROVES THE PIECE IS A KIT PIECE AND NOT A TRADE LOG. Cycle 00 exists so ~23 screens
+ * are ASSEMBLED rather than designed, and a component only ever shown at thirteen columns
+ * and four hundred rows has not shown it can serve the other eleven tables in this app —
+ * Settings, Prop OS, Reports, the strategy comparison. Five rows in a narrow card is the
+ * opposite end of the same component, and every difference is a PROP: no selection
+ * column, no row interaction, a footer, four widths instead of thirteen.
+ *
+ * THE DATA IS REAL, NOT AN INVOICE. The reference was an invoice and this app has none —
+ * inventing one would prove the table can render something the product will never ask of
+ * it. What the product does have is `financeSummary`: fees out (evaluation / reset /
+ * activation), payouts in (gross x split = the trader's take), and spent / earned / net.
+ * Same shape as the reference, carrying figures a trader would recognise.
+ *
+ * THE FOOTER IS NEW. A trade log has no total, because the KPI row above it already
+ * carries one and §24 forbids saying it twice. A cost-and-return breakdown is the
+ * opposite: the rows exist FOR what they add up to.
+ */
+const LEDGER = [
+  { item: 'Evaluation fee — FTMO $100k', kind: 'Fee', when: '02 Jun 26', amount: -540 },
+  { item: 'Reset — after daily-loss breach', kind: 'Fee', when: '19 Jun 26', amount: -180 },
+  { item: 'Activation — funded stage', kind: 'Fee', when: '04 Jul 26', amount: -139 },
+  { item: 'Payout — $4,180 gross at 80%', kind: 'Payout', when: '31 Jul 26', amount: 3344 },
+  { item: 'Payout — $2,065 gross at 80%', kind: 'Payout', when: '29 Aug 26', amount: 1652 },
+];
+
+const SUMMARY_COLUMNS = [
+  { id: 'item', width: 260, label: 'Item' },
+  { id: 'kind', width: 92, label: 'Type' },
+  { id: 'when', width: 104, label: 'Date' },
+  { id: 'amount', width: 116, label: 'Amount' },
+];
+
+export function DataTableSummary() {
+  const spent = LEDGER.filter((r) => r.amount < 0).reduce((a, r) => a + r.amount, 0);
+  const earned = LEDGER.filter((r) => r.amount > 0).reduce((a, r) => a + r.amount, 0);
+  const net = earned + spent;
+
+  return (
+    <div style={F.split}>
+      <div style={{ maxWidth: 620, flex: '1 1 560px' }}>
+        <PanelCard>
+          <PanelHead
+            sub="FTMO $100,000 · funded 4 Jul 2026"
+            meta={<Badge tone={net >= 0 ? 'profit' : 'loss'}>{net >= 0 ? 'In profit' : 'Down'}</Badge>}
+          >
+            Cost &amp; return
+          </PanelHead>
+
+          <DataTable widths={SUMMARY_COLUMNS.map((c) => c.width)} scroll="self">
+            <DataTableHeader>
+              <tr>
+                {SUMMARY_COLUMNS.map((c) => (
+                  <DataTableHeadCell key={c.id}>{c.label}</DataTableHeadCell>
+                ))}
+              </tr>
+            </DataTableHeader>
+            <DataTableBody>
+              {LEDGER.map((r) => (
+                <DataTableRow key={r.item}>
+                  <DataTableCell>{r.item}</DataTableCell>
+                  <DataTableCell align="center">
+                    <Badge tone={r.amount < 0 ? 'neutral' : 'profit'}>{r.kind}</Badge>
+                  </DataTableCell>
+                  <DataTableCell align="center">{r.when}</DataTableCell>
+                  <DataTableCell numeric align="right" tone={r.amount < 0 ? undefined : 'profit'}>
+                    {fmtMoney(r.amount, { sign: true })}
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+            </DataTableBody>
+            {/* `colSpan` collapses the three label columns so a caption sits beside its
+                figure. The reference does the same, and a caption stranded in the first
+                column of a four-column row is a caption you have to trace across. */}
+            <DataTableFooter>
+              <tr>
+                <DataTableCell colSpan={3} align="right" tone="label">
+                  Spent on fees
+                </DataTableCell>
+                <DataTableCell numeric align="right">{fmtMoney(spent, { sign: true })}</DataTableCell>
+              </tr>
+              <tr>
+                <DataTableCell colSpan={3} align="right" tone="label">
+                  Earned in payouts
+                </DataTableCell>
+                <DataTableCell numeric align="right" tone="profit">
+                  {fmtMoney(earned, { sign: true })}
+                </DataTableCell>
+              </tr>
+              <tr>
+                <DataTableCell colSpan={3} align="right" strong>
+                  Net
+                </DataTableCell>
+                <DataTableCell numeric align="right" strong tone={net >= 0 ? 'profit' : 'loss'}>
+                  {fmtMoney(net, { sign: true })}
+                </DataTableCell>
+              </tr>
+            </DataTableFooter>
+          </DataTable>
+        </PanelCard>
+      </div>
+
+      <div style={F.asideNote}>
+        <strong style={F.strong}>The same component, at the other end of its range. </strong>
+        Five rows in a narrow card against thirteen columns and four hundred in a page —
+        and every difference is a prop, not a second table: no selection column, no row
+        click, a footer, four widths instead of thirteen.
+        {' '}
+        <strong style={F.strong}>That is what makes it a kit piece. </strong>
+        Cycle 00 exists so the other ~23 screens are assembled rather than designed, and
+        eleven of the twelve tables still hand-rolled in this app — Settings, Prop OS,
+        Reports, the strategy comparison — look far more like this than like the Trade Log.
+        {' '}
+        <strong style={F.strong}>Two things to judge. </strong>
+        The rule above the totals is one step stronger than the row hairlines, because it
+        separates a sum from what it sums rather than one row from the next. And Net is the
+        only weight in the table above regular — a total is the one figure in a summary you
+        should be able to find first.
+        {' '}
+        The figures are real: fees are evaluation / reset / activation, a payout is gross
+        &times; split, and spent / earned / net is what
+        {' '}
+        <code style={F.mono}>financeSummary</code>
+        {' already computes. The reference was an invoice, and this app has none.'}
+      </div>
     </div>
   );
 }
@@ -734,10 +967,11 @@ export function DataTableQuestions() {
         re-decide it.
         <br />
         <br />
-        <strong style={F.strong}>2. Sorting — ANSWERED 9 Sep. </strong>
-        In the kit, off on the screen, because the product has no sort. The switch under the
-        preview at the top turns the affordance on so you can see what it becomes the day
-        sorting is a real feature.
+        <strong style={F.strong}>2. Sorting — CLOSED 9 Sep. </strong>
+        It is part of the component and permanently on: no flag, no toggle. Client-side
+        over the rows already loaded, so no API change. The Trade Log gains it the day it
+        migrates onto this table — as a consequence of the migration rather than as
+        separate feature work, which is why nothing needs doing to /trades now.
         <br />
         <br />
         <strong style={F.strong}>3. Row height — ANSWERED 9 Sep. </strong>
