@@ -787,31 +787,16 @@ label.full { margin-bottom: 16px; }
    or how long any one account's name is; long names just ellipsis-truncate
    inside the same fixed box instead of resizing it. */
 
-/* Lightweight nav-tab style (Linear/Stripe/Vercel), matching the Recent
-   Trades/Open Positions tabs elsewhere on the dashboard — no filled pill or
-   bordered box, no background tint. Active reads via blue text + a thin
-   underline that sits flush on the header's own divider line below (not a
-   separate line floating under the text); inactive is plain, muted, hover-only. */
-.dash-acct-tab {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
-  position: relative; background: transparent; border: none; border-radius: var(--r-md);
-  padding: 3px 10px; cursor: pointer; text-align: left;
-  transition: background 180ms var(--ease);
-}
-.dash-acct-tab::after {
-  /* -5px = .dash-acct-header's own padding-bottom, so this lands exactly on
-     its border-bottom line instead of floating above it. */
-  content: ''; position: absolute; left: 10px; right: 10px; bottom: -5px; height: 1px;
-  border-radius: 2px; background: var(--accent); transform-origin: center;
-  transform: scaleX(0); opacity: 0;
-  transition: transform 220ms var(--ease), opacity 220ms var(--ease), height 180ms var(--ease);
-}
-.dash-acct-tab:not(.is-active):hover::after {
-  transform: scaleX(1); opacity: 1; height: 1px;
-}
-.dash-acct-tab.is-active::after {
-  transform: scaleX(1); opacity: 1; height: 3px;
-}
+/* THE ACCOUNT SELECTOR'S TAB RULES WERE DELETED 2026-09-10 (Cycle 00, piece 7).
+   FOUR DEAD RULES: `.dash-acct-tab`, its `::after` underline and the two states of
+   it. Nothing had rendered them for some time — the selector is `AccountTab` in
+   `primitives/account.jsx`, and it is a CHIP with a health ring rather than an
+   underlined tab. The brief still said this screen was 'on legacy CSS', which was
+   stale; the rules had simply been left behind when it moved.
+   The `.dash-acct-tab-dot` rules below are NOT dead and are NOT a tab: they are an
+   8px status dot, used by AccountWorkspace and ChallengeDetails in Prop OS. They
+   keep a tab's name because the tab is where they started. Prop OS's cycle owns
+   renaming them. */
 .dash-acct-tab-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .dash-acct-tab-dot--good { background: var(--profit); }
 .dash-acct-tab-dot--warn { background: var(--status-warn); }
@@ -820,25 +805,20 @@ label.full { margin-bottom: 16px; }
 
 /* Attention icon — only rendered for warn/bad (see AccountAlertIcon), so a
    healthy account never carries this element at all. */
-.dash-acct-more { display: flex; align-items: center; flex: none; }
-/* THE ACCOUNT OVERFLOW MENU. It used to carry `top`/`left`/`right` overrides on top of
-   `.wcz-menu`'s `position: absolute`; the panel is a portaled `Menu` now and Base UI
-   owns where it goes, so all that is left here is how WIDE it may be. A width, because
-   the primitive cancels its anchor width to size to content and an account label can be
-   long enough to wrap into three lines without a ceiling. */
-.dash-acct-more-menu { min-width: 240px; max-width: 320px; }
-/* One row: the account chip's three facts at menu size — health, name, phase. */
-.dash-acct-menu-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
-.dash-acct-menu-dot {
-  flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--status);
-}
-.dash-acct-menu-name {
-  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* The phase is the row's secondary fact and is pushed to the far edge, so a column of
-   them lines up and the eye can read the journey down the list rather than hunting for
-   it after each name. */
-.dash-acct-menu-phase { flex: none; font-size: var(--fs-label); color: var(--muted); }
+/* THE ACCOUNT OVERFLOW MENU WAS MIGRATED TO TAILWIND 2026-09-10 (Cycle 00, piece 7).
+   SIX RULES GONE: `.dash-acct-more` was already DEAD (its trigger became the
+   `AccountTabMore` primitive and kept none of it), and the five that drew the menu
+   -- the panel's width and the row's dot, name and phase -- now live in
+   `primitives/account.jsx` as `AccountMenuPanel` and `AccountMenuRow`.
+
+   WHY THEY OUTLIVED THE CHIPS BESIDE THEM: this menu only appears when you have
+   MORE ACCOUNTS THAN FIT, so it was never on screen while anyone reviewed the
+   strip. A half-migration hides in the state nobody has while they are looking.
+
+   The row's tone no longer travels through `prop-good|warn|bad`; it uses the same
+   `toneColor` the chip's health ring uses, and the two resolve to identical
+   colours. The `.prop-*` classes stay -- five other files set --status with them.
+   `.dash-acct-tab-dot` below also stays: it is Prop OS's status dot, not a tab. */
 
 /* Three equal sections (Daily DD / Max DD / Profit target) side by side,
    divided by hairlines — matches the Phase 2 wireframe's column split. */

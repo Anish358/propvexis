@@ -158,13 +158,6 @@ current
 danger
 danger-link
 dash-account-cell
-dash-acct-menu-dot
-dash-acct-menu-name
-dash-acct-menu-phase
-dash-acct-menu-row
-dash-acct-more
-dash-acct-more-menu
-dash-acct-tab
 dash-acct-tab-dot
 dash-acct-tab-dot--bad
 dash-acct-tab-dot--good
@@ -437,7 +430,6 @@ import-stat
 import-warn
 import-warnings
 info
-is-active
 is-cursor
 is-editing
 is-end

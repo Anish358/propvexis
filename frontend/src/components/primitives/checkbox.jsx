@@ -1,9 +1,11 @@
 /* checkbox.jsx
  *
- * @design unreviewed — REOPENED 2026-09-09 (owner). It was approved on 09-07 and what
- *   ships now is not what was signed: the corner override that made it a circle is gone,
- *   and it has a third state it never had. Approval is never inferred (§1), so it waits
- *   on the Test page. See test/primitives-status.test.js.
+ * @design approved 2026-09-09 — REOPENED and RE-SIGNED the same day. It was approved on
+ *   09-07, the radius ladder then turned it into a circle, and Cycle 00 gave it a third
+ *   state it never had — so what shipped was not what had been signed and it went back to
+ *   the Test page. The owner signed the rebuilt version on 09-09: the registry's own 5px
+ *   corner (our override deleted) and the indeterminate dash. It rejoins Batch 2.
+ *   See test/primitives-status.test.js.
  */
 
 import React from 'react';

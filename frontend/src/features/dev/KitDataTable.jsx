@@ -8,15 +8,17 @@
  *
  * ── THE FIRST SPECIMEN IS THE TRADE LOG, NOT A REVIEW CARD (owner, 2026-09-09) ────────
  *
- * The parity pane came first and the owner could not see the table for the apparatus
- * around it — a heading, two pane labels, a six-difference note. "I want to see the table
- * built separately, as it will be seen in the tradelog page."
+ * A parity pane came first — ours stacked above the shipping `TradesTable` on fifteen
+ * columns — and the owner could not see the table for the apparatus around it: a heading,
+ * two pane labels, a six-difference note. "I want to see the table built separately, as it
+ * will be seen in the tradelog page."
  *
- * THEY WERE ALSO RIGHT ABOUT THE COLUMNS. It was rendering fifteen: the thirteen defaults
- * plus SL Size and Rules, which I had switched on because they carry the missing value and
- * the hover reason. Fifteen overflows the page and thirteen does not, so the first thing
- * the owner saw was a table scrolling sideways in a way the real page never does. The
- * extra two moved to the parity pane, where a comparison is the point.
+ * THE PANE IS NOW DELETED (owner, 2026-09-09). It had done its job: every one of its six
+ * differences is settled and written into the component, so a side-by-side that nobody
+ * reads any more is a second table to keep in step with the first. Its two extra columns
+ * — SL Size and Rules — went with it, and THIRTEEN is now the only column set this file
+ * knows: the Trade Log's real default view. Fifteen overflowed the page and thirteen does
+ * not, which was the owner's other correction the same day.
  *
  * So `TradeLogPreview` renders exactly what the page renders — `.panel.log-panel` is a
  * card with `padding: 0` and the table flush inside it, at the page's real width, header
@@ -35,8 +37,7 @@ import {
   DataTableFooter, DataTableSkeleton, DataTableStack, EmptyState,
   PanelCard, PanelHead, PanelMeta, Switch,
 } from '@/components/primitives';
-import TradesTable from '../trades/TradesTable.jsx';
-import { fmtDayShort, fmtNum, fmtTime, RULE_LABEL } from '../../lib/constants.js';
+import { fmtDayShort, fmtNum, fmtTime } from '../../lib/constants.js';
 import { fmtMoney, tradeOutcome } from '../../lib/metrics.js';
 
 /* ── THE DATA ───────────────────────────────────────────────────────────────────────
@@ -55,7 +56,11 @@ import { fmtMoney, tradeOutcome } from '../../lib/metrics.js';
  */
 const D = (day, h, m) => `2026-09-${String(day).padStart(2, '0')}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`;
 
-const TRADES = [
+/* EXPORTED FOR PIECE 4 (2026-09-10). The drawer holds ONE of these rows, and a drawer
+ * specimen typing out its own trade would drift from the table's — same record, two
+ * sources, and the first person to fix a price fixes one of them. The table's own
+ * appearance is untouched by this; a locked component is locked on how it LOOKS. */
+export const TRADES = [
   {
     id: 4187, close_time: D(8, 16, 42), open_time: D(8, 14, 5), direction: 'buy',
     session: 'London', symbol_base: 'XAUUSD', symbol: 'XAUUSD.pro',
@@ -136,8 +141,9 @@ const GRADE = { 'A+': 4, A: 3, B: 2, C: 1 };
  *   ☐ · Date & Time · Symbol · Type · Session · Entry · Exit · Volume · Setup ·
  *   Probability · Status · Net P&L · Notes
  * A trader can switch on eight more in Trade Settings; at twenty-one the table scrolls,
- * which is what the per-column minimum width exists for. SL Size and Rules are two of
- * those eight and appear only in the parity pane — see this file's header.
+ * which is what the per-column minimum width exists for. None of the eight is specimened
+ * here — they were, for the deleted parity pane, and a column the preview does not show is
+ * a column this file does not need to define.
  */
 const COLUMNS = [
   {
@@ -214,34 +220,6 @@ const COLUMNS = [
     id: 'comments', width: 62, label: 'Notes', align: 'center',
     cell: (t) => (t.comments ? <DataTableNote /> : <DataTableDash />),
   },
-];
-
-/* The two optional columns the PARITY pane wants and the Trade Log preview does not: they
- * carry the missing value and the hover reason, which a comparison needs and a
- * "what ships" view should not invent. Slotted where `tradeColumns.js` puts them. */
-const SL = {
-  id: 'sl', width: 84, label: 'SL Size', numeric: true, align: 'center', sort: (t) => t.sl_size_pips ?? -1,
-  cell: (t) => (t.sl_size_pips == null ? <DataTableDash /> : fmtNum(t.sl_size_pips, 1)),
-};
-const RULES = {
-  id: 'adherence', width: 112, label: 'Rules', sort: (t) => t.adherence?.status || '',
-  cell: (t) => {
-    const broke = (t.adherence?.brokenRules || []).map((r) => RULE_LABEL[r] || r);
-    if (t.adherence?.status === 'followed') {
-      return <Badge tone="profit" title="Followed every evaluable rule">Followed</Badge>;
-    }
-    if (t.adherence?.status === 'broken') {
-      return (
-        <Badge tone="warn" title={`Broke: ${broke.join(', ')}`}>
-          {broke.length === 1 ? broke[0] : `${broke.length} rules`}
-        </Badge>
-      );
-    }
-    return <DataTableDash />;
-  },
-};
-const WITH_OPTIONAL = [
-  ...COLUMNS.slice(0, 7), SL, ...COLUMNS.slice(7, 9), RULES, ...COLUMNS.slice(9),
 ];
 
 /* THE SELECTION GUTTER. 36px, down from the shipped 44px — the owner asked for the box
@@ -425,10 +403,6 @@ const F = {
   note: {
     padding: '11px 18px', borderTop: '1px solid var(--line-inset)',
     background: 'var(--surface-sunken)', fontSize: 12.5, lineHeight: '20px', color: 'var(--text-2)',
-  },
-  paneLabel: {
-    fontSize: 10.5, letterSpacing: '.07em', textTransform: 'uppercase',
-    color: 'var(--text-3)', fontWeight: 500, padding: '12px 18px 0',
   },
   pane: { padding: '10px 18px 18px', minWidth: 0 },
   tabs: { display: 'flex', gap: 6, padding: '12px 18px 0' },
@@ -728,94 +702,6 @@ export function DataTableSummary() {
   );
 }
 
-/* THE PARITY PANE — ours above, the shipping table below, on the same rows and the same
- * FIFTEEN columns (the thirteen defaults plus SL Size and Rules, which carry the missing
- * value and the hover reason a comparison wants). Stacked rather than side by side: a
- * fifteen-column table squeezed into half the width is not the table either of them is,
- * and what is compared here is row height, hairline weight and how a column of figures
- * reads — all of which need the real width. */
-export function DataTableParity() {
-  const [selected, setSelected] = useState(() => new Set([4185]));
-
-  const toggle = (id, on) => setSelected((s) => {
-    const next = new Set(s);
-    if (on) next.add(id); else next.delete(id);
-    return next;
-  });
-  const toggleAll = (on) => setSelected(on ? new Set(TRADES.map((t) => t.id)) : new Set());
-
-  return (
-    <div style={F.card}>
-      <div style={F.head}>
-        <span style={F.name}>Side by side with the one that ships today</span>
-        <span style={F.mono}>primitives/data-table.jsx vs features/trades/TradesTable.jsx</span>
-        <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>15 columns, so both scroll</span>
-      </div>
-
-      <div style={F.paneLabel}>Ours — @shadcn/table, base-rhea, wrapped</div>
-      <div style={{ ...F.pane, overflowX: 'auto' }}>
-        <KitTable
-          columns={WITH_OPTIONAL}
-          trades={TRADES}
-          selected={selected}
-          onToggle={toggle}
-          onToggleAll={toggleAll}
-        />
-      </div>
-
-      <div style={{ ...F.paneLabel, borderTop: '1px solid var(--line-inset)', paddingTop: 16 }}>
-        Today — hand-rolled &lt;table&gt; on legacy/app.css
-      </div>
-      <div style={{ ...F.pane, overflowX: 'auto' }}>
-        <TradesTable
-          trades={TRADES}
-          onRowClick={() => {}}
-          unit="R"
-          columnOverrides={{ adherence: true, sl: true }}
-          selected={selected}
-          onSelect={toggle}
-          onSelectAll={toggleAll}
-        />
-      </div>
-
-      <div style={F.note}>
-        <strong style={F.strong}>Six differences, and five of them are a token being read
-        correctly rather than a taste. </strong>
-        <strong style={F.strong}>1. The line between rows</strong>
-        {' — today it is the card’s own edge, drawn four hundred times. §8 says a divider '}
-        inside a surface that already has an edge is half that edge, which is
-        {' '}
-        <code style={F.mono}>--line-inset</code>
-        {'. '}
-        <strong style={F.strong}>2. Hover</strong>
-        {' — the registry hovers to 50% of the hover token; §14 says hover intensifies, so ours '}
-        uses it at full strength, the way every row on the dashboard does.
-        {' '}
-        <strong style={F.strong}>3. A selected row</strong>
-        {' — the registry paints it the same colour as hover, so you could not tell which rows '}
-        the bulk action would act on. Ours is one step up.
-        {' '}
-        <strong style={F.strong}>4. The header</strong>
-        {' — 12px semibold on --control-bg, which is PanelTableHead’s exact recipe from the '}
-        dashboard, so this table and the dashboard’s lists read as one family.
-        {' '}
-        <strong style={F.strong}>5. The untagged row</strong>
-        {' — today its whole background goes warm. §17 puts a system colour on the glyph and the '}
-        edge and never inside a data surface, because in a table red and green are your money.
-        Ours marks it with a left edge instead.
-        {' '}
-        <strong style={F.strong}>6. Net P&amp;L is right-aligned. Nothing else is
-        (your ruling, 9 Sep). </strong>
-        A <em>measurement</em> — entry, exit, volume, SL — is read across, against its own
-        row, and stays centred. A <em>result</em> is read down the column to answer
-        &ldquo;which of these is big&rdquo;, and that only works when the decimal points
-        and the minus signs line up.
-      </div>
-    </div>
-  );
-}
-
 /* THE FOUR STATES — §15 asks for all four, and for the loading one to mirror the page in
  * the real shell at the real dimensions. That is why the skeleton is six real rows of real
  * cells at 37px under the real header rather than a grey block where the table will be:
@@ -980,12 +866,20 @@ export function DataTableQuestions() {
         is 46px, so the header got tighter and the rows did not move.
         <br />
         <br />
-        <strong style={F.strong}>4. The new-trade flash — BUILT, one rule still open. </strong>
-        Its two seconds is not on §10&rsquo;s ladder of three durations. §10 sizes a
+        <strong style={F.strong}>4. The new-trade flash — CLOSED 9 Sep. </strong>
+        Its two seconds was not on §10&rsquo;s ladder of three durations. §10 sizes a
         duration by what MOVES; this one is sized by how long you take to look back at the
-        browser after closing a position in MT5. The skeleton pulse already has that
-        carve-out (&ldquo;a heartbeat, not an event&rdquo;) and this needs the same
-        sentence. Drafted for you with the §1 amendment.
+        browser after closing a position in MT5. §10 now names that carve-out in its own
+        words — a duration may leave the ladder when it is measured in ATTENTION rather
+        than in distance — and it covers the skeleton&rsquo;s two-second pulse, which had
+        been living under the same unwritten exception since it was built.
+        <br />
+        <br />
+        <strong style={F.strong}>Nothing is open. The table is signed and folded; the
+        tooltip is piece 2 and it is above this. </strong>
+        The one thing this table&rsquo;s spec asked for and did not get is the adherence
+        cell&rsquo;s reason on hover, which is a tooltip — so it is not left undone, it is
+        the next piece.
       </div>
     </div>
   );

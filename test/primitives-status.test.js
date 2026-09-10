@@ -209,27 +209,276 @@ const APPROVED = new Set([
    * and a FieldLabel in a row — the same way `dialog.jsx` was approved under `modal.jsx`.
    * It originates no appearance of its own; what it fixes is a three-line consent
    * sentence being centred against a 16px box and rendered as bold as a heading. */
-  /* `checkbox.jsx` LEFT THIS SET ON 2026-09-09, deliberately (owner), and it is STILL
-   * @shadcn — it spent a few hours on @coss and the owner sent it back, because a coss
-   * component arrives in our colours but in coss's geometry (twenty-one literals of
-   * theirs against eight names our bridge owns). See primitives/checkbox.jsx.
+  /* `checkbox.jsx` LEFT THIS SET ON 2026-09-09 AND REJOINED IT THE SAME DAY, and the
+   * round trip is worth keeping because it is what §1's "approval is never inferred"
+   * costs in practice. It is STILL @shadcn — it spent a few hours on @coss and the owner
+   * sent it back, because a coss component arrives in our colours but in coss's geometry
+   * (twenty-one literals of theirs against eight names our bridge owns).
    *
-   * SO WHY UNREVIEWED, IF IT IS THE SAME REGISTRY IT WAS APPROVED ON. Because what
-   * ships is not what was signed. Two things changed:
+   * WHY IT HAD TO GO BACK AT ALL, when it was the same registry it was approved on:
+   * what shipped was not what was signed. Two things had changed.
    *
-   *   · the `rounded-sm` override is DELETED. That override is what destroyed the
+   *   · the `rounded-sm` override was DELETED. That override is what destroyed the
    *     control — the ladder moved 6 -> 8 on 09-08 and radius clamps to half a 16px
    *     box, so every tick box in the app became a circle. It now takes the registry's
    *     own 5px, which makes it §6's one documented exception rather than a value of
    *     ours. `radius-clamp.test.js` is the guard that was missing.
-   *   · it has a THIRD STATE it has never had. shadcn ships no indeterminate state, so
-   *     the dash is absorbed in the wrapper — the trade log's select-all has to tell
+   *   · it has a THIRD STATE it never had. shadcn ships no indeterminate state, so the
+   *     dash is absorbed in the wrapper — the trade log's select-all has to tell
    *     "all four hundred" from "nine of four hundred".
    *
-   * A corner that changed and a state that did not exist are not things approval can be
-   * inherited across. It rejoins Batch 2 when the owner signs it. */
+   * The owner signed both on 09-09 and it is back in Batch 2 below. A corner that changed
+   * and a state that did not exist are not things approval can be inherited across, and
+   * the fact that the answer was "yes, both are right" does not make the asking wasted. */
   'input.jsx', 'textarea.js', 'select.jsx',
-  'label.jsx', 'field.jsx', 'consent-field.jsx',
+  'label.jsx', 'field.jsx', 'consent-field.jsx', 'checkbox.jsx',
+
+  /* CYCLE 00, PIECE 1 — THE DATA TABLE, locked 2026-09-09 (owner).
+   *
+   * THE FIRST ENTRY HERE THAT IS NOT A PRIMITIVE-REVIEW BATCH, and the distinction is
+   * real: the batches signed off parts the app ALREADY had, and this is the first part
+   * the kit built from nothing. There was no data table in this codebase — twelve files
+   * hand-rolled a `<table>` — so there was no existing appearance for it to inherit and
+   * no legacy rule to delete. It was reviewed on the Test page rather than as a mockup,
+   * by the owner's own ruling, because a drawing cannot show a bridge re-meaning a name
+   * or a sticky header that a scroll container silently kills, and both happened here.
+   *
+   * FOUR CORRECTIONS LANDED IN THE ONE DAY IT WAS OPEN, and all four came from the owner
+   * looking at the real thing: thirteen columns rather than fifteen (fifteen overflows a
+   * page the real one never does), per-column widths rather than `table-fixed`'s even
+   * split, results right-aligned while measurements stay centred, and a footer that can
+   * total. Sorting was closed as permanently part of the component rather than a flag.
+   *
+   * WHAT IT DOES NOT YET DO, on purpose: the adherence cell still carries its reason on
+   * a `title=` attribute. That is a tooltip, the tooltip is Cycle 00's piece 2, and it
+   * moves the day the tooltip is signed — not before, because this file is now locked
+   * and that is a change to how it looks. `kit-tooltip.test.js` holds the sequencing. */
+  'data-table.jsx',
+
+  /* CYCLE 00, PIECE 2 — THE TOOLTIP, locked 2026-09-09 (owner).
+   *
+   * A FOURTH SITUATION THE CYCLE 00 AUDIT DID NOT HAVE A ROW FOR. `ui/tooltip.jsx` had
+   * been installed the whole time — it arrived as a dependency of `sidebar` — so the audit
+   * filed it under "already real" and moved on. Nobody checked whether the APP could reach
+   * it: it had never been wrapped, exported or looked at, and the one thing the data
+   * table's spec asked for and did not deliver ("adherence cells carry a reason on hover")
+   * was still a `title=` attribute. Installed is not the same as usable.
+   *
+   * THREE RULINGS, AND TWO OF THEM REVERSED WHAT WAS BUILT, which is what a review is for:
+   *
+   *   · COLOUR — ours. shadcn draws a tooltip as the negative of the page, and our bridge
+   *     maps --color-foreground to --text, so the identical two utilities produce a
+   *     near-white slab here. The owner kept the panel, which is what §4 and --surface-2's
+   *     own comment already said. The `surface` prop that existed so both could be
+   *     compared was DELETED on the ruling — a switch outliving its question is how one
+   *     overlay ends up disagreeing with the other four.
+   *   · CORNER — the REGISTRY's, against a defensible argument for ours. At 28px tall the
+   *     registry's 14px clamps to a full stadium, and the owner chose that knowing it.
+   *     The wrapper therefore declares NO radius: restating the value is what lets it
+   *     drift away from "like the registry" later.
+   *   · DELAY — 100ms, cut from the 600 the build had restored as Base UI's own default.
+   *
+   * Two of `kit-tooltip.test.js`'s assertions had to reverse with them. A test that
+   * encodes a decision moves with the decision or it enforces a stale one — the same
+   * failure this file records under the tone check that outlived its reason. */
+  'tooltip.jsx',
+
+  /* CYCLE 00, PIECE 3 — THE FILTER BUILDER, locked 2026-09-10 (owner).
+   *
+   * TWO PARTS WITH OPPOSITE ORIGINS, AND THE CONTRAST IS THE FINDING.
+   *
+   *   · `command.jsx` is the registry's, and what is remarkable is how LITTLE was wrong.
+   *     Every kit piece before this needed a real correction; this one arrived on our
+   *     values almost exactly, because `menu.jsx` settled the same vocabulary on 09-07
+   *     and a command row and a menu row are the same object — row radius, row text and
+   *     row hover all matched already. The wrapper adds ONE attribute,
+   *     `data-overlay-surface`, without which every row hovers to a CARD's hover inside
+   *     a panel: the seventh instance of that fault. `CommandDialog` is deliberately not
+   *     wrapped — there is no ⌘K in this product and §2 forbids drawing one.
+   *
+   *   · `filter-chip.jsx` is HAND-WRITTEN, the first in Cycle 00, which §1 allows only
+   *     as the last step and only with the argument in the file. All three earlier steps
+   *     were run for real: @shadcn has no chip (its nearest object is Badge, a `span`),
+   *     @coss has them only inside whole comboboxes and in coss's geometry, and
+   *     Badge + Button is the WRONG SHAPE — a chip looks like one pill and behaves like
+   *     two controls, and what makes it read as one token is a shared border with a
+   *     divider and a single radius clipping both halves. That is a container.
+   *
+   * THE HAND-WRITTEN ONE IS WHY THIS ENTRY MATTERS MORE THAN THE OTHERS. Everything else
+   * in this set is the registry's work with our values on it, and a bad decision there is
+   * bounded by what the registry ships. This one is ours end to end, so §1's escape hatch
+   * is asserted by `kit-filter-bar.test.js` rather than merely written down: the argument
+   * must still be IN the file, every colour must still be a token, and the chip must not
+   * grow the affordances the product cannot honour.
+   *
+   * TWO BUGS IN THE SHIPPED CHIP WERE FIXED ON THE WAY, both bugs rather than taste: its
+   * text was 11px and therefore not on the type scale at all (the 09-07 scale move never
+   * reached the file), and its border was hard-coded to `--line` — A CARD'S EDGE, on a
+   * component that only ever appears inside a popover, which is why the chips have always
+   * looked edgeless in the real panel.
+   *
+   * AND THE `operator` PROP WAS DELETED RATHER THAN LEFT CONDITIONAL when the owner ruled
+   * the chip back to two segments. It rendered conditionally, so keeping it would have
+   * cost nothing and "worked" — which is exactly the reason it is gone. This library has
+   * now removed the same shape twice; the tooltip's `surface` was the first. A switch
+   * that outlives the question it was added for is how one component ends up able to
+   * look like two.
+   *
+   * NOTHING IS MIGRATED, ON PURPOSE. `FilterPanel.jsx` still renders all 35 of its
+   * `.fp-*` legacy classes and still ships; the panel moves in Cycle 01 with the Trade
+   * Log, and that commit deletes those rules AND their names in
+   * `test/fixtures/legacy-classes.txt` together. `kit-filter-bar.test.js` pins the
+   * sequencing so signing these parts off cannot be mistaken for having migrated them. */
+  'command.jsx', 'filter-chip.jsx',
+
+  /* CYCLE 00, PIECE 4 — THE DETAIL DRAWER, locked 2026-09-10 (owner).
+   *
+   * THE SECOND COMPONENT `@shadcn/sidebar` INSTALLED WITHOUT ANYONE NOTICING. `ui/sheet.jsx`
+   * arrived as a registry dependency, exactly as `ui/tooltip.jsx` did, and the audit filed
+   * both under "already installed" and therefore "nothing to do" without asking whether the
+   * app could reach them. Nothing imported it but `ui/sidebar.jsx`, privately, for the
+   * mobile rail. Two of this cycle's six pieces came in that one box, and the cause is
+   * general enough to expect again: a dependency is precisely the thing an audit counts as
+   * present without checking who can use it.
+   *
+   * TWO RULINGS, AND THE FIRST WENT AGAINST THE REGISTRY *AND* AGAINST A TOKEN'S OWN
+   * DESCRIPTION OF ITSELF:
+   *
+   *   · SURFACE — the CARD colour (--surface), not the floating-panel one. The registry
+   *     draws `bg-popover`, and `--surface-2` documents itself as "EVERY FLOATING PANEL —
+   *     menu, popover, select, combobox". That list turned out to DESCRIBE the things that
+   *     had needed it rather than DEFINE what qualifies: every previous holder is small and
+   *     transient, and this one is 480px wide, full height, and holds a card, twenty fields
+   *     and a paragraph. A drawer is a place you go to read.
+   *
+   *     AND `data-overlay-surface` CAME OFF WITH IT, which is the half that matters and the
+   *     one a future reader is most likely to "fix". These were never two questions: the
+   *     same attribute that sets the panel's colour makes every hover, edge and separator
+   *     INSIDE resolve to overlay values. Keeping it on a card-coloured surface produces
+   *     the exact fault the attribute exists to prevent, inverted — and it would look
+   *     almost right. The attribute is about COLOUR CONTEXT, not stacking: the drawer still
+   *     portals, still takes a scrim, still traps focus, and an overlay opened inside it
+   *     still declares its own. This is the one place in the library where those two
+   *     readings of "is it an overlay" disagree.
+   *
+   *   · CLOSE CONTROL — an ✕ in the ACTIONS row, which is neither of the two obvious
+   *     answers. Not the `‹` that ships to the left of the title, and not the registry's
+   *     button floating at `top-4 right-4`. Closing is one of the things you can do to this
+   *     record, so it sits beside Edit and Delete. `showCloseButton` stays forced off —
+   *     the registry's is absolutely positioned and would land ON TOP of the chosen one.
+   *
+   * WHAT IS SIGNED IS THE SHELL. The owner noted on the same day that the drawer is being
+   * REDESIGNED LATER. That does not reopen this: `sheet.jsx` contains the panel and nothing
+   * else — width, surface, motion, edge, portal behaviour — and everything inside it on the
+   * Test page is composed by the SPECIMEN, deliberately in the shipped structure (§2)
+   * rather than as a proposal. A later redesign of what the drawer shows is a Cycle 01+
+   * question about contents, and this component is not a reason that redesign has to keep
+   * twenty fields in two columns.
+   *
+   * NOTHING IS MIGRATED. `TradePreview.jsx` still renders its 26 `.tp-*` classes and still
+   * ships in the Trade Log AND the Day view — 187 hand-written lines with a click-handler
+   * backdrop, a document-level Escape listener, a `role="dialog"` with no `aria-modal`, and
+   * no focus trap or restore at all. The registry's dialog supplies every one of those for
+   * free; none of it was what the owner judged. `kit-drawer.test.js` pins the sequencing. */
+  'sheet.jsx',
+
+  /* CYCLE 00, PIECE 5 — THE FORM SECTION, locked 2026-09-10 (owner).
+   *
+   * Three files, because the piece grew twice while it was open — the owner looked at the
+   * rebuilt Add Trade form and asked for a searchable Symbol field, then for the calendar
+   * to come from shadcn. Both were the same finding in different clothes: the form was
+   * using BARE HTML INPUTS where the product needed controls, and a bare input's
+   * affordances belong to the browser. `<input type="date">` was rendering Chrome's own
+   * picker, in Chrome's colours, unreachable by any stylesheet we own.
+   *
+   * THE PIECE CORRECTED THE BRIEF THAT COMMISSIONED IT. §4.3 said "6 Settings sections,
+   * Add Account, and a 10-step wizard"; the Settings half does not survive contact with
+   * the screens, which are label/value ROWS — Profile is read-only on purpose, Plan is a
+   * summary and a link, Appearance writes on change with no Save. The real call sites are
+   * NINE MODALS plus the wizard steps and auth, and THAT is what found the legacy layer:
+   * the form CSS in this app is not a `.form-*` family, it is bare element selectors
+   * scoped to a dialog (`.modal input`, `.modal footer`, `.modal button.primary`,
+   * `.field-row`). Which is exactly why `modal.jsx` had to KEEP the class `modal` when
+   * the shell migrated in Phase 4b — nineteen content rules hang off it.
+   *
+   * ⚠⚠ THE BIGGEST FINDING OF THE CYCLE, AND IT IS ABOUT THE REGISTRY MOVING AWAY FROM US.
+   * shadcn SHIPS the whole section anatomy (FieldSet, FieldLegend, FieldGroup,
+   * FieldContent, FieldTitle, FieldSeparator), so the build order said take it. WE MUST
+   * NOT. Its `field` has been rewritten since we installed ours: on disk is 78 lines on
+   * `@base-ui/react/field`; the registry now serves 239 lines of plain markup with `cva`
+   * and NO Base UI Field in it at all. Re-installing would delete the aria wiring
+   * `field.jsx` was approved for, remove FieldControl/FieldValidity, and change
+   * FieldError to an `errors`-prop component — which the account page's unique-name rule
+   * was built against. `kit-form-section.test.js` is the tripwire. **This is the first
+   * time step 2 of §1 produced the WRONG answer, and the reason is drift rather than
+   * judgement.** The section came from `@coss/fieldset` instead: 33 lines on Base UI's
+   * own Fieldset, the same family our Field is already on.
+   *
+   *   · `form-section.jsx` — FormSection (a real <fieldset>/<legend>, so the grouping is
+   *     in the accessibility tree), FormGrid, FormWide, FormFooter. RULED: Save greys out
+   *     until something changes. The prop default stays `true` deliberately — the ruling
+   *     is a policy about forms, the default is about this API's failure mode, and
+   *     `false` would ship a Save nobody can press when someone forgets the prop.
+   *     The footer also closes `spinner.js`'s open item: approved 09-08 with NO call
+   *     sites, "so that the first button that needs one is not inventing it". This is it.
+   *
+   *   · `combobox.jsx` — @shadcn/combobox, Base UI. RULED OPEN, and ⚠ OPEN IS WIRING, NOT
+   *     A FLAG: Base UI keeps the selected item and the typed text in separate props, and
+   *     text matching nothing selects nothing, so a combobox left alone is effectively a
+   *     CLOSED list that never says so — identical to look at, and the typed text
+   *     evaporates on submit. The owner was told it was already open; it was not. Values
+   *     are the CLEAN symbols (XAUUSD), not the broker's, or gold on two prop firms
+   *     becomes two instruments. Only Symbol takes one: a Select becomes a Combobox when
+   *     the list outgrows the EYE, not when it outgrows the developer.
+   *
+   *   · `date-picker.jsx` — @shadcn/calendar in a Popover (`date-picker` is not a registry
+   *     component; shadcn documents it as exactly that composition). ⚠ NOT `calendar.jsx`,
+   *     which is the DASHBOARD's P&L heatmap and locked. Its trigger wears the FIELD
+   *     surface rather than shadcn's `Button variant="outline"` — beside a filled Input,
+   *     an outline button reads as an action — and copies SelectTrigger's recipe, with a
+   *     test keeping the two in step because a copy is what drifts. It cost two new
+   *     dependencies (react-day-picker, date-fns) in an app that had no date library.
+   *
+   * NOTHING IS MIGRATED. All nine modals still ship as they are; they move one at a time,
+   * each deleting its own rules and their names in legacy-classes.txt in the same commit. */
+  'combobox.jsx', 'date-picker.jsx', 'form-section.jsx',
+
+  /* CYCLE 00, PIECE 6 — THE THREE STATES, locked 2026-09-10 (owner). The last piece.
+   *
+   * IT OWED ALMOST NO NEW APPEARANCE, AND THAT IS THE FINDING. Three of §15's four states
+   * were already done and nobody had noticed: EmptyState and LoadingBlock (Batch 6),
+   * Skeleton and Alert (Batch 3), and the DATA TABLE drew its own three states correctly
+   * back in piece 1 — real rows at the real 37px, `aria-busy`, a label naming what is
+   * loading, and a notice row that keeps the header rather than swapping the table for a
+   * centred box. §15 itself is locked and already says which state appears when.
+   *
+   * WHAT WAS MISSING WAS COVERAGE. TWO route-level pages out of SEVENTY-FOUR render
+   * anything when a fetch fails. The other seventy-two render nothing — a blank region,
+   * or a skeleton that never resolves — and a trader on a dropped connection cannot tell
+   * that apart from "you have no trades". So the reason there was exactly ONE call site
+   * to migrate is not that failures are rare; it is that the app had nowhere to put them.
+   * A test DERIVES the 2-of-74 figure from source so the specimen cannot go stale.
+   *
+   * AND THE ONE THAT EXISTED BROKE §17 TWICE: `.banner.error` colours its WORDS and
+   * washes its SURFACE at 7%, where §17 permits the glyph and a border only and caps a
+   * wash at 4%. The half that matters in this product is the second one — red is the
+   * trader's money, so a screen washed in loss-red to report a timeout speaks the
+   * language of a losing day about a network problem. `ErrorState` uses --warning and
+   * never --loss, and a test forbids the loss token outright.
+   *
+   * IT IS A SIBLING OF `EmptyState`, NOT A VARIANT. §15: "an empty state is not an error
+   * state." Both are built on the same generated `Empty` shell — identical by
+   * construction — and separated by exactly three things: the empty state's edge is
+   * DASHED (the idiom for a space waiting to be filled; a failure is not a placeholder),
+   * the error's GLYPH is toned while its words are not, and the error OFFERS A WAY OUT.
+   * A separate component rather than `<EmptyState tone="error">` because a prop is a
+   * thing you have to know to reach for, and seventeen call sites already import the
+   * part named for the opposite condition.
+   *
+   * THE BOUNDARY WITH `Alert` IS WHETHER THERE IS STILL A PAGE TO READ. Alert is a
+   * message ON content; ErrorState REPLACES content that is not there. The data table
+   * draws the line in the same place and a test keeps that worked example alive. */
+  'error-state.jsx',
 
   /* BATCH 3 — FEEDBACK, locked as a family (owner, 2026-09-08).
    *
@@ -367,22 +616,22 @@ test('an approved primitive carries the date it was approved', () => {
 const LOCKED_BATCHES = {
   'Batch 1 — Overlays (locked 2026-09-07)':
     ['menu.jsx', 'modal.jsx', 'popover.jsx', 'dialog.jsx'],
-  /* SIX, NOT SEVEN, SINCE 2026-09-09. `checkbox.jsx` was unlocked from this batch on
-   * purpose: it is a different component now (@shadcn -> @coss, for the indeterminate
-   * state) and the owner has not seen the replacement.
+  /* SEVEN AGAIN SINCE 2026-09-09. `checkbox.jsx` was unlocked from this batch that
+   * morning and re-signed the same day, so the batch is whole.
    *
-   * WHY UNLOCKING ONE DOES NOT UNLOCK THE FAMILY HERE, which is the question this map
-   * exists to force. Batch 2 was locked as a set because these controls "share a
-   * height, a corner and a text size". The tick box shares the height and the text
-   * size and is unchanged in both. It does NOT share the corner and now cannot: a
-   * 16px box clamps any radius to 8px, so the ladder's smallest step draws a circle,
-   * and the tick box is the app's one documented exception to §6 (see checkbox.jsx and
-   * radius-clamp.test.js). The corner is the only axis it moved on, and it was never
-   * on the family's axis to begin with. `consent-field.jsx` renders one and stays
-   * approved for the same reason — what it originates is the row, not the box. */
-  'Batch 2 — Form controls (locked 2026-09-07, checkbox unlocked 09-09)':
+   * WHY UNLOCKING ONE DID NOT UNLOCK THE FAMILY, which is the question this map exists
+   * to force, and the answer is worth keeping now that the round trip is over. Batch 2
+   * was locked as a set because these controls "share a height, a corner and a text
+   * size". The tick box shares the height and the text size and was unchanged in both.
+   * It does NOT share the corner and cannot: a 16px box clamps any radius to 8px, so the
+   * ladder's smallest step draws a circle, and the tick box is the app's one documented
+   * exception to §6 (see checkbox.jsx and radius-clamp.test.js). The corner was the only
+   * axis it moved on, and it was never on the family's axis to begin with.
+   * `consent-field.jsx` renders one and never left — what it originates is the row, not
+   * the box. */
+  'Batch 2 — Form controls (locked 2026-09-07, checkbox re-signed 09-09)':
     ['input.jsx', 'textarea.js', 'select.jsx',
-      'label.jsx', 'field.jsx', 'consent-field.jsx'],
+      'label.jsx', 'field.jsx', 'consent-field.jsx', 'checkbox.jsx'],
   'Batch 3 — Feedback (locked 2026-09-08)':
     ['alert.jsx', 'skeleton.jsx', 'spinner.js', 'progress.jsx'],
   'Batch 5 — Small pieces (locked 2026-09-08)':

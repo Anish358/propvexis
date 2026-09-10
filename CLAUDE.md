@@ -32,7 +32,7 @@ https://journal.anishdevlops.xyz still served during migration).
   it. *"It looks better"* is not a justification. It holds RULES only; values live in
   `frontend/src/styles/tokens.css`, and the colour derivation in
   `docs/design/dashboard/COLOUR-INVENTORY.md`.
-- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qLMFPP6`**, style
+- **Visual foundation:** the shadcn **Build Your Own** preset **`b2qLMFPO4`**, style
   **Base Rhea** — 🔒 LOCKED. The preset owns the global layer: typography, sizing,
   spacing, radius, density, shadows, borders, colours, default component styling.
   **Never fall back to stock shadcn styling; never invent a new visual style.**

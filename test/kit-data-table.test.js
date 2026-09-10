@@ -294,9 +294,10 @@ test('the Trade Log preview shows the columns the Trade Log shows, and no more',
    * value and the hover reason. Thirteen fits the page and fifteen does not, so the
    * "as it will be seen in the Trade Log" pane was showing something the page never does.
    *
-   * The extra two belong in the parity pane, where a comparison is the point, and that is
-   * where they now are. This asserts the split rather than a count: whatever
-   * `tradeColumns.js` marks `defaultOn` is what the preview renders. */
+   * The extra two went to the parity pane, and on 2026-09-09 the parity pane itself was
+   * deleted — so the file now defines the thirteen and nothing else. This asserts the
+   * split rather than a count: whatever `tradeColumns.js` marks `defaultOn` is what the
+   * preview renders. */
   const spec = readFileSync(at('../frontend/src/features/trades/tradeColumns.js'), 'utf8');
   const preview = readFileSync(at('../frontend/src/features/dev/KitDataTable.jsx'), 'utf8');
 
@@ -307,16 +308,16 @@ test('the Trade Log preview shows the columns the Trade Log shows, and no more',
   assert.ok(defaults.length >= 10, `expected the shipped default view, found ${defaults.length}`);
 
   // The preview's own COLUMNS array — the one TradeLogPreview renders.
-  const block = preview.slice(preview.indexOf('const COLUMNS = ['), preview.indexOf('const SL = {'));
+  const block = preview.slice(preview.indexOf('const COLUMNS = ['), preview.indexOf('const SELECT_W'));
   const shown = [...block.matchAll(/id: '([a-z_]+)'/g)].map((m) => m[1]);
 
   const optional = ['sl', 'adherence', 'duration', 'mfe', 'maxr', 'commission'];
   const strays = shown.filter((id) => optional.includes(id));
   assert.deepEqual(
     strays, [],
-    'the Trade Log preview renders an OPTIONAL column: ' + strays.join(', ') + '. Those '
-      + 'belong in the parity pane (WITH_OPTIONAL), not in the pane that claims to show '
-      + 'what the page ships — fifteen columns overflow the page and thirteen do not.',
+    'the Trade Log preview renders an OPTIONAL column: ' + strays.join(', ') + '. This '
+      + 'file defines the thirteen the page ships and nothing else — fifteen columns '
+      + 'overflow the page and thirteen do not.',
   );
   assert.equal(
     shown.length, defaults.length,

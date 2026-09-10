@@ -112,7 +112,10 @@ test('the --muted collision stays resolved in our favour', () => {
      Which surface serves their name is `topbar-overlays.test.js`'s business — it pins
      muted and accent to one contextual token. */
   assert.match(bridgeCode, /--color-muted:\s*var\(--chrome-hover\)/);
-  assert.match(bridgeCode, /--color-muted-foreground:\s*var\(--text-2\)/);
+  /* CONTEXTUAL SINCE 2026-09-09 (owner-approved), so this asserts the CHAIN rather than
+   * the endpoint: muted-foreground -> --chrome-label -> --text-2 on a card, --muted inside
+   * a floating panel. The card value is what this line was always protecting. */
+  assert.match(bridgeCode, /--color-muted-foreground:\s*var\(--chrome-label\)/);
   // WAS var(--slate-400). The slate primitives went with the Rhea foundation; --muted
   // is zinc-400 now. The COLLISION is what this test is about and it is unchanged.
   assert.match(tokensCss, /--muted:\s*var\(--zinc-400\)/);
@@ -222,8 +225,18 @@ test('the resets Preflight would have provided are present, and only remove UA d
   //                            in the top bar and every unpressed ToggleGroup item
   //                            painted itself a solid grey slab
   //
-  // A third will come — bridge.css §8 says so — and it belongs in this list, not in a
-  // component rule.
+  // "A third will come" — it did, and then a fourth and a fifth: border-width (the empty
+  // state's 3px white dashed box), margin (Dialog's h2/p, a 20px gap where the reference
+  // has 6), and on 2026-09-09 the background reset WIDENED from `button` to every generated
+  // form control, after the filter builder's search input painted a UA box over the middle
+  // of its own pill.
+  //
+  // THE RECURRING MISTAKE IS NOT MISSING ONE — IT IS SCOPING THE FIX TO WHERE IT WAS FIRST
+  // SEEN. The border reset was widened for that reason on 09-08 and the background reset on
+  // 09-09; each had been written for the one element the bug was noticed on. So the
+  // background check below is by ELEMENT rather than by exact selector: the rule may be
+  // reformatted or widened again, and this must keep testing what it means rather than how
+  // it is spelled. `test/generated-resets.test.js` holds the wider version of this.
   // The one @layer base block, bounded by its own closing brace at column 0 (nested
   // rules close indented), so the motion utilities below it are not swept in.
   const at = bridgeCode.indexOf('@layer base');
@@ -232,11 +245,26 @@ test('the resets Preflight would have provided are present, and only remove UA d
   for (const [selector, decl] of [
     ['a\\[data-slot\\], \\[data-slot\\] a', 'color:\\s*inherit'],
     ['a\\[data-slot\\], \\[data-slot\\] a', 'text-decoration:\\s*none'],
-    ['button\\[data-slot\\], \\[data-slot\\] button', 'background-color:\\s*transparent'],
   ]) {
     assert.match(base, new RegExp(`:where\\(${selector}\\)\\s*\\{[^}]*${decl}`),
       `the ${selector} reset must declare ${decl}`);
   }
+
+  // The background reset, by ELEMENT — see the note above. Whitespace is flattened first
+  // because the widened selector is written across several lines for readability, and a
+  // check that only works on a one-line rule punishes formatting.
+  const flat = base.replace(/\s+/g, ' ');
+  const bgRule = flat.slice(flat.indexOf(':where(', flat.indexOf('button[data-slot]') - 200));
+  for (const el of ['button', 'input', 'select', 'textarea']) {
+    assert.ok(
+      bgRule.includes(`${el}[data-slot]`) && bgRule.includes(`[data-slot] ${el}`),
+      `the background reset no longer covers <${el}>. Without Preflight the UA sheet paints `
+        + `its own control background, and a generated <${el}> that declares none inherits `
+        + 'it — which is how the filter builder\'s search box got a bright strip across it.',
+    );
+  }
+  assert.match(bgRule, /background-color: transparent/,
+    'the background reset must still declare a transparent background');
   // `:where()` is what makes these resets rather than opinions: specificity ZERO, so
   // every author rule still wins and none of this can ever impose an appearance.
   // Without it the anchor reset alone would flatten `.auth-alt a` and

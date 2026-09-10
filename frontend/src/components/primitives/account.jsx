@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { MenuContent } from './menu.jsx';
 
 /* ACCOUNT HEALTH — the card that says whether this account is about to die.
  * Base Rhea, 2026-08-29.
@@ -190,6 +191,77 @@ export function AccountTab({
         </span>
       </span>
     </button>
+  );
+}
+
+/* ── THE OVERFLOW MENU'S ROW, MIGRATED OFF LEGACY CSS 2026-09-10 ────────────────────
+ *
+ * WHY THESE ARE PRIMITIVES AND NOT CLASSES AT THE CALL SITE. They were five legacy
+ * rules written straight into `Dashboard.jsx` — `.dash-acct-more-menu`,
+ * `.dash-acct-menu-row`, `-dot`, `-name`, `-phase`. The obvious migration is to swap
+ * them for Tailwind in place, and it would have emitted NOTHING: `@source` covers
+ * `components/{ui,primitives}` only, so a utility written in a page compiles to no CSS
+ * at all and the menu would have arrived unstyled with no error. So the styling moves
+ * HERE and the page composes parts.
+ *
+ * ── HOW THIS SURVIVED THE MIGRATION THAT TOOK THE CHIPS ─────────────────────────────
+ *
+ * The chips beside it (`AccountTab`) have been Tailwind for some time. This menu only
+ * appears when you have MORE ACCOUNTS THAN FIT, so it was never on screen during any
+ * review — the visible surface got rebuilt and the overflow path was missed. Worth
+ * knowing as a shape rather than as one bug: a half-migration hides in the state nobody
+ * has while they are looking.
+ *
+ * ── THE ROW IS THE CHIP, SMALLER ────────────────────────────────────────────────────
+ *
+ * An account in this menu is the same object as one in the strip, so it carries the same
+ * three facts in the same order — health, name, phase — and the dot is the chip's health
+ * RING reduced to its inner mark.
+ *
+ * ⚠ THE TONE NO LONGER TRAVELS THROUGH `prop-*`. The legacy row set `--status` via a
+ * `prop-good|warn|bad` class and the dot read it. It now uses `toneColor`, the same
+ * function the chip's ring uses two components up — and the colours are IDENTICAL, which
+ * is why this is safe: `--status-good` IS `var(--profit)`, `--status-warn` IS
+ * `var(--warning)`, `--status-bad` IS `var(--loss)`, and `TONE` maps to exactly those.
+ * Two vocabularies for one set of three colours; the row now speaks the one its own
+ * component already spoke. The `.prop-*` classes stay — five other files use them.
+ *
+ * The phase is pushed to the far edge on purpose, so a column of them lines up and the
+ * eye reads the journey down the list rather than hunting after each name. `text-xs` is
+ * `--fs-label` through the bridge, which is the size the legacy rule asked for. */
+export function AccountMenuRow({ tone = 'good', phase, className, children, ...rest }) {
+  const hue = toneColor(tone) || 'var(--profit)';
+  return (
+    <span
+      data-slot="account-menu-row"
+      className={cn('flex w-full min-w-0 items-center gap-2.5', className)}
+      {...rest}
+    >
+      <span
+        aria-hidden="true"
+        className="size-[7px] shrink-0 rounded-full"
+        style={{ background: hue }}
+      />
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {phase ? (
+        <span className="shrink-0 text-xs text-[var(--muted)]">{phase}</span>
+      ) : null}
+    </span>
+  );
+}
+
+/* The panel the rows sit in. All that was ever ours here is HOW WIDE it may be: Base UI
+ * owns where a portaled menu goes, and `MenuContent` cancels the anchor width so it
+ * sizes to content — without a ceiling an account label can wrap to three lines, and
+ * without a floor a short one looks like a tooltip. */
+export function AccountMenuPanel({ className, ...rest }) {
+  return (
+    <MenuContent
+      align="start"
+      data-slot="account-menu-panel"
+      className={cn('min-w-[240px] max-w-[320px]', className)}
+      {...rest}
+    />
   );
 }
 

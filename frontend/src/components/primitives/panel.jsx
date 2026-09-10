@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { Tabs as UITabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
 /* THE PANEL — the dashboard's generic content card, on the 2026-08-28 Figma frame.
@@ -316,64 +317,88 @@ export function PanelLink({ render, className, children, ...rest }) {
  * than something Rhea introduced: a thin light line under the active label, muted and
  * unlined when inactive.
  *
- * ── WHY IT IS NOT THE SHARED `Tabs`, AND HALF THAT REASON HAS EXPIRED (2026-09-08) ────
+ * ── 🔒 CYCLE 00, PIECE 7 (owner, 2026-09-10): ONE TAB STYLE, TWO SKINS ───────────────
  *
- * This said it was drawn here "rather than reusing the shared `Tabs` primitive because
- * this strip is the panel's own top EDGE — it carries the card's hairline and its 15px
- * title weight — where `Tabs` is a control that sits inside content."
+ * THIS IS NOW A COMPOSITION OF THE SHIPPED `Tabs`, NOT A COPY OF ITS RULES. It used to be
+ * a hand-written `<div role="tablist">` of hand-written `<button role="tab">`s, and the
+ * reason it gave for that had two halves, both now closed:
  *
- * THE UNSPOKEN HALF WAS TIMING. This was written on 2026-09-07, when `Tabs` still
- * rendered legacy `.u-tabs`/`.u-tab` — so "reuse the shared Tabs" would have meant
- * reusing legacy CSS, which was never going to happen. `Tabs` moved onto
- * `@shadcn/tabs` (`variant="line"`) on 2026-09-08, and that objection went with it.
+ *   · "this strip is the panel's own top EDGE" — written 2026-09-07, when `Tabs` still
+ *     rendered legacy `.u-tabs`, so reusing it would have meant reusing legacy CSS. That
+ *     expired on 09-08 when Tabs moved to `@shadcn/tabs`. NINTH expired reason.
+ *   · THE ARRAY API — `Tabs` exposed only `tabs={[{value,label}]}`, so a caller could not
+ *     reach a trigger, and anything wanting different metrics was PHYSICALLY UNABLE to
+ *     use it. That is the real cause of this app having three tab implementations, and
+ *     piece 7 fixed it by exporting `TabsList`/`TabsTrigger` alongside the array.
  *
- * WHAT IS STILL TRUE IS ALSO NOT THE EDGE ARGUMENT. `Tabs` exposes only
- * `tabs={[{ value, label }]}`, so a caller cannot reach an individual tab — and this
- * strip needs four things a shipped trigger would take as classes: 16px semibold rather
- * than 14px medium, `--action-2` rather than `bg-foreground` for the active line,
- * measured padding, and `border-b-2` on the button rather than the registry's `after:`.
- * None of those is a reason to own a second component; the ARRAY API is.
+ * The owner ruled ONE STYLE WITH TWO SKINS, so the four differences that used to justify
+ * a second component are now four classes on a shipped trigger.
  *
- * DEFERRED TO CYCLE 0 (owner, 2026-09-08). The kit is where the app decides whether it
- * has one tab style with two skins or two genuinely different objects — a title-weight
- * strip that IS a card's edge is a defensible second object, and the point is to decide
- * it rather than inherit it. If it comes out as one, the change is exporting `TabsList`
- * and `TabsTrigger` from the barrel and making this a composition. Doing that now would
- * re-open an approved primitive for a change the kit may redo. See
- * CYCLE-00-KIT-BRIEF.md §4.5, which carries the full finding. */
-export function PanelTabs({ className, children, ...rest }) {
+ * ⚠ THE 2px ARITHMETIC, BECAUSE `border-b-2` AND `after:` ARE NOT INTERCHANGEABLE.
+ * The old underline was a real border and OCCUPIED SPACE: 15 top + 18 line + 13 bottom
+ * + 2 border = 48px. The registry draws its line with an ABSOLUTELY POSITIONED `after:`,
+ * which occupies none — so composing naively would have silently shortened this strip by
+ * two pixels on the locked dashboard. The bottom padding is therefore 15px, not 13, and
+ * the total is 48px exactly as before. Invisible in a diff, obvious side by side.
+ *
+ * ── WHAT THE REBUILD ADDS FOR FREE, AND IT IS NOT COSMETIC ──────────────────────────
+ *
+ * Base UI's Tabs brings ARROW-KEY NAVIGATION and a roving tabindex. The hand-written
+ * version had `role="tab"` and `role="tablist"` and neither — it announced itself as tabs
+ * to a screen reader and then did not behave like them, which is worse than not claiming
+ * the role at all.
+ *
+ * ⚠ THE CALL SITE CHANGED SHAPE, AND ONLY THE SHAPE. `PanelTab` took `selected` +
+ * `onClick`; it now takes `value`, and the strip owns the state — which is what Base UI
+ * needs in order to do the keyboard work. Dashboard.jsx is the only caller. Nothing about
+ * the appearance moves (§2), and that claim is the one thing here a test cannot check:
+ * the metrics are asserted, the RESULT has to be looked at.
+ *
+ * NOT INCLUDED: the Dashboard's account selector, still on five legacy `.dash-acct-tab*`
+ * rules. Rich content (a name, a status dot, figures) and a bigger change to a locked
+ * page; owner deferred it. See CYCLE-00-KIT-BRIEF.md §4.5. */
+export function PanelTabs({ value, onValueChange, className, children, ...rest }) {
   return (
-    <div
-      data-slot="panel-tabs"
-      role="tablist"
-      className={cn('flex gap-0.5 border-b border-[var(--line-inset)] px-2.5', className)}
-      {...rest}
-    >
-      {children}
-    </div>
+    <UITabs value={value} onValueChange={onValueChange} className="gap-0">
+      <TabsList
+        variant="line"
+        data-slot="panel-tabs"
+        className={cn(
+          /* The panel's own edge: the card hairline and the strip's inset. `w-full
+             justify-start` cancels the list's `w-fit`/`justify-center`, `h-auto` its
+             `h-8` (these triggers are 48px, not 32), and `p-0` its `p-[3px]`. */
+          'h-auto w-full justify-start gap-0.5 rounded-none p-0',
+          'border-b border-[var(--line-inset)] px-2.5',
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </TabsList>
+    </UITabs>
   );
 }
 
-export function PanelTab({ selected = false, className, children, ...rest }) {
+/* One tab. Four classes on the shipped trigger, which is what the whole piece was for. */
+export function PanelTab({ className, children, ...rest }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={selected}
+    <TabsTrigger
       data-slot="panel-tab"
       className={cn(
-        // leading-[18px] is the prototype's — see PanelTableRow on why these are measured.
-        'border-b-2 px-3.5 pt-[15px] pb-[13px] text-base leading-[18px] font-semibold tracking-[-0.1px]',
-        'transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-        selected
-          ? 'border-[var(--action-2)] text-[var(--text)]'
-          : 'border-transparent text-[var(--text-3)] hover:text-[var(--text-body)]',
+        /* leading-[18px] is the prototype's — see PanelTableRow on why these are measured.
+           pb is 15px rather than 13 to replace the 2px the old `border-b-2` occupied. */
+        'flex-none rounded-none px-3.5 pt-[15px] pb-[15px]',
+        'text-base leading-[18px] font-semibold tracking-[-0.1px]',
+        /* The active line: ours, and on the button's own edge rather than the registry's
+           `bottom-[-5px]`, which is positioned for a list sitting above a rail. */
+        'after:bottom-0 after:bg-[var(--action-2)]',
+        'text-[var(--text-3)] hover:text-[var(--text-body)] data-active:text-[var(--text)]',
         className,
       )}
       {...rest}
     >
       {children}
-    </button>
+    </TabsTrigger>
   );
 }
 

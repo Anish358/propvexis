@@ -70,9 +70,22 @@ import {
  * which is 400 lines that have nothing to do with the primitive batches above. Same
  * rules apply there — real components, inline-styled scaffolding. */
 import {
-  DataTableArrival, DataTableParity, DataTableQuestions, DataTableSelection, DataTableStates,
+  DataTableArrival, DataTableQuestions, DataTableSelection, DataTableStates,
   DataTableSummary, TradeLogPreview,
 } from './KitDataTable.jsx';
+import { TooltipQuestions, TooltipRegistry, TooltipSpecimen } from './KitTooltip.jsx';
+import { RadiusCheck } from './RadiusCheck.jsx';
+import {
+  FilterCascadeSpecimen, FilterChipSpecimen, FilterQuestions, RegistrySource,
+} from './KitFilterBar.jsx';
+import { DrawerQuestions, DrawerRegistry, DrawerSpecimen } from './KitDrawer.jsx';
+import {
+  FormFooterStates, FormLegacy, FormQuestions, FormSpecimen,
+} from './KitFormSection.jsx';
+import {
+  StatesCoverage, StatesLoading, StatesRules, StatesSideBySide,
+} from './KitStates.jsx';
+import { TabsRemaining, TabsSpecimen, TabsStyles } from './KitTabs.jsx';
 
 /* ---------------------------------------------------------------- scaffolding --- */
 
@@ -2152,7 +2165,7 @@ function Folded({ title, tag, hint, children, open = false }) {
  * It is the honest measure of the redesign's progress in a way "screens done" is not: a
  * screen can be redesigned and still leave its old rules behind, which is the step §9 of
  * the plan says gets skipped. */
-const LEGACY_CLASSES = 968;
+const LEGACY_CLASSES = 960;
 
 const CYCLES = [
   {
@@ -2445,8 +2458,8 @@ export default function PrimitiveReview() {
       <div style={S.eyebrow}>Development only · not visible to customers</div>
       <h1 style={S.h1}>Primitive review</h1>
       <p style={S.lede}>
-        <strong style={{ color: 'var(--text)' }}>The parts are done — 35 of 36 approved.
-        Cycle 00 has started, and the first kit piece is waiting on you.</strong>
+        <strong style={{ color: 'var(--text)' }}>The parts are done — 35 of 36 approved,
+        two kit pieces are signed, and the third is waiting on you.</strong>
         {' '}
         Every primitive batch is locked and folded away below; click one to open it after
         changing a token, and you can check all 36 parts at once instead of clicking
@@ -2465,6 +2478,13 @@ export default function PrimitiveReview() {
 
       </div>
 
+      {/* NOT A KIT PIECE — a VERIFICATION pane, and it sits above the cycle because it
+        * answers a question about the whole library rather than about one component. The
+        * radius ladder moved onto the preset on 2026-09-09 and the owner asked to see the
+        * three components that had clamped under the old one. Delete it when the ladder has
+        * been stable for a cycle; keep it while anything is still moving. */}
+      <RadiusCheck />
+
       {/* ================================================================ CYCLE 00 ===
         *
         * THE KIT IS BEING REVIEWED THE WAY THE PRIMITIVES WERE, and that is the owner's
@@ -2480,14 +2500,225 @@ export default function PrimitiveReview() {
         * table is the centrepiece, has no existing implementation to lean on, and is what
         * unlocks Cycle 01. The other five are mostly skins on components already
         * installed and come after this is signed off.
+        *
+        * THE TABLE WAS SIGNED ON 2026-09-09 and folded the same day, and the TOOLTIP took
+        * its place — the one thing in the table's spec that did not get built, and the
+        * smallest piece left. It was signed the same day, on three rulings, two of which
+        * reversed what had been built.
+        *
+        * PIECE 3 WAS THE FILTER BUILDER and it was signed on 09-10, which closes the
+        * Trade Log's other half: that screen is a filter bar over a table. It was the
+        * biggest piece of the cycle — 529 lines of legacy panel across 35 `.fp-*`
+        * classes — and the first where a part had to be HAND-WRITTEN, because no
+        * registry ships a chip.
+        *
+        * PIECE 4 WAS THE DETAIL DRAWER, taken ahead of §4.3's number because of what it
+        * FINISHES rather than where it falls: the form section has the wider reach, but
+        * all of that reach is cycle 4, and the drawer is what cycle 1 was still waiting
+        * on. It was signed on 09-10, on two rulings — the CARD colour rather than the
+        * registry's floating-panel one, and an ✕ in the actions row — and with it the
+        * TRADE LOG'S WHOLE DEPENDENCY LIST IS CLOSED. Table, tooltip, filter builder,
+        * drawer: cycle 1 can start whenever the owner wants it to.
+        *
+        * PIECE 5 WAS THE FORM SECTION (§4.3), signed on 09-10 after growing twice while
+        * it was open — the owner asked for a searchable Symbol field, then for the
+        * calendar to come from shadcn. Both were one finding in two costumes: the form
+        * used BARE HTML INPUTS where the product needed controls, and a bare input's
+        * affordances belong to the browser. Three rulings closed it: Save greys out until
+        * something changes, the Symbol list is OPEN, and it offers the clean symbol.
+        *
+        * PIECE 7 IS TABS, AND IT EXISTS BECAUSE THE OWNER ASKED WHY THEY WERE NOT IN ANY
+        * PIECE (2026-09-10). They were in the brief — §4.5 — whose first line reads "The
+        * conversion is already done… Nothing to design here." That was TRUE, and it is
+        * why this never became a numbered piece: the item read as finished, so it was
+        * never scheduled, and the DECISION it still owed went with it.
+        *
+        * THIRD TIME THIS CYCLE an audit note filed something under "nothing to do" and
+        * hid real work — ui/tooltip.jsx, ui/sheet.jsx, and now this. Worth naming:
+        * "ALREADY DONE" IS A CLAIM ABOUT THE CONVERSION, NEVER ABOUT THE DECISION, and
+        * the two keep getting written on the same line.
+        *
+        * PIECE 6 WAS THE THREE STATES (§4.6) — empty, loading, error. Signed 09-10, and
+        * it owes NO new appearance for two of the three: EmptyState, LoadingBlock,
+        * Skeleton and Alert are all approved, and the data table drew its own states
+        * correctly in piece 1. What it owes is the two places §15 is not honoured, and
+        * both are COVERAGE and FIDELITY rather than looks — TWO route-level pages out of
+        * seventy-four render anything when a fetch fails, and the one that does breaks
+        * §17 twice.
+        *
+        * WHAT PIECE 5 CORRECTED, kept here because it is the brief's own
+        * call-site list. §4.3 says "6 Settings sections, Add Account, and a 10-step
+        * wizard"; the Settings half does not survive contact with the screens, which are
+        * label/value ROWS rather than forms — Profile is read-only on purpose, Plan is a
+        * summary and a link, Appearance writes on change with no Save at all. The real
+        * call sites are NINE MODALS plus the wizard steps and the three auth pages.
+        *
+        * THAT MATTERS BECAUSE IT FOUND THE LEGACY LAYER. The form CSS in this app is not
+        * a `.form-*` family — it is BARE ELEMENT SELECTORS scoped to a dialog
+        * (`.modal input`, `.modal footer`, `.modal button.primary`, `.field-row`). That
+        * is why the audit never counted it, and it is why `modal.jsx` had to KEEP the
+        * class `modal` when the shell migrated in Phase 4b: nineteen content rules still
+        * hang off it. This piece is what lets them go.
+        *
+        * ONLY THE OPEN PIECE IS UNFOLDED. A signed piece goes inside a `Folded` exactly
+        * like a locked primitive batch, for the reason the owner gave on 09-08: "find a way
+        * to hide the approved and locked things". Nothing is deleted by folding — the
+        * table's six panes still render when opened, which is what makes this page usable
+        * after a token change.
+        *
+        * WHAT FOLDING DOES DELETE IS THE APPARATUS THAT ASKED A QUESTION NOW ANSWERED,
+        * and piece 3 is the clearest case of the distinction so far. Its parity pane
+        * existed to show one bug side by side — a command row with no `data-overlay-surface`
+        * hovering to a CARD's hover inside a panel — and that fix is now asserted by
+        * `kit-filter-bar.test.js`. A test that enforces a decision replaces a pane that
+        * demonstrates it, so the pane went, exactly as the table's did on 09-09. Its
+        * registry-SOURCE pane stayed, for the reason the tooltip's did: reading back what
+        * the registry actually installed is a reference, not a question, and it is the
+        * thing you want after a token or bridge change.
+        */}
+      {/* ══ CYCLE 00 IS CLOSED (2026-09-10) ══════════════════════════════════════
+        *
+        * Seven pieces, all signed. Nothing on this page is waiting on anyone, which is
+        * the first time that has been true since the review began on 09-06.
+        *
+        * WHAT THE CYCLE ACTUALLY PRODUCED, beyond the parts: five findings that outlive
+        * it, and every one came from building rather than from planning.
+        *
+        *   1. "ALREADY DONE" IS A CLAIM ABOUT THE CONVERSION, NEVER THE DECISION. Three
+        *      items were filed under "nothing to do" and all three hid real work —
+        *      ui/tooltip.jsx and ui/sheet.jsx (installed as `sidebar` dependencies,
+        *      never wrapped, unreachable) and tabs (converted, but its decision never
+        *      scheduled). A fourth note said a screen was on legacy CSS when it was not.
+        *   2. THE REGISTRY CAN MOVE AWAY FROM US. shadcn's `field` was rewritten off
+        *      Base UI, so §1's "take what the registry ships" produced the WRONG answer
+        *      for the first time. `kit-form-section.test.js` is the tripwire.
+        *   3. A UTILITY WRITTEN IN A PAGE COMPILES TO NOTHING, and it caught this cycle
+        *      three more times — the drawer specimen, the form specimen, and the account
+        *      menu, where the obvious migration would have silently unstyled it.
+        *   4. RESTATE OR BIND? Restate nothing when a value expresses the REGISTRY's
+        *      look (the tooltip's corner); bind to a token when it expresses a RULE of
+        *      ours (§10's durations).
+        *   5. A HALF-MIGRATION HIDES IN THE STATE NOBODY HAS WHILE THEY ARE LOOKING.
+        *      The account overflow menu stayed legacy because it only appears with four
+        *      accounts.
+        *
+        * NEXT IS CYCLE 01 — THE TRADE LOG, whose every part is now signed: the table,
+        * the tooltip in its adherence cell, the filter builder over it, and the drawer a
+        * row opens into.
         */}
       <div style={{ ...S.batchHead, ...S.column }}>
         <span style={S.batchTitle}>Cycle 00 — the kit</span>
-        <Tag tone="open">waiting on you</Tag>
+        <Tag tone="ok">🔒 all 7 signed</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          the data table · piece 1 of 6
+          the cycle is closed · next is the Trade Log, and all of its parts are here
         </span>
       </div>
+
+      <div style={S.column}>
+      <Folded
+        title="Piece 7 — tabs"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            one style, two skins · the styles gallery · the account menu left legacy
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 7 === */}
+      <TabsSpecimen />
+      <TabsStyles />
+      <TabsRemaining />
+      </Folded>
+
+      <Folded
+        title="Piece 6 — the three states"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            an error state at last · 2 of 74 pages had one · LoadingBlock left as-is
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 6 === */}
+      <StatesSideBySide />
+      <StatesCoverage />
+      <StatesLoading />
+      <StatesRules />
+      </Folded>
+
+      <Folded
+        title="Piece 5 — the form section"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            a real fieldset · a searchable Symbol · our calendar · Save gated on changes
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 5 === */}
+      <FormSpecimen />
+      <FormFooterStates />
+      <FormLegacy />
+      <FormQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 4 — the detail drawer"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            the card colour · an ✕ in the actions · the shell, not the contents
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 4 === */}
+      <DrawerSpecimen />
+      <DrawerRegistry />
+      <DrawerQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 3 — the filter builder"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            the registry&rsquo;s cascade · a hand-written chip · nothing migrated yet
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 3 === */}
+      <FilterChipSpecimen />
+      <FilterCascadeSpecimen />
+      <RegistrySource />
+      <FilterQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 2 — the tooltip"
+        tag={<Tag tone="ok">🔒 locked 9 Sep 2026</Tag>}
+        hint={(
+          <>
+            our colour · the registry&rsquo;s corner · 100ms — all three yours
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 2 === */}
+      <TooltipSpecimen />
+      <TooltipRegistry />
+      <TooltipQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 1 — the data table"
+        tag={<Tag tone="ok">🔒 locked 9 Sep 2026</Tag>}
+        hint={(
+          <>
+            signed off · a redesigned screen may adopt it · open it after changing a token
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 1 === */}
+
       {/* THE TABLE, BARE AND FIRST (owner, 2026-09-09). The prose used to sit above it
         * and the owner could not see the component for the writing about the component:
         * "I want to see the table built separately, as it will be seen in the tradelog
@@ -2505,58 +2736,19 @@ export default function PrimitiveReview() {
         things you can click. This is that table, built once, and it is the piece most of
         Cycle 00&rsquo;s effort belongs to.
         {' '}
-        Below: the same table beside the one that ships today, then the four states, then
-        selection, then the arrival flash, then what is decided and what is left.
+        Below: the same component at the other end of its range, then the four states,
+        then selection, then the arrival flash, then what was decided.
       </p>
 
       <DataTableSummary />
-      <DataTableParity />
       <DataTableStates />
       <DataTableSelection />
       <DataTableArrival />
       <DataTableQuestions />
+      </Folded>
+      </div>
 
       <div style={S.column}>
-
-      {/* ==================================================== THE REOPENED PRIMITIVE ===
-        *
-        * NOT A KIT PIECE — an approved one that came back. It is here rather than in
-        * Batch 2 below because Batch 2 is locked and folded away, and a component
-        * waiting on a signature must not be hidden inside a section labelled "all seven
-        * signed off". It rejoins the batch when it is signed.
-        */}
-      <Spec
-        name="Tick box — reopened, and not what you signed off"
-        pending="waiting on you"
-        file="primitives/checkbox.jsx · @shadcn"
-        ask={
-          'two things, and the first is the bug you found. THE SHAPE: it was a rounded '
-          + 'square when you approved it on 7 Sep and a perfect circle by the 8th, '
-          + 'because the ladder moved up a step and a 16px box cannot wear an 8px corner '
-          + '— a corner clamps to half its box. The culprit was OUR override, not the '
-          + 'component: shadcn ships a 5px corner and we were forcing the token over it. '
-          + 'The override is deleted, so this is the registry’s own 5px. Check it reads '
-          + 'as a SQUARE, not a radio button. THE THIRD STATE: the middle box is "some '
-          + 'but not all" — what the trade log’s select-all shows when you have picked '
-          + 'nine of four hundred rows. shadcn ships no such state, so that dash is the '
-          + 'one thing here that is ours; everything else is the component untouched. '
-          + 'Judge the dash’s weight and length against the tick beside it.'
-        }
-        states={[
-          { label: 'Off', render: <Checkbox aria-label="Off" /> },
-          { label: 'On', render: <Checkbox aria-label="On" checked /> },
-          { label: 'Some, not all', render: <Checkbox aria-label="Partial" indeterminate /> },
-          { label: 'Disabled', render: <Checkbox aria-label="Disabled" disabled /> },
-          { label: 'On + disabled', render: <Checkbox aria-label="On and disabled" checked disabled /> },
-        ]}
-        contextLabel="the consent gate — the one place an unticked box stops a submit"
-        context={(
-          <ConsentField id="pr-consent-reopened">
-            I understand this password can place trades on my account.
-          </ConsentField>
-        )}
-      />
-
       <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
         <div style={S.cardHead}>
           <span style={S.cardName}>The one part still unsigned</span>
@@ -2853,10 +3045,10 @@ export default function PrimitiveReview() {
 
       <Folded
         title="Batch 2 — Form controls"
-        tag={<Tag tone="ok">🔒 locked 7 Sep 2026</Tag>}
+        tag={<Tag tone="ok">🔒 locked 7 Sep 2026 · tick box re-signed 9 Sep</Tag>}
         hint={(
           <>
-            all seven signed off · new screens may use them · Batch 3 is next
+            all seven signed off · new screens may use them · the tick box left and came back
           </>
         )}
       >
@@ -2881,6 +3073,46 @@ export default function PrimitiveReview() {
         states={[{ label: 'The two labels, side by side', render: <LabelPair /> }]}
         contextLabel="the Add Account form — the real layout, field for field"
         context={<FormInContext />}
+      />
+
+      {/* ============================================ THE ONE THAT CAME BACK SIGNED ===
+        *
+        * REOPENED 2026-09-09 by Cycle 00 and re-locked the same day. It sat above, outside
+        * the fold, for exactly as long as it was waiting on a signature — a component
+        * needing one must never be hidden inside a section headed "all signed off". Now it
+        * is signed, so it rejoins the batch, and the `ask` below is rewritten from the
+        * question it was to the ANSWER it now records. That is the pattern for every
+        * reopened part: it comes out of the fold, and it goes back in with its finding
+        * written down rather than deleted.
+        */}
+      <Spec
+        name="Tick box"
+        approved="9 Sep 2026 · reopened and re-signed"
+        file="primitives/checkbox.jsx · @shadcn"
+        ask={
+          'the finding, which is the one worth keeping. It was a rounded square when you '
+          + 'approved it on 7 Sep and a perfect circle by the 8th — the radius ladder moved '
+          + 'up a step and a 16px box cannot wear an 8px corner, because a corner clamps to '
+          + 'half its box. The culprit was OUR override, not the component: shadcn ships a '
+          + '5px corner and we were forcing the token over it. Deleting the override was '
+          + 'the whole fix, and what you signed off is the registry’s own 5px. '
+          + 'THE THIRD STATE is the one thing here that is ours: "some but not all", drawn '
+          + 'off Base UI’s `data-indeterminate` because shadcn ships no such state. The '
+          + 'trade log’s select-all needs it the moment you pick nine of four hundred rows.'
+        }
+        states={[
+          { label: 'Off', render: <Checkbox aria-label="Off" /> },
+          { label: 'On', render: <Checkbox aria-label="On" checked /> },
+          { label: 'Some, not all', render: <Checkbox aria-label="Partial" indeterminate /> },
+          { label: 'Disabled', render: <Checkbox aria-label="Disabled" disabled /> },
+          { label: 'On + disabled', render: <Checkbox aria-label="On and disabled" checked disabled /> },
+        ]}
+        contextLabel="the consent gate — the one place an unticked box stops a submit"
+        context={(
+          <ConsentField id="pr-consent-reopened">
+            I understand this password can place trades on my account.
+          </ConsentField>
+        )}
       />
 
       <Spec

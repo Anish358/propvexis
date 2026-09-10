@@ -26,14 +26,16 @@
    (variant="primary", size="md", block, as) onto shadcn's, so a page migrates by
    changing one import line rather than by rewriting its JSX.
 
-   KNOWN LIMITATION — REFS. The generated components are plain function components
-   written against React 19, where `ref` arrives as an ordinary prop. This project
-   is on React 18.3, where it does not: a `ref` passed to one of these is dropped
-   with a warning. Base UI itself forwards refs correctly, so the gap is entirely
-   in the generated shadcn layer. Nothing here depends on refs yet. When something
-   does — focus management or measurement — the fix is to render the Base UI
-   primitive directly in that wrapper and reuse the generated variants, rather
-   than to hand-edit generated code. Flagged, not silently worked around.
+   REFS — THE LIMITATION IS GONE, AND THE NOTE OUTLIVED IT (corrected 2026-09-09).
+   This paragraph used to say the generated components drop refs "because this
+   project is on React 18.3, where `ref` is not an ordinary prop". The project is
+   on React 19.2 and has been for some time, so a ref reaches these components as
+   a plain prop and arrives. That matters rather than being trivia: the whole
+   `<TooltipTrigger render={<Badge/>}/>` and `<MenuTrigger render={<Button/>}/>`
+   pattern this library uses depends on it, and a note claiming it cannot work is
+   an invitation to "fix" a dozen working call sites. Left as a correction rather
+   than deleted, because it is the seventh time this review has found a rule
+   outliving its reason.
 
    NOT EVERY MODULE HERE IS LIBRARY-BACKED, AND THAT IS THE POINT. THREE of them —
    EmptyState, LoadingBlock and Tabs — still render the app's `.u-*` classes, because
@@ -83,6 +85,12 @@ export { Checkbox } from './checkbox.jsx';
 export { ConsentField } from './consent-field.jsx';
 export { Input } from './input.jsx';
 export { Label } from './label.jsx';
+// Cycle 00 piece 6 — the fourth of §15's states, and the one the app had nowhere to put:
+// TWO of seventy-four route-level pages render anything when a fetch fails. A sibling of
+// EmptyState on the same shell, kept distinct because §15 says an empty state is not an
+// error state — solid edge not dashed, a toned glyph, and a retry. `Alert` is still the
+// right answer for a failure INSIDE a working screen; this REPLACES the content.
+export { ErrorState } from './error-state.jsx';
 export { LoadingBlock } from './loading-block.jsx';
 export {
   ContentArrival, PageEntrance, SECTION_STEP, useSectionEntrance,
@@ -94,11 +102,35 @@ export {
   MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger,
 } from './menu.jsx';
 // Not a component — the seam that tells an overlay to render INSIDE the modal it was
-// opened from, instead of under its scrim. `Modal` provides it and `Menu` consumes it,
-// so nothing needs this until something builds an overlay by hand inside a modal (the
-// TradePreview drawer is the candidate). Exported because the barrel is the only door.
+// opened from, instead of under its scrim. `Modal` provides it, `Sheet` now provides it
+// too (Cycle 00 piece 4 — the drawer this comment used to call "the candidate"), and
+// `Menu` consumes it. Exported because the barrel is the only door.
 export { OverlayContainerContext, useOverlayContainer } from './overlay-container.js';
 export { Popover, PopoverContent, PopoverTrigger } from './popover.jsx';
+// Cycle 00 piece 3 — the filter builder's two halves. `Command` is a SEARCHABLE LIST,
+// which is what a cascade column is; `CommandDialog` is deliberately not wrapped, because
+// this product has no palette. FilterChip is the one part of Cycle 00 no registry ships.
+export {
+  Command, CommandCount, CommandEmpty, CommandGroup, CommandInput, CommandItem,
+  CommandList, CommandSeparator,
+} from './command.jsx';
+// A SELECT YOU CAN TYPE INTO — the list filters as you type. On @shadcn/combobox
+// (Base UI), added 2026-09-10 for the Add Trade form's Symbol field, which ships as free
+// text today. A Select becomes a Combobox when the list outgrows the EYE, not when it
+// outgrows the developer: Session and Direction stay on Select. See combobox.jsx.
+export {
+  Combobox, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem,
+  ComboboxLabel, ComboboxList, ComboboxTrigger, ComboboxValue,
+} from './combobox.jsx';
+export {
+  FilterChip, FilterChipAdd, FilterChips, FilterChipsTail, FilterCount,
+} from './filter-chip.jsx';
+// The tooltip — the one overlay with no interaction in it. Cycle 00 piece 2, and the
+// component the Trade Log's adherence cell has been faking with a `title=` attribute.
+// `TOOLTIP_DELAY` is exported so a caller can state the pause rather than re-pick it.
+export {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, TOOLTIP_DELAY,
+} from './tooltip.jsx';
 // The generated @shadcn select, near enough untouched. This used to read "the @coss
 // select, with its trigger matched to our Input and its popup rendered from the Base UI
 // parts" — a 250-line wrapper that was re-installed away on 2026-09-07 when the registry
@@ -108,13 +140,40 @@ export { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './s
 export {
   Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue,
 } from './progress.jsx';
+// Cycle 00 piece 5 — the form SECTION: the group, the grid, the span and the footer.
+// The individual field is `Field` above (Batch 2, approved) and is untouched; what these
+// add is everything AROUND one. FormSection is @coss/fieldset on Base UI's Fieldset, so
+// the grouping is a real <fieldset>/<legend> in the accessibility tree. The footer owns
+// the pending/dirty/disabled rule that nine modals currently each decide for themselves.
+// ⚠ `columns` on FormGrid is a PROP because a grid-cols-* written in a modal compiles to
+// nothing. See form-section.jsx.
+export {
+  FormFooter, FormGrid, FormSection, FormWide,
+} from './form-section.jsx';
+// Our calendar in a popover, behind a FIELD-shaped trigger. Replaces `<input type=
+// "date">`, which rendered the BROWSER's picker — outside our stylesheet entirely and
+// different on every OS. ⚠ NOT `calendar.jsx`: that is the dashboard's P&L month
+// heatmap, approved and locked, and a completely different object. See date-picker.jsx.
+export { DatePicker } from './date-picker.jsx';
 export { Separator } from './separator.jsx';
+// Cycle 00 piece 4 — the detail drawer. A skin on the generated @shadcn/sheet, which is
+// the same Base UI Dialog `Modal` runs on, pinned to an edge instead of centred. The real
+// call site is TradePreview; it still ships on 26 `.tp-*` legacy classes and migrates
+// with the Trade Log in Cycle 01. `showCloseButton` is forced off — the header owns the
+// close control, see sheet.jsx.
+export {
+  Sheet, SheetClose, SheetDescription, SheetFooter, SheetHeader, SheetTitle,
+} from './sheet.jsx';
 export { Skeleton } from './skeleton.jsx';
 export { Spinner } from './spinner.js';
 // The @coss switch, with its OFF state made visible in our dark theme — the preset
 // draws a dark thumb on a near-black track. See switch.jsx.
 export { Switch } from './switch.jsx';
-export { Tabs } from './tabs.jsx';
+// Cycle 00 piece 7. `Tabs` is the short array form nine screens use; the PARTS are
+// exported because that array is why this app grew THREE tab implementations — a caller
+// could not reach a trigger, so anything wanting different metrics had to hand-build.
+// Richer strips are compositions now, not copies. See tabs.jsx.
+export { Tabs, TabsContent, TabsList, TabsRoot, TabsTrigger } from './tabs.jsx';
 export { Textarea } from './textarea.js';
 export {
   ToggleGroup, ToggleGroupExclusive, ToggleGroupItem, ToggleGroupSeparator,
@@ -155,7 +214,7 @@ export {
 // Account Health — the full-width rule-meter card. Same reasoning as the rail.
 export {
   AccountBanner, AccountBannerAction, BANNER_CRITICAL, AccountCardFoot, AccountCardLink,
-  AccountCardShell, AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore,
+  AccountCardShell, AccountFootFigure, AccountMenuPanel, AccountMenuRow, AccountFootRule, AccountTab, AccountTabMore,
   AccountTabs, Meter, MeterRow,
 } from './account.jsx';
 

@@ -7,7 +7,7 @@
 
 import React from 'react';
 import {
-  Tabs as UITabs, TabsList, TabsTrigger,
+  Tabs as UITabs, TabsContent, TabsList, TabsTrigger,
 } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
@@ -98,4 +98,40 @@ function Tabs({ tabs = [], value, onChange, rail = true, className }) {
   );
 }
 
-export { Tabs };
+/* ── THE PARTS ARE EXPORTED TOO, AND THAT IS CYCLE 00 PIECE 7's WHOLE MECHANICAL CHANGE ─
+ *
+ * `Tabs` above takes `tabs={[{ value, label }]}`. That array is convenient for the nine
+ * screens using it and it is also the REASON THIS APP HAS THREE TAB IMPLEMENTATIONS: a
+ * caller cannot reach an individual trigger, so anything wanting a different weight,
+ * padding or underline colour is PHYSICALLY UNABLE to use this component and has to
+ * hand-build one. Both of the others did exactly that.
+ *
+ *   · `PanelTabs`/`PanelTab` (panel.jsx, approved) — a panel's top EDGE. Differs in four
+ *     ways: 16px semibold against 14px medium, `--action-2` against the foreground,
+ *     measured padding, and `border-b-2` instead of the registry's `after:`. Every one
+ *     of those is a CLASS ON A SHIPPED TRIGGER rather than a reason to write a second
+ *     component — but with only the array exported there was no shipped trigger to put
+ *     a class on.
+ *   · the Dashboard account selector — legacy `.dash-acct-tab*`, five rules, rich content
+ *     (a name, a status dot, figures).
+ *
+ * SO THE ARRAY STAYS AND THE PARTS COME WITH IT. Nine call sites keep the short form;
+ * anything richer is now a COMPOSITION of the same component instead of a copy of its
+ * rules. This does not by itself change either of the other two — that is a decision
+ * about the locked dashboard, and it is the owner's — but it removes the reason a FOURTH
+ * one would ever be written, which is the actual disease.
+ *
+ * `TabsContent` comes along because a composed tab strip that owns its panels needs it
+ * and there is no argument for making that the one part you cannot reach.
+ *
+ * ⚠ AND `TabsRoot`, WHICH WAS NEARLY MISSED AND WOULD HAVE MADE THE WHOLE PIECE A NO-OP.
+ * The first version of this export exposed the list and the trigger and NOT the root —
+ * and a list and a trigger without a root compose into nothing, because Base UI's parts
+ * read their state from it. `PanelTabs` did not catch this: it lives in
+ * `components/primitives`, so it can import the generated root directly. A PAGE cannot.
+ * The specimen on /test is what found it, one line after the export was written, which
+ * is the argument for building a specimen that actually composes rather than one that
+ * describes composing. */
+export {
+  Tabs, TabsContent, TabsList, TabsTrigger, UITabs as TabsRoot,
+};

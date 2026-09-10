@@ -1,8 +1,10 @@
 /* data-table.jsx
  *
- * @design unreviewed — the owner has not signed off how this LOOKS. It is Cycle 00's
- *   centrepiece and it is on the Test page for exactly that reason. Approval is never
- *   inferred (§1); this line changes when the owner says so, not when the file is used.
+ * @design approved 2026-09-09 — 🔒 Cycle 00, piece 1. The owner signed it off on the Test
+ *   page after four corrections landed in one day: thirteen columns rather than fifteen,
+ *   per-column widths, results right-aligned while measurements stay centred, and a
+ *   footer that can total. Sorting is permanently on and is part of the component.
+ *   A redesigned screen may adopt it. See test/primitives-status.test.js.
  */
 
 import React from 'react';

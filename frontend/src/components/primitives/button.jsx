@@ -81,15 +81,24 @@ const VARIANTS = {
   chrome: 'ghost',
 };
 
-/* The chrome variant's own layer, applied after RADIUS so tailwind-merge lets
- * `rounded-md` replace it: DESIGN-LANGUAGE §5 files "smaller chrome — icon buttons,
- * menu rows" under `--r-sm`/`--r-md`, a step below the button radius.
+/* The chrome variant's own layer.
+ *
+ * THE RADIUS OVERRIDE IS GONE (owner, 2026-09-09: "Everything like the preset. No
+ * deliberately leaving anything different for radius."). This read `rounded-md`, one step
+ * below the button radius, on the strength of §6's table row for "icon buttons, menu rows".
+ * That row is OURS — the preset does not make the distinction: every generated button
+ * variant, ghost included, asks for `rounded-2xl`, so a quiet control was the one kind of
+ * button in the app not wearing the preset's corner. Deleting the line is the whole change;
+ * chrome now inherits what the generated component asks for, like every other variant.
+ *
+ * IT MAKES A SMALL CHROME BUTTON A PILL, and that is the preset's arithmetic rather than a
+ * choice: 16px on a 28px box is past half, so it clamps to 14. A plain small button has
+ * always done this. The two now agree, which is the point.
  *
  * The hover half is §13 "hover intensifies what's already there" read literally: this
- * control has no border, so the surface fills rather than an edge brightening. Both
- * halves come from the deleted legacy rules verbatim — the token names changed, the
- * values did not. */
-const CHROME = 'rounded-md hover:bg-muted';
+ * control has no border, so the surface fills rather than an edge brightening. It came from
+ * the deleted legacy rules verbatim — the token names changed, the values did not. */
+const CHROME = 'hover:bg-muted';
 const CHROME_REST = 'text-muted-foreground hover:text-foreground';
 
 const SIZES = { sm: 'sm', md: 'default', lg: 'lg' };
@@ -220,15 +229,62 @@ const DISABLED_CURSOR = 'disabled:pointer-events-auto disabled:cursor-not-allowe
  * content actions are rects — so it is a boolean any variant can take rather than a
  * fifth variant, and the same reasoning as `active` above: it is orthogonal.
  *
- * It sits after RADIUS in the class list so tailwind-merge lets it replace both the
- * generated `rounded-2xl` and the corrected `rounded-lg` — one radius on the element,
- * never two racing on specificity. */
+ * A LABELLED PILL IS NOT A CAPSULE, AND IT IS ONE STEP SOFTER THAN A CONTROL (owner,
+ * 2026-09-09, in two passes the same day — the second is the one that stands).
+ *
+ * FIRST the capsule went. `rounded-full` moved off this list and onto `PILL_ICON`, so the
+ * shape splits the way §6's pill row already split it: a TOGGLE, a TRACK, an AVATAR and an
+ * ICON button are pills; a control with a LABEL is a control. Three buttons changed — the
+ * account switcher and Filters in the bar, and Sync Trades on the dashboard.
+ *
+ * THEN the owner set the corner at `3xl` (15.84px) rather than letting it fall to the
+ * generated `rounded-2xl` (12.96px), looking at the bar itself. So this is a DELIBERATE
+ * DEVIATION from "everything like the preset", made with that ruling on the table:
+ *
+ *     capsule    99px -> clamps to 18px on h-9    what it was, 08-28 to 09-09
+ *     3xl        15.84px                          what it is — the bar's labelled pills
+ *     2xl        12.96px                          every OTHER button in the app
+ *
+ * IT IS A REAL STEP OF THE PRESET, not a number of ours — `--radius x 2.2`, the step §6
+ * gives popovers and command shells. That is what makes it defensible as a deviation
+ * rather than a relapse: the ladder still has one base and seven multipliers, and moving
+ * `--radius` moves this with everything else. What is ours is the CHOICE of rung for this
+ * one shape, and §6 records it as such.
+ *
+ * WHY A SOFTER CORNER IS ARGUABLE HERE: the bar is chrome floating over the page, and
+ * these two controls sit beside a capsule bell and a capsule toggle track. At `2xl` they
+ * read as page content that had wandered up into the bar; at `3xl` they read as the
+ * quietest members of a family of capsules. It is the same reasoning §6 uses to assign
+ * radius BY SURFACE rather than by component.
+ *
+ * WHAT MADE THE CAPSULE VISIBLE IN THE FIRST PLACE, because it had been wrong for eleven
+ * days in plain sight and nobody could name it. The review page puts the six variants in
+ * one row, and the two pill specimens read as a different family — 99px clamps to half the
+ * box, so a labelled pill drew an 18px capsule beside five 12.96px buttons, AND carried
+ * `h-9`, so it was 4px taller at the same time. Two differences at once is why it felt
+ * like a bug rather than a decision. The owner spotted it in the matrix, not in the bar.
+ *
+ * WHY THE HEIGHT AND THE SURFACE STAY. They are the BAR's metrics and the bar is a real
+ * place: h-9 is what makes a switcher, a glyph and a toggle read as one row, and
+ * --control-bg is what makes them read as one family.
+ *
+ * 15.84 ON 36px DRAWS IN FULL — half the box is 18px, so this one does not clamp, which
+ * is why it is visibly different from the capsule it replaced rather than identical to it
+ * (§6: below ~32px a radius is a ceiling, not a promise). Check that again if `h-9` ever
+ * shrinks: at h-8 the same class would clamp to 16 and this decision would silently
+ * become a different one.
+ *
+ * This list sits after `buttonVariants()` in the call, so `rounded-3xl` replaces the
+ * generated `rounded-2xl` through tailwind-merge, and `PILL_ICON`'s `rounded-full` lands
+ * after both — one radius on the element, never two racing on specificity. */
 /* AND ONE HEIGHT WITH IT. The bar's controls were three sizes — `sm` for the switcher,
  * `icon-sm` for the glyphs, a padded container for the toggle — which is invisible in
  * isolation and obvious in a row. `pill` carries the height because in this app the
  * capsule IS the bar: nothing else uses it, and a shape that only appears in one place
  * may as well bring that place's metrics. `w-9` only for the icon sizes, so a labelled
- * pill still sizes to its text. */
+ * pill still sizes to its text — AND, since 09-09, the corner rides along with that `w-9`
+ * rather than with the height, because a square box is the one case where the capsule is
+ * the right shape and not merely the bar's habit. */
 /* AND THE BAR'S SURFACE WITH IT (2026-08-29, Rhea). Every control in Rhea's bar rests
  * on --control-bg behind --line-control and hovers to --surface-hover — the Filters
  * button, the two icon buttons and the toggle's track are one family, drawn once.
@@ -306,13 +362,18 @@ const TINTED = [
  *                       which is §14 backwards. It wins on specificity (class + attr +
  *                       pseudo-class), not on order. */
 const PILL = [
-  'h-9 rounded-full border border-[var(--line-control)] bg-[var(--control-bg)]',
+  'h-9 rounded-3xl border border-[var(--line-control)] bg-[var(--control-bg)]',
   'text-[13.5px] font-medium text-[var(--text-2)]',
   'hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
   'dark:hover:bg-[var(--surface-hover)]',
   'aria-expanded:bg-[var(--sel-bg)]',
 ].join(' ');
-const PILL_ICON = 'w-9';
+/* THE CAPSULE LIVES HERE NOW (owner, 2026-09-09) — see PILL above. `rounded-full` is
+ * applied with the icon width rather than with the bar's height, so the bell and any
+ * other square chrome glyph stay circles while a labelled pill takes the preset's
+ * control corner. It is last in the class list, so tailwind-merge drops the generated
+ * `rounded-2xl` and one radius reaches the element. */
+const PILL_ICON = 'w-9 rounded-full';
 
 const Button = React.forwardRef(function Button({
   variant = 'secondary',
@@ -346,8 +407,12 @@ const Button = React.forwardRef(function Button({
         // An engaged control keeps the hover but not the muted rest, so the two states
         // stay distinguishable — hence only the resting half is conditional.
         isChrome && (active ? 'text-foreground' : CHROME_REST),
-        // `tinted` keeps the pill's SHAPE and brings its own surface — see TINTED above.
-        pill && (variant === 'tinted' ? `h-9 rounded-full ${TINTED}` : PILL),
+        // `tinted` keeps the pill's HEIGHT and brings its own surface — see TINTED above.
+        // The corner is no longer part of what it keeps: since 09-09 a labelled pill of
+        // either variant takes the preset's `rounded-2xl`, and only `PILL_ICON` rounds
+        // fully. `tinted` is never an icon button (it is the one control in the bar whose
+        // label is a value), so this branch has no capsule at all.
+        pill && (variant === 'tinted' ? `h-9 rounded-3xl ${TINTED}` : PILL),
         pill && String(size).startsWith('icon') && PILL_ICON,
         block && 'w-full',
         className,

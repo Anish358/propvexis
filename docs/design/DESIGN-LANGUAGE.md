@@ -2,7 +2,12 @@
 
 **Status:** 🔒 LOCKED 2026-08-29 · rewritten from the shipped dashboard
 · foundation re-valued 2026-09-07 · radius ladder 2026-09-08
-**Foundation:** shadcn **Build Your Own** preset `b2qLMFPP6`, style **Base Rhea**
+**Foundation:** shadcn **Build Your Own** preset `b2qLMFPO4`, style **Base Rhea**
+
+> **Preset history.** The app ran on `b2qLMFPP6` until 2026-09-09. The two codes differ in
+> **one setting** — radius `medium` → `small` — and in nothing else (verified with
+> `shadcn preset decode`). So an older comment citing `b2qLMFPP6` for a colour, a type step
+> or a shadow is still accurate; only radius moved.
 (supersedes `b2qKmlY80`, §21 amendment 2026-09-07)
 **Reference implementation:** the dashboard — `features/dashboard/`,
 `components/primitives/{rail,topbar,brief,kpi,account,panel,calendar}.jsx`,
@@ -454,47 +459,120 @@ because a silent renumber is worse than a documented one.
 
 ## §6 Radius — 🔒 LOCKED
 
-**Radius is assigned BY SURFACE, and the ladder is OURS** — anchored on the 24px card,
-one step down per level. It is softer than preset b2qLMFPP6 (6/8/10/14/16/24/32), and
-18px is not a preset step at all: the owner chose it from a rendered mockup of this
-product, which outranks a preset table.
+**Radius is ONE BASE AND SEVEN MULTIPLIERS. There is no ladder of ours and no exception.**
+Owner, 2026-09-09: *"Everything like the preset. No deliberately leaving anything different
+for radius."*
 
-| Surface | Token | Write it as |
-|---|---|---|
-| smallest chrome, skeleton bars | `--r-sm` 8px | `rounded-sm` |
-| icon buttons, menu rows, count chips | `--r-md` 10px | `rounded-md` |
-| buttons, nav rows, event rows, day cells, meter cells | `--r-lg` 14px | `rounded-lg` |
-| tiles, account chips, a chart well, an empty state | `--r-xl` 18px | `rounded-[var(--r-xl)]` |
-| cards, panels, KPI tiles, the Brief | `--r-card` 24px | `rounded-card` |
-| pills — toggles, badges, progress tracks, avatars | `--r-full` 99px | `rounded-full` |
-| popovers / dialogs | 24px | `rounded-3xl` / `min(--radius-4xl, 24px)` |
+```
+--radius = 0.45rem = 7.2px          preset b2qLMFPO4, radius SMALL
+sm  x0.6  = 4.32     xl   x1.4 = 10.08     3xl  x2.2 = 15.84
+md  x0.8  = 5.76     2xl  x1.8 = 12.96     4xl  x2.6 = 18.72
+lg  x1     = 7.2
+```
+
+**Those expressions are the preset's own**, copied out of an isolated
+`shadcn apply --preset b2qLMFPO4 --only theme` run — not transcribed. `--radius` lives in
+`tokens.css` and is **the only radius number in the app**; the multipliers live in
+`bridge.css`, which owns the mapping into Tailwind's namespace. Changing every corner is
+one line.
+
+**`--r-*` ARE ALIASES, NOT VALUES** — `--r-md` is `var(--radius-md)`. They exist because
+~64 legacy rules and a handful of components read them directly, so aliasing is what moves
+the **un-migrated screens** too (Prop OS, the Trade Log, the Calendar). If one ever held a
+number again, the primitives would follow the preset and most of the app would not.
+
+**A CARD reads the generated card's own expression**, `min(var(--radius-4xl), 24px)`, so a
+legacy card and a `components/ui` card cannot disagree. Under this base 4xl is 18.72px, so
+the cap is inert; it stays because the generated component carries it.
+
+**BELOW ~32px A RADIUS STILL CLAMPS TO HALF ITS BOX** — that is physics, not policy, and it
+is why the numbers above are ceilings. A badge at 12.96px on a 20px box is a pill. **This is
+why controls and badges are ALREADY pills, and that question is closed.** Judge any change
+on the TALL things it touches AND on the SHORTEST size each control ships — different
+numbers. Fractional pixels are fine: a browser antialiases a radius.
+
+**WHAT THIS REPLACED, because it is the mistake to not repeat.** Until 09-09 we ran a ladder
+of our own (8/10/14/18, then 6/8/10/16) and pinned `xl/2xl/3xl/4xl` at 14/16/24/32 believing
+those were the preset's. **They were Tailwind's defaults.** The preset derives all seven, so
+our controls sat at 16px where the preset said 18px, and four components — badge, checkbox,
+small button, tooltip — each learned the clamp separately because our steps sat above the
+values the registry had chosen for the boxes it ships.
+
+**BELOW ~32px THE LADDER DOES NOT APPLY.** A corner clamps to half the shorter side, so on a
+small box the number never draws: 8px on a 16px tick box, 14px on a 28px tooltip and 16px on
+a 32px control are each EXACTLY half, and each is a pill. Assign the step that DRAWS or
+declare the thing a pill — never assign one and hope. **This is why controls and badges are
+ALREADY pills, and that question is closed.** Four components learned it separately — badge,
+checkbox, small button, tooltip — which is why it is the rule now rather than a footnote.
+
+| Surface | Step | at 0.45rem | Write it as |
+|---|---|---|---|
+| smallest chrome, skeleton bars | `sm` | 4.32px | `rounded-sm` |
+| icon buttons, menu rows, count chips | `md` | 5.76px | `rounded-md` |
+| nav rows, event rows, day cells, meter cells | `lg` (the base) | 7.2px | `rounded-lg` |
+| menu / command / select rows, tooltip | `xl` | 10.08px | `rounded-xl` |
+| **controls** — button, input, textarea, badge, tabs | `2xl` | 12.96px | `rounded-2xl` |
+| tiles, account chips, a chart well, an empty state | `2xl` | 12.96px | `rounded-[var(--r-xl)]` |
+| popovers, command shells, empty states | `3xl` | 15.84px | `rounded-3xl` |
+| cards, panels, KPI tiles, dialogs | `4xl` capped 24 | 18.72px | `rounded-card` / `min(--radius-4xl, 24px)` |
+| pills — toggles, progress tracks, avatars, **square** icon chrome | `full` | 99px | `rounded-full` |
+
+The pixel column is **derived, not authored** — it is `0.45rem x` the multiplier, shown so
+the table can be read at a glance. Change `--radius` and every number in it moves.
+
+A CONTROL TAKES ITS CORNER FROM THE GENERATED COMPONENT, not from a token of ours — every
+generated button, input, textarea, badge and menu asks for `rounded-2xl`, and the bridge
+resolves that to the preset's `2xl`. Do not re-point it at `--r-lg`; that collapsed a
+distinction the preset makes and cost two rounds in 09-07.
+
+**A LABEL MAKES IT A CONTROL, EVEN IN THE TOP BAR** (owner, 2026-09-09). The `pill` row
+above is the whole list, and it is a list of things with no label: a toggle, a track, an
+avatar, a square glyph button. A control that carries WORDS is not a capsule — the bar's
+account switcher, Filters button and Sync Trades were, from 2026-08-28 until this ruling.
+
+**AND A LABELLED PILL TAKES `3xl` (15.84px), THE ONE DELIBERATE RADIUS IN THE APP** (owner,
+2026-09-09, same day, judged on the bar itself). Not the `2xl` every other control takes:
+the bar is chrome floating over the page, and these controls sit beside a capsule bell and
+a capsule toggle track — at `2xl` they read as page content that wandered upward, at `3xl`
+as the quietest members of a family of capsules. It is §6's own principle, radius **by
+surface**, applied to the surface the bar is.
+
+It is a **rung of the preset**, not a number of ours (`--radius x 2.2`), so the ladder still
+has one base and seven multipliers and moving `--radius` moves this with everything else.
+What is ours is the CHOICE of rung for this one shape. **It is the only such choice in the
+library** — every other corner is whatever the generated component asks for. Do not read it
+as licence for a second one: the `chrome` variant's `rounded-md` and the wrapper's
+`rounded-lg` were both deleted under the "no radius of our own" ruling, and this exception
+exists because the owner made it explicitly and it is written here.
+
+`pill` also carries the bar's HEIGHT and SURFACE, because those are what make a row of
+controls read as one family. **15.84 on `h-9` draws in full** — half the box is 18px — so it
+does not clamp; if that height ever shrinks to `h-8` the same class becomes 16px and this
+is silently a different decision.
 
 `--r-2xl` (24px) and `--r-input` (14px) are read only by `legacy/app.css` and die
 with it. Do not reach for one in new work.
 
-**Three traps, all silent. Read these before changing a radius.**
+**Two traps, both silent. Read these before changing a radius.** (The clamp was the third
+and is now in the rule above, because it kept being read as advice.)
 
-1. **A VALUE IS A CEILING, NOT A PROMISE.** Radius clamps to half the box, so below
-   ~32px the number never draws: a 20px badge caps at 10px whether it asks for 16 or
-   99. **This is why controls and badges are ALREADY pills, and that question is
-   closed.** Judge any radius change on the TALL things it touches.
-
-2. **A BRIDGE NAME IS NOT READABLE AT RUNTIME.** Tailwind bakes the indirection in at
+1. **A BRIDGE NAME IS NOT READABLE AT RUNTIME.** Tailwind bakes the indirection in at
    build time — `.rounded-sm{border-radius:var(--r-sm)}` but
    `.rounded-xl{border-radius:14px}`. So setting `--radius-*` on an element is a
    no-op, and `rounded-xl` is a LITERAL 14px, **not** `--r-xl`. To track the
    ladder write `rounded-[var(--r-*)]`, and confirm in the BUILT stylesheet. Two trial
    panes were read as evidence before anyone did.
 
-3. **A NESTED SURFACE SITS ONE STEP INSIDE ITS CONTAINER.** An inner curve bulging past
+2. **A NESTED SURFACE SITS ONE STEP INSIDE ITS CONTAINER.** An inner curve bulging past
    the outer one reads as uneven — the empty state at 14px inside a 24px card was this.
    When the ladder moves, the step that satisfies this moves with it.
 
 `--radius-xl/2xl/3xl/4xl` are the bridge's FIXED numbers for generated components and
 deliberately do not track the ladder (§25).
 
-Held by `radius-ladder.test.js` — no primitive hand-types a radius — and
-`design-language.test.js`.
+Held by `radius-ladder.test.js` (no primitive hand-types a radius), `radius-clamp.test.js`
+(every radius resolves against its box — including across a `cva` size variant and across a
+wrapper, which is where the button hid) and `design-language.test.js`.
 
 ---
 
@@ -577,6 +655,22 @@ focus state.**
     an event, and nineteen boxes pulsing at 400ms is a strobe.
 
   Anything that loops while its condition HAS settled is decoration and is forbidden.
+- **A duration MAY leave the ladder when it is measured in ATTENTION rather than in
+  distance.** Amended 2026-09-09, owner-approved, and it names a carve-out that already
+  existed unwritten. The three durations above size a movement by how far it travels; two
+  things in this app are instead sized by how long a person takes to look, and neither has
+  anything to travel:
+
+  - The **loading pulse at 2s** — above, "a heartbeat, not an event".
+  - **A row arriving from MT5 flashes for 2s** (`pv-row-flash`, `bridge.css`). A trader
+    closes a position in the terminal and looks back at the browser some seconds later;
+    the flash has to still be there when their eye arrives, and 400ms is not. It settles
+    to nothing and never repeats, so it is not a loop.
+
+  The test is that the number answers "how long until they look?" and not "how far did it
+  move?". A duration off the ladder for any other reason is a bug — this does not license
+  picking a fourth number for a transition, and an overlay the user is waiting on still
+  enters at `--dur`. Held by `test/kit-data-table.test.js` and `test/motion.test.js`.
 - Once a user has dismissed something, it does not animate back.
 
 - **THE APP ARRIVES ONCE PER BROWSER LOAD, AS A CASCADE.** Amended 2026-09-03,
