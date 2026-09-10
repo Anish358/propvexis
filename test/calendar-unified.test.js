@@ -70,7 +70,7 @@ test('the week cell is shaped like a day and coloured like a summary', () => {
   const week = calCode.slice(calCode.indexOf('export function CalWeek'));
   // Same box as a day cell: the two sit in one grid row and must agree.
   assert.match(week, /min-h-\[var\(--cal-cell-h,82px\)\]/);
-  assert.match(week, /rounded-lg/);
+  assert.match(week, /rounded-2xl/);
   assert.match(week, /px-2\.5 py-\[9px\]/);
   /* Same INTERNAL arrangement as a day cell, so the week's total lands on the same
    * baseline as the seven figures it totals. That arrangement CHANGED SIDES on
@@ -121,7 +121,14 @@ test('a day cell is ONE top-aligned stack, and the slack falls beneath it', () =
 test('a quiet weekend number is a step below a quiet weekday', () => {
   // Three steps, which is the prototype's: traded --muted, quiet weekday --text-dim,
   // quiet weekend one below that. The cell opacity was carrying this alone.
-  assert.match(cal, /weekend \? 'text-\[var\(--line-hover\)\]' : 'text-\[var\(--text-dim\)\]'/);
+  /* The weekend number is PRE-DIMMED as of 2026-09-11: its cell used to carry
+   * `opacity-55`, which dimmed this number for free, and the cell dropped that opacity so
+   * its fill could reach the build's #0b0b0d. --line-hover at 55% over --rail-bg is the
+   * value that blend was producing, so the STEP this test is about is unchanged — a quiet
+   * weekend still reads one below a quiet weekday. */
+  assert.match(cal, /text-\[color-mix\(in_srgb,var\(--line-hover\)_55%,var\(--rail-bg\)\)\]/);
+  assert.match(cal, /text-\[color-mix\(in_srgb,var\(--text-dim\)_80%,var\(--surface-sunken\)\)\]/,
+    'the quiet WEEKDAY number is pre-dimmed too, since the cell dropped its opacity');
   assert.match(month, /<CalDayNum idle=\{t === 'idle'\} weekend=\{isWeekend\}>/);
 });
 
@@ -141,8 +148,21 @@ test('every day answers the pointer, and the hover edge can actually reach the c
 
   assert.ok(!/borderColor:/.test(decl),
     'an inline borderColor outranks the hover class and kills it silently');
-  assert.match(decl, /'--cal-cell-line': today \? 'var\(--text-dim\)' : borderColor/);
-  assert.match(decl, /border-\[var\(--cal-cell-line\)\] transition-colors/);
+  /* THE WEEKEND BRANCHES OFF HERE SINCE 2026-09-11. Its cell dropped `opacity-55` so the
+   * fill could reach the build's #0b0b0d, so the edge that opacity used to dim is now
+   * stated outright. The invariant this line guards — today's edge travels as a VARIABLE,
+   * never an inline borderColor, so the hover class can still reach it — is unchanged. */
+  assert.match(decl, /'--cal-cell-line': today \? 'var\(--text-dim\)'/);
+  assert.match(decl, /weekend[\s\S]{0,120}?var\(--line\) 20%, var\(--surface\)[\s\S]{0,120}?var\(--line\) 32%, var\(--surface\)/,
+    'each idle cell states its own edge now that neither carries an opacity');
+  /* TWO STRINGS SINCE 2026-09-11. This pinned `border-[var(--cal-cell-line)]
+   * transition-colors` as one literal; the bare `transition-colors` is now PRESS_MOTION,
+   * which carries the same colours on the TOKEN duration and easing (§10 — the bare
+   * utility ran Tailwind's own 150ms and its own curve) plus the `translate` a clickable
+   * day needs for its press. What this test is about — the edge being driven by a
+   * variable so the hover class can reach it — is unchanged. */
+  assert.match(decl, /border-\[var\(--cal-cell-line\)\]/);
+  assert.match(decl, /\bPRESS_MOTION\b/);
 
   // Un-gated by `clickable` — a quiet Tuesday lights up like a traded one.
   assert.match(decl, /!today && 'hover:border-\[var\(--line-hover\)\]'/);

@@ -408,7 +408,28 @@
   /* Aliases onto the preset's rungs — see the note above. No value of its own. */
   --r-sm: var(--radius-sm);     /* smallest chrome, thin skeleton bars */
   --r-md: var(--radius-md);     /* icon buttons, menu rows, small badges, count chips */
-  --r-lg: var(--radius-lg);     /* nav rows, event rows, meter cells, day cells */
+  /* ROWS MOVED OFF THE BASE RUNG TO `2xl` (owner, 2026-09-11), so this alias moves with
+     them. 7.2px on a 40px nav row and an 82px day cell read as barely-rounded against
+     everything around them, and the owner judged all three candidates on the running
+     dashboard before choosing 12.96 — see §6.
+
+     REPOINTING THE ALIAS IS WHAT MOVES THE UN-MIGRATED SCREENS, which is the entire
+     reason these names still exist. Its four remaining readers are all in
+     `legacy/app.css` and NONE of them is a row: `.u-btn` (a button), `.dc-tile` (a tile),
+     `.dc-curve-wrap` (a chart well) and `.djw-panel` (a nested panel). §6's table puts a
+     button, a tile and a well at `2xl` ALREADY, so this does not drag them along — it
+     lands all four on the step they were always supposed to have, and `.djw-panel`'s own
+     comment asking for "one step down from the card" gets closer rather than further.
+
+     THE ALTERNATIVE WAS EDITING THOSE FOUR RULES, AND THAT IS FORBIDDEN — legacy CSS is
+     never patched, only deleted (owner, 2026-09-07). The alias is the sanctioned seam.
+
+     ⚠ THE NAME NOW LIES, AND IT IS THE SECOND ONE THAT DOES: `--r-lg` resolves to the
+     `2xl` rung, exactly as `--r-xl` below already resolves to `--radius-2xl`. Both are
+     legacy-only and both die with `legacy/app.css`. Do not "correct" either by pointing
+     it back at its namesake rung — the name records which legacy surfaces read it, not
+     which rung it returns. */
+  --r-lg: var(--radius-2xl);    /* legacy only — a button, a tile, a well, a nested panel */
   --r-xl: var(--radius-2xl);    /* account chips, tiles, a chart well */
   /* CARDS read exactly what the generated card reads, so a card in a legacy screen and a
      card from `components/ui` cannot disagree: `min(--radius-4xl, 24px)`. Under this base

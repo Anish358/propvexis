@@ -7,6 +7,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { MenuContent } from './menu.jsx';
+import { PRESS, PRESS_MOTION } from './motion.js';
 
 /* ACCOUNT HEALTH — the card that says whether this account is about to die.
  * Base Rhea, 2026-08-29.
@@ -156,7 +157,7 @@ export function AccountTab({
       aria-pressed={selected}
       className={cn(
         'flex shrink-0 items-center gap-3 rounded-[var(--r-xl)] border py-3 pr-6 pl-[18px] text-left whitespace-nowrap',
-        HOVER_MOTION,
+        PRESS_MOTION, PRESS,
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         selected
           ? 'border-[var(--line-selected)] bg-[var(--sel-well)]'
@@ -268,6 +269,17 @@ export function AccountMenuPanel({ className, ...rest }) {
 /* The overflow control — "+2 Accounts". Dashed and unfilled on purpose: it is not one
  * more account, it is a way to see the rest, and looking like a chip would make it read
  * as a selectable account that never selects. */
+/* THE OVERFLOW CHIP PRESSES LIKE ITS SIBLINGS (owner, 2026-09-11).
+ *
+ * It did not, for one round: every Base Rhea button excludes itself from the nudge when
+ * it carries `aria-haspopup`, and this one always does — it is only ever rendered as a
+ * `MenuTrigger`. The registry's reasoning is that a trigger bobbing while the menu it
+ * opened stays anchored reads as a missed click.
+ *
+ * The owner overrode it after seeing the consequence somewhere else: the ENTIRE top bar
+ * is triggers, so the exclusion left four controls with no click feedback at all. A rule
+ * that silently switches off a whole surface is the wrong rule, and a chip that answers
+ * a click beats one that is theoretically calmer. §10 records the reversal. */
 export function AccountTabMore({ className, children, ...rest }) {
   return (
     <button
@@ -276,7 +288,7 @@ export function AccountTabMore({ className, children, ...rest }) {
       className={cn(
         'flex shrink-0 items-center gap-1.5 rounded-[var(--r-xl)] border border-dashed border-[var(--line-strong)] px-4 py-3',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--text-3)]',
-        HOVER_MOTION,
+        PRESS_MOTION, PRESS,
         'hover:border-[var(--line-hover)] hover:text-[var(--text)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-3.5',
@@ -419,7 +431,7 @@ export function AccountBannerAction({ tone = 'breach', render, className, childr
   const classes = cn(
     'flex h-7 shrink-0 items-center gap-1 rounded-full border px-[11px] whitespace-nowrap',
     'text-xs leading-4 font-semibold no-underline',
-    HOVER_MOTION,
+    PRESS_MOTION, PRESS,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-60',
     /* The arrow on "View challenge →" is sized to the type. Lucide defaults to 24px,
@@ -668,7 +680,7 @@ export function AccountCardLink({ render, className, children, ...rest }) {
   const classes = cn(
     'flex shrink-0 items-center gap-1.5 rounded-sm text-sm leading-5 font-[550] no-underline',
     'text-[var(--text-link)] hover:text-[var(--text)]',
-    HOVER_MOTION,
+    PRESS_MOTION, PRESS,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     /* 14px, NOT 16. The design draws this as a text arrow at the link's own 13px, so a
        16px icon beside 13px type reads as a button that lost its border — the glyph

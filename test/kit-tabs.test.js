@@ -218,3 +218,123 @@ test('the live account selector is a CHIP, and deliberately not a tab strip', ()
       + 'decision about the locked dashboard and this test should carry it.',
   );
 });
+
+/* ── THE REGISTRY'S QUALIFIED CLASSES (2026-09-11) ────────────────────────────────────
+ *
+ * WHAT WENT WRONG, ON THE LOCKED DASHBOARD, WITH NOTHING IN THE DIFF TO SHOW IT.
+ * The composition above overrode three registry classes by restating them — `h-auto`
+ * against the list's `h-8`, `h-auto`… no: nothing at all against the trigger's
+ * `h-[calc(100%-1px)]`, and `after:bottom-0` against `after:bottom-[-5px]`. Every one
+ * of those registry classes carries a `group-data-*` modifier or, in the trigger's case,
+ * had no override written for it at all — and TAILWIND-MERGE ONLY DROPS A CLASS WHOSE
+ * MODIFIER SET MATCHES. So all three survived the merge and both rules applied — and the
+ * registry's won, NOT on specificity: Tailwind wraps the group condition in `:where()`,
+ * which contributes nothing, so the pair is dead equal at (0,1,0) and SOURCE ORDER
+ * decides. Qualified utilities are emitted after plain ones (`.h-auto` at byte 134509 of
+ * the built sheet, `group-data-horizontal/tabs:h-8` at 189101), so the registry is simply
+ * last. Worth knowing precisely, because it means writing our override later in the
+ * className does nothing — only matching the qualifier, so twMerge deletes theirs, does.
+ *
+ * The result: the strip rendered at the registry's 32px + 1px hairline = 33, not 49, with
+ * the 48px trigger spilling out of it; every row of Recent trades moved UP 16px, and the
+ * active underline sat 5px below a button that was itself hanging out of its list.
+ *
+ * THIRD TIME THIS EXACT TRAP HAS COST REAL TIME — see the top bar's pill hover, which
+ * lost its background the same way. The rule it settles: WHERE THE REGISTRY QUALIFIES A
+ * CLASS, OUR OVERRIDE WEARS THE SAME QUALIFIER. These tests run the real merge rather
+ * than reading for the presence of our class, because presence is exactly what was true
+ * while the bug was live. */
+
+const cnMod = await import('../frontend/src/lib/utils.js');
+const { cn } = cnMod;
+
+/* Both sides of each merge, read out of the two files rather than restated here — a
+ * restated registry string is a test that passes through a re-install that changed it. */
+const chunk = (src, start, ...stops) => {
+  const i = src.indexOf(start);
+  assert.ok(i >= 0, `cannot find ${start} — the component was renamed or restructured`);
+  const ends = stops.map((s) => src.indexOf(s, i + start.length)).filter((n) => n > 0);
+  return src.slice(i, ends.length ? Math.min(...ends) : src.length);
+};
+const classesIn = (block) => (block.match(/'[^']*'|"[^"]*"/g) || [])
+  .map((s) => s.slice(1, -1))
+  .filter((s) => /(^|\s)(group|relative|inline|after:|data-|[a-z]+-)/.test(s))
+  .join(' ');
+
+const mergedList = cn(
+  classesIn(chunk(generated, 'const tabsListVariants', 'function TabsTrigger')),
+  classesIn(chunk(panelCode, 'export function PanelTabs', '\nexport function')),
+).split(/\s+/);
+const mergedTab = cn(
+  classesIn(chunk(strip(generated), 'function TabsTrigger', '\nfunction TabsContent')),
+  classesIn(chunk(panelCode, 'export function PanelTab(', '\nexport function')),
+).split(/\s+/);
+
+/* What actually applies when the strip is horizontal: an unmodified class, or one
+ * qualified by the horizontal orientation, and nothing else. ANCHORED — an unanchored
+ * `h-` also matches the underline's own `after:h-0.5` thickness, which is a different
+ * property on a different box. */
+const horizontal = (list, util) => list.filter(
+  (c) => new RegExp(`^(group-data-horizontal/tabs:)?${util}`).test(c),
+);
+
+test('⚠ the tab strip is 48px because the LIST is auto-height, and the merge must prove it', () => {
+  /* The registry sizes its list at `h-8` for a 32px pill strip. Ours is the panel's own
+   * top edge at 48, and the height comes from the trigger's padding — so the list must
+   * carry no height of its own at all. */
+  assert.match(
+    generated, /group-data-horizontal\/tabs:h-8/,
+    'the registry stopped qualifying its list height. Re-derive this test — if it is now '
+      + 'a bare `h-8`, a bare `h-auto` displaces it and the override can be simplified.',
+  );
+  assert.deepEqual(
+    horizontal(mergedList, 'h-'), ['group-data-horizontal/tabs:h-auto'],
+    'the registry\'s `h-8` survived the merge beside our override, which means the list '
+      + 'is 32px and the whole strip is 33 instead of 49. Our height override must wear '
+      + 'the same `group-data-horizontal/tabs:` qualifier the registry uses.',
+  );
+  assert.deepEqual(
+    horizontal(mergedTab, 'h-'), ['h-auto'],
+    'the trigger is not auto-height. The registry ships `h-[calc(100%-1px)]`, written for '
+      + 'a trigger inside a fixed 32px list; here the height IS the padding, so a '
+      + 'percentage of the parent leaves the content spilling out of the button.',
+  );
+});
+
+test('⚠ the active underline sits on the button edge — qualified, or it loses', () => {
+  assert.match(
+    generated, /group-data-horizontal\/tabs:after:bottom-\[-5px\]/,
+    'the registry moved or unqualified its underline offset — re-derive this test.',
+  );
+  assert.deepEqual(
+    horizontal(mergedTab, 'after:bottom-'), ['group-data-horizontal/tabs:after:bottom-0'],
+    'the registry\'s `after:bottom-[-5px]` survived the merge, so the underline draws 5px '
+      + 'BELOW the button — below the card hairline it is supposed to BE. Ours has to '
+      + 'carry the same qualifier.',
+  );
+});
+
+test('the 49px this strip is measured at is derived, not restated', () => {
+  /* recent-trades-fit.test.js fits six rows into a 374px card on TABS = 49, and that 49
+   * is a constant sitting beside the component rather than read out of it — which is why
+   * the strip could render at 33 with every test green. This is the derivation: the
+   * trigger's own padding and line-height, plus the list's hairline. */
+  const tab = chunk(panelCode, 'export function PanelTab(', '\nexport function');
+  const pt = Number(/pt-\[(\d+)px\]/.exec(tab)?.[1]);
+  const pb = Number(/pb-\[(\d+)px\]/.exec(tab)?.[1]);
+  const lead = Number(/leading-\[(\d+)px\]/.exec(tab)?.[1]);
+  assert.ok(pt && pb && lead, 'the tab\'s padding or line-height is no longer readable here');
+
+  const list = chunk(panelCode, 'export function PanelTabs', '\nexport function');
+  assert.match(list, /border-b border-\[var\(--line-inset\)\]/, 'the strip lost its hairline');
+  const stripH = pt + lead + pb + 1;
+
+  const fitTest = read('./recent-trades-fit.test.js');
+  const pinned = Number(/const TABS = (\d+)/.exec(fitTest)?.[1]);
+  assert.equal(
+    stripH, pinned,
+    `the strip now derives to ${stripH}px but recent-trades-fit.test.js fits the card `
+      + `against ${pinned}. Six rows and the footer are budgeted off that number — move `
+      + 'both together, or the dashboard card silently loses a row.',
+  );
+});

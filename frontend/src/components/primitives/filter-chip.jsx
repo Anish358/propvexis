@@ -11,6 +11,7 @@
 
 import React from 'react';
 import { Plus, X } from 'lucide-react';
+import { PRESS, PRESS_MOTION } from './motion.js';
 
 /* FilterChip — an APPLIED filter, as a removable token.
  *
@@ -171,6 +172,10 @@ function FilterChip({
           SEG, DIVIDED,
           'min-w-0 cursor-pointer bg-transparent text-foreground',
           'hover:bg-muted focus-visible:outline-none',
+          /* The value segment OPENS the cascade, and a trigger presses now (§10, owner
+             2026-09-11). PRESS_MOTION also replaces no transition at all — this chip
+             had none, so its hover was an instant colour swap. */
+          PRESS_MOTION, PRESS,
         ].join(' ')}
       >
         <span className="truncate">{value}</span>
@@ -184,6 +189,10 @@ function FilterChip({
           DIVIDED,
           'grid w-6 flex-none place-items-center cursor-pointer bg-transparent',
           'text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none',
+        /* The ✕ does NOT press: it is flush inside a divided chip, where moving one
+           segment 1px breaks the seam it shares with the other two. It takes the
+           transition so its hover eases like its neighbour's. */
+        PRESS_MOTION,
         ].join(' ')}
       >
         <X aria-hidden="true" className="size-3" />
@@ -205,6 +214,8 @@ function FilterChipAdd({ className, ...rest }) {
       className={[
         'grid h-6 w-6 place-items-center rounded-md cursor-pointer bg-transparent',
         'text-muted-foreground hover:bg-muted hover:text-foreground',
+        /* Add opens a menu — a trigger, so it presses (§10). */
+        PRESS_MOTION, PRESS,
         className,
       ].filter(Boolean).join(' ')}
       {...rest}

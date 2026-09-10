@@ -102,7 +102,32 @@ test('the cell is tinted by its outcome, and idle is not an outcome', () => {
   assert.match(calCode, /color-mix\(in srgb, var\(--loss\) 19%, var\(--surface\)\)/);
   assert.match(calCode, /color-mix\(in srgb, var\(--line\) 40%, var\(--surface\)\)/);
   assert.ok(!/CELL = \{[\s\S]*?idle:/.test(calCode), 'idle has no tint entry — it falls back to flat');
-  assert.match(calCode, /idle && \(weekend \? 'opacity-55' : 'opacity-80'\)/);
+  /* ⚠ NO `opacity` ON A DAY CELL ANY MORE (2026-09-11), and both halves of why are worth
+   * keeping because either alone would read as fussiness.
+   *
+   * COLOUR: opacity does not darken a cell, it BLENDS it with the card behind. At .55
+   * over --surface the weekend rendered #0e0e10 where the design build renders #0b0b0d,
+   * and no fill could close that — it would need #060607, darker than --bg.
+   *
+   * FLICKER: an element with `opacity` is composited as its own group, so it is
+   * re-blended whenever the layer tree changes. A cell lifting on hover changes it, and
+   * the owner saw the OTHER cells flash — precisely the ones still carrying an opacity.
+   *
+   * So every idle colour is stated outright, each one the value its blend was already
+   * producing. "Idle is not an outcome" — what this test is about — is untouched: a
+   * quiet weekday is still dim, a quiet weekend still dimmer. */
+  assert.ok(!/opacity-(55|80)/.test(calCode),
+    'a day cell must not dim with opacity — it flickers on re-composite, and it cannot '
+    + 'reach the build colour through a blend');
+  /* AND THE WEEKDAY FILL IS THE BARE TOKEN. `--surface-sunken` IS #0e0e11, which is the
+   * build's no-trade weekday exactly — it only ever looked wrong because `opacity-80`
+   * composited it to #0f0f12 against the card. With the opacity gone it renders as
+   * itself, so there is nothing to derive. A color-mix appearing on this line again
+   * means someone re-introduced a blend for it to compensate for. */
+  assert.match(calCode, /: 'var\(--surface-sunken\)'\)/,
+    'the quiet WEEKDAY fill is the token itself, not a mix');
+  assert.match(calCode, /weekend[\s\S]{0,80}?'var\(--rail-bg\)'/,
+    'the quiet WEEKEND fill is --rail-bg, which now renders as itself');
   /* TODAY IS AN EDGE, NEVER A FILL: a filled "today" competes with the outcome tints
    * for the same channel and would argue with them on a losing day.
    *
@@ -110,7 +135,9 @@ test('the cell is tinted by its outcome, and idle is not an outcome', () => {
    * (2026-09-02). Same three values, one layer lower: an inline declaration outranks
    * every class, so writing it on `style` left the cell's `hover:border-[…]` inert.
    * calendar-unified.test.js pins the hover half. */
-  assert.match(calCode, /'--cal-cell-line': today \? 'var\(--text-dim\)' : borderColor/);
+  assert.match(calCode, /'--cal-cell-line': today \? 'var\(--text-dim\)'/);
+  assert.match(calCode, /weekend[\s\S]{0,120}?var\(--line\) 20%, var\(--surface\)[\s\S]{0,120}?var\(--line\) 32%, var\(--surface\)/,
+    'each idle cell states its own edge now that neither carries an opacity');
   // The figure still carries the outcome colour — the tint is a second encoding of it,
   // not a replacement.
   assert.match(calCode, /color: hue \|\| 'var\(--text\)'/);

@@ -8,6 +8,7 @@ import React from 'react';
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { PRESS } from './motion.js';
 
 /* Button — PropVexis primitive.
  *
@@ -401,6 +402,23 @@ const Button = React.forwardRef(function Button({
       // RADIUS correction and the chrome layer safe to state as utilities.
       className={cn(
         buttonVariants({ variant: VARIANTS[variant] ?? variant, size: SIZES[size] ?? size }),
+        /* A TRIGGER PRESSES TOO — the registry's `aria-haspopup` exclusion, overridden
+         * (owner, 2026-09-11: "add animation for these top nav buttons/pills").
+         *
+         * The generated base carries `active:not-aria-[haspopup]:translate-y-px`, whose
+         * reasoning is that a trigger bobbing under the surface it just opened reads as
+         * a missed click. Applied to THIS bar it made every control dead on click, and
+         * that is not a corner case: all four are triggers — Filters and the bell are
+         * PopoverTriggers, the account switcher is a MenuTrigger, so the bar had no
+         * click feedback anywhere. The owner judged the bob the lesser problem.
+         *
+         * ⚠ THIS IS ADDITIVE, NOT A REPLACEMENT, AND THAT IS DELIBERATE. A different
+         * modifier set means tailwind-merge keeps BOTH — the generated conditional one
+         * and this unconditional one. On a plain button they are the same declaration
+         * twice (harmless); on a trigger only this one matches. Stating it as an
+         * override rather than editing `ui/button.jsx` is the §25 rule: the difference
+         * is absorbed in the wrapper, never in the generated file. */
+        PRESS,
         DISABLED_CURSOR,
         (VARIANTS[variant] ?? variant) === 'outline' && OUTLINE_EDGE,
         isChrome && CHROME,

@@ -215,7 +215,7 @@ test('§6 — the assignment rule is documented where it is enforced, on the Rhe
   const ALIAS = {
     '--r-sm': 'var(--radius-sm)',
     '--r-md': 'var(--radius-md)',
-    '--r-lg': 'var(--radius-lg)',
+    '--r-lg': 'var(--radius-2xl)',
     '--r-xl': 'var(--radius-2xl)',
     '--r-input': 'var(--radius-2xl)',
   };
@@ -239,6 +239,69 @@ test('§6 — the assignment rule is documented where it is enforced, on the Rhe
 });
 
 // ── §14 Hover ────────────────────────────────────────────────────────────────
+
+test('§6 — every row surface reads the 2xl rung, none is left on the base', () => {
+  /* THE ROW DECISION (owner, 2026-09-11), pinned because it is one of only TWO places
+   * where we choose a rung rather than take what the generated component asks for — and
+   * an unpinned choice is the kind that erodes one component at a time.
+   *
+   * These seven surfaces sat on the base rung at 7.2px until the owner judged all three
+   * candidates on the running dashboard and took 12.96. What this guards is not the
+   * NUMBER — `radiusScale` derives that from `--radius`, so a preset change moves it —
+   * but the ASSIGNMENT: that a row and its neighbours still agree after someone edits
+   * one of them.
+   *
+   * WHY BY `data-slot` AND NOT BY LINE. The slot is what the surface calls itself and
+   * what the CSS would target; a line number is what the last person to add a comment
+   * changed. The window is deliberately generous — it only has to reach from the slot to
+   * the end of that component's `cn(...)`. */
+  const ROWS = [
+    ['rail.jsx', 'rail-item', 'a nav row'],
+    ['rail.jsx', 'rail-user', "the rail's identity row"],
+    ['calendar.jsx', 'cal-cell', 'a calendar day cell'],
+    ['calendar.jsx', 'cal-week', 'the week-summary column'],
+    ['brief.jsx', 'brief-event', 'an economic-calendar row'],
+    ['brief.jsx', 'brief-alert', 'an alert row'],
+    ['brief.jsx', 'brief-note', "the Brief's dashed note"],
+  ];
+  for (const [file, slot, what] of ROWS) {
+    const src = readFileSync(
+      new URL(`../frontend/src/components/primitives/${file}`, import.meta.url), 'utf8',
+    );
+    const at = src.indexOf(`data-slot="${slot}"`);
+    assert.ok(at !== -1, `${slot} is gone from ${file} — did the surface get renamed?`);
+    const window_ = src.slice(at, at + 900);
+    assert.ok(
+      /\brounded-2xl\b/.test(window_),
+      `${what} (${slot}) is not on the 2xl rung — DESIGN-LANGUAGE §6, "a row takes 2xl"`,
+    );
+    assert.ok(
+      !/\brounded-lg\b/.test(window_),
+      `${what} (${slot}) is back on the base rung; rows moved off it on 2026-09-11 (§6)`,
+    );
+  }
+});
+
+test('§6 — the row rung and the control rung are the same, and that is deliberate', () => {
+  /* A ROW AND A BUTTON NOW DRAW THE SAME CORNER, which §6 previously forbade in writing.
+   * The owner made the trade knowingly on 2026-09-11, so this asserts the DOCUMENT still
+   * says so — the failure mode being guarded is not the CSS but a future reader deleting
+   * the paragraph as a contradiction and "restoring" the split it replaced. */
+  const dls = readFileSync(
+    new URL('../docs/design/DESIGN-LANGUAGE.md', import.meta.url), 'utf8',
+  );
+  /* WHITESPACE-TOLERANT ON PURPOSE. These phrases run across a line break at today's
+   * wrap width, and a prose file gets re-wrapped by anyone who edits a sentence above
+   * them. Matching `\s+` rather than a literal newline is what keeps this test guarding
+   * the RULE instead of the column the rule happens to break at. */
+  const says = (phrase) => new RegExp(phrase.split(' ').map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'));
+  assert.match(dls, says('A ROW TAKES `2xl`'),
+    '§6 no longer records the row ruling — see tokens.css --r-lg and the row test above');
+  assert.match(dls, says('CONVERGES A ROW WITH A CONTROL, AND THAT IS ACCEPTED'),
+    '§6 must keep saying the row/control collapse was chosen, or it reads as a bug');
+  assert.match(dls, says('**There are exactly two such choices**'),
+    '§6 opens by counting the owner rung choices; the count must match the rules below');
+});
 
 test('§14 — hover never introduces a colour family the element did not have', () => {
   // The locked rule: hover intensifies what the element already wears, so a hover to a

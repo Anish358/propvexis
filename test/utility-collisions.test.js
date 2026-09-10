@@ -372,12 +372,39 @@ test('every generated primitive is reachable — no dead generated code', () => 
     assert.ok(reachable.has(name),
       `ui/${name}.jsx is imported by nothing — Tailwind still emits its skin. Wire it or delete it.`);
   }
+  /* INTERNAL MODULES: shared by the primitives, deliberately NOT on the barrel.
+   *
+   * `motion.js` holds the press treatment (§10) as Tailwind class strings. Exporting it
+   * would be actively harmful rather than merely untidy: a utility written outside
+   * `components/{ui,primitives}` compiles to NOTHING, so handing a page `PRESS` through
+   * the public door hands it a silent no-op — the exact failure this whole file exists
+   * to prevent. Contrast `overlay-container.js`, which is also not a component and IS
+   * exported: it carries a React context, which works anywhere.
+   *
+   * The exemption is not a free pass. Both halves of the claim are asserted below —
+   * siblings really do use it, and no application file reaches for it. */
+  const INTERNAL_ONLY = new Set(['motion']);
+
   // And the barrel must still be the only door out: every primitive module is exported,
   // or a page has no way to reach it and would import from `ui/` directly.
   for (const f of prims) {
     const name = f.replace(/\.jsx?$/, '');
+    if (INTERNAL_ONLY.has(name)) continue;
     assert.match(barrel, new RegExp(`from './${name}(\\.jsx|\\.js)?'`),
       `primitives/${f} is not exported from the barrel`);
+  }
+
+  for (const name of INTERNAL_ONLY) {
+    const users = prims.filter((f) => f !== `${name}.js`
+      && readFileSync(`${primDir}/${f}`, 'utf8').includes(`./${name}.js`));
+    assert.ok(users.length > 0,
+      `primitives/${name}.js is internal-only but no primitive imports it — delete it`);
+    const leaked = appFiles({ ext: /\.jsx?$/ })
+      .filter((f) => !f.startsWith('components/'))
+      .filter((f) => /components\/primitives\/motion/.test(readSrc(f)));
+    assert.deepEqual(leaked, [],
+      `${name}.js reached application code. Its class strings compile to nothing outside `
+      + 'components/{ui,primitives} — a page importing PRESS gets a silent no-op.');
   }
 });
 

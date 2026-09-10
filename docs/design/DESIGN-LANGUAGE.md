@@ -459,9 +459,12 @@ because a silent renumber is worse than a documented one.
 
 ## §6 Radius — 🔒 LOCKED
 
-**Radius is ONE BASE AND SEVEN MULTIPLIERS. There is no ladder of ours and no exception.**
-Owner, 2026-09-09: *"Everything like the preset. No deliberately leaving anything different
-for radius."*
+**Radius is ONE BASE AND SEVEN MULTIPLIERS. There is no ladder of ours.** Owner,
+2026-09-09: *"Everything like the preset. No deliberately leaving anything different for
+radius."* Every value in this app is a rung of preset `b2qLMFPO4`; what we choose is only
+WHICH rung a surface reads, and that choice is the owner's. **There are exactly two such
+choices** — the labelled pill and the row, both below. Everything else takes whatever the
+generated component asks for.
 
 ```
 --radius = 0.45rem = 7.2px          preset b2qLMFPO4, radius SMALL
@@ -509,8 +512,9 @@ checkbox, small button, tooltip — which is why it is the rule now rather than 
 |---|---|---|---|
 | smallest chrome, skeleton bars | `sm` | 4.32px | `rounded-sm` |
 | icon buttons, menu rows, count chips | `md` | 5.76px | `rounded-md` |
-| nav rows, event rows, day cells, meter cells | `lg` (the base) | 7.2px | `rounded-lg` |
+| generated components only — toggle, a tooltip's `kbd` | `lg` (the base) | 7.2px | `rounded-lg` |
 | menu / command / select rows, tooltip | `xl` | 10.08px | `rounded-xl` |
+| **rows** — nav, event, alert, day cell, week column | `2xl` | 12.96px | `rounded-2xl` |
 | **controls** — button, input, textarea, badge, tabs | `2xl` | 12.96px | `rounded-2xl` |
 | tiles, account chips, a chart well, an empty state | `2xl` | 12.96px | `rounded-[var(--r-xl)]` |
 | popovers, command shells, empty states | `3xl` | 15.84px | `rounded-3xl` |
@@ -539,19 +543,54 @@ surface**, applied to the surface the bar is.
 
 It is a **rung of the preset**, not a number of ours (`--radius x 2.2`), so the ladder still
 has one base and seven multipliers and moving `--radius` moves this with everything else.
-What is ours is the CHOICE of rung for this one shape. **It is the only such choice in the
-library** — every other corner is whatever the generated component asks for. Do not read it
-as licence for a second one: the `chrome` variant's `rounded-md` and the wrapper's
-`rounded-lg` were both deleted under the "no radius of our own" ruling, and this exception
-exists because the owner made it explicitly and it is written here.
+What is ours is the CHOICE of rung for this one shape.
+
+**AND A ROW TAKES `2xl` (12.96px), THE SECOND AND LAST SUCH CHOICE** (owner, 2026-09-11,
+judged on the running dashboard against the two alternatives). A row is a nav item, an
+event or alert row in the Brief, a calendar day cell and the week column beside it — the
+small, repeated, high-count surfaces. They sat on the base rung at 7.2px and the owner read
+that as too tight to look deliberate: a corner that small on a 40px row reads as a
+rendering artefact rather than a shape.
+
+**THIS CONVERGES A ROW WITH A CONTROL, AND THAT IS ACCEPTED, NOT OVERLOOKED.** A button, an
+input and a badge are also `2xl`, so a nav row and a button now draw the same corner. The
+preset does distinguish them and the earlier ruling above protected that distinction — the
+owner weighed it against the tightness and chose the corner. What the app loses is a
+distinction nobody reported seeing; what it gains is rows that read as objects. Do not
+"restore" the split by moving rows back without asking.
+
+**WHAT DECIDED IT WAS NOT A MOCKUP.** All three candidates — 7.2, 10.08, 12.96 — were driven
+through the real dashboard, rail and calendar with a scoped `data-slot` override, because
+this scale's last two mistakes both came from believing a preview. The 10.08 option was the
+close one: it is exactly what the medium preset would have given these rows, so it was the
+medium era's roundness without moving cards or controls. It lost on the screen.
+
+**AND THE ROW REMEMBERED AS 14px NEVER EXISTED AS A PRESET VALUE.** The ladder in use before
+09-09 hand-pinned rows at 14px; the medium preset's own row rung is 10px. Anyone reopening
+this decision from memory will be comparing against a number the app only ever had by
+deviation.
+
+Two owner choices, then, and no more: **a labelled pill is `3xl`, a row is `2xl`.** Do not
+read either as licence for a third — the `chrome` variant's `rounded-md` and the button
+wrapper's `rounded-lg` were both deleted under the "no radius of our own" ruling, and these
+two exist because the owner made them explicitly and they are written here.
 
 `pill` also carries the bar's HEIGHT and SURFACE, because those are what make a row of
 controls read as one family. **15.84 on `h-9` draws in full** — half the box is 18px — so it
 does not clamp; if that height ever shrinks to `h-8` the same class becomes 16px and this
 is silently a different decision.
 
-`--r-2xl` (24px) and `--r-input` (14px) are read only by `legacy/app.css` and die
-with it. Do not reach for one in new work.
+`--r-2xl` (24px), `--r-input` (14px) and — since 2026-09-11 — `--r-lg` are read only by
+`legacy/app.css` and die with it. Do not reach for one in new work.
+
+**TWO OF THOSE ALIAS NAMES LIE, ON PURPOSE.** `--r-lg` resolves to the `2xl` rung and
+`--r-xl` resolves to `--radius-2xl`. An alias name records WHICH LEGACY SURFACES read it,
+not which rung it returns, and renaming one means editing `legacy/app.css` — which is
+forbidden, never patched, only deleted. `--r-lg`'s four readers are `.u-btn`, `.dc-tile`,
+`.dc-curve-wrap` and `.djw-panel`: a button, a tile, a well and a nested panel, every one
+of which this table already puts at `2xl`. Repointing the alias is what carried the
+un-migrated screens with the row decision, and it landed those four on the step they were
+always owed. Do not "correct" either alias back to its namesake rung.
 
 **Two traps, both silent. Read these before changing a radius.** (The clamp was the third
 and is now in the rule above, because it kept being read as advice.)
@@ -638,6 +677,33 @@ focus state.**
   waiting for. Held by `test/motion.test.js`.
 - **`prefers-reduced-motion` collapses durations to zero — the state change still
   happens.** A reduced-motion user gets the result instantly, never nothing.
+- **A HAND-WRITTEN CONTROL THE USER CLICKS TO ACT NUDGES 1px DOWN.** Added 2026-09-11,
+  owner-asked, extended the same day. There is no one "shadcn click animation" to copy —
+  the registry presses four different ways (button: `translate-y-px`; sidebar row:
+  background and weight; tab: surface and edge; toggle: an inset shadow). The nudge is the
+  one that generalises, because it spends no colour channel, and several of our surfaces
+  spend hover on the background already. It runs at `--dur-fast`: a press acknowledges a
+  pointer, it does not report a change. It lives in `components/primitives/motion.js` —
+  one definition, not one per file.
+
+  **A TRIGGER PRESSES TOO** (owner, 2026-09-11, overruling the registry). The generated
+  base carries `active:not-aria-[haspopup]:translate-y-px`, whose reasoning — a trigger
+  bobbing under the surface it opened reads as a missed click — is real but costs more
+  than it saves here: the whole top bar is triggers, so the exclusion left an entire
+  surface dead on click. `button.jsx` states the unconditional press as a wrapper
+  override; `ui/` is not edited.
+
+  **Two things are excluded, and the exclusions matter more than the rule** because an
+  absent nudge looks like an oversight and gets "fixed":
+  1. **Anything a generated component already presses its own way** — the rail's rows
+     through `ui/sidebar.jsx`, toggles through `ui/toggle.jsx`. Ours on top doubles it.
+  2. **Anything flush with its neighbours** — a table row, a segment inside a divided
+     chip. A control with its own bounds and a gap can move; one sharing an edge cannot,
+     and 1px there reads as a broken seam. The registry's table presses nothing either.
+
+  ⚠ **The transition must name `translate`, not `transform`.** Tailwind v4 writes the
+  individual property, so a list naming `transform` matches nothing and the nudge SNAPS
+  with no error. Held by `test/press.test.js`.
 - **Animation settles. A LOOP IS ONLY LEGAL WHILE ITS CONDITION HAS NOT.** Two things
   loop in this app and both stop the moment the state they describe resolves — that is the
   test, not a count. Amended 2026-09-03 (it read "one exception" and named only the first).
@@ -838,6 +904,19 @@ control hovering to a brand fill is a violation. Read literally: a control with 
 brightens the edge; a control without one fills the surface.
 
 - **Only interactive elements respond to hover.**
+- **A SURFACE YOU CAN OPEN MAY LIFT 2px, AND ONLY THAT KIND OF SURFACE.** Owner,
+  2026-09-11 — the one place this section's "intensify, never move" gives way, and it is
+  narrow on purpose. The lift is a claim that *this opens something*, so it is legal only
+  where a click actually does: the calendar's traded day cells take it, its quiet ones do
+  not, and a static tile never does. **This does not revive lift-on-hover for cards** —
+  the prototype's KPI card was declined and stays declined, because nothing happens when
+  you click a KPI. A quiet surface still answers the pointer with its edge, which is the
+  rule above doing its normal job.
+  **The press goes with it**: on a surface that lifts, `:active` returns it to REST rather
+  than pushing below, or a click travels the lift plus the nudge and ends past where it
+  started. `LIFT` in `components/primitives/motion.js` carries the pair, and it REPLACES
+  `PRESS` rather than joining it — both write the same custom property. Held by
+  `test/press.test.js`.
 - **Every hover treatment has a keyboard twin.** A row styled for `:hover` alone is
   interactive for the mouse and inert for the keyboard. Use `group-hover` **plus**
   `group-focus-within` — the brief's Clear button is the worked example, and the

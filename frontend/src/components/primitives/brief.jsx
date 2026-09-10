@@ -6,6 +6,7 @@
 
 import React, { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { PRESS, PRESS_MOTION } from './motion.js';
 
 /* MOTION — DESIGN-LANGUAGE §10's three durations and one easing, named once.
  *
@@ -208,7 +209,7 @@ export const BriefAction = React.forwardRef(function BriefAction({ className, ch
       className={cn(
         'flex size-7 shrink-0 items-center justify-center rounded-full',
         'border border-[var(--line-control)] bg-[var(--control-bg)] text-[var(--text-3)]',
-        HOVER_MOTION,
+        PRESS_MOTION, PRESS,
         'hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-3.5',
@@ -497,7 +498,13 @@ export function BriefRange({ value, onChange = () => {}, options = [], className
             onClick={() => onChange(o.id)}
             className={cn(
               'relative rounded-full px-2.5 py-[3px] text-xs leading-4 font-semibold whitespace-nowrap',
-              HOVER_MOTION,
+              /* IT PRESSES, EVEN THOUGH THE INDICATOR SLIDES (owner, 2026-09-11). This was
+                 excluded on the argument that a nudge fights the pill travelling behind
+                 it. Two things answer that: pressing the ALREADY-active option moves the
+                 label against a stationary fill, which is most presses on a segmented
+                 control, and the slide is 120ms of travel the label is on top of either
+                 way. The label is what you clicked, so the label is what answers. */
+              PRESS_MOTION, PRESS,
               'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
               /* NO BACKGROUND ON THE ACTIVE BUTTON ANY MORE — the pill behind it is the
                  fill. Leaving the old `bg-[var(--sel-bg-strong)]` here would paint a
@@ -731,7 +738,7 @@ export function BriefEvent({
       data-slot="brief-event"
       className={cn(
         'grid h-[33px] shrink-0 grid-cols-[64px_max-content_auto_66px] items-center gap-4',
-        'rounded-lg bg-[var(--row-bg)] px-2.5 hover:bg-[var(--surface-hover)]',
+        'rounded-2xl bg-[var(--row-bg)] px-2.5 hover:bg-[var(--surface-hover)]',
         HOVER_MOTION,
         'max-[1200px]:h-auto max-[1200px]:py-1.5',
         className,
@@ -838,7 +845,7 @@ export function BriefAlert({
         <div
           data-slot="brief-alert"
           className={cn(
-            'group flex min-h-[73px] items-center gap-2.5 rounded-lg bg-[var(--row-bg)]',
+            'group flex min-h-[73px] items-center gap-2.5 rounded-2xl bg-[var(--row-bg)]',
             'px-2.5 py-2 hover:bg-[var(--surface-hover)] focus-within:bg-[var(--surface-hover)]',
             HOVER_MOTION,
             className,
@@ -872,6 +879,14 @@ export function BriefAlert({
                 'flex h-[27px] shrink-0 items-center gap-1.5 rounded-full px-2.5 whitespace-nowrap',
                 'border border-[var(--line-chip)] bg-[var(--sel-bg)] text-xs leading-4 font-[550] text-[var(--text-2)]',
                 'opacity-0 hover:bg-[var(--sel-bg-strong)] hover:text-[var(--text)]',
+                /* NO PRESS NUDGE, FOR TWO REASONS AND THE SECOND ONE SETTLES IT.
+                   FADE_MOTION is `transition-opacity`, which does not carry `translate`,
+                   so a press here would SNAP rather than ease unless this button got a
+                   combined transition of its own. And it would never be seen anyway:
+                   clicking Clear collapses the alert row (EXIT_MOTION) immediately, so
+                   the control animates itself out of existence in the same frame. A
+                   press is feedback that you clicked the right thing — worthless on a
+                   thing that vanishes to prove it. */
                 FADE_MOTION,
                 'group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100',
                 'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
@@ -900,7 +915,7 @@ export function BriefNote({ className, children, ...rest }) {
     <p
       data-slot="brief-note"
       className={cn(
-        'm-0 rounded-lg border border-dashed border-[var(--line-strong)] p-3.5',
+        'm-0 rounded-2xl border border-dashed border-[var(--line-strong)] p-3.5',
         'text-xs leading-5 text-pretty text-[var(--text-4)]',
         swapped && SWAP_MOTION,
         className,

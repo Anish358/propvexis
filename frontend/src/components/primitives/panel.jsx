@@ -7,6 +7,7 @@
 import React from 'react';
 import { Tabs as UITabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { PRESS, PRESS_MOTION } from './motion.js';
 
 /* THE PANEL — the dashboard's generic content card, on the 2026-08-28 Figma frame.
  *
@@ -290,7 +291,7 @@ export const PanelFill = React.forwardRef(function PanelFill({ className, childr
 export function PanelLink({ render, className, children, ...rest }) {
   const classes = cn(
     'flex items-center gap-1.5 px-4 pt-3 pb-3.5 text-xs leading-[15px] font-[550] no-underline',
-    'text-[var(--text-link)] transition-colors hover:text-[var(--text)]',
+    'text-[var(--text-link)] hover:text-[var(--text)]', PRESS_MOTION, PRESS,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     /* 14px, AND IT HAD NO SIZE AT ALL BEFORE — so the arrow rendered at lucide's
        default 24px beside 12.5px type, which is what made the link look like a button
@@ -365,9 +366,23 @@ export function PanelTabs({ value, onValueChange, className, children, ...rest }
         data-slot="panel-tabs"
         className={cn(
           /* The panel's own edge: the card hairline and the strip's inset. `w-full
-             justify-start` cancels the list's `w-fit`/`justify-center`, `h-auto` its
-             `h-8` (these triggers are 48px, not 32), and `p-0` its `p-[3px]`. */
-          'h-auto w-full justify-start gap-0.5 rounded-none p-0',
+             justify-start` cancels the list's `w-fit`/`justify-center`, `p-0` its
+             `p-[3px]`, and the height override cancels its `h-8` — these triggers are
+             48px, not 32.
+
+             ⚠ THE HEIGHT OVERRIDE WEARS THE REGISTRY'S OWN MODIFIER, AND IT MUST
+             (2026-09-11). The registry writes that 32 as `group-data-horizontal/tabs:h-8`,
+             and tailwind-merge only drops a class whose MODIFIER SET MATCHES — so a plain
+             `h-auto` left it standing, and both then applied. NOT a specificity fight:
+             Tailwind wraps the group condition in `:where()`, so the two rules are dead
+             equal at (0,1,0) and it is SOURCE ORDER that decides — every qualified utility
+             is emitted after the plain ones, so the registry's 32 simply came last and
+             won. The strip rendered 33px instead of 49 and every row below it shifted up
+             16px, on the locked dashboard, with nothing in the diff to show it. Same trap
+             that killed the top bar's pill hover. THE RULE: where the registry qualifies a
+             class, our override wears the same qualifier — then twMerge deletes theirs and
+             the order stops mattering at all. */
+          'group-data-horizontal/tabs:h-auto w-full justify-start gap-0.5 rounded-none p-0',
           'border-b border-[var(--line-inset)] px-2.5',
           className,
         )}
@@ -387,11 +402,20 @@ export function PanelTab({ className, children, ...rest }) {
       className={cn(
         /* leading-[18px] is the prototype's — see PanelTableRow on why these are measured.
            pb is 15px rather than 13 to replace the 2px the old `border-b-2` occupied. */
-        'flex-none rounded-none px-3.5 pt-[15px] pb-[15px]',
+        /* `h-auto` cancels the registry's `h-[calc(100%-1px)]`, which is written for a
+           trigger inside a fixed 32px list. Here the height comes from the padding above,
+           so a percentage of the list is both wrong and circular — it left the button
+           31px tall with 48px of content spilling out of it, centred. PLAIN, because the
+           registry's is plain; see PanelTabs on why that distinction decides the fix. */
+        'h-auto flex-none rounded-none px-3.5 pt-[15px] pb-[15px]',
         'text-base leading-[18px] font-semibold tracking-[-0.1px]',
         /* The active line: ours, and on the button's own edge rather than the registry's
-           `bottom-[-5px]`, which is positioned for a list sitting above a rail. */
-        'after:bottom-0 after:bg-[var(--action-2)]',
+           `bottom-[-5px]`, which is positioned for a list sitting above a rail. QUALIFIED,
+           because the registry qualifies it: a plain `after:bottom-0` does not displace
+           `group-data-horizontal/tabs:after:bottom-[-5px]` and then loses to it, which put
+           the underline 5px below the button — and 13px below the card's own hairline
+           once the height bug had the button hanging out of a 32px list. */
+        'group-data-horizontal/tabs:after:bottom-0 after:bg-[var(--action-2)]',
         'text-[var(--text-3)] hover:text-[var(--text-body)] data-active:text-[var(--text)]',
         className,
       )}

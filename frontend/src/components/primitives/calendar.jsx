@@ -6,6 +6,8 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { LIFT, PRESS, PRESS_MOTION } from './motion.js';
+
 
 /* THE P&L CALENDAR's cells, on the 2026-08-28 Figma frame.
  *
@@ -160,11 +162,26 @@ export function CalCell({
       className={cn(
         // The floor is the same token the grid's `minmax()` reads — see CalGrid. Two
         // places, one value, or a row and its cell disagree about how short is too short.
-        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-lg border px-2.5 py-[9px] text-left',
+        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-2xl border px-2.5 py-[9px] text-left',
         // THE EDGE IS READ FROM A VARIABLE, NOT SET INLINE (2026-09-02) — see the
         // `style` block below for why. The two halves have to live in the same layer,
         // or the hover half never lands.
-        'border-[var(--cal-cell-line)] transition-colors',
+        /* PRESS_MOTION REPLACES A BARE `transition-colors`, which had been running
+           Tailwind's own 150ms and its own easing curve rather than ours — §10 says one
+           easing. It carries the cell's colours either way; the `translate` half only
+           does anything on a cell that can be clicked. */
+        'border-[var(--cal-cell-line)]', PRESS_MOTION,
+        /* A DAY CELL RISES ONLY WHEN IT OPENS SOMETHING, and the same gate carries its
+           press. An idle cell is not a control — `:active` and `:hover` both fire on a
+           plain div — so ungated, forty-two boxes would bob and rise for a click that
+           does nothing. A quiet day still answers the pointer with its EDGE, two lines
+           above; what it does not do is offer to be opened.
+
+           LIFT, not PRESS: on a surface that rises, the press returns it to rest rather
+           than pushing below, or a click travels the 2px down plus another 1px past its
+           own resting position. See motion.js — that pairing is the whole reason the
+           first attempt at this was rejected. */
+        clickable && LIFT,
         // EVERY DAY LIGHTS UP, NOT ONLY THE ONES THAT OPEN. The prototype hangs
         // `border-color:#3f3f46` on the day cell itself, with no condition on whether
         // that day traded — the grid answers the pointer everywhere, and a quiet
@@ -178,13 +195,45 @@ export function CalCell({
         !today && 'hover:border-[var(--line-hover)]',
         clickable && 'cursor-pointer',
         clickable && 'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-        // A quiet weekday is dim; a quiet WEEKEND is dimmer, because a Saturday with no
-        // trades is not the same absence as a Tuesday with none.
-        idle && (weekend ? 'opacity-55' : 'opacity-80'),
+        /* A quiet weekday is dim; a quiet WEEKEND is dimmer, because a Saturday with no
+           trades is not the same absence as a Tuesday with none.
+
+           ⚠ THE WEEKEND NO LONGER DIMS WITH `opacity` (owner, 2026-09-11, measured with a
+           colour picker against the Zinc build). Opacity does not darken a cell — it
+           BLENDS it with whatever is behind, and the card behind is --surface #111114, so
+           the weekend cell rendered #0e0e10 where the build renders #0b0b0d. No fill could
+           fix that: reaching #0b0b0d through a .55 blend needs a #060607 fill, darker than
+           --bg, the darkest token we have. So the weekend states its three colours
+           OUTRIGHT instead — see the `style` block and CalDayNum — and each one is the
+           value the old blend produced, except the fill, which is now the build's.
+
+           The WEEKDAY followed on the same day, for the flicker rather than the colour —
+           see the note on the opacity below. Its colour comparison is still open. */
+        /* ⚠ NO `opacity` ON A DAY CELL AT ALL, AS OF 2026-09-11, and the reason is the
+           flicker rather than the colour. An element with `opacity` is composited as its
+           own group, so it is RE-BLENDED whenever the layer tree changes — and a cell
+           lifting on hover changes it. The owner saw exactly that: hovering a traded cell
+           made the OTHER cells flash, and the cells that flashed were precisely the ones
+           still carrying an opacity. Traded cells have none and did not flash.
+
+           So the dim is stated outright instead. Each value below is what the blend was
+           already producing, so nothing changes on screen — `--surface-sunken` at 80%
+           over `--surface` is the exact colour `opacity-80` was compositing to. */
         className,
       )}
       style={{
-        background: idle && weekend ? 'var(--rail-bg)' : background,
+        /* --rail-bg IS #0b0b0d, and with the opacity gone it now renders as itself —
+           which is exactly the build's weekend cell. */
+        background: idle
+          ? (weekend
+            ? 'var(--rail-bg)'
+            /* --surface-sunken IS #0e0e11, the build's no-trade weekday, and with the
+               opacity gone it finally renders as itself. It spent this whole exercise
+               being the right token behind the wrong blend: at `opacity-80` over the
+               card it composited to #0f0f12, one unit bright, which is what the owner
+               kept seeing. Nothing here is derived or compensated — it is the token. */
+            : 'var(--surface-sunken)')
+          : background,
         // TODAY IS AN EDGE, NEVER A FILL. A filled "today" competes with the outcome
         // tints for the same channel, and on a losing day it would argue with them.
         //
@@ -193,7 +242,16 @@ export function CalCell({
         // every class — so `hover:border-[…]` sat in the stylesheet doing NOTHING on all
         // forty-two cells. Feeding the variable instead leaves both the resting edge and
         // the hover edge as classes, which resolve in Tailwind's own order.
-        '--cal-cell-line': today ? 'var(--text-dim)' : borderColor,
+        /* AND THE WEEKEND EDGE IS PRE-DIMMED, so dropping the opacity changes the FILL
+           and nothing else. Under the old blend this edge rendered
+           0.55 x #151518 + 0.45 x #111114 = #131316; `--line` at 20% over `--surface` is
+           (19,19,22) = #131316, the same value stated rather than composited. */
+        '--cal-cell-line': today ? 'var(--text-dim)'
+          : (idle
+            ? (weekend
+              ? 'color-mix(in srgb, var(--line) 20%, var(--surface))'
+              : 'color-mix(in srgb, var(--line) 32%, var(--surface))')
+            : borderColor),
       }}
       {...rest}
     >
@@ -214,7 +272,16 @@ export function CalDayNum({ idle = false, weekend = false, className, children, 
         // weekday --text-dim, and a quiet WEEKEND one step below that again. A Saturday
         // with no trades is not the same absence as a Tuesday with none, and the cell's
         // own opacity was carrying that distinction alone.
-        !idle ? 'text-[var(--muted)]' : (weekend ? 'text-[var(--line-hover)]' : 'text-[var(--text-dim)]'),
+        /* ⚠ THE WEEKEND NUMBER IS PRE-DIMMED TOO (2026-09-11). Its cell used to carry
+           `opacity-55`, which dimmed this number along with the fill; the cell dropped
+           that opacity so its fill could reach the build's #0b0b0d, so the dimming this
+           number was getting for free now has to be stated. --line-hover at 55% over the
+           cell's own --rail-bg is (39,39,44) — the value the blend was producing. Read it
+           as "one step below a quiet weekday", which is what it has always meant. */
+        !idle ? 'text-[var(--muted)]'
+          : (weekend
+            ? 'text-[color-mix(in_srgb,var(--line-hover)_55%,var(--rail-bg))]'
+            : 'text-[color-mix(in_srgb,var(--text-dim)_80%,var(--surface-sunken))]'),
         className,
       )}
       {...rest}
@@ -287,7 +354,7 @@ export function CalWeek({ tone, label, value, sub, className, ...rest }) {
     <div
       data-slot="cal-week"
       className={cn(
-        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-lg',
+        'flex min-h-[var(--cal-cell-h,82px)] flex-col items-stretch gap-1 rounded-2xl',
         'border border-[var(--line-inset)] bg-[var(--surface-sunken)] px-2.5 py-[9px]',
         className,
       )}
@@ -325,7 +392,7 @@ export function CalNavButton({ className, children, ...rest }) {
       className={cn(
         'flex size-7 shrink-0 items-center justify-center rounded-full',
         'border border-[var(--line-control)] bg-[var(--control-bg)] text-[var(--muted)]',
-        'transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
+        PRESS_MOTION, PRESS, 'hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-4',
         className,
