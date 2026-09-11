@@ -157,7 +157,17 @@ function MenuContent({
  * tag word on purpose: `primitives-status.test.js` counts every occurrence of it in the
  * file and a second one reads as a second status.) `PrimitiveReview.jsx` MENU_PARITY
  * carries this for the next review round. */
-const ITEM = 'text-[14px] rounded-[14px]';
+/* `rounded-xl` RATHER THAN THE LITERAL (2026-09-08, owner: use the ladder, not typed
+ * numbers). This was `rounded-[14px]` and the header above explains why both literals
+ * were left: bound to numbers rather than to the scale, they will not follow the next
+ * scale move. That worry was right and it applies to the RADIUS with no caveat —
+ * `--radius-xl` is 14px, so this is the same pixels under the scale's own name.
+ *
+ * THE TYPE LITERAL STAYS, and the header says why: an arbitrary `text-[14px]` sets
+ * font-size ALONE, while `text-sm` also brings Tailwind's paired line-height. That one
+ * is a line-height change on a locked component, which is a review decision rather than
+ * a cleanup — so it is still waiting, and it is now the only literal left here. */
+const ITEM = 'text-[14px] rounded-xl';
 const LABEL = 'text-[12px] text-[var(--muted)]';
 /* §8's divider needs no override either: the generated `bg-border/50` is a divider at
  * half the CURRENT surface's edge, which is exactly the rule, now that `border` is

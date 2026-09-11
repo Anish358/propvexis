@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { appCss, tokensCss, bridgeCss, legacyCss } from './helpers/app-css.js';
+import { appCss, tokensCss, bridgeCss, legacyCss, radiusScale } from './helpers/app-css.js';
 import { readSrc } from './helpers/src-files.js';
 
 // Phase 4b — the top bar's four overlays: user menu, account switcher, notification feed,
@@ -543,4 +543,77 @@ test('the chrome pill answers every one of ghost\'s background classes in its ow
      `button.jsx` if §14 wins again; what must not happen is it coming back silently. */
   assert.doesNotMatch(pill[1], /aria-expanded:hover:/,
     'an open pill follows the preset and dims to its hover fill — the §14 hold was dropped');
+});
+
+/* ── A LABELLED PILL IS NOT A CAPSULE, AND IT IS `3xl` (owner, 2026-09-09) ──
+ *
+ * WHAT CHANGED, in two passes the same day. `pill` used to carry `rounded-full` for every
+ * size, so the bar's three LABELLED controls — the account switcher, Filters, and Sync
+ * Trades on the dashboard — drew capsules: 99px clamps to half the box (§6), so on `h-9`
+ * that was an 18px corner beside the 12.96px the preset gives every other button. The
+ * capsule moved to `PILL_ICON`, applied only for the `icon*` sizes, so a square glyph
+ * button (the bell) stays a circle. Then the owner set the labelled corner at `3xl`
+ * (15.84px) rather than letting it fall to the generated `rounded-2xl`.
+ *
+ * SO THIS IS THE ONE PLACE THE LIBRARY DEVIATES FROM THE PRESET ON PURPOSE, and that is
+ * the whole reason it is pinned to an exact utility rather than to "no radius". Three
+ * overrides were DELETED under the 09-09 "no deliberately leaving anything different for
+ * radius" ruling — the chrome variant's `rounded-md`, the wrapper's `rounded-lg`,
+ * `filter-chip`'s 8px — and `radius-clamp.test.js` now fails the build if a wrapper puts
+ * one of OUR ladder steps on a generated component. `rounded-3xl` is a rung of the PRESET,
+ * not a step of ours, which is what keeps the two rules compatible: the ladder is still
+ * one base and seven multipliers.
+ *
+ * WHAT COULD GO WRONG, AND WHY EACH HALF IS ASSERTED:
+ *   - the capsule comes back on `PILL` — someone reads "the bar's controls are capsules"
+ *     in the Rhea frame and restores it. It shipped that way for eleven days and the owner
+ *     found it by eye on the review page, not in the bar where every neighbour is round.
+ *   - the deviation gets "cleaned up" as a relapse — a later pass reads §6's parity rule,
+ *     deletes `rounded-3xl`, and the bar drops to 12.96px with nothing to say it moved.
+ *   - it drifts to a literal — `rounded-[16px]` looks equivalent and leaves the ladder.
+ *     `radius-ladder.test.js` bans hand-typed radii; this pins the NAME as well.
+ */
+test('a labelled pill takes 3xl, and only the icon sizes round fully', () => {
+  const btn = read('../frontend/src/components/primitives/button.jsx');
+  const body = code(btn);
+
+  const pill = body.match(/const PILL = \[([\s\S]*?)\]\.join/);
+  assert.ok(pill, 'PILL is readable');
+  assert.match(pill[1], /\brounded-3xl\b/,
+    "the bar's labelled pills are `3xl` (15.84px) by owner decision — §6 records it as the "
+    + 'one deliberate radius in the app. Deleting it drops them to the generated 12.96px');
+  assert.doesNotMatch(pill[1], /\brounded-full\b/,
+    'a labelled pill is not a capsule — 99px clamps to 18px on h-9, which is the shape the '
+    + 'owner rejected on the review page');
+
+  const icon = body.match(/const PILL_ICON = '([^']*)'/);
+  assert.ok(icon, 'PILL_ICON is readable');
+  assert.match(icon[1], /\brounded-full\b/,
+    'a square glyph button is a pill by §6 — the bell must stay a circle');
+  assert.match(icon[1], /\bw-9\b/, 'and it is what makes the icon box square against h-9');
+
+  // The `tinted` branch builds its own class string rather than reusing PILL, so every
+  // radius decision has to be made twice. It is never an icon button.
+  const tinted = body.match(/variant === 'tinted' \? `([^`]*)`/);
+  assert.ok(tinted, 'the tinted pill branch is readable');
+  assert.match(tinted[1], /\brounded-3xl\b/,
+    'the account switcher and Sync Trades wear the same corner as the Filters button beside '
+    + 'them — this branch is the second place it has to be said');
+  assert.doesNotMatch(tinted[1], /\brounded-full\b/, 'and not the capsule either');
+
+  /* 15.84 ON A 36px BOX DRAWS IN FULL — half is 18px — so the deviation is visible rather
+   * than clamped away into the capsule it replaced. Asserted because the height and the
+   * radius are two lines apart and either could move: at `h-8` this class would clamp to
+   * 16px and the decision would silently become a different one (§6 trap: a radius value
+   * is a ceiling, not a promise). */
+  const r = radiusScale();
+  assert.ok(r['3xl'] < 36 / 2,
+    `3xl is ${r['3xl']}px and the pill is 36px tall — it must be under half the box to draw`);
+  assert.match(pill[1], /\bh-9\b/, 'and the 36px comes from h-9 in this same class list');
+
+  // And the one class list that legitimately keeps the capsule: the unit toggle's TRACK,
+  // which is a track and not a button (§6's pill row lists it by name).
+  const toggle = read('../frontend/src/components/primitives/toggle-group.jsx');
+  assert.match(code(toggle), /rounded-full/,
+    "the unit toggle's container is a track — it stays a capsule, and this ruling did not touch it");
 });

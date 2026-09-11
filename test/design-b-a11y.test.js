@@ -56,17 +56,17 @@ test('the live region stays in the accessibility tree', () => {
 
   // display:none / visibility:hidden would remove the node from the a11y tree,
   // so the region would never announce anything at all. Clip-rect is the point.
-  assert.match(appCss, /\.sr-only \{[\s\S]*?clip: rect\(0 0 0 0\)/);
-  const srOnly = appCss.slice(appCss.indexOf('.sr-only {'), appCss.indexOf('.sr-only {') + 260);
+  assert.match(appCss, /\.visually-hidden \{[\s\S]*?clip: rect\(0 0 0 0\)/);
+  const srOnly = appCss.slice(appCss.indexOf('.visually-hidden {'), appCss.indexOf('.visually-hidden {') + 260);
   assert.ok(!/display:\s*none/.test(srOnly) && !/visibility:\s*hidden/.test(srOnly));
 });
 
-test('sr-only is real CSS, not a Tailwind class that compiles to nothing', () => {
+test('the hidden live region is real CSS, not a Tailwind class that compiles to nothing', () => {
   // Utilities generate for components/{ui,primitives} ONLY. Announcer.jsx lives
   // in components/, where a Tailwind class silently emits no CSS — no build
   // error, no failing test, just an invisible-to-everyone live region.
-  assert.match(announcer, /className="sr-only"/);
-  assert.match(appCss, /\.sr-only \{/, 'sr-only must be declared in the app stylesheet');
+  assert.match(announcer, /className="visually-hidden"/);
+  assert.match(appCss, /\.visually-hidden \{/, 'visually-hidden must be declared in the app stylesheet');
 });
 
 test('announcements describe the change, not the state', () => {
@@ -194,12 +194,32 @@ test('touch targets on the drawer meet the 44px floor', () => {
   assert.match(block, /height: 100dvh/);
 });
 
-test('the drawer animation respects a reduced-motion preference', () => {
-  assert.match(appCss, /@media \(max-width: 900px\) and \(prefers-reduced-motion: no-preference\)/);
-  // Opt-IN phrasing: the animation only exists when motion is welcome, rather
-  // than being defined and then disabled.
-  const anim = appCss.slice(appCss.indexOf('prefers-reduced-motion: no-preference'));
-  assert.match(anim, /animation: drawer-in/);
+test('a drawer animation respects a reduced-motion preference', () => {
+  /* THE GUARANTEE MOVED, SO THIS TEST MOVED WITH IT (2026-09-08).
+   *
+   * It used to assert an opt-IN rule: `@media (max-width: 900px) and
+   * (prefers-reduced-motion: no-preference) { .sidebar.is-drawer { animation: drawer-in }}`
+   * — the animation only existed when motion was welcome, which is the right shape for a
+   * hand-written rule and was worth pinning.
+   *
+   * `.sidebar.is-drawer` was the phone-width navigation BEFORE the rail was rebuilt on the
+   * generated Sidebar. The rail's drawer is a Sheet now and nothing renders either class,
+   * so the rule and its keyframe were deleted in the 2026-09-08 dead-CSS prune — at which
+   * point this test failed, which is exactly what it was for.
+   *
+   * WHAT REPLACES IT IS STRONGER, and that is why this is a rewrite rather than a
+   * deletion. The global reduce rule collapses EVERY animation and transition in the app,
+   * including the Sheet's and including anything a generated component brings with it —
+   * rather than the single animation the old block happened to know about. An opt-in rule
+   * protects what it was written for; this protects what nobody remembered to write. */
+  const reduce = /@media \(prefers-reduced-motion: reduce\) \{\s*\*, \*::before, \*::after \{([^}]*)\}/
+    .exec(appCss);
+  assert.ok(reduce, 'the global reduced-motion reset must exist — it is what covers the drawer now');
+  assert.match(reduce[1], /animation-duration:\s*\.001ms\s*!important/, 'animations must collapse');
+  assert.match(reduce[1], /transition-duration:\s*\.001ms\s*!important/, 'transitions must collapse');
+
+  // And the rule it replaced is really gone, rather than half-deleted.
+  assert.doesNotMatch(appCss, /animation: drawer-in/, 'the drawer keyframe outlived its only caller once already');
 });
 
 test('the trade log distinguishes "no trades" from "no matches"', () => {

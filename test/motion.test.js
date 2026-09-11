@@ -21,7 +21,13 @@ const details = readCode('features/prop/AccountDetails.jsx');
 const detailsSrc = readSrc('features/prop/AccountDetails.jsx');
 const dash = readCode('features/dashboard/Dashboard.jsx');
 
-const motionConst = (name) => accountCode.match(new RegExp(`const ${name} = '([^']+)'`));
+/* PRESS_MOTION LIVES IN THE SHARED MODULE, NOT IN account.jsx, since 2026-09-11 — the
+ * press is one decision for the whole library and it is applied in five files, so it
+ * moved out rather than being copied five times. Every other constant here is still
+ * account.jsx's own: each names a property list specific to what that component
+ * animates, which is exactly what should NOT be shared. */
+const sharedMotion = readCode('components/primitives/motion.js');
+const motionConst = (name) => (accountCode + sharedMotion).match(new RegExp(`(?:const|export const) ${name} = '([^']+)'`));
 
 // ---------------------------------------------------------------------------
 // §10: two durations and one easing, and they come from the tokens
@@ -34,13 +40,14 @@ test('the card composes every transition from the three named motion constants',
    * running two easing curves. §10 says ONE. Naming the three combinations once and
    * banning inline transition utilities is what keeps that from drifting a class at a
    * time, and bridge.css makes the identical argument about the overlays. */
-  const inline = accountCode.match(/'[^']*\btransition-[^']*'/g) || [];
-  const declared = inline.filter((s) => !/^'transition-(colors|\[width,background-size\]) duration-/.test(s));
-  assert.deepEqual(declared, [], 'compose transitions from STATE_MOTION / HOVER_MOTION / FILL_MOTION');
+  const inline = (accountCode + sharedMotion).match(/'[^']*\btransition-[^']*'/g) || [];
+  const declared = inline.filter((s) => !/^'transition-(colors|\[width,background-size\]|\[color,background-color,border-color,translate\]) duration-/.test(s));
+  assert.deepEqual(declared, [],
+    'compose transitions from STATE_MOTION / HOVER_MOTION / FILL_MOTION / PRESS_MOTION');
 });
 
 test('each motion constant names a token duration and the token easing', () => {
-  for (const name of ['STATE_MOTION', 'HOVER_MOTION', 'FILL_MOTION']) {
+  for (const name of ['STATE_MOTION', 'HOVER_MOTION', 'FILL_MOTION', 'PRESS_MOTION']) {
     const m = motionConst(name);
     assert.ok(m, `missing motion constant ${name}`);
     assert.match(m[1], /\bduration-\[var\(--dur(-fast|-slow)?\)\]/, `${name} has no token duration`);
@@ -60,6 +67,9 @@ test('reporting a change runs at --dur-slow, acknowledging a click at --dur-fast
   assert.match(motionConst('STATE_MOTION')[1], /duration-\[var\(--dur-slow\)\]/);
   assert.match(motionConst('FILL_MOTION')[1], /duration-\[var\(--dur-slow\)\]/);
   assert.match(motionConst('HOVER_MOTION')[1], /duration-\[var\(--dur-fast\)\]/);
+  // A press is the same category as a hover: the card acknowledging a pointer, not
+  // reporting a change. It must never drift onto --dur or --dur-slow.
+  assert.match(motionConst('PRESS_MOTION')[1], /duration-\[var\(--dur-fast\)\]/);
 });
 
 test('tokens.css defines all three durations and the easing', () => {
@@ -291,7 +301,13 @@ test('empty states fade in', () => {
   // else on the dashboard has nothing to bite on.
   const empty = readCode('components/primitives/empty-state.jsx');
   assert.match(empty, /const ENTRANCE = 'animate-\[pv-content-in_var\(--dur\)_var\(--ease\)_backwards\]';/);
-  assert.match(empty, /cx\('u-empty', ENTRANCE, className\)/);
+  // `cn(ENTRANCE, className)` since 2026-09-08 — the block moved onto @shadcn/empty and
+  // the `.u-empty` class it used to carry is deleted. What this test protects is that
+  // the FADE survived the rebuild, which is what a rebuild loses by accident. EDGE joined
+  // it on 2026-09-08: the registry's `border-dashed` draws a 3px white box in this app,
+  // because we do not import preflight and the style lands on the UA default width. The
+  // edge is now stated explicitly, the way account.jsx and brief.jsx already state it.
+  assert.match(empty, /cn\(EDGE, ENTRANCE, className\)/);
 });
 
 test('the wizard keeps @starting-style and says why it is not a contradiction', () => {

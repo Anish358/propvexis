@@ -84,7 +84,10 @@ test('the card carries the frame\'s geometry', () => {
      * columns carry their own 26px inset rather than the card padding everything — so
      * the row of scrolling events can bleed to the card's own border instead of stopping
      * 14px short of it. */
-    ['card', /overflow-hidden rounded-\[14px\] border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
+  // 24px, not 14, WHILE THE RADIUS EXPERIMENT RUNS (2026-09-08). This assertion is why
+  // the experiment is honest: the geometry is PINNED, so moving it has to be deliberate
+  // and shows up in a diff. It reverts with the commit that moved the components.
+    ['card', /overflow-hidden rounded-card border border-\[var\(--line\)\] bg-\[var\(--surface\)\]/],
     ['header inset', /px-\[26px\] pt-\[22px\] pb-3.5/],
     ['title', /text-lg leading-7 font-\[650\] tracking-\[-0\.25px\]/],
     ['date', /text-sm leading-5 font-\[450\] text-\[var\(--muted\)\]/],
@@ -97,7 +100,7 @@ test('the card carries the frame\'s geometry', () => {
        dead `shrink-0` on an element that is no longer a flex child would have kept this
        regex green while meaning nothing. The wrapper is asserted on the next line, so
        the guarantee — a brief alert never shrinks — still has a test. */
-    ['alert row', /min-h-\[73px\] items-center gap-2\.5 rounded-\[10px\] bg-\[var\(--row-bg\)\]/],
+    ['alert row', /min-h-\[73px\] items-center gap-2\.5 rounded-2xl bg-\[var\(--row-bg\)\]/],
     ['alert exit wrapper', /'grid shrink-0',\s*\n\s*EXIT_MOTION,/],
     /* `overflow-hidden` IS THE RESTING STATE SINCE 2026-09-03, not `overflow-y-auto`.
        scrollbars.css owns `overflow-y` from an unlayered file and turns this box into a
@@ -298,9 +301,18 @@ test('the brief is presentation only — the feed and the prefs stay in Dashboar
    * It therefore cannot reach a feed, a pref, a route or a domain module however many
    * hooks it holds — which is what "presentation only" always meant. Counting hook names
    * never guaranteed that; an import list does. */
-  const sources = [...briefCode.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(sources)].sort(), ['@/lib/utils', 'react'],
-    'brief.jsx may import only React and cn — anything else is domain reaching into a presentation component');
+  /* AND A SIBLING PRIMITIVE IS ALLOWED, added 2026-09-11 when the press treatment moved
+   * into `./motion.js`. This is a widening of the LIST, not of the rule: the rule is
+   * "cannot reach a feed, a pref, a route or a domain module", and a `./`-relative
+   * sibling cannot be any of those — everything outside this directory is reached as
+   * `@/…` or `../…`, both of which still fail. Asserted as a shape rather than by adding
+   * one more literal, so the next shared presentation constant does not have to relitigate
+   * it while a domain import still cannot slip through. */
+  const sources = [...new Set([...briefCode.matchAll(/from '([^']+)'/g)].map((m) => m[1]))];
+  const allowed = (m) => m === 'react' || m === '@/lib/utils' || /^\.\/[\w.-]+\.jsx?$/.test(m);
+  assert.deepEqual(sources.filter((m) => !allowed(m)), [],
+    'brief.jsx may import only React, cn and a sibling primitive — anything else is '
+    + 'domain reaching into a presentation component');
   assert.ok(!/\bfetch\s*\(/.test(briefCode), 'brief.jsx must not fetch');
   // And the page writes no utilities — outside components/{ui,primitives} they compile
   // to nothing, silently.

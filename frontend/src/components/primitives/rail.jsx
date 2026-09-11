@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { PRESS, PRESS_MOTION } from './motion.js';
 import {
   Sidebar,
   SidebarContent,
@@ -175,7 +176,7 @@ export const RailAction = React.forwardRef(function RailAction({ className, ...r
       data-slot="rail-action"
       className={cn(
         'flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-4)]',
-        'transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)]',
+        PRESS_MOTION, PRESS, 'hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-4',
         className,
@@ -223,7 +224,7 @@ export function RailCta({ render, icon, className, children, ...rest }) {
     'my-2 flex shrink-0 items-center justify-center gap-2 rounded-full',
     'bg-[var(--action)] text-[var(--on-action)] no-underline',
     'text-xs leading-4 font-semibold',
-    'transition-colors hover:bg-[var(--action-2)]',
+    PRESS_MOTION, PRESS, 'hover:bg-[var(--action-2)]',
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2',
     'focus-visible:ring-offset-[var(--rail-bg)] focus-visible:outline-none',
     '[&_svg]:shrink-0',
@@ -311,7 +312,7 @@ export function RailItem({
              45px apart instead of 50 and is the difference the design shows. The 44px
              floor exists for TOUCH targets, so it is kept exactly where touch happens
              rather than applied to a pointer-driven desktop rail. */
-          'h-10 max-[900px]:h-11 gap-3 rounded-lg px-3 text-sm leading-5 font-medium',
+          'h-10 max-[900px]:h-11 gap-3 rounded-2xl px-3 text-sm leading-5 font-medium',
           'transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0',
           active
             ? 'bg-[var(--sel-bg)] font-[550] text-[var(--text)]'
@@ -341,7 +342,7 @@ export function RailSoon({ className, ...rest }) {
     <span
       data-slot="rail-soon"
       className={cn(
-        'shrink-0 rounded-sm border border-[var(--line-strong)] bg-[var(--zinc-900)] px-1.5 py-0.5',
+        'shrink-0 rounded-full border border-[var(--line-strong)] bg-[var(--zinc-900)] px-1.5 py-0.5',
         'text-[10px] leading-[14px] font-[550] tracking-[0.04em] text-[var(--text-3)] uppercase',
         className,
       )}
@@ -461,7 +462,7 @@ export function RailUser({ render, avatar, name, meta, trailing, className, ...r
           size="lg"
           tooltip={collapsed && typeof name === 'string' ? name : undefined}
           className={cn(
-            'h-12 gap-2.5 rounded-lg px-2 hover:bg-[var(--surface-hover)]',
+            'h-12 gap-2.5 rounded-2xl px-2 hover:bg-[var(--surface-hover)]',
             collapsed && 'justify-center px-0',
             className,
           )}

@@ -53,13 +53,13 @@ test('the rail carries Rhea\'s geometry, to the pixel', () => {
    * Soon badge at 10px, the one value in this file under the scale's floor — argued at
    * its definition, and pinned here so it stays an exception rather than a precedent. */
   const geometry = [
-    ['row height (40px pointer / 44px touch)', /h-10 max-\[900px\]:h-11 gap-3 rounded-lg/],
+    ['row height (40px pointer / 44px touch)', /h-10 max-\[900px\]:h-11 gap-3 rounded-2xl/],
     ['row label (14px)', /text-sm leading-5 font-medium/],
     ['wordmark (16px)', /text-base leading-6 font-\[650\] tracking-\[-0\.25px\]/],
     ['soon badge (10px — the one value under the floor)', /text-\[10px\] leading-\[14px\]/],
     ['sub row', /h-9 gap-2 rounded-md px-2 text-sm/],
     ['avatar', /size-7 shrink-0 rounded-full/],
-    ['identity row', /h-12 gap-2\.5 rounded-lg/],
+    ['identity row', /h-12 gap-2\.5 rounded-2xl/],
   ];
   for (const [what, re] of geometry) {
     assert.match(rail, re, `${what} has drifted from the Rhea design`);

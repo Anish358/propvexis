@@ -1024,16 +1024,53 @@ test('GATING IS CURRENTLY OFF, so every method is offered on every plan', () => 
 });
 
 test('no page uses an Alert variant that resolves to nothing', () => {
-  // Alert ships info/success/warning. `warning` works — this app has a --warning token
-  // (amber). `info` and `success` do not exist and are inert, deliberately: emerald as
-  // status would be a green reading as profit, and blue as status collides with brand
-  // blue, both forbidden by §4. Using either renders an unstyled box and no reviewer
-  // catches it by eye. See primitives/alert.jsx.
+  /* THE BLOCKLIST EXPIRED, SO THE CHECK IS DERIVED NOW (2026-09-08).
+   *
+   * This used to hardcode "`info` and `success` do not exist and are inert, deliberately"
+   * — true when written, on the §4 reading that emerald as status reads as profit and
+   * blue as status collides with brand blue. §17 (owner, 2026-09-06) narrowed that rather
+   * than dropping it: a system message may colour its GLYPH and a 1px EDGE and nothing
+   * else, and the two missing tokens landed as aliases (`--success` → `--profit`,
+   * `--info` → `--status-info`). All four variants have rendered since.
+   *
+   * The test did not notice, and a stale test is worse than a stale comment: this one
+   * actively FORBADE a variant the design language had started allowing, and it failed
+   * the first page that used one correctly.
+   *
+   * So the blocklist is gone and the property is derived instead. The real bug was never
+   * "info is banned" — it was "a variant can compile to NOTHING and look like an unstyled
+   * box, and no reviewer catches it by eye". That is what is checked: every variant a page
+   * uses must be defined by the component AND every colour token that variant reaches for
+   * must exist. It now catches a NEW variant with a missing token, and it can never again
+   * ban one that works. */
+  const alertSrc = readSrc('components/ui/alert.jsx');
+  const variantBlock = /variants:\s*\{\s*variant:\s*\{([\s\S]*?)\n {6}\},/.exec(alertSrc);
+  assert.ok(variantBlock, 'could not find the Alert variant table — has the component changed shape?');
+
+  // What the component defines, and which colour each one reaches for.
+  const defined = new Map();
+  for (const m of variantBlock[1].matchAll(/(\w+):\s*\n?\s*"([^"]*)"/g)) {
+    defined.set(m[1], [...m[2].matchAll(/(?:border|bg|text)-([a-z-]+)(?:\/\d+)?\b/g)].map((t) => t[1]));
+  }
+  assert.ok(defined.size >= 2, 'the Alert variant table parsed as almost nothing');
+
+  // And what the bridge actually maps, so a variant naming a token nobody declared fails.
+  const bridge = readSrc('styles/bridge.css');
+  const SAFE = new Set(['transparent', 'input', 'muted-foreground', 'card-foreground', 'foreground']);
+
   for (const f of appJsx()) {
     const src = readCode(f);
-    const bad = [...src.matchAll(/<Alert\b[^>]*variant=(?:"|\{')(info|success)/g)];
-    assert.deepEqual(bad.map((m) => m[1]), [],
-      `${f} uses an Alert variant with no tokens behind it`);
+    for (const m of src.matchAll(/<Alert\b[^>]*variant=(?:"|\{')(\w+)/g)) {
+      const v = m[1];
+      assert.ok(defined.has(v), `${f} uses Alert variant "${v}", which the component does not define — it renders an unstyled box`);
+      for (const token of defined.get(v)) {
+        if (SAFE.has(token)) continue;
+        assert.match(
+          bridge, new RegExp(`--color-${token}\s*:`),
+          `${f} uses Alert variant "${v}", which reaches for --color-${token} — and bridge.css does not map it, so that half of the variant compiles to nothing`,
+        );
+      }
+    }
   }
 });
 
