@@ -178,6 +178,13 @@ export const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
+  // Accounts exempt from the manual "Sync now" cooldown (src/domain/sync/queue.js
+  // MANUAL_COOLDOWN_MS) — owner-designated test accounts that need to retrigger a
+  // sync repeatedly while debugging, without waiting 15 minutes between presses.
+  syncCooldownExemptEmails: (process.env.SYNC_COOLDOWN_EXEMPT_EMAILS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
 };
 
 // Fail closed: refuse to start the server in production with the shipped dev

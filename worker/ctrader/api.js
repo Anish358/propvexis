@@ -37,10 +37,13 @@ export class PropVexisApi {
     }).then(json);
   }
 
-  lease(limit = 3) {
+  // `platforms` defaults to ['ctrader'] so no call site that does not need to
+  // change has to. Task 7 (worker/tradelocker/) shares this process and passes
+  // ['ctrader', 'tradelocker'] instead, in one lease call rather than two.
+  lease(limit = 3, platforms = ['ctrader']) {
     return this.req('/api/sync/lease', {
       method: 'POST',
-      body: { worker_id: this.workerId, limit, platforms: ['ctrader'], version: 'ctrader-1' },
+      body: { worker_id: this.workerId, limit, platforms, version: 'ctrader-1' },
     });
   }
 

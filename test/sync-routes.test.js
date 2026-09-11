@@ -54,9 +54,17 @@ test('the comparison is constant-time, not ===', () => {
 
 test('only the lease response carries a plaintext password', () => {
   const src = syncSrc();
-  // openPassword is the only decrypt call site, and it is inside the lease handler.
+  // TWO decrypt call sites since Task 7 (MT5's and TradeLocker's symmetric
+  // block, both reusing openPassword against mt5_credentials) — the property
+  // that matters is not "exactly one", it is that EVERY call site lives inside
+  // the lease handler, never anywhere else a plaintext password could leak out.
   const decrypts = [...src.matchAll(/openPassword\(/g)].length;
-  assert.equal(decrypts, 1, 'exactly one decrypt call site');
+  assert.equal(decrypts, 2, 'one decrypt call site per platform with a stored password (MT5, TradeLocker)');
+  const lease = handler('post', '/api/sync/lease');
+  assert.equal(
+    [...lease.matchAll(/openPassword\(/g)].length, decrypts,
+    'every decrypt call site must be inside the lease handler, not merely present somewhere in the file',
+  );
   // The status endpoint returns the credential metadata row, which by
   // construction cannot contain the ciphertext (see credentialStatusQuery).
   assert.ok(!/password_ct/.test(src), 'the route layer never handles ciphertext directly');
@@ -144,9 +152,28 @@ test('Sync now enforces the cooldown SERVER-SIDE, not in the button', () => {
   const src = sourceOf('post', '/api/accounts/:id/sync');
   const from = src.indexOf("app.post('/api/accounts/:id/sync'");
   const body = src.slice(from, src.indexOf('\n  app.', from + 10));
-  assert.match(body, /manualCooldown\(/, 'the route must consult the cooldown');
+  assert.match(body, /cooldownFor\(req\.user\.email, previous\)/, 'the route must consult the cooldown');
   assert.match(body, /429/, 'a rate limit answers 429, not 202');
   assert.match(body, /Retry-After/, 'the client cannot count down without being told how long');
+});
+
+test('a designated test email bypasses the manual cooldown entirely', () => {
+  // Owner-designated accounts (config.syncCooldownExemptEmails) need to retrigger
+  // a sync repeatedly while debugging, without the 15-minute wait everyone else
+  // gets. The bypass is a wrapper around manualCooldown, not a second code path
+  // that could silently diverge from it.
+  const src = syncSrc();
+  const at = src.indexOf('const cooldownFor =');
+  assert.ok(at > 0, 'cooldownFor helper exists');
+  const helper = src.slice(at, src.indexOf('\n\n', at));
+  assert.match(helper, /syncCooldownExemptEmails\.includes/);
+  assert.match(helper, /manualCooldown\(previous\)/, 'the non-exempt path still calls the real cooldown');
+  // Both the bulk "Sync Trades" button and the single-account Sync now must use
+  // the wrapper, not call manualCooldown directly and skip the exemption.
+  assert.match(handler('post', '/api/sync/now'), /cooldownFor\(req\.user\.email, previous\)/);
+  assert.match(handler('post', '/api/accounts/:id/sync'), /cooldownFor\(req\.user\.email, previous\)/);
+  assert.ok(!/= manualCooldown\(previous\)/.test(handler('post', '/api/sync/now')));
+  assert.ok(!/= manualCooldown\(previous\)/.test(handler('post', '/api/accounts/:id/sync')));
 });
 
 test('the read_only refusal on Sync now is scoped to MT5', () => {

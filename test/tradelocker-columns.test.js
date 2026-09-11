@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { repoRoot } from '../src/platform/paths.js';
 import {
-  buildResolver, num, int, str, ORDERS_HISTORY_FIELDS,
+  buildResolver, assertFields, num, int, str, ORDERS_HISTORY_FIELDS,
 } from '../src/domain/sync/connectors/tradelocker/columns.js';
 
 const REAL_CONFIG = JSON.parse(await readFile(
@@ -71,6 +71,31 @@ test('zero itself survives — only the ABSENT value becomes null', () => {
   assert.equal(num('0'), 0);
   assert.equal(int('0'), 0);
   assert.equal(num(0), 0);
+});
+
+test('commission is OPTIONAL — a config missing it still passes assertFields', () => {
+  // Confirmed against a real TradeLocker demo account (server "FTLOCK"): a
+  // commission-free / spread-only broker's ordersHistoryConfig never carries a
+  // `commission` column at all. Rejecting every such config at worker start
+  // would make Auto Sync unable to onboard that broker at all.
+  const noCommission = { d: { ordersHistoryConfig: { columns: [
+    { id: 'id' }, { id: 'tradableInstrumentId' }, { id: 'qty' }, { id: 'side' },
+    { id: 'status' }, { id: 'filledQty' }, { id: 'avgPrice' },
+    { id: 'positionId' }, { id: 'createdDate' }, { id: 'lastModified' },
+  ] } } };
+  const r = buildResolver(noCommission, 'ordersHistory');
+  assert.doesNotThrow(() => assertFields(r, ORDERS_HISTORY_FIELDS));
+  assert.equal(r.has('commission'), false);
+});
+
+test('every other ordersHistory field stays hard-required even with commission gone', () => {
+  const missingRequired = { d: { ordersHistoryConfig: { columns: [
+    { id: 'id' }, { id: 'tradableInstrumentId' }, { id: 'qty' }, { id: 'side' },
+    { id: 'status' }, { id: 'filledQty' },
+    // avgPrice, positionId, createdDate deliberately dropped
+  ] } } };
+  const r = buildResolver(missingRequired, 'ordersHistory');
+  assert.throws(() => assertFields(r, ORDERS_HISTORY_FIELDS), /avgPrice/);
 });
 
 test('the real /trade/config fixture resolves every field the pairing needs', () => {

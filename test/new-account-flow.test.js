@@ -306,15 +306,15 @@ test('account_type is derived from the phase, never trusted from a page', () => 
 });
 
 test('a platform badged Soon is not a complete answer', () => {
-  // mt4 and TradeLocker are listed so the catalog reads as the real roadmap, and
-  // the backend refuses both. Accepting one here would pass the step and then 400
-  // at the commit, two steps later. cTrader LEFT this list when its worker
-  // shipped -- which is the point of driving the rule off `status` rather than a
-  // hardcoded list.
-  for (const soon of ['mt4', 'tradelocker']) {
+  // mt4 is listed so the catalog reads as the real roadmap, and the backend
+  // refuses it. Accepting it here would pass the step and then 400 at the
+  // commit, two steps later. cTrader and TradeLocker each LEFT this list when
+  // their worker shipped and their live reconciliation proved out -- which is
+  // the point of driving the rule off `status` rather than a hardcoded list.
+  for (const soon of ['mt4']) {
     assert.equal(isStepComplete({ ...fresh(), platform: soon }, 'platform'), false, soon);
   }
-  for (const live of ['mt5', 'ctrader', 'other']) {
+  for (const live of ['mt5', 'ctrader', 'tradelocker', 'other']) {
     assert.equal(isStepComplete({ ...fresh(), platform: live }, 'platform'), true, live);
   }
   assert.equal(isStepComplete({ ...fresh(), platform: 'zzz' }, 'platform'), false, 'unknown platform');

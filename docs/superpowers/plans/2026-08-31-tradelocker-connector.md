@@ -457,26 +457,186 @@ with a comment explaining that `read_only = FALSE` means "delete this" on MT5 an
 
 ---
 
-## Task 7: The worker — DEFERRED, gated on a demo account
+## Task 7: The worker and its backend wiring — UNBLOCKED 2026-09-09
 
-Auth needs a real email, password and server against a real broker server. Without one, the auth flow, the hourly JWT refresh, `/trade/config` fetching, discovery, `accNum` mapping, backfill paging and the `/state` reconciliation would all be written blind.
+A real TradeLocker demo account now exists (email/server/password supplied out of
+band — **never write them into a file, fixture, or commit; read them from
+process env only, e.g. `TL_TEST_EMAIL`/`TL_TEST_PASSWORD`/`TL_TEST_SERVER`** set
+in a gitignored local shell profile or exported inline for a single test run).
 
-**Unblocks when:** the §3 decision is (a) or (c), the Developer Program key is issued, and a TradeLocker demo account exists.
+### 7.0 What already exists and must be reused, not rebuilt
 
-**Scope when unblocked:** extend the shared connector worker with a TradeLocker driver — `auth.js` (token + refresh + re-auth from stored password), `discover.js` (`/auth/jwt/all-accounts` → `accountId` + `accNum` + live/demo), `backfill.js` (newest-first 30-day windows, `hasMore`, two consecutive empty windows terminate), `reconcile.js` (**prove computed P&L against `/trade/accounts/{id}/state` before anything else in this task**).
+Before writing anything, read these — they answer questions the original plan
+text left open:
 
-> Spec §13.2 names the P&L reconciliation as the largest technical risk in the
-> connector. It is the **first** thing to prove here — before the wizard, before
-> the catalog flip. If computed money does not reconcile on a real account, the
-> connector is not shippable and everything after this task is wasted.
+- `src/domain/accounts/provision.js` — a TradeLocker account is created **pending**
+  (`mt5_login = NULL`, since `loginFromCredential` returns null for a credential
+  with no `.login`). Nothing in Task 7 provisions an account; that already works.
+- `src/domain/accounts/accounts.js` `bindOrCheckLogin` — a pending account's login
+  is bound the moment its **first ingested trade** carries `account_id` = the
+  banded login, via `x-ingest-token`. This is the SAME mechanism the MT5 EA and
+  the cTrader worker both use. **Task 7 does not need a bespoke discovery/binding
+  route.** The worker just needs to call `/api/trades/ingest/batch` with
+  `account_id: toTradeLockerLogin(accountId)` once it knows the account, and
+  binding happens for free.
+- `src/domain/sync/queue.js` `splitJobsByPlatform` already buckets a `tradelocker`
+  key — **nothing currently drains it.** A TradeLocker job leases today and spins
+  forever, silently, exactly the failure `ctraderLeasedPayloadQuery`'s own header
+  warns about. Closing this is Task 7's first backend change.
+- `worker/ctrader/api.js` `PropVexisApi` (`lease`, `report`, `heartbeat`, `ingest`)
+  is already generic enough to reuse for TradeLocker jobs — only `lease()`'s
+  hardcoded `platforms: ['ctrader']` needs to become configurable.
+- `worker/ctrader/backfill.js` and `windows.js` show the newest-first windowed
+  backfill pattern (`backfillWindows`, `advanceCursor`) to mirror, not the API
+  calls themselves (TradeLocker is REST, not protobuf).
+- `src/domain/sync/connectors/tradelocker/index.js` (`tradelockerConnector`)
+  already exports `toBandedLogin`, `hosts.{live,demo}`, `buildResolver`,
+  `pairOrders`, `assertFields` — the worker imports these directly (worker code
+  already imports `src/domain/...` by relative path; see `worker/ctrader/backfill.js`).
+- `ecosystem.config.cjs` `ctraderWorker()` builds the `amey-ctrader` /
+  `amey-ctrader-dev` pm2 apps running `worker/ctrader/main.js`, `instances: 1`,
+  `fork`. Spec §4 says share this process rather than run a second one on a
+  911MB box. **Ruling: do not add a new pm2 app or rename the existing ones** —
+  extend `worker/ctrader/index.js`'s `Worker` class (or a thin wrapper `main.js`
+  loads) so one process leases `platforms: ['ctrader', 'tradelocker']` in the
+  same call and dispatches each leased job by `job.platform`. No new deploy/SSM
+  wiring is needed for this task.
+
+### 7.1 Two gaps the spec left open — ruled here, not guessed at implementation time
+
+**Ruling A — a login exposing more than one TradeLocker account.** §5 says one
+login can expose several accounts, but nothing says how a single pending
+`mt5_accounts` row (one credential, no account-picker step, unlike cTrader)
+should choose among them. **Decision: `/auth/jwt/all-accounts` must return
+exactly one account for the job to proceed.** More than one fails the job with
+`'This TradeLocker login has more than one account — Auto Sync supports one
+account per login today'` and records it as the credential's `last_error`
+(reuse `markError`, same as an MT5 credential failure). This is conservative and
+correct for the account we have to prove against (one demo account); revisit
+with a picker step only if a real trader hits it.
+
+**Ruling B — demo vs. live host.** §9 landmine 7 says the two are different hosts,
+"decided once at discovery and stored" — but nothing decides it, since there is
+no explicit demo/live toggle in the wizard (unlike cTrader, which learns this at
+OAuth callback). **Decision: on an account's first successful job, try
+`TRADELOCKER_HOSTS.demo` first; if `/auth/jwt/token` 401s there, retry once
+against `.live`.** Whichever host authenticates is written to
+`mt5_accounts.is_live_env` (existing column, reused from 0029) and read directly
+on every later job — never re-probed. One extra request, once per account, ever.
+
+### 7.2 Backend changes
+
+- **Migration:** none new — 0030 already has every column this needs.
+- **`src/domain/sync/queue.js`:** add `tradelockerLeasedPayloadQuery(jobIds, lookbackMs)`,
+  shaped like `ctraderLeasedPayloadQuery` but `JOIN mt5_credentials c ON c.account_id = a.id`
+  (TradeLocker has a credential row, unlike cTrader) and additionally selecting
+  `c.login_email, c.password_ct, a.tl_account_id, a.tl_acc_num, a.is_live_env, j.cursor_at`.
+  Add `leasedPayloads`-style export mirroring the existing `ctraderLeasedPayloads`.
+- **`src/routes/sync.js` `/api/sync/lease`:** add a third block after the cTrader
+  one, symmetric to it: decrypt `password_ct` with the existing `openPassword`
+  (works unmodified — same AAD scheme as MT5), assemble
+  `{ job_id, account_id, platform: 'tradelocker', login, email: row.login_email,
+  server: row.server, password, tl_account_id, tl_acc_num, is_live_env,
+  ingest_token, since, cursor_at, reason }`, and on decrypt failure `failJob` +
+  `markError` exactly like the MT5 branch. A credential that fails to decrypt
+  must fail loudly, never be skipped.
+- **`src/routes/sync.js` `/api/sync/jobs/:id/result`:** the existing `b.read_only
+  === false` branch must stay MT5-only (it already is — the TradeLocker worker
+  must never send `read_only`, so this needs no new code, only a test proving it).
+  Add handling so a TradeLocker result can report `tl_account_id`/`tl_acc_num` on
+  first discovery (persist via a small `UPDATE mt5_accounts SET tl_account_id =
+  $2, tl_acc_num = $3, is_live_env = $4 WHERE id = $1`). **No new `sync_jobs`
+  column for the reconciliation delta** — `sync_jobs` has no `stats` column today
+  and adding one is out of scope for making sync work; the worker logs the delta
+  loudly (`log.error`/`log.info` with the account id and both numbers) and the
+  route's response/error message is where a human finds it during Task 7's live
+  verification. Revisit persisting it only if it needs to be user-visible later.
+- **`worker/ctrader/api.js`:** make `lease(limit, platforms)` take the platforms
+  array as a parameter (default `['ctrader']` to avoid touching call sites that
+  don't need to change) rather than hardcoding it, so the shared worker can pass
+  `['ctrader', 'tradelocker']`.
+
+### 7.3 Worker (`worker/tradelocker/`)
+
+Mirror `worker/ctrader/`'s file boundaries, HTTP not protobuf:
+
+- **`auth.js`** — `login({ email, password, server, isLive })` → POST `/auth/jwt/token`
+  on the resolved host, returns `{ accessToken, refreshToken }`. `refresh(token)` →
+  POST `/auth/jwt/refresh`; on failure, the caller falls back to `login()` again
+  from the stored password (spec §8 — this is the one advantage of holding a
+  password over a token pair). JWT lifetime ~1h; the job runs every 3h, so
+  **always authenticate fresh at the start of a job** rather than caching a token
+  across jobs — simpler and the rate cost is one request per job.
+- **`config.js`** — `GET /trade/config`, fetched once per **worker process start**
+  (not per job — spec §7) and cached in memory; exposes the field-name arrays
+  `buildResolver` (from the connector module) needs, plus per-route rate limits.
+  If a required field name is missing, throw — never fall back to a positional
+  index (Global Constraint, and `assertFields` from the connector module already
+  enforces this; this module just has to call it and not swallow the throw).
+- **`discover.js`** — `GET /auth/jwt/all-accounts` (bearer token) → apply Ruling A;
+  return the single account's `{ accountId, accNum, live }` or throw the
+  more-than-one error.
+- **`backfill.js`** — newest-first 30-day windows via `ordersHistory?from&to`
+  (Unix ms), paging on `hasMore` with the per-request row cap from `/trade/config`;
+  two consecutive empty windows terminate (no `registrationTimestamp` equivalent
+  to floor on). Pairs orders into trades via the connector's `pairOrders`, then
+  posts via `PropVexisApi.ingest(ingestToken, trades)` in batches (reuse
+  `splitBatch` from `src/domain/trades/batch.js`, same as cTrader's backfill).
+- **`reconcile.js`** — **the first thing proven against the real demo account,
+  before anything else in this task is trusted (spec §13.2).** After a sync,
+  `GET /trade/accounts/{accountId}/state`, sum the job's computed `pnl_money`
+  (excluding NULLs — a NULL is an honest abstention, not a zero), compare
+  against the broker's own balance/P&L, and return the delta so the lease-result
+  call can record it. **If the delta is non-trivial, do not silently accept it —
+  surface it in the job's `stats` and log it loudly; do not fail the job over it
+  yet (a first cut of this connector should be visible/debuggable, not silently
+  refuse to sync), but this delta is what decides whether Task 8 is safe to do.**
+- **`index.js`** (or extend `worker/ctrader/index.js`'s `Worker` class directly —
+  implementer's call, whichever keeps the cTrader path untouched and easiest to
+  read) — dispatches a leased job to the TradeLocker path when `job.platform ===
+  'tradelocker'`, calling auth → discover (first job for the account only, i.e.
+  `tl_account_id == null`) → backfill → reconcile → `report()`.
+
+### 7.4 Testing
+
+- **Unit, no network** (mirrors §11): `tradelockerLeasedPayloadQuery` shape;
+  the lease route's TradeLocker branch (decrypt success/failure, job assembly);
+  the more-than-one-account ruling; the demo/live fallback ruling; reconcile's
+  delta math against fixture numbers.
+- **Regression pin:** a TradeLocker job never reaches the `read_only === false`
+  rejection branch of `/api/sync/jobs/:id/result`.
+- **Live, against the real demo account (credentials from env, never committed):**
+  run the shared worker locally against a local dev backend, add the account
+  through the running app (or directly via `provisionAccount`), let a `first_sync`
+  job run, and confirm: the account's `mt5_login` gets bound, trades appear in
+  the journal, and the reconcile delta is at or near zero. **This is the proof
+  spec §13.2 asks for, and it happens before Task 8, not during it.**
 
 ---
 
-## Task 8: Wizard consent gate and catalog flip — DEFERRED
+## Task 8: Wizard consent gate and catalog flip
 
-Depends on Task 7 **and** on the P&L reconciliation passing.
+The consent gate itself is **already built** (PR #115, 2026-09-01) —
+`primitives/consent-field.jsx`, driven by the platform registry's
+`credentialNote`/`credentialConsent`, submit disabled until ticked. Verify it
+still renders correctly (a `.preview` harness screenshot is enough — no code
+change expected here) rather than rebuilding it.
 
-**Scope when unblocked:** the §3 option (a) consent gate rendered before the password field — a real gate, not a sentence — then both catalog entries flipped together. Design-language rules apply: shadcn Base Rhea, structure is a locked invariant, and any caller-supplied dimension is a **prop, not a class**.
+**Depends on Task 7's live reconciliation passing** — spec §13.2: flipping the
+catalog before that is offering Auto Sync the team cannot stand behind.
+
+**Scope:**
+- `src/domain/sync/platforms.js` tradelocker entry: `connector: null` →
+  `connector: 'tradelocker'`; `enabled: false` → `enabled: true`; `importMethods:
+  ['file', 'manual']` → add `'auto_sync'`.
+- `frontend/src/features/accounts/platformCatalog.js` tradelocker entry:
+  `status: 'soon'` → `status: 'live'`; same `importMethods` addition so the two
+  catalogs keep passing `test/platform-catalog.test.js`'s drift check.
+- Re-run the full suite and the `.preview` harness on the Add Account wizard:
+  platform card no longer badged Soon, ConnectStep's consent gate still gates
+  submit, ctrader-accounts-style picker is **not** needed (TradeLocker has no
+  picker step — provisioning already handles "pending until first sync binds
+  it").
 
 ---
 

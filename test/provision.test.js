@@ -84,7 +84,7 @@ test('the label is capped, because it is rendered in a table cell and a switcher
 test('an unknown or not-yet-selectable platform is refused', () => {
   assert.equal(validateProvision({ ...propBody(), platform: 'nope' }).ok, false);
   assert.equal(validateProvision({ ...propBody(), platform: undefined }).ok, false);
-  const soon = validateProvision({ ...propBody(), platform: 'tradelocker', import_method: 'file' });
+  const soon = validateProvision({ ...propBody(), platform: 'mt4', import_method: 'file' });
   assert.equal(soon.ok, false, 'a Soon platform must not be accepted even with a valid method');
   assert.match(soon.error, /platform/i);
 });

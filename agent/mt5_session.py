@@ -40,6 +40,12 @@ INIT_ATTEMPTS = 2
 INIT_RETRY_SECS = 15
 # How long to let the terminal settle after launching it before probing the pipe.
 LAUNCH_SETTLE_SECS = 20
+# How long a credentialed launch config sits on disk before being scrubbed back
+# to the credential-free version -- see _launch_with_config. Long enough that
+# the just-launched process has certainly read its own /config argument (that
+# happens at process start, well before its pipe is answerable), short enough
+# that a plaintext investor password does not linger.
+CONFIG_SCRUB_DELAY_SECS = 5
 
 # What -10005 actually means, in practice, on a server-side terminal.
 #
@@ -96,25 +102,73 @@ class Terminal:
         """Start the terminal with no account. Diagnostics only — prefer login()."""
         self._start(INIT_TIMEOUT_MS)
 
-    def _start(self, timeout_ms):
+    def _process_running(self):
+        """True when THIS install's terminal64.exe is currently alive.
+
+        Shelled out to `tasklist` rather than an extra dependency (no psutil in
+        requirements.txt) -- this agent runs on exactly one box, startup cost of
+        a subprocess call is irrelevant next to the multi-second IPC calls
+        around it. Any failure to tell (tasklist missing, timeout) assumes a
+        process MIGHT be running -- the safer default, since wrongly skipping
+        the credentialed path costs a slower failure, while wrongly taking it
+        risks disturbing a live, already-authorized session (Landmine 2).
+        """
+        exe_name = Path(self.exe_path).name
+        try:
+            out = subprocess.check_output(
+                ['tasklist', '/FI', f'IMAGENAME eq {exe_name}', '/FO', 'CSV', '/NH'],
+                text=True, timeout=10,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return True
+        return exe_name.lower() in out.lower()
+
+    def _start(self, timeout_ms, login=None, password=None, server=None):
         if self._open:
             return
-        # HAND THE CREDENTIALS TO initialize(); DO NOT initialize-then-login.
+        # HAND THE CREDENTIALS TO initialize() WHEN THE TERMINAL HAS NO SAVED
+        # ACCOUNT AT ALL. DO NOT initialize-then-login FOR THAT CASE.
         #
         # A terminal with no saved account opens its "open an account" wizard on
         # first run, and in that state the IPC handshake never completes — so
         # initialize() does not merely time out, it BLOCKS PAST ITS OWN TIMEOUT.
         # That looks like a hung agent rather than a misconfigured terminal.
-        # Observed on this box: six minutes against a 180s timeout, no error.
+        # Observed on this box TWICE now: six minutes against a 180s timeout with
+        # no error the first time (2026-08-18), then indefinitely (no return at
+        # all within the process's lifetime) after `config/accounts.dat` was
+        # cleared to fix the stale-account landmine below (2026-09-09) — clearing
+        # that file is exactly what puts the terminal into this no-account state.
         #
-        # Passing login/password/server makes the terminal log in as it starts, so
-        # there is no wizard to block on.
+        # Passing login/password/server makes the terminal log in as it starts,
+        # so there is no wizard to block on — but ONLY do this when there is no
+        # LIVE terminal process to disturb; passing credentials to an
+        # ALREADY-authorized terminal is the separate, opposite hang this module
+        # also documents (see login()'s docstring).
+        #
+        # THE SIGNAL IS A RUNNING PROCESS, NOT accounts.dat's mere existence.
+        # First tried gating on the file (2026-09-09) -- wrong: it can exist
+        # while holding no saved password (nothing here ever ticks "Save
+        # password"), so a cold terminal still pops an interactive Login dialog
+        # asking for one nobody types, the exact same stuck-modal failure this
+        # was meant to fix. A running process is the actual landmine-2 hazard;
+        # its absence means both nothing to disturb AND nothing to reconnect to.
+        fresh = login is not None and not self._process_running()
         last = None
         for attempt in range(1, INIT_ATTEMPTS + 1):
-            self._launch_with_config()
-            if mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms):
+            if fresh:
+                self._launch_with_config(login, password, server)
+            else:
+                self._launch_with_config()
+            ok = (
+                mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms,
+                                login=int(login), password=password, server=server)
+                if fresh else
+                mt5.initialize(path=self.exe_path, portable=True, timeout=timeout_ms)
+            )
+            if ok:
                 self._open = True
-                log.info('terminal up: %s (attempt %d)', self.exe_path, attempt)
+                log.info('terminal up: %s (attempt %d, %s)', self.exe_path, attempt,
+                          'fresh login' if fresh else 'attach')
                 return
             last = mt5.last_error()
             log.warning('initialize attempt %d/%d failed: %s', attempt, INIT_ATTEMPTS, last)
@@ -131,7 +185,7 @@ class Terminal:
         # tell them nothing they can act on.
         raise Mt5Error(f'initialize failed after {INIT_ATTEMPTS} attempts: {last} -- {IPC_HINT}')
 
-    def _launch_with_config(self):
+    def _launch_with_config(self, login=None, password=None, server=None):
         """Start the terminal ourselves, with the startup config applied.
 
         mt5.initialize() can launch the terminal, but not with a /config file — and
@@ -141,21 +195,56 @@ class Terminal:
 
         Harmless when a terminal is already up: MT5 refuses a second instance on the
         same data directory, and initialize() then attaches to the first.
+
+        WHEN login IS GIVEN (a genuinely fresh terminal, no saved account -- see
+        _start), the credential ALSO goes into this ini's own [Common] section,
+        not only into initialize()'s kwargs. Hit for real 2026-09-10: a fresh
+        terminal shows its own "Open an Account" wizard as a GUI-level reflex,
+        independent of whatever the Python API does in parallel -- initialize()
+        can succeed (the account IS logged in, the window title proves it) while
+        that wizard sits open and still blocks the message loop the API needs,
+        reproducing the exact same IPC-refused symptom. Only the terminal's OWN
+        startup config suppresses that wizard, because it resolves the account
+        before the terminal ever decides there is nothing configured to ask
+        about. The credential is scrubbed back out a few seconds later (see
+        CONFIG_SCRUB_DELAY_SECS) -- long enough for the just-launched process to
+        have read its own /config argument, short enough that a plaintext
+        investor password does not sit on disk.
         """
         cfg = Path(self.exe_path).parent / 'propvexis-start.ini'
+        content = START_CONFIG
+        if login is not None:
+            content += f'\n[Common]\nLogin={login}\nPassword={password}\nServer={server}\n'
         try:
-            if cfg.read_text() != START_CONFIG:
-                cfg.write_text(START_CONFIG)
-        except OSError:
-            cfg.write_text(START_CONFIG)
+            cfg.write_text(content)
+        except OSError as err:
+            log.warning('could not write the startup config: %s', err)
+            return
         try:
-            subprocess.Popen([self.exe_path, '/portable', f'/config:{cfg}'],
+            # /skipupdate: hit for real 2026-09-10 -- LiveUpdate finds a newer
+            # build, downloads it, then tries to replace the running exe, which
+            # throws a UAC elevation prompt ("Client Terminal AVX2" wants to make
+            # changes). `pvsync` is deliberately a standard, non-admin user (see
+            # module docstring), so nobody can ever answer that prompt -- it just
+            # sits there and blocks the pipe forever, indistinguishable from
+            # every other stuck-modal failure this module works around. This
+            # switch is the documented way unattended/VPS MT5 deployments avoid
+            # it; it does not disable updates that are ALREADY applied, only the
+            # in-process nag to install a new one.
+            subprocess.Popen([self.exe_path, '/portable', f'/config:{cfg}', '/skipupdate'],
                              close_fds=True)
-            # The terminal needs a moment before its pipe is answerable; initialize()
-            # does its own waiting after this.
-            time.sleep(LAUNCH_SETTLE_SECS)
         except OSError as err:
             log.warning('could not launch the terminal directly: %s', err)
+        finally:
+            if login is not None:
+                time.sleep(CONFIG_SCRUB_DELAY_SECS)
+                try:
+                    cfg.write_text(START_CONFIG)
+                except OSError as err:
+                    log.warning('could not scrub the credentialed startup config: %s', err)
+        # The terminal needs a moment before its pipe is answerable; initialize()
+        # does its own waiting after this.
+        time.sleep(LAUNCH_SETTLE_SECS)
 
     def close(self):
         if self._open:
@@ -166,10 +255,11 @@ class Terminal:
         """Point the terminal at this account.
 
         Attach to the terminal (launching it if needed -- see _start), then switch
-        accounts with mt5.login(). Credentials never go to initialize(): that path
+        accounts with mt5.login(). Credentials go to initialize() ONLY when the
+        terminal has no saved account at all (see _start) -- otherwise that path
         disconnects an already-authorized terminal and hangs.
         """
-        self._start(INIT_TIMEOUT_MS)
+        self._start(INIT_TIMEOUT_MS, login=login, password=password, server=server)
 
         # ALREADY ON THIS ACCOUNT? DO NOT RE-LOGIN.
         #

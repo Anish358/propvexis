@@ -8,6 +8,7 @@ import {
   leaseJobs,
   leasedPayloads,
   ctraderLeasedPayloads,
+  tradelockerLeasedPayloads,
   splitJobsByPlatform,
   completeJob,
   failJob,
@@ -29,7 +30,7 @@ import { workerTokenMatches } from '../domain/sync/workerAuth.js';
 import { sweepAutoAcknowledged } from '../domain/prop/challengeGroups.js';
 import { insertNotifications } from '../domain/alerts/notifications.js';
 import { accountAutoClosedAlert } from '../domain/alerts/alerts.js';
-import { recordBrokerAccount } from '../domain/sync/brokerAccount.js';
+import { recordBrokerAccount, recordTradeLockerAccount } from '../domain/sync/brokerAccount.js';
 import { freshAccessToken, markIdentityError } from '../domain/sync/ctraderIdentities.js';
 import {
   credentialsEnabled,
@@ -72,6 +73,14 @@ export default function syncRoutes(app, ctx) {
       return reply.code(401).send({ error: 'worker not authorized' });
     }
   };
+
+  // Owner-designated test accounts get an unlimited manual "Sync now" — see
+  // config.js syncCooldownExemptEmails. Everyone else keeps the 15-minute limit.
+  const cooldownFor = (email, previous) => (
+    config.syncCooldownExemptEmails.includes(String(email ?? '').toLowerCase())
+      ? { blocked: false, retryAfterMs: 0 }
+      : manualCooldown(previous)
+  );
 
   // Shared guard for the user-facing routes: the account must be the caller's,
   // must be a real MT5 account rather than a manual bucket, and the plan must
@@ -229,6 +238,48 @@ export default function syncRoutes(app, ctx) {
       });
     }
 
+    // ---- TradeLocker --------------------------------------------------------
+    // A THIRD, SYMMETRIC BLOCK to the MT5 one above — the credential is a
+    // password against a server exactly like MT5's, so it is decrypted the same
+    // way and a decrypt failure fails the job the same way. What differs is the
+    // shape of what rides along: tl_account_id/tl_acc_num/is_live_env, which the
+    // worker needs to skip discovery (Ruling A) and the host probe (Ruling B)
+    // once an account has done each exactly once.
+    for (const row of await tradelockerLeasedPayloads(byPlatform.tradelocker)) {
+      let password;
+      try {
+        password = openPassword(row);
+      } catch (err) {
+        req.log.error(
+          { account: row.account_id, err: err.message },
+          'tradelocker credential failed to decrypt',
+        );
+        await failJob(row.job_id, 'stored credential could not be decrypted');
+        await markError(row.account_id, 'credential unreadable — re-enter the TradeLocker password');
+        continue;
+      }
+      jobs.push({
+        job_id: Number(row.job_id),
+        account_id: Number(row.account_id),
+        platform: 'tradelocker',
+        login: row.mt5_login == null ? null : Number(row.mt5_login),
+        email: row.login_email,
+        server: row.server,
+        password,
+        tl_account_id: row.tl_account_id == null ? null : Number(row.tl_account_id),
+        tl_acc_num: row.tl_acc_num == null ? null : Number(row.tl_acc_num),
+        // NOT coerced to a boolean here. NULL means "not yet decided" and is how
+        // the worker knows to run Ruling B's demo-then-live probe; collapsing it
+        // to `=== true` (as the cTrader block does, where it is always already
+        // decided at OAuth callback) would make every first job probe forever.
+        is_live_env: row.is_live_env,
+        ingest_token: row.ingest_token,
+        since: row.since,
+        cursor_at: row.cursor_at,
+        reason: row.reason,
+      });
+    }
+
     // A job whose platform we do not recognise must FAIL, not vanish. Dropping it
     // recreates the same lease-expire-reclaim spin in a different place.
     for (const jobId of byPlatform.unknown) {
@@ -290,6 +341,28 @@ export default function syncRoutes(app, ctx) {
           await recordBrokerAccount(accountId, b.account);
         } catch (err) {
           req.log.warn({ account: accountId, err: err.message }, 'broker account facts not stored');
+        }
+      }
+      /* TRADELOCKER'S OWN IDENTIFIERS, learned once at discovery (Ruling A) and
+       * the host that authenticated it (Ruling B). `tl_account_id` only arrives
+       * on the job that just discovered it (or every job, harmlessly — the write
+       * is idempotent) — no `sync_jobs` schema change, this reuses the existing
+       * `stats` JSONB column below for the reconciliation number and writes
+       * these three straight onto `mt5_accounts`, exactly like recordBrokerAccount
+       * does for the balance/currency it learns.
+       *
+       * BEST EFFORT, same reasoning as recordBrokerAccount: this is metadata
+       * riding along with a sync that already imported trades successfully, so a
+       * failure to store it must not fail the job. */
+      if (b.tl_account_id != null) {
+        try {
+          await recordTradeLockerAccount(accountId, {
+            tlAccountId: Number(b.tl_account_id),
+            tlAccNum: b.tl_acc_num == null ? null : Number(b.tl_acc_num),
+            isLive: b.is_live_env === true,
+          });
+        } catch (err) {
+          req.log.warn({ account: accountId, err: err.message }, 'tradelocker account facts not stored');
         }
       }
       const job = await completeJob(jobId, b.stats ?? {});
@@ -438,7 +511,7 @@ export default function syncRoutes(app, ctx) {
       // start a 15-minute manual cooldown and refuse the trader's very first press.
       // See lastManualJobQuery.
       const previous = await lastManualJob(a.id);
-      const cooldown = manualCooldown(previous);
+      const cooldown = cooldownFor(req.user.email, previous);
       if (cooldown.blocked) {
         const mins = Math.ceil(cooldown.retryAfterMs / 60_000);
         skipped.push({
@@ -535,7 +608,7 @@ export default function syncRoutes(app, ctx) {
     // spend the human's allowance. The unattended cadence has its own limiter, and it
     // is three hours (dueAccountsQuery), not this fifteen minutes.
     const previous = await lastManualJob(acct.id);
-    const cooldown = manualCooldown(previous);
+    const cooldown = cooldownFor(req.user.email, previous);
     if (cooldown.blocked) {
       const retryAfter = Math.ceil(cooldown.retryAfterMs / 1000);
       // The message carries the WAIT, because the client renders `error` verbatim

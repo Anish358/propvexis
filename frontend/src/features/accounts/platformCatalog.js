@@ -84,13 +84,12 @@ export const PLATFORM_CARDS = [
   {
     id: 'tradelocker',
     name: 'TradeLocker',
-    status: 'soon',
+    status: 'live',
     blurb: '',
-    importMethods: ['file', 'manual'],
-    // Collected and mirrored while the card is still Soon: this is the form the
-    // connect step will render, and the copy the consent gate will show, the
-    // moment the platform is switched on. Building it behind the badge is what
-    // lets the switch be one line in two files rather than a feature.
+    // Task 8 (2026-09-09): switched on now that a live demo account has synced
+    // and reconciled (Task 7). Built behind the Soon badge beforehand is what let
+    // the switch be one line in two files rather than a feature.
+    importMethods: ['auto_sync', 'file', 'manual'],
     credentialFields: [
       { name: 'email', label: 'TradeLocker email', type: 'email', required: true, placeholder: 'you@example.com' },
       { name: 'server', label: 'Broker server', type: 'text', required: true, placeholder: 'OSP-DEMO' },
