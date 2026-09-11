@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { legacyCss } from './helpers/app-css.js';
+/* THE REAL `cn`, AND IT IS A STATIC IMPORT ON PURPOSE (2026-09-11).
+ *
+ * The merge assertions near the bottom of this file need the actual clsx +
+ * tailwind-merge pipeline; reimplementing it would test the reimplementation.
+ * That makes this the one test in the suite that needs `frontend/node_modules`,
+ * so both workflows now install it BEFORE `npm test`.
+ *
+ * It was written as a mid-file `const { cn } = await import(...)`, and the
+ * failure mode of that is nasty enough to be worth the paragraph: a top-level
+ * await SUSPENDS THE MODULE, so on CI — where clsx was not installed — the nine
+ * tests registered above it ran and passed, the two below it were never
+ * registered at all, and the rejection surfaced as "asynchronous activity after
+ * the test ended" pointing at no test in particular. The suite reported 2114
+ * passing instead of 2116 and the two tests that were missing were the ones
+ * guarding a bug that had already shipped once. A static import fails the whole
+ * FILE, loudly, which is the behaviour you want from a missing dependency. */
+import { cn } from '../frontend/src/lib/utils.js';
 
 /* TABS — Cycle 00, piece 7.
  *
@@ -244,9 +261,6 @@ test('the live account selector is a CHIP, and deliberately not a tab strip', ()
  * CLASS, OUR OVERRIDE WEARS THE SAME QUALIFIER. These tests run the real merge rather
  * than reading for the presence of our class, because presence is exactly what was true
  * while the bug was live. */
-
-const cnMod = await import('../frontend/src/lib/utils.js');
-const { cn } = cnMod;
 
 /* Both sides of each merge, read out of the two files rather than restated here — a
  * restated registry string is a test that passes through a re-install that changed it. */
