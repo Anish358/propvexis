@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "node scripts/dev.js",
     "test": "node --test test/*.test.js",
     "lint": "eslint .",
     "db:pull": "node scripts/db-pull.js",

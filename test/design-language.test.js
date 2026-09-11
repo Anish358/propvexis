@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { appCss, tokensCss, legacyCss, bridgeCss } from './helpers/app-css.js';
+import { appCss, tokensCss, legacyCss, bridgeCss, radiusScale } from './helpers/app-css.js';
 
 // DESIGN-LANGUAGE §6 (radius assignment), §7 (elevation ladder) and §14 (hover model)
 // were locked on 2026-08-05, closing three of the DLS's open TODOs.
@@ -118,11 +118,26 @@ test('§6 — the radius scale matches the preset, and the card is the one excep
    * What this test protects has not changed: a preset radius name must resolve to a
    * value WE chose, never to whatever Tailwind happens to default to. It now checks
    * that we chose the preset's, which is the same guarantee pointed at a new answer. */
-  const PRESET_RADIUS = { xl: '14px', '2xl': '16px', '3xl': '24px', '4xl': '32px' };
-  for (const [step, value] of Object.entries(PRESET_RADIUS)) {
-    assert.match(bridgeCss, new RegExp(`--radius-${step}:\\s*${value}`),
-      `the preset's rounded-${step} is ${value} — see DESIGN-LANGUAGE §6`);
+  /* THE RUNGS ARE DERIVED NOW, SO THIS CHECKS THE FORMULA, NOT FOUR NUMBERS
+   * (2026-09-09, preset b2qLMFPO4). It used to pin xl/2xl/3xl/4xl at 14/16/24/32 with a
+   * comment calling those "the preset's". They were TAILWIND'S DEFAULTS — the preset
+   * derives all seven rungs from one base by multiplication, so our controls sat at 16px
+   * where the preset said 18px. That was the app's last deliberate radius deviation.
+   *
+   * The multipliers are the preset's own, read out of an isolated `shadcn apply --only
+   * theme` probe. Pinning them is what stops a future edit flattening one to a literal —
+   * which works today and makes the next preset change seven edits again. */
+  const MULTIPLIER = {
+    sm: '0.6', md: '0.8', xl: '1.4', '2xl': '1.8', '3xl': '2.2', '4xl': '2.6',
+  };
+  for (const [step, mult] of Object.entries(MULTIPLIER)) {
+    assert.match(
+      bridgeCss, new RegExp(`--radius-${step}:\\s*calc\\(var\\(--radius\\)\\s*\\*\\s*${mult}\\)`),
+      `the preset derives rounded-${step} as --radius x ${mult} — see DESIGN-LANGUAGE §6`,
+    );
   }
+  assert.match(bridgeCss, /--radius-lg:\s*var\(--radius\)\s*;/,
+    'lg IS the base (x1), so it is written as var(--radius) rather than a calc');
   /* And the exception, pinned where a deviation belongs. The generated card asks for
    * `min(--radius-4xl, 24px)` = 24px; ours stays 14. It is in the WRAPPER rather than
    * the bridge because dialog.jsx and alert-dialog.jsx read the same token — capping it
@@ -130,8 +145,24 @@ test('§6 — the radius scale matches the preset, and the card is the one excep
   const cardPrim = readFileSync(
     new URL('../frontend/src/components/primitives/card.jsx', import.meta.url), 'utf8',
   );
-  assert.match(cardPrim, /rounded-\[var\(--r-2xl\)\]/,
-    'the card keeps our 14px radius — the single documented deviation from the preset');
+  /* THE DEVIATION IS GONE (owner, 2026-09-08). This asserted that the card kept our
+     14px against the preset's 24 — "the single documented deviation from the preset".
+     The owner compared the two in the running app and kept the preset's.
+
+     COMMENT-STRIPPED, and that is not tidiness. This assertion PASSED after the change,
+     because card.jsx's new note quotes the old class while explaining that it went —
+     a green test proving the opposite of what it says. Other tests in this repo strip
+     comments for exactly this; this one had not needed to until a file started
+     discussing its own history. */
+  const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  assert.doesNotMatch(code(cardPrim), /rounded-\[var\(--r-2xl\)\]/,
+    'the card no longer pins our 14px step — it takes the preset\'s');
+  /* A CARD READS THE GENERATED CARD'S OWN EXPRESSION, not a number of ours — so a card in
+   * a legacy screen and one from components/ui cannot disagree. Under the current base 4xl
+   * is 18.72px, so the 24px cap is inert; it stays because the generated component carries
+   * it and the two must match expression for expression. */
+  assert.match(tokensCss, /--r-card:\s*min\(var\(--radius-4xl\),\s*24px\)/,
+    '--r-card must mirror the generated card exactly — see DESIGN-LANGUAGE §6');
 });
 
 test('§6 — a dialog takes its own 24px step, not the overlay radius', () => {
@@ -142,7 +173,10 @@ test('§6 — a dialog takes its own 24px step, not the overlay radius', () => {
   const shell = readFileSync(
     new URL('../frontend/src/components/primitives/modal.jsx', import.meta.url), 'utf8',
   );
-  assert.match(shell, /rounded-\[24px\]/,
+  //  since 2026-09-08 — the same 24px under the ladder's own name rather
+  // than typed out. The owner asked for the ladder everywhere instead of hand-typed
+  // numbers; this assertion moved with the spelling, not with the value.
+  assert.match(shell, /rounded-3xl/,
     'the dialog shell must carry the 24px step — see DESIGN-LANGUAGE §6');
   assert.ok(!/\.modal \{/.test(css),
     '.modal must stay deleted from legacy CSS — the shell owns its surface');
@@ -157,20 +191,117 @@ test('§6 — the assignment rule is documented where it is enforced, on the Rhe
    * became Rhea's 5/6/10/12/14/99px). So this now pins the two things that would
    * actually break a page rather than one comment's wording: that every step of the
    * scale is declared, and that the card step is documented as belonging to cards. */
-  assert.match(tokensCss, /CARDS and floating overlays/,
-    'tokens.css must still say which surface --r-2xl is for');
-  /* sm and md moved 5->6 and 6->8 (§6 amended 2026-09-07, owner): they take preset
-   * b2qLMFPP6's derived steps so a registry component arrives shaped right. The others
-   * did not move because they were ALREADY the preset's values — --r-lg 10px and
-   * --r-2xl 14px match it exactly, which nobody had noticed. */
-  const RHEA = { '--r-sm': '6px', '--r-md': '8px', '--r-lg': '10px', '--r-input': '10px', '--r-xl': '12px', '--r-2xl': '14px', '--r-full': '99px' };
-  for (const [name, value] of Object.entries(RHEA)) {
-    assert.match(tokensCss, new RegExp(`(?<![\\w-])${name}\\s*:\\s*${value}\\b`),
-      `${name} must be ${value} on the Rhea scale — see DESIGN-LANGUAGE §6`);
+  /* THE VALUE MOVED OUT OF THIS ASSERTION (2026-09-09) but the INTENT did not: a rule
+   * nobody can find is a rule nobody follows, which is why the surface is named on the
+   * line. What changed is that --r-card no longer holds 24px — it mirrors the generated
+   * card's `min(var(--radius-4xl), 24px)`. The value is checked above; this checks the
+   * documentation. */
+  assert.match(tokensCss, /--r-card:[^;]+;\s*\/\* CARDS/,
+    'tokens.css must say which surface --r-card is for, on the line itself');
+  /* ONE BASE, SEVEN MULTIPLIERS, NO TABLE (owner, 2026-09-09 — preset b2qLMFPO4, radius
+   * SMALL): "Everything like the preset. No deliberately leaving anything different for
+   * radius."
+   *
+   * This used to be a map of eight literal pixel values. There are no literals left to
+   * assert: `--r-md` is `var(--radius-md)` is `calc(var(--radius) * 0.8)`. So this checks
+   * the two things that can actually break — that the `--r-*` names are ALIASES rather than
+   * values, and that the resolved scale is the preset's. The formula itself is pinned in
+   * the §6 test above.
+   *
+   * WHY ALIASES MATTER MORE THAN THE NUMBERS: ~64 legacy rules and a handful of components
+   * read `--r-*` directly. If one of them held a number of its own again, the primitives
+   * would follow the preset and most of the app — Prop OS, the Trade Log, the Calendar —
+   * would not, which is the split this arrangement exists to prevent. */
+  const ALIAS = {
+    '--r-sm': 'var(--radius-sm)',
+    '--r-md': 'var(--radius-md)',
+    '--r-lg': 'var(--radius-2xl)',
+    '--r-xl': 'var(--radius-2xl)',
+    '--r-input': 'var(--radius-2xl)',
+  };
+  for (const [name, target] of Object.entries(ALIAS)) {
+    assert.ok(
+      new RegExp(`(?<![\\w-])${name}:\\s*${target.replace(/[()]/g, '\\$&')}`).test(tokensCss),
+      `${name} must alias ${target} rather than hold a value of its own — see §6`,
+    );
+  }
+
+  /* AND THE RESOLVED SCALE, computed the way the browser computes it. Fractional on
+   * purpose: 0.45rem x 0.6 is 4.32px, and a browser antialiases a radius. */
+  const r = radiusScale();
+  assert.equal(r.base, 7.2, 'the base is preset b2qLMFPO4\'s radius SMALL, 0.45rem');
+  const near = (a, b) => Math.abs(a - b) < 0.001;
+  for (const [step, want] of [['sm', 4.32], ['md', 5.76], ['lg', 7.2], ['xl', 10.08],
+    ['2xl', 12.96], ['3xl', 15.84], ['4xl', 18.72], ['card', 18.72]]) {
+    assert.ok(near(r[step], want),
+      `${step} resolves to ${r[step]}px; preset b2qLMFPO4 gives ${want}px`);
   }
 });
 
 // ── §14 Hover ────────────────────────────────────────────────────────────────
+
+test('§6 — every row surface reads the 2xl rung, none is left on the base', () => {
+  /* THE ROW DECISION (owner, 2026-09-11), pinned because it is one of only TWO places
+   * where we choose a rung rather than take what the generated component asks for — and
+   * an unpinned choice is the kind that erodes one component at a time.
+   *
+   * These seven surfaces sat on the base rung at 7.2px until the owner judged all three
+   * candidates on the running dashboard and took 12.96. What this guards is not the
+   * NUMBER — `radiusScale` derives that from `--radius`, so a preset change moves it —
+   * but the ASSIGNMENT: that a row and its neighbours still agree after someone edits
+   * one of them.
+   *
+   * WHY BY `data-slot` AND NOT BY LINE. The slot is what the surface calls itself and
+   * what the CSS would target; a line number is what the last person to add a comment
+   * changed. The window is deliberately generous — it only has to reach from the slot to
+   * the end of that component's `cn(...)`. */
+  const ROWS = [
+    ['rail.jsx', 'rail-item', 'a nav row'],
+    ['rail.jsx', 'rail-user', "the rail's identity row"],
+    ['calendar.jsx', 'cal-cell', 'a calendar day cell'],
+    ['calendar.jsx', 'cal-week', 'the week-summary column'],
+    ['brief.jsx', 'brief-event', 'an economic-calendar row'],
+    ['brief.jsx', 'brief-alert', 'an alert row'],
+    ['brief.jsx', 'brief-note', "the Brief's dashed note"],
+  ];
+  for (const [file, slot, what] of ROWS) {
+    const src = readFileSync(
+      new URL(`../frontend/src/components/primitives/${file}`, import.meta.url), 'utf8',
+    );
+    const at = src.indexOf(`data-slot="${slot}"`);
+    assert.ok(at !== -1, `${slot} is gone from ${file} — did the surface get renamed?`);
+    const window_ = src.slice(at, at + 900);
+    assert.ok(
+      /\brounded-2xl\b/.test(window_),
+      `${what} (${slot}) is not on the 2xl rung — DESIGN-LANGUAGE §6, "a row takes 2xl"`,
+    );
+    assert.ok(
+      !/\brounded-lg\b/.test(window_),
+      `${what} (${slot}) is back on the base rung; rows moved off it on 2026-09-11 (§6)`,
+    );
+  }
+});
+
+test('§6 — the row rung and the control rung are the same, and that is deliberate', () => {
+  /* A ROW AND A BUTTON NOW DRAW THE SAME CORNER, which §6 previously forbade in writing.
+   * The owner made the trade knowingly on 2026-09-11, so this asserts the DOCUMENT still
+   * says so — the failure mode being guarded is not the CSS but a future reader deleting
+   * the paragraph as a contradiction and "restoring" the split it replaced. */
+  const dls = readFileSync(
+    new URL('../docs/design/DESIGN-LANGUAGE.md', import.meta.url), 'utf8',
+  );
+  /* WHITESPACE-TOLERANT ON PURPOSE. These phrases run across a line break at today's
+   * wrap width, and a prose file gets re-wrapped by anyone who edits a sentence above
+   * them. Matching `\s+` rather than a literal newline is what keeps this test guarding
+   * the RULE instead of the column the rule happens to break at. */
+  const says = (phrase) => new RegExp(phrase.split(' ').map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'));
+  assert.match(dls, says('A ROW TAKES `2xl`'),
+    '§6 no longer records the row ruling — see tokens.css --r-lg and the row test above');
+  assert.match(dls, says('CONVERGES A ROW WITH A CONTROL, AND THAT IS ACCEPTED'),
+    '§6 must keep saying the row/control collapse was chosen, or it reads as a bug');
+  assert.match(dls, says('**There are exactly two such choices**'),
+    '§6 opens by counting the owner rung choices; the count must match the rules below');
+});
 
 test('§14 — hover never introduces a colour family the element did not have', () => {
   // The locked rule: hover intensifies what the element already wears, so a hover to a

@@ -152,6 +152,24 @@
      deleted. */
   --chrome-line: var(--line);          /* an edge drawn ON the current surface */
   --chrome-hover: var(--surface-hover);/* a row hovering ON the current surface */
+  /* A SECONDARY LABEL ON THE CURRENT SURFACE — added 2026-09-09, owner-approved, and it is
+     the EIGHTH instance of the fault this section exists for. `--text-2` (#c9c9d1) is the
+     app's locked label colour and is right on a card, where the body text it sits beside
+     is also quieter. Inside a floating panel it sits beside near-white ROWS (#fafafa) and
+     is only 49 units below them, so a group heading reads as another row rather than as a
+     heading. The preset's own `muted-foreground` is #a1a1aa — 89 units below — which is
+     why "Suggestions" recedes in shadcn's preview and "Trade" did not in ours.
+
+     THREE COMPONENTS HAD ALREADY PATCHED THIS INDIVIDUALLY, which is what made it a token
+     rather than a fourth patch: `menu.jsx` (MenuGroupLabel), `modal.jsx` (DialogDescription)
+     and, missing it, the new Command group heading. Each hard-coded `--muted` locally
+     because the global mapping was wrong for their surface. Those two literals are now
+     redundant — they resolve to the same value through this — and are left in place only
+     because both components are locked; removing them is a no-op and its own review step.
+
+     THE CARD CASE DOES NOT MOVE. `--text-2` stays the label colour everywhere outside a
+     floating panel, so the owner's locked rule is untouched. */
+  --chrome-label: var(--text-2);       /* a secondary label ON the current surface */
   /* AND A CONTROL'S EDGE ON IT — the SEVENTH instance of the fault above, found
      2026-09-07 by looking at a modal beside the preset's own. `--line-control` (#252528)
      is tuned to a card exactly the way `--line` is: +20 over #111114, where it reads.
@@ -332,15 +350,96 @@
      small sizes and flatter at large ones than the rem scale it replaces, which is
      why a card and a nav row can share 10 and nothing looks mismatched.
      ASSIGNMENT BY SURFACE is unchanged; only the values moved. ===== */
-  /* sm and md take the preset's steps (owner, 2026-09-07). --r-lg (buttons, 10px) and
-     --r-2xl (cards, 14px) were ALREADY the preset's exact values and are untouched —
-     the scale was closer to b2qLMFPP6 than anyone had noticed. */
-  --r-sm:6px;      /* smallest chrome */
-  --r-md:8px;      /* icon buttons, menu rows, small badges */
-  --r-lg:10px;     /* BUTTONS — and nav rows, event rows, meter cells, day cells */
-  --r-input:10px;  /* inputs share the button step in Rhea */
-  --r-xl:12px;     /* account chips, tiles, a chart well */
-  --r-2xl:14px;    /* CARDS and floating overlays — an overlay is a card that floats */
+  /* ===== THE LADDER MOVED UP ONE STEP (owner, 2026-09-08) =====
+
+     The owner ran the same question through a Claude Design mockup of this dashboard
+     and kept the result: a softer ladder anchored on the 24px card, "then one step
+     down each level". Every value below is that mapping, and two of the rows matched
+     our own comments almost word for word before anything moved — the mockup's
+     "10px -> 14px: sidebar nav items, brief event rows, alert rows, calendar day
+     cells" against `--r-lg`'s "nav rows, event rows, day cells", and its "12px -> 18px:
+     account chips, meter cells, chart placeholder" against `--r-xl`'s "account chips,
+     tiles, a chart well". That is what made the mapping unambiguous rather than a guess.
+
+         was   now   what moved
+         6  -> 8     smallest chrome, thin skeleton bars
+         8  -> 10    badges, count chips, icon buttons, menu rows
+         10 -> 14    BUTTONS, nav rows, event rows, alert rows, day cells, meter cells
+         12 -> 18    account chips, tiles, a chart well
+         14 -> 24    card and section shells
+         24 =  24    cards, already moved on 2026-09-08
+         99 =  99    pills are untouched, exactly as the mockup has them
+
+     ⚠ EVERY NUMBER ABOVE IS HISTORY. THE SCALE IS DERIVED FROM ONE BASE (owner,
+     2026-09-09), and the preset moved from radius MEDIUM to radius SMALL:
+
+         b2qLMFPP6  radius medium  ->  b2qLMFPO4  radius small
+
+     Those two codes differ in that ONE setting and nothing else (verified with
+     `shadcn preset decode`). What the preset actually ships is not a table of pixels but a
+     base and seven multipliers, and this is them verbatim — read out of an isolated
+     `shadcn apply --only theme` probe rather than transcribed:
+
+         --radius            0.45rem  = 7.2px
+         --radius-sm    x0.6  = 4.32px      --radius-2xl   x1.8  = 12.96px
+         --radius-md    x0.8  = 5.76px      --radius-3xl   x2.2  = 15.84px
+         --radius-lg    x1     = 7.2px      --radius-4xl   x2.6  = 18.72px
+         --radius-xl    x1.4  = 10.08px
+
+     THE MULTIPLIERS LIVE IN bridge.css, NOT HERE, because they are the preset's mapping
+     into Tailwind's namespace and bridge.css owns that direction. What lives here is the
+     ONE number the whole scale hangs off — and that is now the only radius value in the
+     app. A future radius change is this line.
+
+     THE `--r-*` NAMES BELOW ARE NOW ALIASES, NOT VALUES. They exist because ~64 legacy
+     rules and a handful of components read them directly (`var(--r-md)`,
+     `rounded-[var(--r-xl)]`), so pointing them at the preset's rungs is what moves the
+     LEGACY screens too — Prop OS, the Trade Log, the Calendar. Without that the primitives
+     would follow the preset and most of the app would not.
+
+     WHY WE DEVIATED BEFORE, AND IT IS WORTH KNOWING: `2xl/3xl/4xl` were pinned at
+     Tailwind's 16/24/32 on the belief that those WERE the preset's values. They are not —
+     the preset derives all seven. So controls were 16px where the preset said 18px, and
+     that pin was the last deliberate radius deviation in the app. It is gone. ===== */
+  --radius: 0.45rem;   /* THE BASE. The only radius number in the app; bridge.css
+                          derives all seven rungs from it. Preset b2qLMFPO4, radius
+                          small. Change this line to change every corner. */
+
+  /* Aliases onto the preset's rungs — see the note above. No value of its own. */
+  --r-sm: var(--radius-sm);     /* smallest chrome, thin skeleton bars */
+  --r-md: var(--radius-md);     /* icon buttons, menu rows, small badges, count chips */
+  /* ROWS MOVED OFF THE BASE RUNG TO `2xl` (owner, 2026-09-11), so this alias moves with
+     them. 7.2px on a 40px nav row and an 82px day cell read as barely-rounded against
+     everything around them, and the owner judged all three candidates on the running
+     dashboard before choosing 12.96 — see §6.
+
+     REPOINTING THE ALIAS IS WHAT MOVES THE UN-MIGRATED SCREENS, which is the entire
+     reason these names still exist. Its four remaining readers are all in
+     `legacy/app.css` and NONE of them is a row: `.u-btn` (a button), `.dc-tile` (a tile),
+     `.dc-curve-wrap` (a chart well) and `.djw-panel` (a nested panel). §6's table puts a
+     button, a tile and a well at `2xl` ALREADY, so this does not drag them along — it
+     lands all four on the step they were always supposed to have, and `.djw-panel`'s own
+     comment asking for "one step down from the card" gets closer rather than further.
+
+     THE ALTERNATIVE WAS EDITING THOSE FOUR RULES, AND THAT IS FORBIDDEN — legacy CSS is
+     never patched, only deleted (owner, 2026-09-07). The alias is the sanctioned seam.
+
+     ⚠ THE NAME NOW LIES, AND IT IS THE SECOND ONE THAT DOES: `--r-lg` resolves to the
+     `2xl` rung, exactly as `--r-xl` below already resolves to `--radius-2xl`. Both are
+     legacy-only and both die with `legacy/app.css`. Do not "correct" either by pointing
+     it back at its namesake rung — the name records which legacy surfaces read it, not
+     which rung it returns. */
+  --r-lg: var(--radius-2xl);    /* legacy only — a button, a tile, a well, a nested panel */
+  --r-xl: var(--radius-2xl);    /* account chips, tiles, a chart well */
+  /* CARDS read exactly what the generated card reads, so a card in a legacy screen and a
+     card from `components/ui` cannot disagree: `min(--radius-4xl, 24px)`. Under this base
+     4xl is 18.72px, so the 24px cap does nothing — it stays only because the generated
+     component carries it and the two must match expression for expression. */
+  --r-card: min(var(--radius-4xl), 24px);   /* CARDS — panels, KPI tiles, the Brief, the account strip */
+  /* LEGACY-ONLY, and both die with app.css. Aliased rather than left on their old numbers
+     so the un-migrated screens move with everything else. */
+  --r-2xl: min(var(--radius-4xl), 24px);   /* legacy card and section shells */
+  --r-input: var(--radius-2xl);            /* legacy inputs — a control in the preset */
   --r-full:99px;   /* every pill: badges, chips, toggles, icon buttons, bars */
 
   /* ===== SPACING — 8px grid; 4px is the sole sub-8 exception, for hairline gaps. */
@@ -543,6 +642,9 @@
   --chrome-line: var(--overlay-line);
   --chrome-hover: var(--overlay-hover);
   --chrome-line-control: var(--line-chip);
+  /* The preset's own muted-foreground, on the ground the preset tuned it for — same
+     reasoning as --chrome-hover above. See the note beside --chrome-label. */
+  --chrome-label: var(--muted);
 }
 
 

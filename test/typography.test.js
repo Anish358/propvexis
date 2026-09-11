@@ -109,9 +109,17 @@ test('labels are not typed in caps in the markup', () => {
   // Acronyms and unit/timeframe symbols are not shouting — MFE, P&L, M15, R, USD
   // are how those things are written.
   const ALLOWED = /^(P&L|P\/L|R|BE|MFE|SL|MTF|M15|H1|H4|CSV|EA|API|ROI|USD|GBP|EUR|JPY|MT4|MT5|ID|UTC|RR|AI|OK|NY|LDN|ASIA|HIGH|MED|LOW|TOTAL)$/;
+  /* `<code>` CONTENT IS QUOTED LITERALLY AND IS NOT A LABEL (2026-09-10). A code span
+     holds a class name, a selector, a prop, or — the case that found this — an instrument
+     ticker like XAUUSD or EURUSD. Those are not shouting, for the same reason USD and MFE
+     are already in ALLOWED above: it is how the thing is written, and title-casing it
+     would make it wrong rather than quieter. This test is about LABELS, and a label is
+     never marked up as code, so skipping code spans narrows the scan to what it was
+     always aiming at rather than loosening it. */
   const offenders = [];
   for (const f of jsxFiles) {
-    for (const m of readSrc(f).matchAll(/>([A-Z][A-Z0-9 /&'-]{2,})</g)) {
+    const src = readSrc(f).replace(/<code\b[^>]*>[\s\S]*?<\/code>/g, ' ');
+    for (const m of src.matchAll(/>([A-Z][A-Z0-9 /&'-]{2,})</g)) {
       const text = m[1].trim();
       // Split on whitespace only — a slashed pair like P/L is one written token.
       if (text.split(/\s+/).every((w) => ALLOWED.test(w))) continue;

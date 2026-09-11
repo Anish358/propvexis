@@ -42,9 +42,17 @@ jobs:
 
       # Gate the deploy on the backend test suite — a red test aborts before
       # anything is synced to the server.
+      # `npm --prefix frontend ci` runs HERE, before the suite, even though the
+      # SPA is not built until the next step: test/kit-tabs.test.js imports the
+      # real `cn` from frontend/src/lib/utils.js to run the actual
+      # clsx + tailwind-merge pipeline, so the suite does not pass without the
+      # frontend tree installed. It used to be installed only in "Build frontend"
+      # below, i.e. after this gate, which failed the deploy. See ci.yml for the
+      # full account of how it failed silently first.
       - name: Test backend
         run: |
           npm ci
+          npm --prefix frontend ci
           npm test
           npm run lint
 
@@ -60,9 +68,9 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           # Public (client-side) Sentry DSN — safe to expose; baked into the bundle.
           VITE_SENTRY_DSN: https://770769a772da9fa5b92512ca9279088b@o4508103223017472.ingest.us.sentry.io/4511670762799104
-        run: |
-          npm --prefix frontend ci
-          npm --prefix frontend run build
+        # `ci` already ran in the test gate above (see the note there), so this
+        # is the build alone — re-running it would just cost a minute.
+        run: npm --prefix frontend run build
 
       - name: Set up SSH
         env:

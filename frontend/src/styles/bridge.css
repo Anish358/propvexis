@@ -73,11 +73,18 @@
        [data-overlay-surface] — the preset's exact value on the ground the preset tuned
        it for. See tokens.css "CHROME IS CONTEXTUAL".
 
-     `--color-muted-foreground` is NOT part of this and stays on --text-2: the preset's
-     muted-foreground is a text colour (#a1a1aa) with its own separate job, and menu.jsx
-     already overrides it where preset parity was asked for. */
+     `--color-muted-foreground` IS NOW PART OF IT TOO (2026-09-09, owner-approved). This
+     read "NOT part of this and stays on --text-2... and menu.jsx already overrides it where
+     preset parity was asked for" — and that last clause was the tell. By 09-09 THREE
+     components had each overridden it locally for the same reason: menu.jsx's group label,
+     modal.jsx's description, and the new Command group heading, which had not, and so
+     rendered its headings 49 units below the row text instead of 89 — they blended.
+     A mapping three components disagree with is not a mapping; it is a default nobody
+     wanted on a panel. So it takes `--chrome-label`, which is --text-2 on a card and the
+     preset's #a1a1aa inside [data-overlay-surface]. The card case does not move, so the
+     locked label colour is untouched. See tokens.css "CHROME IS CONTEXTUAL". */
   --color-muted: var(--chrome-hover);
-  --color-muted-foreground: var(--text-2);
+  --color-muted-foreground: var(--chrome-label);
 
   /* COLLISION 2 — "accent". The one the migration plan flagged. Theirs means a
      subtle hover background; ours means brand blue. Their name is served from our
@@ -279,26 +286,51 @@
    3. SHAPE, TYPE, SPACE, MOTION, ELEVATION
 --------------------------------------------------------------------------- */
 @theme inline {
-  /* Radius — our scale under Tailwind's names */
-  --radius-sm: var(--r-sm);
-  --radius-md: var(--r-md);
-  --radius-lg: var(--r-lg);
-  --radius-xl: 14px;      /* preset: calc(--radius + 4px) */
-  /* CONTROLS TAKE THE PRESET'S 2xl, NOT OUR CARD RADIUS (§6 amended 2026-09-07, owner).
-     `rounded-2xl` is what the generated button, input, textarea, badge, menu and
-     skeleton all ask for — every CONTROL — and in the preset it is Tailwind's 1rem.
-     Pointing it at `--r-2xl` (14px, our CARD radius) collapsed a distinction the preset
-     makes and left every control two pixels under-rounded before button.jsx then
-     overrode it to 10px on top. Surfaces keep their own step through `--radius-4xl`. */
-  --radius-2xl: 16px;
-  /* Our scale stops at 2xl, so every larger library step resolves to our largest rather
-     than inventing one — same reasoning as `--radius-4xl` further down. `3xl` is not
-     hypothetical: the generated popover asks for `rounded-3xl`, and without this line it
-     would silently fall back to Tailwind's 24px, putting two floating overlays on
-     different radii and breaking DESIGN-LANGUAGE §6 (an overlay is a card that floats). */
-  --radius-3xl: 24px;     /* preset: Tailwind's 1.5rem */
+  /* ── RADIUS: THE PRESET'S SEVEN RUNGS, DERIVED FROM ONE BASE ──────────────────────
+     Preset b2qLMFPO4 (style rhea, radius SMALL), adopted 2026-09-09 by owner decision:
+     "Everything like the preset. No deliberately leaving anything different for radius."
+
+     THESE EXPRESSIONS ARE THE PRESET'S OWN, COPIED NOT TRANSCRIBED. They were read out of
+     an isolated `shadcn apply --preset b2qLMFPO4 --only theme` run in a throwaway project,
+     because the preset does not publish a table of pixels — it publishes a base and these
+     multipliers, and a hand-typed table is a table that drifts. `--radius` lives in
+     tokens.css, which owns values; this file owns the mapping into Tailwind's namespace.
+
+         --radius = 0.45rem = 7.2px
+         sm  4.32   md  5.76   lg  7.2   xl  10.08   2xl  12.96   3xl  15.84   4xl  18.72
+
+     WHAT THIS REPLACED, because the mistake is instructive: `xl/2xl/3xl` were pinned at
+     14/16/24 and `4xl` at 32, with a comment claiming those were "the preset's" and
+     "Tailwind's 1rem". They were Tailwind's DEFAULTS, not the preset's — the preset derives
+     every rung. So our controls sat at 16px where the preset said 18px, and cards read
+     `min(32px, 24px)` where the preset said `min(26px, 24px)`. Same answer for the card by
+     luck, wrong answer for every control. That pin was the last deliberate radius deviation
+     in the app.
+
+     DERIVED, NOT FLATTENED, ON PURPOSE. Writing the resolved pixels here would work today
+     and would make the next radius change seven edits again. As calc() the whole scale
+     follows `--radius`, so changing the preset is one line in tokens.css.
+
+     FRACTIONAL PIXELS ARE FINE. Browsers antialias a radius; 4.32px draws. What they are
+     not is assertable as integers, which is why `radius-clamp.test.js` and
+     `design-language.test.js` now COMPUTE base x multiplier instead of reading a number. */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
   --radius-full: var(--r-full);
   --radius-input: var(--r-input);   /* our own step — inputs are their own shape */
+  /* AND CARDS ARE THEIR OWN SHAPE TOO (2026-09-08). Same reasoning as `--radius-input`
+     directly above: §6 assigns radius by SURFACE, so a card reads a token that says
+     "card". It resolves to 24px — the preset's own card step, kept after the owner
+     compared it against our 14 in the running app.
+     Declared here so `rounded-card` exists as a real utility: five card surfaces used to
+     hand-type the number, which is how a token documented as "CARDS" came to control no
+     card at all. */
+  --radius-card: var(--r-card);
 
   /* Type scale, part 1 — OUR ROLES, as named utilities. These are roles; the
      sizes live in tokens.css. */
@@ -455,17 +487,20 @@
   --foreground: var(--text);
   --secondary: var(--sel-bg);
 
-  /* THE RADIUS SCALE IS THE PRESET'S (§6 amended 2026-09-07, owner): 6 / 8 / 10 / 14 /
-     16 / 24 / 32. It used to alias 2xl, 3xl and 4xl all onto `--r-2xl` (14px, our card
-     radius), which collapsed three distinct steps into one and left controls, popovers
-     and dialogs all rendering at a card's roundness.
+  /* THE RADIUS RUNGS GENERATED COMPONENTS READ AS RAW VARS, and it is exactly three:
+     `--radius-4xl` (card, dialog, alert-dialog, via `min(var(--radius-4xl), 24px)`),
+     `--radius-lg` (toggle, via `calc(var(--radius-lg) - 1px)`) and `--radius-xl`. The
+     `@theme inline` block above already surfaces all three, so nothing is repeated here —
+     this used to pin `--radius-4xl: 32px` as a literal and that pin is GONE (2026-09-09).
 
-     THE CARD IS THE ONE EXCEPTION and it is pinned in `primitives/card.jsx`, not here:
-     the generated card asks for `min(--radius-4xl, 24px)` = 24px, and ours stays 14.
-     A single deviation belongs in the wrapper that owns it, which is the whole point of
-     that seam — putting it in the bridge would have dragged the dialog down with it,
-     since both components read the same token. */
-  --radius-4xl: 32px;     /* preset: Tailwind's 2rem — dialog reads min(4xl, 24px) = 24 */
+     WHY IT WAS WRONG: 32px was Tailwind's 2rem default, believed to be the preset's. The
+     preset derives 4xl as `--radius x 2.6`, which under the current base is 18.72px. The
+     card's `min(…, 24px)` cap therefore no longer does anything — it stays only because the
+     generated component carries it, and ours must match it expression for expression.
+
+     THERE IS NO CARD EXCEPTION ANY MORE either. `primitives/card.jsx` used to pin our own
+     14px against the preset's 24; the owner deleted that on 2026-09-08 and the card has
+     read the generated expression ever since. */
 }
 
 /* ---------------------------------------------------------------------------
@@ -528,7 +563,41 @@
      Same scoping and the same reasoning as the anchor reset above: `:where()` keeps
      specificity at ZERO, so every author rule still wins and this can only ever
      remove a browser default. */
-  :where(button[data-slot], [data-slot] button) {
+  /* WIDENED FROM `button` TO EVERY GENERATED FORM CONTROL — 2026-09-09, and it is the
+     same bug the paragraph above describes, found a THIRD time for the same reason the
+     border reset was found a second time: the fix was scoped to where it was first seen
+     rather than to where it applies.
+
+     The owner spotted a BRIGHT STRIP across the top of the filter builder's search box.
+     `@shadcn/command` puts the field's fill on the WRAPPER (`InputGroup`) and leaves the
+     `<input>` itself with no background at all — correct in a normal Tailwind install,
+     because preflight has already made it transparent. We do not import preflight, so the
+     UA sheet's `input { background-color: field }` stood: under `color-scheme: dark` that
+     is an opaque near-black box painted over the middle of the pill, leaving the pill's
+     own translucent white showing above and below it. Two layers, which is exactly what it
+     looked like.
+
+     WHY NO INPUT HAD HIT THIS BEFORE, and it is luck rather than design: `ui/input.jsx`,
+     `ui/textarea.jsx` and `ui/select.jsx` all put `bg-input/50` on the CONTROL, so the UA
+     background was covered by accident. `command` is the first generated component to put
+     the fill on a wrapper. It will not be the last — every input-group-based component has
+     the same exposure.
+
+     THIS DOES NOT TAKE A FILL AWAY FROM ANYTHING. A `bg-*` utility lives in the utilities
+     layer and this is `base`, so every control that declares a background still wins; this
+     can only reach one that declares none. Same `:where()` zero specificity as the resets
+     around it, so any author rule beats it and it can only ever remove a browser default.
+
+     It replaces a `bg-transparent border-0` patch that lived in `primitives/command.jsx`
+     for about an hour. That patch was the wrong shape twice over: `border-0` was already
+     covered by the reset below, and fixing one component leaves the next one to be found
+     by eye. Held by `test/generated-resets.test.js`. */
+  :where(
+    button[data-slot], [data-slot] button,
+    input[data-slot], [data-slot] input,
+    select[data-slot], [data-slot] select,
+    textarea[data-slot], [data-slot] textarea
+  ) {
     background-color: transparent;
   }
 
@@ -549,7 +618,28 @@
      as its border instead of the token the bridge points at. Same `:where()` zero
      specificity as the two above, so any author rule still wins and this can only ever
      remove a browser default. */
-  :where(button[data-slot], [data-slot] button) {
+  /* WIDENED FROM `button` TO EVERY GENERATED ELEMENT — 2026-09-08, and it is the same
+     bug the paragraph above describes, found a second time because the fix was scoped to
+     where it was first seen rather than to where it applies.
+
+     The owner spotted the rebuilt empty state drawing a THICK WHITE DASHED BOX. Nothing
+     in our layer asked for it: `@shadcn/empty` sets `rounded-3xl border-dashed` and no
+     border WIDTH, which is inert in a normal Tailwind install because preflight has
+     already zeroed it. We do not import preflight (see tailwind.css — it would restyle
+     every legacy page), so `border-style: dashed` lands on the UA default `medium`
+     width and `currentColor`: 3px, white, on a dark card.
+
+     THE COMMENT ON THIS FILE'S OWN empty-state ALSO GOT IT WRONG, which is why this is
+     worth spelling out. It read "the generated Empty sets a border STYLE and no border
+     WIDTH, so it is inert until a caller asks for one" — true of shadcn's install and
+     false of ours. Reading the registry source is not the same as knowing what it does
+     HERE, which is the §25 lesson arriving through a third door.
+
+     Scoped to `[data-slot]` and its descendants: that attribute is emitted by generated
+     components and by nothing else, so legacy markup is untouched. Still `:where()`, so
+     any author rule wins and this can only remove a browser default — and still
+     border-WIDTH only, for the reason above. */
+  :where([data-slot], [data-slot] *) {
     border-width: 0;
   }
 
@@ -721,6 +811,38 @@
 @keyframes pv-content-in {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+/* pv-row-flash — A ROW THAT JUST ARRIVED FROM THE BROKER.
+
+   The one animation in this app whose duration is set by HUMAN REACTION TIME rather
+   than by the size of what moves. A trader closes a position in MT5 and looks back at
+   the browser a second later; the flash exists so the row they are looking for
+   identifies itself. At --dur (200ms) it is over before they have looked up, which
+   makes it an animation that costs something and delivers nothing.
+
+   SO ITS 2s IS NOT ON §10's LADDER, AND THAT IS THE SAME CARVE-OUT THE SKELETON PULSE
+   ALREADY HAS. §10 gives three durations for animations that SETTLE and lets a loop run
+   slower ("opacity at 2s, slower than every settling duration on purpose — a heartbeat,
+   not an event"). This settles, so it is not a loop; but it is not carrying a state
+   change the eye is already looking at either. It is a one-shot attention signal, which
+   is a third category §10 does not name yet. Flagged to the owner with the §1 amendment
+   rather than decided here — the VALUE is the shipped one, so nothing regressed while
+   the rule catches up.
+
+   --profit-bg, NOT --tint-profit-7. The legacy rule this replaces reached into the
+   `--tint-*` family, which is fenced off for legacy only and dies with app.css.
+
+   NO `forwards`. The row must return to its own background when the flash ends, or it
+   would sit permanently transparent and its hover and selected fills would stop
+   painting. Held by kit-data-table.test.js.
+
+   It needs no motion-safe gate: the global prefers-reduced-motion reset collapses the
+   duration, and the row is simply there — which is §10's rule that a reduced-motion
+   user gets the result instantly, never nothing. */
+@keyframes pv-row-flash {
+  from { background-color: var(--profit-bg); }
+  to   { background-color: transparent; }
 }
 
 @keyframes pv-breathe {

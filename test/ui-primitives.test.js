@@ -23,8 +23,18 @@ test('CSS defines the canonical component classes', () => {
   for (const c of [
     '.u-btn', '.u-btn--primary', '.u-btn--danger',
     '.u-card',
-    '.u-tabs', '.u-tab', '.u-input', '.u-field',
-    '.u-skeleton', '.u-empty',
+    '.u-input', '.u-field',
+    /* `.u-tabs`, `.u-tab`, `.u-skeleton` and `.u-empty` LEFT THIS LIST on 2026-09-08,
+       with `.u-badge` before them, and every departure is the intended direction rather
+       than a gap. Batch 6 of the primitive review rebuilt all three components onto the
+       registry — EmptyState on @shadcn/empty, Tabs on @shadcn/tabs `variant="line"`,
+       LoadingBlock on the Skeleton primitive — and their twenty-six legacy rules were
+       deleted in the same commit.
+
+       This list is the contract of `ui.jsx`, the dead Phase-1 layer kept as a kill
+       switch, so a class leaving it means the switch no longer covers that component.
+       That is what finishing a migration looks like. `.u-input` and `.u-field` are what
+       is left; each should leave the same way. */
   ]) {
     assert.ok(css.includes(c + ' ') || css.includes(c + ',') || css.includes(c + '{') || css.includes(c + ':'),
       `missing CSS class ${c}`);

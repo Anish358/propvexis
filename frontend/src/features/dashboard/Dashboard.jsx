@@ -20,9 +20,12 @@ import Explain from '../../components/Explain.jsx';
 // cards' hover treatment had to be rewritten against that box; see the
 // `.dash-stat--refined` block in legacy/app.css.
 //
-// Tabs and EmptyState come from the same place now, but are NOT library-backed:
-// they still render `.u-tabs` / `.u-empty` because no generated equivalent exists.
-// The import path is the seam, not a claim about the implementation.
+// Tabs and EmptyState come from the same place now, AND ARE library-backed as of
+// 2026-09-08 — Batch 6 of the primitive review rebuilt them on `@shadcn/tabs`
+// (variant="line") and `@shadcn/empty`, and deleted the `.u-tabs` / `.u-empty` rules
+// they used to render. This note said the opposite, on the grounds that "no generated
+// equivalent exists"; the registry had both. The import path was the seam then and is
+// the seam now, which is why neither of them changed a line in this file.
 //
 // Modal is here for SetTargetModal below — the TWELFTH modal, which the Phase 4b audit
 // counted as eleven because it is declared inline in a page rather than in its own
@@ -30,7 +33,8 @@ import Explain from '../../components/Explain.jsx';
 import {
   BANNER_CRITICAL, AccountCardFoot, AccountCardLink, AccountCardShell,
   Menu, MenuContent, MenuItem, MenuTrigger,
-  AccountFootFigure, AccountFootRule, AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
+  AccountFootFigure, AccountFootRule, AccountMenuPanel, AccountMenuRow,
+  AccountTab, AccountTabMore, AccountTabs, BriefAction, BriefAlert, BriefCard, BriefClock, BriefRange,
   BriefColumns, BriefEvent, BriefHeader, BriefNote, BriefSection, Button, Card, KpiRow,
   ActionStatus, ActionStrip, KpiAside, KpiCard, KpiMain, useSectionEntrance,
   LoadingNote, MeterRow,
@@ -478,9 +482,13 @@ function ActivityCard({ trades, unit, beRounding }) {
        sits OUTSIDE that flexing region, which is why it can no longer be pushed out of
        the bottom of the card the way it was. */
     <PanelCard flush>
-      <PanelTabs>
-        <PanelTab selected={tab === 'recent'} onClick={() => setTab('recent')}>Recent trades</PanelTab>
-        <PanelTab selected={tab === 'open'} onClick={() => setTab('open')}>Open positions</PanelTab>
+      {/* PIECE 7 (2026-09-10): the strip owns the value now, because Base UI's Tabs is
+          what gives these arrow-key navigation and a roving tabindex — which the
+          hand-written version claimed with `role="tab"` and never had. Same two tabs,
+          same look; `selected`/`onClick` became `value`. */}
+      <PanelTabs value={tab} onValueChange={setTab}>
+        <PanelTab value="recent">Recent trades</PanelTab>
+        <PanelTab value="open">Open positions</PanelTab>
       </PanelTabs>
       {tab === 'recent' ? (
         <>
@@ -713,30 +721,22 @@ function AccountHeader({ candidates, selectedId, onSelect }) {
           {/* `align="start"` so it hangs under the chip's LEFT edge: this trigger sits at
               the right end of a horizontal strip, and the default end-alignment pushed
               the panel further right again, off the card. */}
-          <MenuContent align="start" className="dash-acct-more-menu">
-            {overflow.map((a) => {
-              const st = healthStatus(a.health.score, a.breach.breached);
-              return (
-                <MenuItem key={a.account_id} onClick={() => onSelect(a.account_id)}>
-                  {/* THE ROW IS THE CHIP, SMALLER. An account in this menu is the same
-                      object as one in the strip beside it, so it carries the same three
-                      facts in the same order — health, name, phase. The dot is the
-                      chip's health ring reduced to its inner mark; `prop-*` sets
-                      --status, which is the tone vocabulary the meters and the rail
-                      already share. */}
-                  <span className={`dash-acct-menu-row prop-${st}`}>
-                    <span className="dash-acct-menu-dot" aria-hidden="true" />
-                    <span className="dash-acct-menu-name">
-                      {a.label || `Account ${a.account_id}`}
-                    </span>
-                    {a.phase && (
-                      <span className="dash-acct-menu-phase">{PHASE_LABEL[a.phase] || a.phase}</span>
-                    )}
-                  </span>
-                </MenuItem>
-              );
-            })}
-          </MenuContent>
+          {/* MIGRATED OFF LEGACY CSS 2026-09-10. Five `.dash-acct-*` rules used to be
+              written here as classNames; the styling lives in `account.jsx` now,
+              because a Tailwind utility written in a PAGE compiles to nothing at all.
+              The row is still the chip's three facts in the chip's order. */}
+          <AccountMenuPanel>
+            {overflow.map((a) => (
+              <MenuItem key={a.account_id} onClick={() => onSelect(a.account_id)}>
+                <AccountMenuRow
+                  tone={healthStatus(a.health.score, a.breach.breached)}
+                  phase={a.phase ? (PHASE_LABEL[a.phase] || a.phase) : null}
+                >
+                  {a.label || `Account ${a.account_id}`}
+                </AccountMenuRow>
+              </MenuItem>
+            ))}
+          </AccountMenuPanel>
         </Menu>
       )}
     </AccountTabs>

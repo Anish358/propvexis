@@ -23,8 +23,11 @@
  *
  * This page is deleted when nothing is left `@design unreviewed`.
  */
-import React, { useRef, useState } from 'react';
-import { ChevronDown, Filter, MoreHorizontal, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  AlertCircle, AlertTriangle, Bell, CheckCircle2, ChevronDown, Filter, Inbox, Info,
+  MoreHorizontal, Trash2,
+} from 'lucide-react';
 /* THE REGISTRY COMPONENTS, IMPORTED RAW. Every other specimen on this page goes through
  * `@/components/primitives` — our wrapper layer, which is exactly what re-means shadcn's
  * vocabulary (§25) and applies our locked overrides. These two bypass it, so the pane
@@ -35,19 +38,72 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button as RawButton } from '@/components/ui/button';
+/* AND THE FORM FAMILY, for Batch 2's parity pane. Same argument as the dialog above:
+ * `ui/select.jsx` is the registry component with none of our layer, so whatever it draws
+ * beside ours is attributable to `primitives/select.jsx` and nothing else. The other six
+ * in the batch need no raw import — `input`, `textarea`, `checkbox` and `label` ARE
+ * straight re-exports, and `field` re-exports everything but its error, so a
+ * registry-vs-ours pane for any of them would render the same element twice. */
 import {
+  SelectContent as RawSelectPopup, SelectItem as RawSelectItem,
+  SelectTrigger as RawSelectTrigger, SelectValue as RawSelectValue,
+} from '@/components/ui/select';
+import {
+  Alert, AlertAction, AlertDescription, AlertTitle,
   Badge,
-  Button, ButtonLabel, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Button, ButtonLabel, Checkbox, ConsentField, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input,
+  Label,
   Menu, MenuCheckboxItem, MenuContent, MenuGroup, MenuGroupLabel, MenuItem,
   MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Modal,
   OverlayContainerContext, Popover, PopoverContent,
-  PopoverTrigger, Switch, ToggleGroupExclusive, ToggleGroupItem,
+  PopoverTrigger, Progress, ProgressIndicator, ProgressLabel, ProgressTrack,
+  ProgressValue,
+  Avatar, AvatarFallback, AvatarGroup, CountBadge, EmptyState, LoadingBlock, Separator,
+  Tabs,
+  Select, SelectItem, SelectPopup, SelectTrigger, SelectValue,
+  Skeleton, Spinner, Switch, Textarea, ToggleGroupExclusive, ToggleGroupItem,
 } from '@/components/primitives';
+
+/* CYCLE 00 — THE KIT. Its specimens live in their own module: the data table needs
+ * fifteen columns of realistic trades and the shipping table beside it for comparison,
+ * which is 400 lines that have nothing to do with the primitive batches above. Same
+ * rules apply there — real components, inline-styled scaffolding. */
+import {
+  DataTableArrival, DataTableQuestions, DataTableSelection, DataTableStates,
+  DataTableSummary, TradeLogPreview,
+} from './KitDataTable.jsx';
+import { TooltipQuestions, TooltipRegistry, TooltipSpecimen } from './KitTooltip.jsx';
+import { RadiusCheck } from './RadiusCheck.jsx';
+import {
+  FilterCascadeSpecimen, FilterChipSpecimen, FilterQuestions, RegistrySource,
+} from './KitFilterBar.jsx';
+import { DrawerQuestions, DrawerRegistry, DrawerSpecimen } from './KitDrawer.jsx';
+import {
+  FormFooterStates, FormLegacy, FormQuestions, FormSpecimen,
+} from './KitFormSection.jsx';
+import {
+  StatesCoverage, StatesLoading, StatesRules, StatesSideBySide,
+} from './KitStates.jsx';
+import { TabsRemaining, TabsSpecimen, TabsStyles } from './KitTabs.jsx';
 
 /* ---------------------------------------------------------------- scaffolding --- */
 
 const S = {
-  page: { padding: '28px 32px 96px', maxWidth: 1080, margin: '0 auto' },
+  /* THE PAGE IS FULL WIDTH AND THE PROSE IS NOT, and that split is the point.
+   *
+   * This was one container at `maxWidth: 1080`, which is right for reading and WRONG for
+   * reviewing a table. `.page-body` — what every real screen in this app sits in — has
+   * NO max width, only `padding: 16px 24px 40px`. So a fifteen-column table judged
+   * inside a 1080px column is being judged at a width it will never have: the columns
+   * come out narrower, the truncation lands in different places, and the horizontal
+   * scroll appears when the real page would not have one.
+   *
+   * So `page` is the shell at the real page's side padding, and `column` is the reading
+   * measure that the headings and batch notes stay inside. A specimen that needs the
+   * real width is rendered between two `column`s rather than inside one. */
+  page: { padding: '28px 24px 96px' },
+  column: { maxWidth: 1080, margin: '0 auto' },
   eyebrow: {
     fontSize: 11, letterSpacing: '.11em', textTransform: 'uppercase',
     color: 'var(--text-3)', fontWeight: 500,
@@ -119,14 +175,21 @@ function Tag({ children, tone = 'wait' }) {
 /* A single primitive under review. `states` are the two or three conditions worth
  * judging; `context` is the same component inside the arrangement it actually appears
  * in — a component approved in isolation is a component approved in a vacuum. */
-function Spec({ name, file, states, context, contextLabel, ask, approved }) {
+/* `pending` exists because this component could not say "no". Every branch of its tag
+ * printed "approved", which was fine while the page held nothing but locked batches and
+ * is wrong the moment a primitive is REOPENED — Cycle 00 unlocked the checkbox on
+ * 2026-09-09, and a specimen that labels itself approved while waiting for a signature
+ * is the page lying about its own purpose. */
+function Spec({ name, file, states, context, contextLabel, ask, approved, pending }) {
   return (
     <div style={S.card}>
       <div style={S.cardHead}>
         <span style={S.cardName}>{name}</span>
         <span style={S.mono}>{file}</span>
         <span style={{ flex: 1 }} />
-        {approved ? <Tag tone="ok">{`approved ${approved}`}</Tag> : <Tag>awaiting sign-off</Tag>}
+        {pending
+          ? <Tag tone="open">{pending}</Tag>
+          : <Tag tone="ok">{approved ? `approved ${approved}` : 'approved 7 Sep 2026'}</Tag>}
       </div>
 
       <div style={S.specimens}>
@@ -553,9 +616,9 @@ const VS_COLOUR = [
  * and the modal on this very page each disagree with it. They are not wrong — §6 gives a
  * menu `rounded-2xl` and a popover and a dialog `rounded-3xl` — the TABLE was. */
 const VS_SHAPE = [
-  ['Small chrome, menu rows', 'radius sm / md', '6 / 8px', '--r-md', true],
-  ['Nav rows, list rows, day cells', 'radius lg', '10px', '--r-lg', true],
-  ['Tiles and chips — and the CARD', 'radius xl', '14px', '--r-2xl', true],
+  ['Small chrome, menu rows', 'radius sm / md', '8 / 10px', '--r-md', true],
+  ['Buttons, nav rows, list rows, day cells', 'radius lg', '14px', '--r-lg', true],
+  ['Card and section shells', 'radius 2xl', '24px', '--r-2xl', true],
   ['CONTROLS — button, input, badge, menu panel', 'radius 2xl', '16px', '--radius-2xl', true],
   ['Popovers, and dialogs at min(4xl, 24px)', 'radius 3xl', '24px', '--radius-3xl', true],
   ['Body, a menu item', 'text-sm', '14px', '--fs-body', true],
@@ -1153,15 +1216,1105 @@ function PopoverSpecimen() {
   );
 }
 
+/* =================================================================== BATCH 2 ===
+ * FORM CONTROLS — input · textarea · select · checkbox · label · field · consent-field.
+ *
+ * SEVEN, NOT EIGHT. The plan lists `switch` in this family and it is already approved —
+ * it came through the variant matrix on 2026-09-07, because an on/off control is one of
+ * the things you cannot judge from a still. It is rendered in the geometry row below
+ * anyway: it has to keep AGREEING with the six being reviewed, and a locked part is
+ * exactly the part a batch can drift away from without anyone noticing.
+ *
+ * WHAT THIS BATCH IS ACTUALLY DECIDING, and it is not "does a text box look nice". These
+ * seven appear on one form, in one row, at the same moment — PRIMITIVE-REVIEW-PLAN §5 is
+ * the whole reason they are locked together. So the panes below are built to answer
+ * agreement questions rather than beauty questions: same height, same corner, same text
+ * size, same edge when focused, same behaviour when wrong.
+ *
+ * WHAT THE AUDIT FOUND BEFORE YOU LOOKED (2026-09-07), because Batch 1's lesson was that
+ * three of its four findings were in the review apparatus rather than the components:
+ *
+ *   · FOUR OF THE SEVEN ARE PASS-THROUGHS. `input`, `textarea`, `checkbox` and `label`
+ *     re-export the generated component with no change at all, and all four are
+ *     byte-identical to what the registry serves for base-rhea today (fetched and
+ *     diffed, per the method in the preset-parity note). So for those four, "ours" and
+ *     "the preset" are the same object, and there is no parity pane to draw.
+ *   · `field` is the @coss one, also byte-identical, with ONE difference: our
+ *     `FieldError` forces `match` and re-colours to `text-destructive`. Both are
+ *     recorded in field.jsx and neither is a look decision you need to make.
+ *   · `select` HAD A REAL BUG, now fixed: its option rows had been copied from the
+ *     generated component minus the `sm:` steps, back when those compiled to nothing.
+ *     The breakpoints came back on 2026-09-07 and the rows did not, so the value read
+ *     14px in the closed trigger and 16px in the open list — it changed size as you
+ *     opened it — and the rows stood 32px against the dropdown's 28px.
+ *
+ * ONE THING IS DELIBERATELY LEFT WRONG-LOOKING FOR YOU TO RULE ON: the select's option
+ * corner. See "Open questions" at the end of the batch.
+ */
+
+/* THE LABEL MAPS. Base UI's Select renders a VALUE, not a label, unless the root is told
+ * how the two relate — `items` is that mapping, and AccountStep.jsx passes it on every
+ * one of its three pickers. Without it a trigger reads "2step" while the option under it
+ * reads "2 Step", which would make the one comparison this batch turns on (is the closed
+ * trigger the same size as the open list?) harder to make, not easier. */
+const TYPES = { '1step': '1 Step', '2step': '2 Step', '3step': '3 Step', instant: 'Instant Funding' };
+const SIZES = { 25000: '$25,000', 50000: '$50,000', 100000: '$100,000', 200000: '$200,000' };
+
+/* Reads what the browser actually computed, rather than what the class says. The whole
+ * batch turns on four numbers agreeing, and "they look the same height" is the kind of
+ * judgement this page exists to replace. Measures the wrapper's first element child, so
+ * each probe wraps exactly one control. */
+function useProbe() {
+  const ref = useRef(null);
+  const [m, setM] = useState(null);
+  useEffect(() => {
+    const el = ref.current?.firstElementChild;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    setM({
+      h: Math.round(el.getBoundingClientRect().height),
+      r: Math.round(parseFloat(cs.borderTopLeftRadius)),
+      fs: Math.round(parseFloat(cs.fontSize)),
+    });
+  }, []);
+  return [ref, m];
+}
+
+function Probe({ label, expect, children }) {
+  const [ref, m] = useProbe();
+  const agrees = m && (!expect || (m.h === expect.h && m.r === expect.r && m.fs === expect.fs));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 150 }}>
+      <span style={S.specimenLabel}>{label}</span>
+      <div ref={ref} style={{ display: 'flex', alignItems: 'center', minHeight: 40 }}>
+        {children}
+      </div>
+      <span style={{
+        ...S.mono,
+        fontSize: 11,
+        color: agrees === false ? 'var(--loss)' : 'var(--text-3)',
+      }}
+      >
+        {m ? `${m.h}px tall · ${m.r}px corner · ${m.fs}px text` : '—'}
+      </span>
+    </div>
+  );
+}
+
+/* THE POINT OF THE BATCH, IN ONE ROW. Every control that can sit on the same line of the
+ * same form, measured. The button is here as the fixed reference — it is locked, it is
+ * what a form's Save is, and a field that does not match it is the mismatch you would
+ * see first. The switch is here because it is already approved and still has to agree.
+ *
+ * `expect` is the shape a 32px control is supposed to be — h-8, `rounded-2xl` at the
+ * preset's 16px, and 14px text once `md:`/`sm:` resolve. Anything that misses it turns
+ * its readout red rather than relying on you to spot four pixels. */
+const CONTROL_SHAPE = { h: 32, r: 16, fs: 14 };
+
+function FormGeometry() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Do they agree?</span>
+        <span style={S.mono}>height · corner · text size, measured in the browser</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">the reason this is one batch</Tag>
+      </div>
+      <div style={S.specimens}>
+        <Probe label="Button (locked)" expect={CONTROL_SHAPE}>
+          <Button variant="secondary">Save</Button>
+        </Probe>
+        <Probe label="Input" expect={CONTROL_SHAPE}>
+          <Input defaultValue="FTMO-8842291" style={{ width: 190 }} />
+        </Probe>
+        <Probe label="Select trigger" expect={CONTROL_SHAPE}>
+          <Select defaultValue="2step" items={TYPES}>
+            <SelectTrigger style={{ width: 190 }}><SelectValue /></SelectTrigger>
+            <SelectPopup>
+              <SelectItem value="1step">1 Step</SelectItem>
+              <SelectItem value="2step">2 Step</SelectItem>
+            </SelectPopup>
+          </Select>
+        </Probe>
+        <Probe label="Switch (approved)">
+          <Switch defaultChecked />
+        </Probe>
+        <Probe label="Checkbox">
+          <Checkbox defaultChecked />
+        </Probe>
+        <Probe label="Textarea">
+          <Textarea defaultValue="Held it through the retest." style={{ width: 220 }} />
+        </Probe>
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
+        whether the first three are the same height and the same roundness — they are the
+        three that sit side by side on the Add Account form. The switch and the tick box
+        are deliberately smaller; the question there is whether they look like they belong
+        to the same family, not whether they match. A red readout means a control missed
+        the shape the other three hold.
+      </div>
+    </div>
+  );
+}
+
+/* STATES, NOT STILLS — the Batch 1 lesson, applied before you ask for it. Three of the
+ * four findings in the overlays batch were things a forced-open specimen could not show,
+ * and a form control has more states than an overlay does: empty, typed in, focused,
+ * switched off, and rejected. The last two are the ones that ship broken, because nobody
+ * screenshots a disabled field.
+ *
+ * `aria-invalid` is passed by hand here, and an earlier version of this note claimed
+ * "nothing in the app sets it yet — the account page renders a FieldError and leaves the
+ * input alone". That was WRONG, and it went in front of the owner as an open question
+ * before anyone checked. AccountStep passes `aria-invalid` on the one validated field
+ * this app has, so the red edge and ring below are exactly what already ships. The
+ * question the pane really answers is whether the SECOND validated field will do the
+ * same; form-family.test.js now makes sure it does. */
+function FormStates() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Every state</span>
+        <span style={S.mono}>click into them — focus is not a screenshot</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">approved 7 Sep 2026</Tag>
+      </div>
+      <div style={S.specimens}>
+        {[
+          { label: 'Empty', node: <Input placeholder="Account name" /> },
+          { label: 'Typed in', node: <Input defaultValue="FTMO-8842291" /> },
+          { label: 'Switched off', node: <Input defaultValue="FTMO-8842291" disabled /> },
+          { label: 'Rejected', node: <Input defaultValue="FTMO-8842291" aria-invalid="true" /> },
+        ].map((s) => (
+          <div key={s.label} style={S.specimen}>
+            <span style={S.specimenLabel}>{s.label}</span>
+            <div style={{ ...S.stage, width: 210 }}>
+              {React.cloneElement(s.node, { style: { width: '100%' } })}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ ...S.specimens, borderTop: '1px solid var(--line-inset)' }}>
+        {[
+          { label: 'Tick box — off', node: <Checkbox /> },
+          { label: 'Tick box — on', node: <Checkbox defaultChecked /> },
+          { label: 'Tick box — off, disabled', node: <Checkbox disabled /> },
+          { label: 'Tick box — on, disabled', node: <Checkbox defaultChecked disabled /> },
+          { label: 'Long text — empty', node: <Textarea placeholder="What did you see?" style={{ width: 200 }} /> },
+          { label: 'Long text — grows', node: <Textarea defaultValue={'Entered on the retest of the 15m level.\nSized down because the spread was wide.\nHeld it to target.'} style={{ width: 200 }} /> },
+        ].map((s) => (
+          <div key={s.label} style={S.specimen}>
+            <span style={S.specimenLabel}>{s.label}</span>
+            <div style={S.stage}>{s.node}</div>
+          </div>
+        ))}
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
+        whether an empty box is clearly different from a switched-off one — both are pale,
+        and if they read the same, a user will type into something that cannot take it.
+        Then click into each field and watch the ring that appears: it should be the same
+        ring on the text box, the dropdown and the tick box. The long box grows as you
+        type rather than scrolling; tell me if you would rather it scrolled.
+      </div>
+    </div>
+  );
+}
+
+/* THE ONE PARITY PANE THIS BATCH NEEDS. `ui/select.jsx` is the registry component with
+ * none of our layer — its own trigger (a bordered, shadowed, `rounded-lg` field) and its
+ * own popup (`rounded-lg`, `shadow-lg/5`, two `before:` hairlines). Ours corrects both,
+ * for the reasons written in select.jsx: the trigger has to look like the Input beside
+ * it, and §6/§7 give a floating panel the app's own radius and elevation.
+ *
+ * The registry one is UNUSABLE in the app, by the way, and not for looks — its option
+ * rows carry `grid`, which legacy/app.css claims unlayered for the Trade Log, so every
+ * row renders as a 1012px table. Expect the right-hand list to blow out to the width of
+ * the page. That is the bug being demonstrated, not a broken specimen. */
+function SelectParity() {
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Dropdown picker — registry vs ours</span>
+        <span style={S.mono}>ui/select.jsx · primitives/select.jsx</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">approved 7 Sep 2026</Tag>
+      </div>
+      <div style={{ ...S.specimens, alignItems: 'flex-start' }}>
+        <div style={{ ...S.specimen, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Registry — no corrections</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start', overflow: 'hidden' }}>
+            <Select defaultValue="2step" items={TYPES}>
+              <RawSelectTrigger style={{ width: 220 }}><RawSelectValue /></RawSelectTrigger>
+              <RawSelectPopup>
+                <RawSelectItem value="1step">1 Step</RawSelectItem>
+                <RawSelectItem value="2step">2 Step</RawSelectItem>
+                <RawSelectItem value="instant">Instant Funding</RawSelectItem>
+              </RawSelectPopup>
+            </Select>
+          </div>
+        </div>
+        <div style={{ ...S.specimen, flex: 1, minWidth: 300 }}>
+          <span style={S.specimenLabel}>Ours</span>
+          <div style={{ ...S.stage, alignItems: 'flex-start' }}>
+            <Select defaultValue="2step" items={TYPES}>
+              <SelectTrigger style={{ width: 220 }}><SelectValue /></SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="1step">1 Step</SelectItem>
+                <SelectItem value="2step">2 Step</SelectItem>
+                <SelectItem value="instant">Instant Funding</SelectItem>
+              </SelectPopup>
+            </Select>
+          </div>
+        </div>
+      </div>
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Look at: </strong>
+        open both — and expect them to look almost identical, which is the point. The
+        left one is the shipped shadcn component with nothing of ours applied. The right
+        one is the same component plus two classes: the field fills its column instead of
+        hugging its text, and its padding matches the text box beside it. Everything else
+        you asked for on 7 Sep — the field shape, the single chevron, the tick on the
+        right, the 14px highlight, opening on the field — is what shadcn now ships.
+      </div>
+      <div style={{ ...S.note, borderTop: '1px solid var(--line-inset)' }}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>What this pane used to say: </strong>
+        that the left one draws a bordered, shadowed field and a panel with squarer
+        corners than everything else, and that its list flies out to the width of the page
+        because of a collision with the old Trade Log CSS. All of that was true of the
+        version we had been holding since install, and none of it is true of the one
+        shadcn ships today. Re-installing it deleted about 150 lines of ours.
+      </div>
+    </div>
+  );
+}
+
+/* THE LABEL PAIR. Two things called a label exist, and until this batch nobody had put
+ * them next to each other: `Label` (the shadcn one — a plain <label>, `text-sm
+ * font-medium`) and `FieldLabel` (the @coss one, inside a Field, which is what every
+ * form in the app actually uses). They read 14px/500 each today, which they did NOT four
+ * days ago — the coss one is `text-base/4.5 sm:text-sm/4`, so it stood at 16px for as
+ * long as `sm:` was dead. The pair is drawn together so the next time one moves, it is
+ * visible rather than derived. */
+function LabelPair() {
+  return (
+    <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={S.specimenLabel}>Label — used with a bare control</span>
+        <Label htmlFor="pr-label-a">Account Name</Label>
+        <Input id="pr-label-a" defaultValue="FTMO-8842291" style={{ width: 220 }} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={S.specimenLabel}>FieldLabel — what forms actually use</span>
+        <Field>
+          <FieldLabel htmlFor="pr-label-b">Account Name</FieldLabel>
+          <Input id="pr-label-b" defaultValue="FTMO-8842291" style={{ width: 220 }} />
+          <FieldDescription>The name you will see in the switcher.</FieldDescription>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/* THE REAL FORM, not an arrangement invented for this page. Field for field this is
+ * AccountStep.jsx — two even columns, a label over every control, the same questions in
+ * the same order — because a control approved in isolation is a control approved in a
+ * vacuum, and this specific layout is where all six of these parts meet.
+ *
+ * The error line is forced on, which is the only lie in the pane: on the real page it
+ * appears when the name is already taken. It is here because inline validation copy is a
+ * look decision and it cannot be judged from a form that is not wrong. */
+function FormInContext() {
+  const [size, setSize] = useState('100000');
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, width: '100%',
+    }}
+    >
+      <Field>
+        <FieldLabel htmlFor="pr-type">Account Type</FieldLabel>
+        <Select defaultValue="2step" items={TYPES}>
+          <SelectTrigger id="pr-type"><SelectValue placeholder="Select account type" /></SelectTrigger>
+          <SelectPopup>
+            <SelectItem value="1step">1 Step</SelectItem>
+            <SelectItem value="2step">2 Step</SelectItem>
+            <SelectItem value="3step">3 Step</SelectItem>
+            <SelectItem value="instant">Instant Funding</SelectItem>
+          </SelectPopup>
+        </Select>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="pr-size">Account Size</FieldLabel>
+        <Select value={size} onValueChange={setSize} items={SIZES}>
+          <SelectTrigger id="pr-size"><SelectValue placeholder="Select account size" /></SelectTrigger>
+          <SelectPopup>
+            <SelectItem value="25000">$25,000</SelectItem>
+            <SelectItem value="50000">$50,000</SelectItem>
+            <SelectItem value="100000">$100,000</SelectItem>
+            <SelectItem value="200000">$200,000</SelectItem>
+          </SelectPopup>
+        </Select>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="pr-name">Account Name</FieldLabel>
+        {/* MARKED INVALID, not just accompanied by red prose (owner ruling). The real
+            page does the same thing on this exact field. */}
+        <Input id="pr-name" defaultValue="FTMO 100k — Phase 2" aria-invalid="true" />
+        <FieldError>You already have an account with this name.</FieldError>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="pr-daily">Daily Drawdown (%)</FieldLabel>
+        <Input id="pr-daily" inputMode="decimal" defaultValue="5" />
+      </Field>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Field>
+          <FieldLabel htmlFor="pr-notes">Notes</FieldLabel>
+          <Textarea id="pr-notes" placeholder="Anything you want to remember about this account." />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/* THE CONSENT GATE, in its own pane, because it is the one place in this batch where the
+ * look has a consequence. An unticked box is what stops a trade-capable password being
+ * submitted — consent-field.jsx says so at length — so "did you notice you had to tick
+ * it" is a real question about this specimen, not a stylistic one. The sentence is the
+ * live copy from platformCatalog.js, not filler; its length is the reason the primitive
+ * exists at all (a three-line label centred against a 16px box is what the composition
+ * is correcting). */
+function ConsentSpecimen() {
+  const [ok, setOk] = useState(false);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 460 }}>
+      <Field>
+        <FieldLabel htmlFor="pr-cred">Investor password</FieldLabel>
+        <Input id="pr-cred" type="password" defaultValue="hunter2hunter2" />
+        <FieldDescription>Read-only if your broker offers one.</FieldDescription>
+      </Field>
+      <ConsentField id="pr-consent" checked={ok} onCheckedChange={(v) => setOk(v === true)}>
+        I understand this password can place trades on my account, and I authorise
+        PropVexis to use it to read my trade history.
+      </ConsentField>
+      <div>
+        <Button variant="primary" disabled={!ok}>Connect account</Button>
+      </div>
+    </div>
+  );
+}
+
+/* THE LIST IS EMPTY, AND THAT IS THE POINT OF IT.
+ *
+ * Four questions were parked here on 7 Sep rather than decided, because each was a
+ * defensible-either-way call on the owner's own product. All four were put to them the
+ * same day and all four came back. They are kept as a CLOSED list rather than deleted:
+ * the next round is read from this page, and a question that vanishes looks like one
+ * that was never asked — which is how the same argument gets had twice.
+ *
+ * ONE OF THEM I HAD GOT WRONG, and it is recorded here rather than quietly corrected.
+ * The "rejected field" question claimed the app ships the red sentence and leaves the box
+ * looking normal. It does not: AccountStep already passes `aria-invalid`, the preset's
+ * red edge and ring already apply, and there is exactly one validated field in the app,
+ * which already does both. The owner picked "the box AND the sentence" — the behaviour
+ * that was already there. What the answer buys is not a change; it is a RULE, and
+ * form-family.test.js now holds it, because the risk was never the first call site.
+ */
+const DECIDED = [
+  {
+    q: 'A dropdown option had squarer corners than a menu row.',
+    a: 'Matched to the menu — 14px.',
+    detail:
+      'An option was a 6px corner against the dropdown menu’s 14px. The split is '
+      + 'shadcn’s own, which is why it was asked rather than tidied; §6 locked the '
+      + 'overlays as a family, so one row shape now wins wherever something floats.',
+  },
+  {
+    q: 'Field labels were full-strength white, not the muted label colour.',
+    a: 'Muted — one label colour in the app.',
+    detail:
+      'You locked --text-2 for labels on the dashboard, and the form labels were '
+      + 'rendering as bright as the value typed under them. There was a real argument '
+      + 'for keeping them bright — a form label is a question you must read, not a '
+      + 'caption — and you chose consistency. The label and its help text now differ '
+      + 'by size, not by brightness.',
+  },
+  {
+    q: 'What marks a rejected field.',
+    a: 'The box and the sentence — which it already did.',
+    detail:
+      'I told you the app printed the sentence and left the box alone. That was wrong: '
+      + 'the one validated field in the app already sets both, and the preset’s red '
+      + 'edge and ring already apply to it. So nothing changed — what your answer '
+      + 'bought is a test that pairs them, so the SECOND validated field cannot ship '
+      + 'with only half.',
+  },
+  {
+    q: 'The tick box corner was 5px, off our scale.',
+    a: 'Rounded to 6px.',
+    detail:
+      'One pixel, and you were told so. Our steps are 6 / 8 / 10 / 14 / 16 and the '
+      + 'generated tick box asked for an arbitrary 5. A knowing divergence from the '
+      + 'preset, taken because a single arbitrary value is how a scale stops being one.',
+  },
+];
+
+function OpenQuestions() {
+  return (
+    <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>Decisions</span>
+        <span style={S.mono}>four asked, four answered — nothing outstanding</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="ok">all settled 7 Sep</Tag>
+      </div>
+      {DECIDED.map((o, i) => (
+        <div
+          key={o.q}
+          style={{
+            padding: '14px 18px',
+            borderTop: i === 0 ? 'none' : '1px solid var(--line-inset)',
+            display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}
+        >
+          <span style={{ ...S.mono, minWidth: 14, paddingTop: 2 }}>{i + 1}</span>
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 550, color: 'var(--text)' }}>{o.q}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--profit)', marginTop: 2 }}>{o.a}</div>
+            <div style={{
+              fontSize: 12.5, lineHeight: '20px', color: 'var(--text-2)', marginTop: 4,
+            }}
+            >
+              {o.detail}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================ THE ONE THAT WAS IN NO BATCH ===
+ *
+ * `overlay-container.js` renders NOTHING. It is a React context holding a ref, and the
+ * batches were drawn from things you can look at, so it was never assigned to one — which
+ * left the arithmetic short: 24 approved plus 11 batched is 35, not 36.
+ *
+ * IT HAS EXACTLY ONE VISIBLE CONSEQUENCE, and that is what this pane shows rather than
+ * asking anyone to approve an abstraction. Base UI portals an overlay into its nearest
+ * parent portal, not to the page — so a menu opened inside a modal lands as a SIBLING of
+ * the modal's backdrop, where the positioner's hardcoded z-index of 50 loses to the
+ * scrim's 2147483000 and the menu paints underneath it: focused, keyboard-operable, and
+ * invisible. This context is how an overlay says "I belong to that modal" instead of
+ * asking for a bigger number.
+ *
+ * So: open the modal, then open the menu and the picker inside it. If you can see them,
+ * the component works. That is the entire review, and it is the honest one — there is no
+ * appearance here to have an opinion about.
+ */
+function OverlayContainerSpecimen() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Open a modal with overlays inside it
+      </Button>
+      {open ? (
+        <Modal open onClose={() => setOpen(false)} label="Overlay containment" style={{ display: 'grid', gap: 24 }}>
+          <DialogHeader>
+            <DialogTitle>Overlays inside a modal</DialogTitle>
+            <DialogDescription>
+              Both controls below open panels of their own. Without this context they would
+              render underneath the dark backdrop behind this dialog — reachable by
+              keyboard, invisible to you.
+            </DialogDescription>
+          </DialogHeader>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Menu>
+              <MenuTrigger render={<Button variant="secondary" />}>
+                <Filter aria-hidden="true" />
+                A menu
+              </MenuTrigger>
+              <MenuContent align="start">
+                <MenuItem>Export CSV</MenuItem>
+                <MenuItem>Duplicate</MenuItem>
+                <MenuSeparator />
+                <MenuItem>Archive</MenuItem>
+              </MenuContent>
+            </Menu>
+            {/* THE PICKER IS DELIBERATELY STILL HERE AND STILL BROKEN (2026-09-08).
+                It does not open inside a modal, and the reason is not ours to fix in a
+                className: the generated `SelectContent` renders `<Select.Portal>` with no
+                props at all, so there is no way to hand it the container the way `Menu`
+                takes one. Base UI then falls back to the parent portal — beside the
+                backdrop — where the panel paints under the scrim and the dialog's own
+                focus containment makes it inert.
+
+                Left in rather than removed, because a specimen that quietly omits the
+                broken case is how a limitation stops being visible. The owner has the
+                trade-off; see the note under this pane. */}
+            <Select defaultValue="2step" items={TYPES}>
+              <SelectTrigger style={{ width: 180 }}><SelectValue /></SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="1step">1 Step</SelectItem>
+                <SelectItem value="2step">2 Step</SelectItem>
+                <SelectItem value="instant">Instant Funding</SelectItem>
+              </SelectPopup>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOpen(false)}>Close</Button>
+          </DialogFooter>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/* ================================================================= BATCH 3 ===
+ * FEEDBACK — alert · skeleton · spinner · progress.
+ *
+ * These four say what is happening: something went wrong, something is coming, something
+ * is running, something is this far along. They are one batch because they are the app
+ * talking about ITSELF rather than about trades — and because §17, the rule for how a
+ * system message may spend colour, governs the first one and nothing else in the app.
+ *
+ * WHAT THE PRE-REVIEW AUDIT FOUND (2026-09-07), run under the standing rule that the
+ * registry is checked BEFORE anything is wrapped or hand-built:
+ *
+ *   · ALL FOUR ARE THE SHIPPED COMPONENT, and all four are byte-identical to what their
+ *     registry serves today. `skeleton` and `spinner` are shadcn base-rhea; `alert` and
+ *     `progress` are @coss. Nothing is hand-built, nothing has drifted, and there is no
+ *     rewrite waiting the way there was for the picker.
+ *   · `alert` IS @coss ON PURPOSE and it is worth knowing why: shadcn's own alert ships
+ *     two variants, default and destructive. §17 needs a four-step ladder — error,
+ *     warning, info, success — and @coss ships exactly that. §1's build order working,
+ *     not a shortcut past it.
+ *   · `progress` carries the batch's ONE override: the generated indicator animates over
+ *     500ms and §10 allows two durations, 200 and 120. Worth noting that shadcn's own
+ *     progress has since dropped its duration entirely, so if we ever move off the coss
+ *     one that override goes with it.
+ *   · NOTHING IN THE APP RENDERS THE SPINNER. Not one screen — checked. It is drawn below
+ *     so it can be judged, but it is being approved with no call sites.
+ */
+
+/* §17 IS WHAT THIS PANE IS FOR, and it is the rule settled on 2026-09-06: a system message
+ * may colour its GLYPH and a 1px EDGE; it may not colour its WORDS or wash its surface,
+ * and nothing inside a data surface may use status colour at all. The generated component
+ * already spends colour in exactly those two places, so there is nothing of ours in here —
+ * which means what is being judged is whether the RULE reads right in practice, not
+ * whether we implemented it. */
+const ALERT_TONES = [
+  { v: 'error', icon: AlertCircle, title: 'We could not start the connection', body: 'Nothing was saved. You can try authorizing again.' },
+  { v: 'warning', icon: AlertTriangle, title: 'You are 88% through today’s loss limit', body: 'One more losing trade at your usual size would breach it.' },
+  { v: 'info', icon: Info, title: 'Your EA has not reported since Friday', body: 'Trades placed since then will appear once it reconnects.' },
+  { v: 'success', icon: CheckCircle2, title: 'Payout recorded', body: '$4,120 added to your withdrawal history.' },
+];
+
+function AlertTones() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      {ALERT_TONES.map(({ v, icon: Icon, title, body }) => (
+        <Alert key={v} variant={v}>
+          <Icon aria-hidden="true" />
+          <AlertTitle>{title}</AlertTitle>
+          <AlertDescription>{body}</AlertDescription>
+        </Alert>
+      ))}
+    </div>
+  );
+}
+
+function AlertShapes() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      <Alert variant="error">
+        <AlertCircle aria-hidden="true" />
+        <AlertTitle>Sync failed</AlertTitle>
+        <AlertDescription>
+          Your last 3 trades did not import. This usually means the terminal was closed
+          mid-write; retrying is safe and will not duplicate anything.
+        </AlertDescription>
+        <AlertAction>
+          <Button variant="secondary" size="sm">Retry</Button>
+        </AlertAction>
+      </Alert>
+      <Alert variant="info">
+        <Info aria-hidden="true" />
+        <AlertDescription>
+          One line, no heading &mdash; which is what most of the app&rsquo;s alerts
+          actually are.
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+/* THE OTHER THREE TOGETHER, because they are one question asked three ways: "something is
+ * happening, wait." A skeleton says it about a REGION, a spinner about an ACTION, a
+ * progress bar about a JOB WITH A KNOWN END. If they do not read as one family, the user
+ * learns three vocabularies for one idea. */
+function LoadingFamily() {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 30, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9, width: 230 }}>
+        <span style={S.specimenLabel}>Skeleton — a region</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Skeleton style={{ height: 28, width: 140 }} />
+          <Skeleton style={{ height: 14, width: '100%' }} />
+          <Skeleton style={{ height: 14, width: '78%' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <Skeleton style={{ height: 56, flex: 1 }} />
+            <Skeleton style={{ height: 56, flex: 1 }} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <span style={S.specimenLabel}>Spinner — an action</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, minHeight: 56 }}>
+          <Spinner />
+          <Spinner style={{ width: 20, height: 20 }} />
+          <Spinner style={{ width: 28, height: 28 }} />
+          <Button variant="primary" disabled>
+            <Spinner />
+            <ButtonLabel>Connecting…</ButtonLabel>
+          </Button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 230 }}>
+        <span style={S.specimenLabel}>Progress — a job with an end</span>
+        {[0, 40, 100].map((v) => (
+          <Progress key={v} value={v}>
+            <ProgressTrack><ProgressIndicator /></ProgressTrack>
+          </Progress>
+        ))}
+        <Progress value={62}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <ProgressLabel>Importing trades</ProgressLabel>
+            <ProgressValue />
+          </div>
+          <ProgressTrack><ProgressIndicator /></ProgressTrack>
+        </Progress>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================= BATCH 6 ===
+ * REBUILT, THEN REVIEWED — "nothing here yet" · page loading block · tabs.
+ *
+ * THIS BATCH IS DIFFERENT FROM THE OTHER FIVE. The three were never reviewable: they
+ * still rendered the app's own `.u-*` markup, so looking at them would have been looking
+ * at something already scheduled for deletion. The plan's answer was to rebuild them
+ * FIRST and review the result — which is what happened on 2026-09-08, and what is drawn
+ * below is the rebuild, not the thing that was there yesterday.
+ *
+ * TWO OF THE THREE WERE HELD BACK BY REASONS THAT HAD EXPIRED, which by now is the most
+ * reliable finding of the whole review:
+ *
+ *   · `empty-state.jsx` argued at length that it would stay hand-written — "no registry
+ *     has an empty state, because what belongs in one is a product decision" — while its
+ *     own status line, two paragraphs above, already named `@shadcn empty` and the parts
+ *     it ships. The registry has it, with exactly those parts.
+ *   · `tabs.jsx` argued it was "the LAST primitive scheduled for library adoption"
+ *     because its underline interaction "is a documented design-system rule rather than
+ *     a default, and a generated tab list arrives with its own idea of all of that". The
+ *     generated tab list ships OUR rule as `variant="line"`: transparent track, and an
+ *     `after:` underline that fades in on the active tab.
+ *
+ * Only `loading-block.jsx` had a live argument, and it was answered rather than waved
+ * away — see its header for what the rebuild costs (the shimmer) and why that is a gain.
+ *
+ * TWENTY-SIX LEGACY RULES WENT WITH THEM, which is the point of the batch as much as the
+ * appearance is: `legacy/app.css` is down to 994 class names and the `u-*` layer is now
+ * just the button, the card and the form field.
+ */
+function RebuiltSix() {
+  const [tab, setTab] = useState('summary');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 26, width: '100%' }}>
+      <div>
+        <span style={S.specimenLabel}>Tabs — the underline is the registry&rsquo;s now</span>
+        <div style={{ marginTop: 10 }}>
+          <Tabs
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: 'summary', label: 'Summary' },
+              { value: 'transactions', label: 'Transactions' },
+              { value: 'funded', label: 'Funded' },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div>
+        <span style={S.specimenLabel}>Nothing here yet</span>
+        {/* PADDED, so the two borders are not flush. The first version of this pane sat the
+            empty state's edge directly against the card's, with no gap — which made the
+            corners the only place the two curves could be compared, and exaggerated a
+            mismatch that was real but smaller than it looked. A real page puts an empty
+            state inside a card's padding, so the specimen does too. */}
+        <div style={{
+          marginTop: 10, padding: 12, border: '1px solid var(--line)', borderRadius: 14,
+          background: 'var(--surface)',
+        }}
+        >
+          <EmptyState
+            icon={<Inbox aria-hidden="true" />}
+            title="No payouts yet"
+            description="When you record a withdrawal it will appear here, with the fees and the cycle it belonged to."
+            actions={<Button variant="primary" size="sm">Record a payout</Button>}
+          />
+        </div>
+      </div>
+
+      <div>
+        <span style={S.specimenLabel}>Page loading block</span>
+        <div style={{
+          marginTop: 10, border: '1px solid var(--line)', borderRadius: 14,
+          background: 'var(--surface)', overflow: 'hidden',
+        }}
+        >
+          <LoadingBlock kpis={4} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================= BATCH 5 ===
+ * SMALL PIECES — profile picture · dividing line · number badge.
+ *
+ * A glance each, which is why the plan put them last and why they are one card rather
+ * than three. All three came back identical to their registry (checked before anything
+ * else, per the standing rule), so there is nothing of ours to defend in any of them
+ * except two locked-rule corrections on the number badge, both already written down.
+ *
+ * WHAT TO ACTUALLY LOOK AT, because "a glance" is not the same as "no decisions":
+ *
+ *   · The number badge is the only one carrying a colour decision, and it changed once
+ *     already — an unread count used to be RED and is now the action colour, because §4
+ *     spends red on losses and a red dot beside a bell reads as money lost.
+ *   · The divider is the one part §8 fully settles: 1px, full width, never inset. If it
+ *     looks wrong here it is the RULE that is wrong, not the component.
+ *   · The profile picture appears in exactly one place in the app, and its fallback —
+ *     the initial, when Google's image fails to load — is the state nobody ever sees on
+ *     purpose. It is drawn below precisely because it is the one that ships broken.
+ */
+function SmallPieces() {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 34, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <span style={S.specimenLabel}>Profile picture</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minHeight: 56 }}>
+          <Avatar size="lg">
+            <AvatarFallback>A</AvatarFallback>
+          </Avatar>
+          <Avatar>
+            <AvatarFallback>AP</AvatarFallback>
+          </Avatar>
+          <AvatarGroup>
+            <Avatar><AvatarFallback>A</AvatarFallback></Avatar>
+            <Avatar><AvatarFallback>M</AvatarFallback></Avatar>
+            <Avatar><AvatarFallback>K</AvatarFallback></Avatar>
+          </AvatarGroup>
+        </div>
+        <span style={{ ...S.mono, fontSize: 11 }}>large · default · a group</span>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 260 }}>
+        <span style={S.specimenLabel}>Dividing line</span>
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 12, width: '100%',
+          padding: 14, borderRadius: 12, background: 'var(--surface)',
+          border: '1px solid var(--line)',
+        }}
+        >
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>Daily drawdown</span>
+          <Separator />
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>Maximum drawdown</span>
+          <Separator />
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>Profit target</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <span style={S.specimenLabel}>Number badge</span>
+        {/* THE BADGE GOES INSIDE THE BUTTON, and the first version of this pane put it
+            beside one — which the owner spotted immediately as "the hover feels off".
+            It was: as a SIBLING, moving the pointer from the bell onto the badge LEAVES
+            the button, so the hover fill drops while the cursor is still visually on the
+            control. Notifications.jsx has always had it right — the badge is a child of
+            the trigger, `size="icon-sm" pill`, and `.notif` supplies the positioned
+            ancestor `corner` needs. Reproduced here exactly, because a specimen that
+            composes a component differently from its one real call site is testing
+            something the app does not do. */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20, minHeight: 56 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Filters</span>
+            <CountBadge>3</CountBadge>
+          </span>
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <Button variant="chrome" size="icon-sm" pill>
+              <Bell aria-hidden="true" />
+              <CountBadge tone="alert" corner>7</CountBadge>
+            </Button>
+          </span>
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <Button variant="chrome" size="icon-sm" pill>
+              <Bell aria-hidden="true" />
+              <CountBadge tone="alert" corner>99+</CountBadge>
+            </Button>
+          </span>
+        </div>
+        <span style={{ ...S.mono, fontSize: 11 }}>a filter count · unread · capped at 99+</span>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================== BATCH 4, DEFERRED 2026-09-08 ===
+ * FLOWS — the Add Account wizard. Skipped at the owner's request: the Add Account flow is
+ * being redesigned, so reviewing it now would be reviewing it twice. Its specimens are
+ * deleted rather than commented out — the page is a queue, and a queue with dead entries
+ * in it stops being one. The file itself stays exactly where it is: eleven shipping pages
+ * render it, and `@design unreviewed` is what keeps the REDESIGNED flow from adopting it.
+ *
+ * ONE COMPONENT, 21 EXPORTED PARTS, and the only batch in the review that is genuinely
+ * HAND-WRITTEN rather than a registry component with a wrapper. That is a claim the
+ * standing rule says to check rather than assert, so it was checked: neither shadcn nor
+ * @coss ships a wizard, a stepper, or anything shaped like one — @coss's 484 particles
+ * cover 52 component types and none of them is this. The pieces it is BUILT from are all
+ * registry components (Button, Input, Progress), and it composes them.
+ *
+ * WHY IT WAITED FOR BATCH 2 AND 3. Every page of this wizard is made of form controls and
+ * a progress bar. Reviewing the container before its contents were settled would have
+ * meant reviewing it twice — and in the event both batches moved under it: the labels went
+ * muted, the picker was replaced outright, and the progress bar's animation was corrected.
+ *
+ * WHAT THE PRE-REVIEW AUDIT FOUND (2026-09-08):
+ *
+ *   · A THIRD EXPIRED JUSTIFICATION, same shape as the two in `select.jsx`. All four grids
+ *     were written as an arbitrary `[display:grid]` property rather than the plain `grid`
+ *     utility, to dodge a legacy CSS collision — one that had been closed at BOTH ends on
+ *     2026-08-28, before this file was written. Deleted; the grids are plain `grid` now.
+ *   · Nothing else. Every value in the file traces to a rule, and the file says which.
+ */
+/* ============================================================ FOLDING AWAY ===
+ *
+ * THE PAGE IS A QUEUE, AND A FINISHED QUEUE THAT STILL SHOWS EVERY FINISHED ITEM IS NOT
+ * ONE (owner, 2026-09-08: "find a way to hide the approved and locked things... dont want
+ * to overcrowde it"). Every locked batch collapses to a single line and opens on click.
+ *
+ * `<details>` RATHER THAN REACT STATE, and it is not laziness. The browser gives us the
+ * open/closed behaviour, the keyboard handling and the accessibility semantics for free,
+ * and it keeps working if this page is ever printed or opened with JS half-loaded. State
+ * here would be three lines to reimplement what the platform already does correctly.
+ *
+ * The marker is removed and drawn by hand because Safari and Firefox disagree about the
+ * default triangle's size and position, and a review page that looks different per browser
+ * is the one thing this page must not be.
+ *
+ * NOTHING IS DELETED BY FOLDING. Every locked specimen still renders when opened — that is
+ * the whole reason the page survives the review: change one token and you can check all 36
+ * parts at once. Folding is about what you see FIRST, not about what is here. */
+function Folded({ title, tag, hint, children, open = false }) {
+  return (
+    <details open={open} style={{ marginTop: 22 }}>
+      <summary
+        style={{
+          display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap',
+          cursor: 'pointer', listStyle: 'none', userSelect: 'none',
+        }}
+      >
+        {/* The chevron rotates via the parent's open state — a sibling selector would need
+            a stylesheet, and a utility class here would compile to nothing. */}
+        <span style={{ fontSize: 11, color: 'var(--text-3)', width: 10 }}>▸</span>
+        <span style={S.batchTitle}>{title}</span>
+        {tag}
+        {hint ? <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{hint}</span> : null}
+      </summary>
+      <div style={{ paddingLeft: 22 }}>{children}</div>
+    </details>
+  );
+}
+
+/* ======================================================= THE REDESIGN MAP ===
+ *
+ * WHY IT LIVES ON THIS PAGE. The primitive review was never the project — it was the
+ * PREREQUISITE for it. §1 says a redesigned screen may only use parts the owner has signed
+ * off, so the review is what unblocks the redesign, and until now the two were tracked in
+ * two untracked documents nobody opens. Putting the map here means the thing that says
+ * "what next" sits directly under the thing that says "with what".
+ *
+ * SOURCE OF TRUTH IS STILL `docs/architecture/SCREEN-REDESIGN-PLAN.md`. This is a view of
+ * it, not a second copy of the decisions — the cycle order, the families and the archetypes
+ * are that document's, and the counts below were measured when it was authored (2026-09-06)
+ * except where marked live.
+ */
+/* HOW MANY CLASS NAMES THE OLD STYLESHEET STILL DECLARES.
+ *
+ * A NUMBER IN A COMMENT IS A NUMBER THAT ROTS, and this page has spent a week finding
+ * exactly that failure in other files. So it is not a comment — `legacy-css-count.test.js`
+ * counts the real declarations and fails if this disagrees. It cannot drift without
+ * someone being told, and updating it is one line when a cycle deletes a screen's CSS.
+ *
+ * It is the honest measure of the redesign's progress in a way "screens done" is not: a
+ * screen can be redesigned and still leave its old rules behind, which is the step §9 of
+ * the plan says gets skipped. */
+const LEGACY_CLASSES = 960;
+
+const CYCLES = [
+  {
+    n: 0,
+    what: 'The kit',
+    detail: 'Every shared piece, every state, and the filter bar. Nothing else can start until this exists.',
+    screens: 'unlocks all 30',
+    state: 'next',
+  },
+  {
+    n: 1,
+    what: 'Trade Log',
+    detail: 'The table archetype, and the busiest page in the app. Five screens are assembled from it.',
+    screens: '5 screens',
+  },
+  {
+    n: 2,
+    what: 'Analytics',
+    detail: 'The chart archetype and the biggest family — Psychology, Progress, Reports, Strategies, Backtesting all follow it.',
+    screens: '7 screens',
+  },
+  {
+    n: 3,
+    what: 'Journal, Day, Calendar',
+    detail: 'The workspace archetype. The Calendar is the heaviest user of the old stylesheet outside Prop OS.',
+    screens: '3 screens',
+  },
+  {
+    n: 4,
+    what: 'Settings + Add Account',
+    detail: 'The form archetype: six settings sections and the account wizard. Small and low risk, which is why it sits before Prop OS.',
+    screens: '8 screens',
+    note: 'this is the cycle the wizard comes back for review in',
+  },
+  {
+    n: 5,
+    what: 'Prop OS',
+    detail: 'Overview, Challenges, Finance, Accounts. The biggest and most complex, and deliberately scheduled after four families have proven the kit.',
+    screens: '4 screens',
+  },
+  {
+    n: 6,
+    what: 'Auth + Onboarding',
+    detail: 'The front door for every new signup. It does not jump the queue ahead of the in-app screens — that was decided rather than assumed.',
+    screens: '6 screens',
+  },
+  {
+    n: 7,
+    what: 'Alerts, Reports, Tools',
+    detail: 'The leftovers, assembled from a kit that is fully proven by this point.',
+    screens: '4 screens',
+  },
+  {
+    n: 8,
+    what: 'Delete the old stylesheet',
+    detail: 'The finish line. A screen is not done until its old CSS is deleted, so by here there should be nothing left to remove.',
+    screens: 'the end',
+  },
+];
+
+function RedesignMap({ legacyClasses }) {
+  return (
+    <div style={{ ...S.card, marginTop: 16 }}>
+      <div style={S.cardHead}>
+        <span style={S.cardName}>The redesign, in order</span>
+        <span style={S.mono}>docs/architecture/SCREEN-REDESIGN-PLAN.md</span>
+        <span style={{ flex: 1 }} />
+        <Tag tone="open">cycle 0 is next</Tag>
+      </div>
+
+      <div style={{ ...S.note, borderTop: 'none' }}>
+        Thirty screens, seven families, one archetype each — the other twenty-three are
+        assembled from those seven rather than designed. The rule that makes it hold: a
+        tweak touching more than one screen goes into the kit or the tokens, never into
+        the page. Otherwise you get thirty slightly different tables.
+        {' '}
+        <strong style={{ color: 'var(--text)' }}>The parts above are what the kit is built
+        from</strong>
+        {' '}
+        — which is why the review came first, and why an unapproved part cannot be used by
+        a redesigned screen.
+      </div>
+
+      {CYCLES.map((c) => (
+        <div
+          key={c.n}
+          style={{
+            display: 'flex', gap: 14, alignItems: 'flex-start',
+            padding: '13px 18px', borderTop: '1px solid var(--line-inset)',
+            background: c.state === 'next' ? 'var(--surface-sunken)' : 'transparent',
+          }}
+        >
+          <span style={{
+            ...S.mono,
+            minWidth: 18,
+            color: c.state === 'next' ? 'var(--accent)' : 'var(--text-3)',
+            paddingTop: 2,
+          }}
+          >
+            {c.n}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13.5, fontWeight: 550, color: 'var(--text)' }}>{c.what}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{c.screens}</span>
+              {c.state === 'next' ? <Tag tone="open">next</Tag> : null}
+            </div>
+            <div style={{ fontSize: 12.5, lineHeight: '20px', color: 'var(--text-2)', marginTop: 3 }}>
+              {c.detail}
+            </div>
+            {c.note ? (
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4, fontStyle: 'italic' }}>
+                {c.note}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ))}
+
+      <div style={S.note}>
+        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>How you will know it is working: </strong>
+        the old stylesheet shrinks. It was 1,126 class names when this started and is
+        {' '}
+        <strong style={{ color: 'var(--text)' }}>{legacyClasses} now</strong>
+        {' '}
+        — but almost all of that came from replacing components, not from deleting dead
+        rules. Each cycle above should take a visible bite out of it, and cycle 8 only
+        exists to confirm there is nothing left.
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------- the page --- */
 
-const LATER_BATCHES = [
-  { n: 2, name: 'Form controls', qty: 8, parts: 'input · textarea · select · checkbox · switch · label · field · consent-field' },
-  { n: 3, name: 'Feedback', qty: 4, parts: 'alert · skeleton · spinner · progress' },
-  { n: 4, name: 'Flows', qty: 2, parts: 'wizard (21 pieces) · toggle-group', dep: 'after Batch 2 — the wizard is built from those controls' },
-  { n: 5, name: 'Small pieces', qty: 3, parts: 'avatar · separator · count-badge' },
-  { n: 6, name: 'Rebuild first, then review', qty: 4, parts: 'badge · empty-state · loading-block · tabs', dep: 'still on legacy CSS — these get replaced, not adjusted' },
-];
+/* THE COUNTS MOVE AS THINGS GET SIGNED OFF, and two of them moved on 2026-09-07 without
+ * this list being told. Batch 4 read "2 parts · wizard · toggle-group" after the toggle
+ * had already cleared the variant matrix, and Batch 6 still counted `badge`, which left
+ * legacy CSS the same day and is approved. A queue that overstates what is left is the
+ * one thing this page must not do — it is the only place anyone reads how much is
+ * outstanding. */
+/* `LATER_BATCHES` IS GONE (2026-09-08). It listed the batches still queued, under a
+ * heading reading "Not open yet — each opens when the one before it is locked". With every
+ * batch locked it had one entry, the deferred wizard, sitting at the very bottom of the
+ * page under a heading that described it wrongly: the wizard is not waiting its turn, it
+ * is waiting for a redesign.
+ *
+ * The one outstanding thing now has its own note directly under the redesign map, where it
+ * belongs — beside cycle 4, which is the cycle it comes back in. */
 
 /* ===== VARIANT MATRIX - the states you can only check by using them =====
  *
@@ -1301,31 +2454,695 @@ export default function PrimitiveReview() {
 
   return (
     <div style={S.page}>
+      <div style={S.column}>
       <div style={S.eyebrow}>Development only · not visible to customers</div>
       <h1 style={S.h1}>Primitive review</h1>
       <p style={S.lede}>
-        Every reusable part waiting for your sign-off, as the real component rather than a
-        picture of one. Tell me what looks wrong in your own words — “too tall”, “I can’t
-        tell which one is selected” — and I change the component itself. When a whole batch
-        looks right, you say <strong style={{ color: 'var(--text)' }}>locked</strong> and
-        we move on. Batches are locked together because parts that sit side by side have to
-        agree on height, corners and spacing.
+        <strong style={{ color: 'var(--text)' }}>The parts are done — 35 of 36 approved,
+        two kit pieces are signed, and the third is waiting on you.</strong>
         {' '}
-        <strong style={{ color: 'var(--text)' }}>17 of 36 approved.</strong>
+        Every primitive batch is locked and folded away below; click one to open it after
+        changing a token, and you can check all 36 parts at once instead of clicking
+        through the whole app. The one part still unsigned is the Add Account wizard, and
+        it is unsigned on purpose — that flow is being redesigned in cycle 4, and leaving
+        it unapproved is what stops the new one inheriting the old.
         {' '}
-        Batch 1 is closed: all four overlays cleared review on 7 Sep, alongside the badge,
-        the switch and the unit toggle. The dropdown was the first through — and it is the
-        one that made this page necessary: it had reached 30 screens while nobody had said
-        whether they liked it.
+        <strong style={{ color: 'var(--text)' }}>The kit is reviewed here too, and not as
+        a mockup.</strong>
+        {' '}
+        A drawing cannot show a token resolving differently in context, and that is what
+        every problem this page has found turned out to be.
       </p>
 
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Batch 1 — Overlays</span>
-        <Tag tone="ok">🔒 locked 7 Sep 2026</Tag>
+      <RedesignMap legacyClasses={LEGACY_CLASSES} />
+
+      </div>
+
+      {/* NOT A KIT PIECE — a VERIFICATION pane, and it sits above the cycle because it
+        * answers a question about the whole library rather than about one component. The
+        * radius ladder moved onto the preset on 2026-09-09 and the owner asked to see the
+        * three components that had clamped under the old one. Delete it when the ladder has
+        * been stable for a cycle; keep it while anything is still moving. */}
+      <RadiusCheck />
+
+      {/* ================================================================ CYCLE 00 ===
+        *
+        * THE KIT IS BEING REVIEWED THE WAY THE PRIMITIVES WERE, and that is the owner's
+        * own ruling rather than the plan's. Plan §6 step 2 says Claude Design produces a
+        * mockup and the owner reviews it alone. That is right for a SCREEN. It is wrong
+        * for a component, and this page is why: five differences on `menu.jsx` were
+        * invisible until they were measured in the real cascade, and every one came from
+        * our bridge re-meaning a shadcn name. A drawing cannot show that. Neither can it
+        * show a `<thead>` that stops sticking because a scroll container appeared around
+        * it — which is a real thing this component does if the shell gets it wrong.
+        *
+        * ONE PIECE AT A TIME, TABLE FIRST. Cycle 00 is six pieces and a decision; the
+        * table is the centrepiece, has no existing implementation to lean on, and is what
+        * unlocks Cycle 01. The other five are mostly skins on components already
+        * installed and come after this is signed off.
+        *
+        * THE TABLE WAS SIGNED ON 2026-09-09 and folded the same day, and the TOOLTIP took
+        * its place — the one thing in the table's spec that did not get built, and the
+        * smallest piece left. It was signed the same day, on three rulings, two of which
+        * reversed what had been built.
+        *
+        * PIECE 3 WAS THE FILTER BUILDER and it was signed on 09-10, which closes the
+        * Trade Log's other half: that screen is a filter bar over a table. It was the
+        * biggest piece of the cycle — 529 lines of legacy panel across 35 `.fp-*`
+        * classes — and the first where a part had to be HAND-WRITTEN, because no
+        * registry ships a chip.
+        *
+        * PIECE 4 WAS THE DETAIL DRAWER, taken ahead of §4.3's number because of what it
+        * FINISHES rather than where it falls: the form section has the wider reach, but
+        * all of that reach is cycle 4, and the drawer is what cycle 1 was still waiting
+        * on. It was signed on 09-10, on two rulings — the CARD colour rather than the
+        * registry's floating-panel one, and an ✕ in the actions row — and with it the
+        * TRADE LOG'S WHOLE DEPENDENCY LIST IS CLOSED. Table, tooltip, filter builder,
+        * drawer: cycle 1 can start whenever the owner wants it to.
+        *
+        * PIECE 5 WAS THE FORM SECTION (§4.3), signed on 09-10 after growing twice while
+        * it was open — the owner asked for a searchable Symbol field, then for the
+        * calendar to come from shadcn. Both were one finding in two costumes: the form
+        * used BARE HTML INPUTS where the product needed controls, and a bare input's
+        * affordances belong to the browser. Three rulings closed it: Save greys out until
+        * something changes, the Symbol list is OPEN, and it offers the clean symbol.
+        *
+        * PIECE 7 IS TABS, AND IT EXISTS BECAUSE THE OWNER ASKED WHY THEY WERE NOT IN ANY
+        * PIECE (2026-09-10). They were in the brief — §4.5 — whose first line reads "The
+        * conversion is already done… Nothing to design here." That was TRUE, and it is
+        * why this never became a numbered piece: the item read as finished, so it was
+        * never scheduled, and the DECISION it still owed went with it.
+        *
+        * THIRD TIME THIS CYCLE an audit note filed something under "nothing to do" and
+        * hid real work — ui/tooltip.jsx, ui/sheet.jsx, and now this. Worth naming:
+        * "ALREADY DONE" IS A CLAIM ABOUT THE CONVERSION, NEVER ABOUT THE DECISION, and
+        * the two keep getting written on the same line.
+        *
+        * PIECE 6 WAS THE THREE STATES (§4.6) — empty, loading, error. Signed 09-10, and
+        * it owes NO new appearance for two of the three: EmptyState, LoadingBlock,
+        * Skeleton and Alert are all approved, and the data table drew its own states
+        * correctly in piece 1. What it owes is the two places §15 is not honoured, and
+        * both are COVERAGE and FIDELITY rather than looks — TWO route-level pages out of
+        * seventy-four render anything when a fetch fails, and the one that does breaks
+        * §17 twice.
+        *
+        * WHAT PIECE 5 CORRECTED, kept here because it is the brief's own
+        * call-site list. §4.3 says "6 Settings sections, Add Account, and a 10-step
+        * wizard"; the Settings half does not survive contact with the screens, which are
+        * label/value ROWS rather than forms — Profile is read-only on purpose, Plan is a
+        * summary and a link, Appearance writes on change with no Save at all. The real
+        * call sites are NINE MODALS plus the wizard steps and the three auth pages.
+        *
+        * THAT MATTERS BECAUSE IT FOUND THE LEGACY LAYER. The form CSS in this app is not
+        * a `.form-*` family — it is BARE ELEMENT SELECTORS scoped to a dialog
+        * (`.modal input`, `.modal footer`, `.modal button.primary`, `.field-row`). That
+        * is why the audit never counted it, and it is why `modal.jsx` had to KEEP the
+        * class `modal` when the shell migrated in Phase 4b: nineteen content rules still
+        * hang off it. This piece is what lets them go.
+        *
+        * ONLY THE OPEN PIECE IS UNFOLDED. A signed piece goes inside a `Folded` exactly
+        * like a locked primitive batch, for the reason the owner gave on 09-08: "find a way
+        * to hide the approved and locked things". Nothing is deleted by folding — the
+        * table's six panes still render when opened, which is what makes this page usable
+        * after a token change.
+        *
+        * WHAT FOLDING DOES DELETE IS THE APPARATUS THAT ASKED A QUESTION NOW ANSWERED,
+        * and piece 3 is the clearest case of the distinction so far. Its parity pane
+        * existed to show one bug side by side — a command row with no `data-overlay-surface`
+        * hovering to a CARD's hover inside a panel — and that fix is now asserted by
+        * `kit-filter-bar.test.js`. A test that enforces a decision replaces a pane that
+        * demonstrates it, so the pane went, exactly as the table's did on 09-09. Its
+        * registry-SOURCE pane stayed, for the reason the tooltip's did: reading back what
+        * the registry actually installed is a reference, not a question, and it is the
+        * thing you want after a token or bridge change.
+        */}
+      {/* ══ CYCLE 00 IS CLOSED (2026-09-10) ══════════════════════════════════════
+        *
+        * Seven pieces, all signed. Nothing on this page is waiting on anyone, which is
+        * the first time that has been true since the review began on 09-06.
+        *
+        * WHAT THE CYCLE ACTUALLY PRODUCED, beyond the parts: five findings that outlive
+        * it, and every one came from building rather than from planning.
+        *
+        *   1. "ALREADY DONE" IS A CLAIM ABOUT THE CONVERSION, NEVER THE DECISION. Three
+        *      items were filed under "nothing to do" and all three hid real work —
+        *      ui/tooltip.jsx and ui/sheet.jsx (installed as `sidebar` dependencies,
+        *      never wrapped, unreachable) and tabs (converted, but its decision never
+        *      scheduled). A fourth note said a screen was on legacy CSS when it was not.
+        *   2. THE REGISTRY CAN MOVE AWAY FROM US. shadcn's `field` was rewritten off
+        *      Base UI, so §1's "take what the registry ships" produced the WRONG answer
+        *      for the first time. `kit-form-section.test.js` is the tripwire.
+        *   3. A UTILITY WRITTEN IN A PAGE COMPILES TO NOTHING, and it caught this cycle
+        *      three more times — the drawer specimen, the form specimen, and the account
+        *      menu, where the obvious migration would have silently unstyled it.
+        *   4. RESTATE OR BIND? Restate nothing when a value expresses the REGISTRY's
+        *      look (the tooltip's corner); bind to a token when it expresses a RULE of
+        *      ours (§10's durations).
+        *   5. A HALF-MIGRATION HIDES IN THE STATE NOBODY HAS WHILE THEY ARE LOOKING.
+        *      The account overflow menu stayed legacy because it only appears with four
+        *      accounts.
+        *
+        * NEXT IS CYCLE 01 — THE TRADE LOG, whose every part is now signed: the table,
+        * the tooltip in its adherence cell, the filter builder over it, and the drawer a
+        * row opens into.
+        */}
+      <div style={{ ...S.batchHead, ...S.column }}>
+        <span style={S.batchTitle}>Cycle 00 — the kit</span>
+        <Tag tone="ok">🔒 all 7 signed</Tag>
         <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          all four signed off · new screens may use them · Batch 2 is next
+          the cycle is closed · next is the Trade Log, and all of its parts are here
         </span>
       </div>
+
+      <div style={S.column}>
+      <Folded
+        title="Piece 7 — tabs"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            one style, two skins · the styles gallery · the account menu left legacy
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 7 === */}
+      <TabsSpecimen />
+      <TabsStyles />
+      <TabsRemaining />
+      </Folded>
+
+      <Folded
+        title="Piece 6 — the three states"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            an error state at last · 2 of 74 pages had one · LoadingBlock left as-is
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 6 === */}
+      <StatesSideBySide />
+      <StatesCoverage />
+      <StatesLoading />
+      <StatesRules />
+      </Folded>
+
+      <Folded
+        title="Piece 5 — the form section"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            a real fieldset · a searchable Symbol · our calendar · Save gated on changes
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 5 === */}
+      <FormSpecimen />
+      <FormFooterStates />
+      <FormLegacy />
+      <FormQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 4 — the detail drawer"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            the card colour · an ✕ in the actions · the shell, not the contents
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 4 === */}
+      <DrawerSpecimen />
+      <DrawerRegistry />
+      <DrawerQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 3 — the filter builder"
+        tag={<Tag tone="ok">🔒 locked 10 Sep 2026</Tag>}
+        hint={(
+          <>
+            the registry&rsquo;s cascade · a hand-written chip · nothing migrated yet
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 3 === */}
+      <FilterChipSpecimen />
+      <FilterCascadeSpecimen />
+      <RegistrySource />
+      <FilterQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 2 — the tooltip"
+        tag={<Tag tone="ok">🔒 locked 9 Sep 2026</Tag>}
+        hint={(
+          <>
+            our colour · the registry&rsquo;s corner · 100ms — all three yours
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 2 === */}
+      <TooltipSpecimen />
+      <TooltipRegistry />
+      <TooltipQuestions />
+      </Folded>
+
+      <Folded
+        title="Piece 1 — the data table"
+        tag={<Tag tone="ok">🔒 locked 9 Sep 2026</Tag>}
+        hint={(
+          <>
+            signed off · a redesigned screen may adopt it · open it after changing a token
+          </>
+        )}
+      >
+      {/* ================================================== CYCLE 00 · PIECE 1 === */}
+
+      {/* THE TABLE, BARE AND FIRST (owner, 2026-09-09). The prose used to sit above it
+        * and the owner could not see the component for the writing about the component:
+        * "I want to see the table built separately, as it will be seen in the tradelog
+        * page." So this is the table, at the page's real width, and the explanation is
+        * below it where it belongs. */}
+      <TradeLogPreview />
+
+      <p style={{ ...S.lede, ...S.column, margin: '26px auto 0' }}>
+        <strong style={{ color: 'var(--text)' }}>That is the Trade Log.</strong>
+        {' '}
+        There was no data table in this codebase — twelve files hand-roll their own, and
+        the Trade Log&rsquo;s is the hardest one in the app: thirteen columns by default
+        and up to twenty-one if you switch them all on, six kinds of cell in one row, row
+        selection driving the bulk actions, and a row you can click that also contains
+        things you can click. This is that table, built once, and it is the piece most of
+        Cycle 00&rsquo;s effort belongs to.
+        {' '}
+        Below: the same component at the other end of its range, then the four states,
+        then selection, then the arrival flash, then what was decided.
+      </p>
+
+      <DataTableSummary />
+      <DataTableStates />
+      <DataTableSelection />
+      <DataTableArrival />
+      <DataTableQuestions />
+      </Folded>
+      </div>
+
+      <div style={S.column}>
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>The one part still unsigned</span>
+          <span style={S.mono}>primitives/wizard.jsx</span>
+          <span style={{ flex: 1 }} />
+          <Tag>deferred to cycle 4</Tag>
+        </div>
+        <div style={S.note}>
+          The Add Account wizard — one component, 21 parts. It is unsigned
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>on purpose</strong>
+          , not by omission: that flow is being redesigned in cycle 4, and an unapproved
+          part may stay where it is but may not be adopted by a redesigned screen. So
+          leaving it unsigned is exactly what stops the new flow inheriting the old wizard.
+          It comes back for review as part of that cycle. Its code stays where it is —
+          eleven shipping pages render it.
+        </div>
+      </div>
+
+      <div style={S.batchHead}>
+        <span style={S.batchTitle}>The parts, all signed off</span>
+        <Tag tone="ok">🔒 6 batches</Tag>
+        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          folded — open one to check a component, or after changing a token
+        </span>
+      </div>
+
+      <Folded
+        title="The one that was in no batch"
+        tag={<Tag tone="ok">approved 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            signed off by confirming it works — it has no appearance to judge
+          </>
+        )}
+      >
+      {/* ================================================= THE UNBATCHED ONE === */}
+
+      <Spec
+        name="Overlay container"
+        approved="8 Sep 2026"
+        file="primitives/overlay-container.js"
+        ask={
+          'nothing, really — and that is the point. This one draws no pixels: it is the '
+          + 'wiring that tells a menu opened inside a pop-up window that it belongs to that '
+          + 'window. Without it the menu opens underneath the dark backdrop, where you '
+          + 'cannot see it but your keyboard can still reach it. So the check is simply: '
+          + 'open the window below, open the menu and the picker inside it, and confirm you '
+          + 'can see them. If you can, it works. It has no appearance to approve, so it '
+          + 'should be signed off the way the dialog was signed off underneath the modal.'
+        }
+        states={[{ label: 'A menu and a picker, inside a modal', render: <OverlayContainerSpecimen /> }]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>The picker in that modal does not open</span>
+          <span style={S.mono}>a real limitation, not a bug in our code</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="open">your call</Tag>
+        </div>
+        <div style={S.note}>
+          The menu works; the picker beside it does nothing when you click it, and I have
+          left it there rather than quietly removing it. The reason is not something we can
+          fix with styling: the shipped picker gives no way to tell it
+          {' '}
+          <em>which window it belongs to</em>
+          , the way the menu does. So it opens behind the dark backdrop, where the pop-up
+          window&rsquo;s own focus rules also make it unclickable.
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>Nothing in the app hits this today</strong>
+          {' '}
+          — no pop-up window in PropVexis contains a picker, and this Test page is the only
+          place it appears. So there is nothing broken for a customer right now; the
+          question is what we do the first time a window needs one.
+        </div>
+      </div>
+      </Folded>
+
+      <Folded
+        title="Batch 6 — Rebuilt, then reviewed"
+        tag={<Tag tone="ok">🔒 locked 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            the last three on the old CSS — rebuilt on 8 Sep, reviewed as the rebuild, locked
+          </>
+        )}
+      >
+      {/* ================================================================ BATCH 6 === */}
+
+      <Spec
+        name="Rebuilt on the registry"
+        approved="8 Sep 2026"
+        file="primitives/empty-state.jsx · tabs.jsx · loading-block.jsx"
+        ask={
+          'these three are new, not adjusted — yesterday they were still drawing the old '
+          + 'stylesheet. So look at them as if for the first time. The tabs: is the '
+          + 'underline under the active one clear enough, and does hovering a different '
+          + 'one preview it without shouting? The empty block: the icon is smaller than it '
+          + 'was and has lost its box outline, and the title and description both moved '
+          + 'onto our type scale — does it still read as a deliberate state rather than a '
+          + 'gap? The loading block: it now pulses instead of sweeping a shine across each '
+          + 'bar, which is the one thing the rebuild deliberately gave up.'
+        }
+        states={[{ label: 'All three, rebuilt', render: <RebuiltSix /> }]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>What the rebuild deleted</span>
+          <span style={S.mono}>26 rules out of the old stylesheet</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="ok">994 classes left</Tag>
+        </div>
+        <div style={S.note}>
+          The point of this batch is as much what went away as what it looks like. Twenty-six
+          rules left the old stylesheet with these three, and the part of it that this review
+          started against — the shared button, card, tab, skeleton and empty-state layer — is
+          now down to the button, the card and the form field.
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>Two of the three were held back by reasons
+          that had expired.</strong>
+          {' '}
+          The empty block insisted no component library ships an empty state, on the line
+          below one naming the component that replaced it. The tabs insisted our underline
+          was too particular for a library, and the library ships that underline as an
+          option. That is the fifth and sixth time this review has found a rule outliving
+          its reason — which is exactly what the standing rule you set now catches.
+        </div>
+      </div>
+      </Folded>
+
+      <Folded
+        title="Batch 5 — Small pieces"
+        tag={<Tag tone="ok">🔒 locked 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            profile picture · dividing line · number badge — a glance each
+          </>
+        )}
+      >
+      {/* ================================================================ BATCH 5 === */}
+
+      <Spec
+        name="Small pieces"
+        approved="8 Sep 2026"
+        file="primitives/avatar.js · separator.js · count-badge.jsx"
+        ask={
+          'a glance each, but not nothing. The number badge is the only one carrying a '
+          + 'colour decision: an unread count used to be red and is now the action colour, '
+          + 'because red is what this app spends on losses and a red dot beside a bell '
+          + 'reads as money gone. Check the two-digit one still fits its circle. The '
+          + 'divider is the one part the rules fully settle — 1px, full width, never '
+          + 'inset — so if it looks wrong here it is the rule that is wrong. And the '
+          + 'profile picture is drawn as its FALLBACK, the initial you see when Google’s '
+          + 'image fails: it appears in one place in the app and it is the state nobody '
+          + 'ever checks on purpose.'
+        }
+        states={[{ label: 'All three', render: <SmallPieces /> }]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Batch 4 — the Add Account wizard</span>
+          <span style={S.mono}>primitives/wizard.jsx</span>
+          <span style={{ flex: 1 }} />
+          <Tag>deferred 8 Sep 2026</Tag>
+        </div>
+        <div style={S.note}>
+          <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Skipped, on your call —
+          the flow is being redesigned. </strong>
+          It moves to the same category as the other three parts we are rebuilding rather
+          than adjusting: reviewing it now would mean reviewing it twice, and approving it
+          would be worse than skipping it, because
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>an unapproved part cannot be used by a
+          redesigned screen</strong>
+          {' '}
+          — so leaving it unsigned is what stops the new Add Account flow quietly inheriting
+          the old one. The unreviewed mark is doing real work here rather than sitting as a
+          loose end.
+        </div>
+        <div style={{ ...S.note, borderTop: '1px solid var(--line-inset)' }}>
+          <strong style={{ color: 'var(--text)', fontWeight: 600 }}>The code stays where it is. </strong>
+          You offered removing the primitives instead, and that one I have not done: eleven
+          shipping files render them — every page of the Add Account flow — so deleting
+          them would take the live flow with it. They stay, unapproved, until the redesign
+          replaces them. Nothing about that blocks anything.
+        </div>
+      </div>
+      </Folded>
+
+      <Folded
+        title="Batch 3 — Feedback"
+        tag={<Tag tone="ok">🔒 locked 8 Sep 2026</Tag>}
+        hint={(
+          <>
+            all four signed off · new screens may use them · Batch 4 is next
+          </>
+        )}
+      >
+      {/* ================================================================ BATCH 3 === */}
+
+      <Spec
+        name="Message bar"
+        approved="8 Sep 2026"
+        file="primitives/alert.jsx"
+        ask={
+          'the four tones against each other. The rule you settled last week says a system '
+          + 'message may colour its ICON and a hairline EDGE, and may never colour its '
+          + 'WORDS or wash the whole box — so check that the red one reads as urgent '
+          + 'without the sentence itself turning red, and that the four make a sensible '
+          + 'ladder: an error should be louder than a tip, and the green one must not read '
+          + 'as profit. Then the second pane: whether a message with a button in it still '
+          + 'reads as a message rather than a card, and whether a one-line one without a '
+          + 'heading looks deliberate.'
+        }
+        states={[
+          { label: 'The four tones', render: <AlertTones /> },
+          { label: 'With an action · with no heading', render: <AlertShapes /> },
+        ]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Turned down on 8 Sep</span>
+          <span style={S.mono}>two values, same construction</span>
+          <span style={{ flex: 1 }} />
+          <Tag tone="ok">your call, applied</Tag>
+        </div>
+        <div style={S.note}>
+          You said these were too colourful for the theme and pointed at shadcn&rsquo;s,
+          where the box stays plain and only the writing carries the tone. Two things
+          moved, and the rule itself did not.
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>Each tone no longer tints its own
+          background</strong>
+          {' '}
+          — all four now sit on exactly the same surface a plain message sits on, so a
+          message is a normal box with a coloured mark rather than a coloured box. And
+          {' '}
+          <strong style={{ color: 'var(--text)' }}>the edge dropped from 32% to 20%</strong>.
+          That number matters: at 32% a red edge landed on #5d2c2f, brighter than any grey
+          edge anywhere in the app (the loudest is #2d2d31). At 20% it lands at about that
+          weight while staying clearly red.
+        </div>
+        <div style={{ ...S.note, borderTop: '1px solid var(--line-inset)' }}>
+          <strong style={{ color: 'var(--text)', fontWeight: 600 }}>What I did not do, and why: </strong>
+          shadcn colours the words — its error title, sentence, links and bullets are all
+          red. Ours keeps them plain, because your own rule says colour belongs on the icon
+          and the edge and nowhere else, and a red sentence in a message bar would read
+          like a losing number in a table. The icon also stays at full strength: it is one
+          16px mark carrying the whole signal, and dimming it turns &ldquo;quieter&rdquo;
+          into &ldquo;easier to miss&rdquo;. If you want the shadcn treatment instead, say
+          so — it is a change to a locked rule, so it needs to be a decision rather than a
+          nudge.
+        </div>
+      </div>
+
+      <Spec
+        name="Loading, waiting, progress"
+        approved="8 Sep 2026"
+        file="primitives/skeleton.jsx · spinner.js · progress.jsx"
+        ask={
+          'whether these three feel like one family. They are the same sentence said three '
+          + 'ways — a placeholder for a region that has not loaded, a spinner for an action '
+          + 'in flight, a bar for a job with a known end — so they should share a weight '
+          + 'and a grey. Specifically: is the placeholder pulse too fast or too slow, is '
+          + 'the spinner the right size next to button text, and is the empty progress bar '
+          + 'visible enough to read as "nothing yet" rather than as a gap?'
+        }
+        states={[{ label: 'All three, side by side', render: <LoadingFamily /> }]}
+      />
+
+      <div style={{ ...S.card, background: 'var(--surface-sunken)' }}>
+        <div style={S.cardHead}>
+          <span style={S.cardName}>Before you sign off the spinner</span>
+          <span style={S.mono}>primitives/spinner.js</span>
+          <span style={{ flex: 1 }} />
+          <Tag>no call sites</Tag>
+        </div>
+        <div style={S.note}>
+          <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Nothing in the app renders it. </strong>
+          Not one screen — I checked every file. Buttons that are working show their own
+          text (&ldquo;Connecting…&rdquo;), and regions that are loading use the
+          placeholder. So you would be approving how something looks before anything uses
+          it, which is the opposite of the problem this page was built for. It is still
+          worth approving — it costs nothing and the moment a button needs one we should
+          not be inventing it — but the specimen beside a button above is the only place it
+          has ever appeared.
+        </div>
+      </div>
+      </Folded>
+
+      <Folded
+        title="Batch 2 — Form controls"
+        tag={<Tag tone="ok">🔒 locked 7 Sep 2026 · tick box re-signed 9 Sep</Tag>}
+        hint={(
+          <>
+            all seven signed off · new screens may use them · the tick box left and came back
+          </>
+        )}
+      >
+      {/* ================================================================ BATCH 2 === */}
+
+      <FormGeometry />
+      <FormStates />
+      <SelectParity />
+
+      <Spec
+        name="Field, label and help text"
+        approved="7 Sep 2026"
+        file="primitives/field.jsx · label.jsx"
+        ask={
+          'whether the label is the right size and brightness against the value typed '
+          + 'under it — the label should be readable without competing with the answer. '
+          + 'Then the gap between the label and its box, and between one field and the '
+          + 'next. Two components are drawn here on purpose: the plain label on the left '
+          + 'is what a bare control uses, the Field on the right is what every form in '
+          + 'the app actually uses. They should not look like two different systems.'
+        }
+        states={[{ label: 'The two labels, side by side', render: <LabelPair /> }]}
+        contextLabel="the Add Account form — the real layout, field for field"
+        context={<FormInContext />}
+      />
+
+      {/* ============================================ THE ONE THAT CAME BACK SIGNED ===
+        *
+        * REOPENED 2026-09-09 by Cycle 00 and re-locked the same day. It sat above, outside
+        * the fold, for exactly as long as it was waiting on a signature — a component
+        * needing one must never be hidden inside a section headed "all signed off". Now it
+        * is signed, so it rejoins the batch, and the `ask` below is rewritten from the
+        * question it was to the ANSWER it now records. That is the pattern for every
+        * reopened part: it comes out of the fold, and it goes back in with its finding
+        * written down rather than deleted.
+        */}
+      <Spec
+        name="Tick box"
+        approved="9 Sep 2026 · reopened and re-signed"
+        file="primitives/checkbox.jsx · @shadcn"
+        ask={
+          'the finding, which is the one worth keeping. It was a rounded square when you '
+          + 'approved it on 7 Sep and a perfect circle by the 8th — the radius ladder moved '
+          + 'up a step and a 16px box cannot wear an 8px corner, because a corner clamps to '
+          + 'half its box. The culprit was OUR override, not the component: shadcn ships a '
+          + '5px corner and we were forcing the token over it. Deleting the override was '
+          + 'the whole fix, and what you signed off is the registry’s own 5px. '
+          + 'THE THIRD STATE is the one thing here that is ours: "some but not all", drawn '
+          + 'off Base UI’s `data-indeterminate` because shadcn ships no such state. The '
+          + 'trade log’s select-all needs it the moment you pick nine of four hundred rows.'
+        }
+        states={[
+          { label: 'Off', render: <Checkbox aria-label="Off" /> },
+          { label: 'On', render: <Checkbox aria-label="On" checked /> },
+          { label: 'Some, not all', render: <Checkbox aria-label="Partial" indeterminate /> },
+          { label: 'Disabled', render: <Checkbox aria-label="Disabled" disabled /> },
+          { label: 'On + disabled', render: <Checkbox aria-label="On and disabled" checked disabled /> },
+        ]}
+        contextLabel="the consent gate — the one place an unticked box stops a submit"
+        context={(
+          <ConsentField id="pr-consent-reopened">
+            I understand this password can place trades on my account.
+          </ConsentField>
+        )}
+      />
+
+      <Spec
+        name="Consent tick box"
+        approved="7 Sep 2026"
+        file="primitives/consent-field.jsx"
+        ask={
+          'whether it is obvious that you have to tick it. This is the one control in the '
+          + 'batch with a consequence: until it is ticked the button underneath will not '
+          + 'submit, and the box is a 16px square against a three-line sentence. Check '
+          + 'that the box lines up with the FIRST line rather than floating in the middle '
+          + 'of the paragraph, that the sentence does not read as a heading, and that '
+          + 'clicking anywhere in the sentence ticks it.'
+        }
+        states={[{ label: 'The credential step', render: <ConsentSpecimen /> }]}
+      />
+
+      <OpenQuestions />
+      </Folded>
+
+      <Folded
+        title="Batch 1 — Overlays"
+        tag={<Tag tone="ok">🔒 locked 7 Sep 2026</Tag>}
+        hint={(
+          <>
+            all four signed off · new screens may use them · kept below for comparison
+          </>
+        )}
+      >
+      {/* ================================================================ BATCH 1 === */}
 
       <DropdownParity />
       <VariantMatrix />
@@ -1409,40 +3226,9 @@ export default function PrimitiveReview() {
           you approve on the Modal above is what Dialog renders. It gets locked with Modal.
         </div>
       </div>
-
-      <div style={S.batchHead}>
-        <span style={S.batchTitle}>Not open yet</span>
-        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          in order — each opens when the one before it is locked
-        </span>
+      </Folded>
       </div>
 
-      {LATER_BATCHES.map((b) => (
-        <div key={b.n} style={{ ...S.card, marginTop: 10, background: 'var(--surface-sunken)' }}>
-          <div style={{ ...S.cardHead, background: 'transparent', borderBottom: 'none', padding: '13px 18px' }}>
-            <span style={{
-              fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 13,
-              color: 'var(--text-3)', minWidth: 16,
-            }}
-            >
-              {b.n}
-            </span>
-            <span style={S.cardName}>{b.name}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{b.qty} parts</span>
-            <span style={{ flex: 1 }} />
-            <span style={S.mono}>{b.parts}</span>
-          </div>
-          {b.dep ? (
-            <div style={{
-              padding: '0 18px 13px 46px', fontSize: 12.5, lineHeight: '19px',
-              color: 'var(--text-2)',
-            }}
-            >
-              {b.dep}
-            </div>
-          ) : null}
-        </div>
-      ))}
     </div>
   );
 }

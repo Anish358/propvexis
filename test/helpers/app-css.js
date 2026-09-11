@@ -26,3 +26,44 @@ export const tokensCss = read('../../frontend/src/styles/tokens.css');
 export const legacyCss = read('../../frontend/src/styles/legacy/app.css');
 export const bridgeCss = read('../../frontend/src/styles/bridge.css');
 export const appCss = tokensCss + legacyCss;
+
+/* ── THE RESOLVED RADIUS SCALE ────────────────────────────────────────────────────────
+ *
+ * Added 2026-09-09, when the ladder stopped being a table of pixels. Preset b2qLMFPO4
+ * ships ONE base (`--radius` in tokens.css) and seven multipliers (`--radius-*` in
+ * bridge.css), so no radius token holds a number any more — `--r-md` is
+ * `var(--radius-md)` is `calc(var(--radius) * 0.8)`.
+ *
+ * Two tests used to read those as integers with `/^(\d+)px/` and both went silent the
+ * moment the values became expressions — a regex that matches nothing returns nothing, and
+ * `radius-clamp.test.js` has a paragraph about how that failure mode is worse than no test.
+ * So the resolution lives here, ONCE, and both read it: a second copy would be a second
+ * thing to update the next time the preset's formula changes.
+ *
+ * IT DOES THE ARITHMETIC THE BROWSER DOES, and nothing cleverer — parse the base, parse
+ * each multiplier out of the calc(), multiply. If bridge.css ever flattens the rungs to
+ * literals this still works, because a rung with no multiplier is read as its own value.
+ */
+export function radiusScale() {
+  const base = /--radius:\s*([\d.]+)(rem|px)\s*;/.exec(tokensCss);
+  if (!base) throw new Error('--radius is not declared in tokens.css — the scale has no base');
+  const px = Number(base[1]) * (base[2] === 'rem' ? 16 : 1);
+
+  const rung = { base: px };
+  for (const step of ['sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl']) {
+    const line = new RegExp(`--radius-${step}:\\s*([^;]+);`).exec(bridgeCss);
+    if (!line) throw new Error(`--radius-${step} is not declared in bridge.css`);
+    const expr = line[1].trim();
+    const mult = /calc\(\s*var\(--radius\)\s*\*\s*([\d.]+)\s*\)/.exec(expr);
+    if (mult) { rung[step] = px * Number(mult[1]); continue; }
+    if (/^var\(--radius\)$/.test(expr)) { rung[step] = px; continue; }
+    const lit = /^([\d.]+)(px|rem)$/.exec(expr);
+    if (lit) { rung[step] = Number(lit[1]) * (lit[2] === 'rem' ? 16 : 1); continue; }
+    throw new Error(`--radius-${step} is "${expr}", which radiusScale() cannot resolve`);
+  }
+
+  /* A CARD reads `min(--radius-4xl, 24px)` — the generated card's own expression, which
+   * `--r-card` mirrors so a legacy card and a generated one cannot disagree. */
+  rung.card = Math.min(rung['4xl'], 24);
+  return rung;
+}

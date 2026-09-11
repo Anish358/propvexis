@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { attachProxyErrorHandler } from './vite.proxy-error.js';
 
 // Vendor chunking, package name -> chunk. Each entry lists the package itself
 // AND the private dependencies that used to ride along with it under Rollup's
@@ -89,7 +90,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      /* `configure` turns the proxy's opaque 502 into a JSON body naming the
+         real cause — see vite.proxy-error.js. Without it a dead backend reaches
+         the login page as `Sign-in failed: login 502`, which reads as an auth
+         bug. Not attached to /socket.io: its failures are a Socket, not a
+         response, and the client already retries on its own. */
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        configure: attachProxyErrorHandler,
+      },
       '/socket.io': { target: 'http://localhost:3000', changeOrigin: true, ws: true },
     },
   },

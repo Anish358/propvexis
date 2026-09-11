@@ -281,8 +281,8 @@ label.full { margin-bottom: 16px; }
 .prop-portfolio { padding-top: 24px; }
 .prop-single { padding: 24px; }
 .page > .panel { margin: 24px; }
-.live-dot.on { background: var(--profit); box-shadow: 0 0 0 4px var(--profit)22, 0 0 12px var(--profit)88; }
-.live-dot.off { background: var(--neutral-10); }
+
+
 
 /* ---- panels ---- */
 .panel-title { font-size: var(--fs-card-title); font-weight: var(--fw-semibold); }
@@ -480,15 +480,9 @@ label.full { margin-bottom: 16px; }
    hit, payout eligible), so green is the outcome it reports — but green is the
    money colour, and an info alert that is not about money would read wrong here.
    Revisit with §17 if a neutral info alert ever ships. */
-.dash-banner-alert.crit {
-  background: var(--tint-loss-2); border-color: var(--tint-loss-8); color: var(--tint-loss-13);
-}
-.dash-banner-alert.warn {
-  background: var(--tint-warn-2); border-color: var(--tint-warn-6); color: var(--tint-warn-9);
-}
-.dash-banner-alert.info {
-  background: var(--tint-profit-2); border-color: var(--tint-profit-7); color: var(--tint-profit-11);
-}
+
+
+
 /* ---- dashboard action strip ----
    Occupies the band reserved below Today's Brief. No background, border,
    divider or card — the controls sit directly in the whitespace, so the strip
@@ -527,20 +521,24 @@ label.full { margin-bottom: 16px; }
    23px value that used to sit here were the pre-polish values the four sibling cards
    fell back to, and keeping a superseded copy above the real one is how a later
    reader ends up editing the wrong rule. */
-/* Gauge + its win/be/loss pills stacked as one column (pills sit centered
-   under the arc, not next to the value) — used by Trade win % / Day win %. */
-.chip { font-size: 12px; font-weight: 400; padding: 4px 8px; border-radius: 10px; }
-.chip.win { background: var(--tint-profit-6); color: var(--profit); }
-.chip.loss { background: var(--tint-loss-4); color: var(--loss); }
-.chip.be { background: var(--be-bg); color: var(--be); }
-/* Gauge-col pills only: -15% size (12px/4px/8px -> 10.2/3.4/6.8), and normal
-   (not semibold) text — .dash-stat-chips .chip's 2 classes beat the later
-   global `.chip { font-weight: var(--fw-semibold) }` badge-consistency rule. */
-.dash-stat-chips .chip { font-size: 10.2px; font-weight: var(--fw-regular); padding: 3.4px 6.8px; }
+/* THE `.chip` FAMILY IS GONE (2026-09-09). It drew the win/be/loss pills under a KPI
+   gauge; `KpiChip` in the primitives is that component now, and it took the pill step
+   the same day. Deleted rather than re-rounded: the standing rule is replace, never
+   patch, and this file may only shrink. */
+/* THE RULE THIS DESCRIBED IS GONE (2026-09-08 dead-CSS prune). It read
+   `.dash-stat-chips .chip` — gauge-column pills at -15% size and normal weight, winning
+   on two classes over the global `.chip { font-weight: var(--fw-semibold) }`. Nothing
+   renders `.dash-stat-chips` any more; the KPI cards are the `kpi` primitive.
+
+   THE CONFLICT IT DOCUMENTED IS RESOLVED (2026-09-09): `.chip` set weight 400 and a
+   later global rule set semibold, and both sides are now deleted — the family with
+   its component, the name from the shared weight selector. Kept only as the record
+   of what was here, since nothing is left to rediscover. */
+
 .splitbar { height: 4.5px; border-radius: 3px; background: var(--loss)44; overflow: hidden; margin-top: 8px; }
 .splitbar-fill { height: 100%; background: var(--profit); border-radius: 3px; }
-.dash-stat-foot .win { color: var(--profit); }
-.dash-stat-foot .loss { color: var(--loss); }
+
+
 
 /* ============================================================
    THE KPI CARD TREATMENT  (KpiCards.jsx — Net P&L + its four siblings)
@@ -607,12 +605,11 @@ label.full { margin-bottom: 16px; }
    change to the rhythm is a change to one number. */
 .dash-stat .jo-kpi-value { font-size: 24px; margin-top: 0; font-weight: 700; }
 .dash-stat .jo-kpi-value.neg { color: var(--loss-quiet); }
-/* Only Net P&L has the trade-count pill, but the rule is written against .dash-stat
-   because nothing about it is Net-P&L-specific — any card that grows a pill should
-   get this size, not the larger default from .dash-stat-count above. */
-.dash-stat .dash-stat-count {
-  font-size: 9px; font-weight: var(--fw-medium); padding: 1.5px 5px; color: var(--text-2);
-}
+/* THE RULE THIS DESCRIBED IS GONE (2026-09-08 dead-CSS prune), along with the
+   `.dash-stat-count` default it was correcting — nothing renders either, because the KPI
+   cards are the `kpi` primitive now. Left as a marker of where the trade-count pill sat,
+   since the surrounding `.dash-stat` block is still live. */
+
 /* The third line, and the one thing `--refined` still distinguishes: pinned to the
    bottom of the card rather than sitting under the value. `margin-top: auto` does it
    without `space-between`, which would also have moved the value. */
@@ -789,66 +786,46 @@ label.full { margin-bottom: 16px; }
    a cell's size never depends on how many accounts are visible (1, 2, or 3)
    or how long any one account's name is; long names just ellipsis-truncate
    inside the same fixed box instead of resizing it. */
-.dash-acct-tab-cell:not(.dash-acct-more) { flex: 0 0 288px; width: 288px; }
-/* Lightweight nav-tab style (Linear/Stripe/Vercel), matching the Recent
-   Trades/Open Positions tabs elsewhere on the dashboard — no filled pill or
-   bordered box, no background tint. Active reads via blue text + a thin
-   underline that sits flush on the header's own divider line below (not a
-   separate line floating under the text); inactive is plain, muted, hover-only. */
-.dash-acct-tab {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
-  position: relative; background: transparent; border: none; border-radius: var(--r-md);
-  padding: 3px 10px; cursor: pointer; text-align: left;
-  transition: background 180ms var(--ease);
-}
-.dash-acct-tab::after {
-  /* -5px = .dash-acct-header's own padding-bottom, so this lands exactly on
-     its border-bottom line instead of floating above it. */
-  content: ''; position: absolute; left: 10px; right: 10px; bottom: -5px; height: 1px;
-  border-radius: 2px; background: var(--accent); transform-origin: center;
-  transform: scaleX(0); opacity: 0;
-  transition: transform 220ms var(--ease), opacity 220ms var(--ease), height 180ms var(--ease);
-}
-.dash-acct-tab:not(.is-active):hover::after {
-  transform: scaleX(1); opacity: 1; height: 1px;
-}
-.dash-acct-tab.is-active::after {
-  transform: scaleX(1); opacity: 1; height: 3px;
-}
+
+/* THE ACCOUNT SELECTOR'S TAB RULES WERE DELETED 2026-09-10 (Cycle 00, piece 7).
+   FOUR DEAD RULES: `.dash-acct-tab`, its `::after` underline and the two states of
+   it. Nothing had rendered them for some time — the selector is `AccountTab` in
+   `primitives/account.jsx`, and it is a CHIP with a health ring rather than an
+   underlined tab. The brief still said this screen was 'on legacy CSS', which was
+   stale; the rules had simply been left behind when it moved.
+   The `.dash-acct-tab-dot` rules below are NOT dead and are NOT a tab: they are an
+   8px status dot, used by AccountWorkspace and ChallengeDetails in Prop OS. They
+   keep a tab's name because the tab is where they started. Prop OS's cycle owns
+   renaming them. */
 .dash-acct-tab-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .dash-acct-tab-dot--good { background: var(--profit); }
 .dash-acct-tab-dot--warn { background: var(--status-warn); }
 .dash-acct-tab-dot--bad { background: var(--loss); }
-.dash-acct-tab.is-active .dash-acct-tab-name { font-size: 14px; font-weight: var(--fw-semibold); color: var(--text); }
-.dash-acct-tab:not(.is-active):hover .dash-acct-tab-name { color: var(--text); }
+
+
 /* Attention icon — only rendered for warn/bad (see AccountAlertIcon), so a
    healthy account never carries this element at all. */
-.dash-acct-more { display: flex; align-items: center; flex: none; }
-/* THE ACCOUNT OVERFLOW MENU. It used to carry `top`/`left`/`right` overrides on top of
-   `.wcz-menu`'s `position: absolute`; the panel is a portaled `Menu` now and Base UI
-   owns where it goes, so all that is left here is how WIDE it may be. A width, because
-   the primitive cancels its anchor width to size to content and an account label can be
-   long enough to wrap into three lines without a ceiling. */
-.dash-acct-more-menu { min-width: 240px; max-width: 320px; }
-/* One row: the account chip's three facts at menu size — health, name, phase. */
-.dash-acct-menu-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
-.dash-acct-menu-dot {
-  flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--status);
-}
-.dash-acct-menu-name {
-  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* The phase is the row's secondary fact and is pushed to the far edge, so a column of
-   them lines up and the eye can read the journey down the list rather than hunting for
-   it after each name. */
-.dash-acct-menu-phase { flex: none; font-size: var(--fs-label); color: var(--muted); }
+/* THE ACCOUNT OVERFLOW MENU WAS MIGRATED TO TAILWIND 2026-09-10 (Cycle 00, piece 7).
+   SIX RULES GONE: `.dash-acct-more` was already DEAD (its trigger became the
+   `AccountTabMore` primitive and kept none of it), and the five that drew the menu
+   -- the panel's width and the row's dot, name and phase -- now live in
+   `primitives/account.jsx` as `AccountMenuPanel` and `AccountMenuRow`.
+
+   WHY THEY OUTLIVED THE CHIPS BESIDE THEM: this menu only appears when you have
+   MORE ACCOUNTS THAN FIT, so it was never on screen while anyone reviewed the
+   strip. A half-migration hides in the state nobody has while they are looking.
+
+   The row's tone no longer travels through `prop-good|warn|bad`; it uses the same
+   `toneColor` the chip's health ring uses, and the two resolve to identical
+   colours. The `.prop-*` classes stay -- five other files set --status with them.
+   `.dash-acct-tab-dot` below also stays: it is Prop OS's status dot, not a tab. */
 
 /* Three equal sections (Daily DD / Max DD / Profit target) side by side,
    divided by hairlines — matches the Phase 2 wireframe's column split. */
-.dash-acct-usages-grid > .dash-usage { padding: 0 24px; border-left: 1px solid var(--line); }
-.dash-acct-usages-grid > .dash-usage:first-child { padding-left: 0; border-left: none; }
-.prop-payout .dash-usage-label { color: var(--status); }
-.dash-usage-val .muted { font-weight: 400; color: var(--muted); }
+
+
+
+
 /* Flex row — lets a trailing action (e.g. "Edit payout target") sit flush
    right of the descriptive text instead of inline after it. Safe for the
    plain-string subs on Daily/Max drawdown too: a single child in a flex row
@@ -872,10 +849,6 @@ label.full { margin-bottom: 16px; }
      widget's size. */
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-grid > .dash-grid-cell { grid-column: span 1 !important; grid-row: span 1 !important; }
-}
-
-@media (max-width: 760px) {
-  .dash-acct-usages-grid > .dash-usage { padding: 0; border-left: none; }
 }
 
 /* ---- account modal: prop config ---- */
@@ -944,7 +917,25 @@ label.full { margin-bottom: 16px; }
    using them would never announce anything. Defined here rather than as a
    Tailwind utility because utilities only compile for components/{ui,primitives}
    and Announcer.jsx lives in components/, where a class emits no CSS at all. */
-.sr-only {
+/* RENAMED FROM `.sr-only` ON 2026-09-07, and it is the last of its kind in this file.
+   Tailwind emits `.sr-only` too, from the four generated components that use it, so this
+   was the one remaining legacy rule squatting a real utility name -- the same shape as
+   `.grid`, which became `.log-grid` for the same reason on 2026-08-28.
+
+   IT IS A RENAME AND NOT A DELETION, which is the opposite of the usual direction here.
+   Tailwind's own `.sr-only` sits in a layer above `layer(legacy)` and is identical, so
+   deleting this rule outright would have left every call site working -- today. The one
+   call site OUTSIDE the component library is `components/Announcer.jsx`, the screen-reader
+   live region, and `@source` does not scan it: its class is only ever styled by THIS file.
+   Deleting the rule would have made a live region's visibility depend on an unrelated
+   generated component continuing to use the same utility, and the failure would have been
+   silent and invisible to anyone sighted.
+
+   So the four in components/ui keep Tailwind's `.sr-only`, which is guaranteed because
+   they are scanned, and the one that cannot use a utility gets a name Tailwind will never
+   emit. utility-collisions.test.js now asserts the squat count is zero rather than
+   allow-listing it. */
+.visually-hidden {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
 }
@@ -1003,10 +994,10 @@ label.full { margin-bottom: 16px; }
   display: flex; flex-direction: column; gap: 4px;
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
 }
-.sb-item.active { background: var(--accent-bg); color: var(--accent-on-surface); }
-.sb-account-tag.live { background: var(--tint-profit-5); color: var(--profit); }
-.sb-account-start .win { color: var(--profit); font-weight: 400; }
-.sb-account-start .loss { color: var(--loss); font-weight: 400; }
+
+
+
+
 
 /* Add trade (the modal was "Add strategy trade" until 2026-08-27) */
 .add-trade-btn {
@@ -1045,8 +1036,8 @@ label.full { margin-bottom: 16px; }
 .acct-add-row { display: flex; gap: 8px; }
 /* kind picker (manual bucket vs live EA sync) in the add-account form */
 .acct-kind { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.acct-kind-opt.sel { border-color: var(--accent-border); background: var(--accent-bg); }
-.acct-kind-opt.disabled { opacity: 0.55; cursor: not-allowed; }
+
+
 .acct-kind-upsell { font-size: 12px; color: var(--muted); margin: -4px 0 12px; }
 .acct-kind-upsell a { color: var(--accent-on-surface); }
 .import-account { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
@@ -1724,7 +1715,7 @@ label.full { margin-bottom: 16px; }
 }
 /* While a drag is live, kill text selection and let the pointer own the gesture
    (touch-action stops a touch-drag scrolling the panel instead of moving a tile). */
-.dle-panel.is-dragging { user-select: none; touch-action: none; }
+
 
 /* A major section. The outline groups its contents; the section itself is only
    draggable by its grip, so a pointerdown inside it is unambiguously a widget
@@ -2036,9 +2027,9 @@ label.full { margin-bottom: 16px; }
 
 /* Controls + rule form */
 .prop-controls { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 24px 24px; align-items: flex-start; }
-.prop-controls .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-.prop-controls .btn-ghost:hover { background: var(--surface-hover); }
-.prop-controls .btn-ghost.danger { color: var(--loss); border-color: var(--tint-loss-9); }
+
+
+
 .prop-controls .btn-primary { background: var(--accent-strong); color: var(--on-accent); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 400; }
 .prop-rules-form { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 4px; }
 .prop-rules-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
@@ -2168,9 +2159,9 @@ label.full { margin-bottom: 16px; }
 
 /* ---- Module sub-nav (accordion sidebar; IA config in nav.js) ---- */
 .sb-group-head { width: 100%; background: none; border: none; font: inherit; cursor: pointer; text-align: left; position: relative; }
-.sb-group.open .sb-chev { transform: rotate(180deg); }
+
 .sb-group.open > .sb-group-head { color: var(--text); }
-.sb-sub-item.active { background: var(--accent-bg); color: var(--accent-on-surface); }
+
 
 /* ---- Coming-soon stubs ---- */
 .coming-soon { text-align: center; max-width: 520px; margin: 40px auto; }
@@ -2235,11 +2226,8 @@ label.full { margin-bottom: 16px; }
 }
 
 /* Active nav gets a subtle brand accent bar for wayfinding. */
-.sb-item.active, .sb-sub-item.active { position: relative; }
-.sb-item.active::before {
-  content: ''; position: absolute; left: -16px; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--accent);
-}
+
+
 
 /* Global motion safety-net for anyone who's opted out. */
 @media (prefers-reduced-motion: reduce) {
@@ -2300,27 +2288,6 @@ label.full { margin-bottom: 16px; }
    one, or use the Dashboard account selector's markup as a reference for
    cases that need richer per-tab content this simple label/value API can't
    hold (icons, multi-line, dividers, fixed widths). ---- */
-.u-tabs { display: inline-flex; gap: 20px; border-bottom: 1px solid var(--line); }
-.u-tab {
-  position: relative; background: transparent; border: none; color: var(--text-2);
-  font: 600 13px/1 var(--font-sans); padding: 8px 2px 10px; cursor: pointer;
-  transition: color 180ms var(--ease);
-}
-.u-tab::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-  /* THE INDICATOR IS NEUTRAL, NOT BRAND (2026-08-28). It drew in --accent, a blue, and
-     was the last blue left on the dashboard after the chart line went neutral — one
-     saturated 1px rule under "Recent Trades" with nothing else on the page to relate
-     it to. A selected tab is a position, not a brand moment; --text says "you are
-     here" without claiming to mean anything more. */
-  border-radius: 2px; background: var(--text); transform-origin: center;
-  transform: scaleX(0); opacity: 0;
-  transition: transform 220ms var(--ease), opacity 220ms var(--ease), height 180ms var(--ease);
-}
-.u-tab:hover { color: var(--text); }
-.u-tab:not(.is-active):hover::after { transform: scaleX(1); opacity: 1; height: 1px; }
-.u-tab.is-active { color: var(--text); }
-.u-tab.is-active::after { transform: scaleX(1); opacity: 1; height: 2.5px; }
 
 /* ---- Field + inputs ---- */
 .u-field { display: flex; flex-direction: column; gap: 8px; }
@@ -2339,27 +2306,9 @@ label.full { margin-bottom: 16px; }
 .u-field-error { font-size: 12px; color: var(--loss); }
 
 /* ---- Skeleton (loading placeholder) ---- */
-.u-skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: var(--r-sm); }
-.u-skeleton::after {
-  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
-  animation: u-shimmer 1.4s infinite;
-}
 @keyframes u-shimmer { 100% { transform: translateX(100%); } }
-.u-skeleton--text { height: 12px; border-radius: var(--r-full); }
-.u-skeleton--title { height: 22px; width: 40%; }
-.u-skeleton--block { height: 120px; border-radius: var(--r-lg); }
-.u-skeleton--circle { border-radius: 50%; }
-.u-skel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
-.u-loading { padding: 16px 24px 40px; display: flex; flex-direction: column; gap: 16px; }
-@media (prefers-reduced-motion: reduce) { .u-skeleton::after { animation: none; } }
 
 /* ---- Empty state ---- */
-.u-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 48px 24px; max-width: 460px; margin: 0 auto; }
-.u-empty-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2); }
-.u-empty-title { font-size: 17px; font-weight: 400; color: var(--text); }
-.u-empty-desc { font-size: 13px; color: var(--text-2); line-height: 1.55; }
-.u-empty-actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
 
 /* ---- Journal Overview (module front door, Phase 2) ---- */
 .jo-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
@@ -2390,7 +2339,7 @@ label.full { margin-bottom: 16px; }
 }
 .jo-recent-table td { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .jo-recent-table tbody tr:last-child td { border-bottom: none; }
-.jo-recent-table th.jo-rt-val, .jo-recent-table td.jo-rt-val { text-align: right; }
+
 
 .jo-modules { display: grid; gap: 12px; }
 .jo-mod { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); text-decoration: none; color: var(--text); transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
@@ -3135,8 +3084,8 @@ label.full { margin-bottom: 16px; }
 .tb-page { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .tb-page:empty { flex-basis: 0; }
 /* Compact the stacked payout chip into a single-line pill inside the bar. */
-.tb-page .ph-payout { flex-direction: row; align-items: baseline; gap: 8px; padding: 4px 12px; border-radius: var(--r-md); }
-.tb-page .ph-payout-val { font-size: 14px; }
+
+
 
 /* Account avatar dropdown (not a modal) */
 .tb-user { position: relative; display: inline-flex; }
@@ -3211,10 +3160,10 @@ label.full { margin-bottom: 16px; }
    Neutral chrome — active/selected states are grayscale, not tinted. Accent
    (blue) is reserved for primary buttons + data lines only, PLUS the one
    documented exception: the shared Tabs component's thin active-underline
-   (see ".u-tabs" above) — a hairline indicator, not a background tint.
+   (the Tabs primitive draws it) — a hairline indicator, not a background tint.
    ============================================================ */
-.sb-item.active, .sb-sub-item.active { background: var(--sel-bg); color: var(--text); }
-.sb-item.active::before { display: none; }        /* no colored active bar (Linear has none) */
+
+        /* no colored active bar (Linear has none) */
 /* PHASE 4c — `.fb-unit-btn.on` is DELETED here too. The rule it enforced is not: the
    coss Toggle's pressed state is `bg-input/64` + `text-accent-foreground`, i.e. already
    grayscale, so the unit switch still obeys "selection is neutral, never brand tint"
@@ -3230,7 +3179,7 @@ label.full { margin-bottom: 16px; }
    this neutral one was the value that actually won, and it is what `.acct-opt-sel`
    above now carries. Kept neutral deliberately — DESIGN-LANGUAGE §4 locks selection
    chrome as grayscale, never brand tint. */
-.acct-kind-opt.sel { background: var(--sel-bg); border-color: var(--line-strong); }
+
 .nav button.on { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .prop-phase.active { background: var(--sel-bg); color: var(--text); border-color: var(--line); }
 .wcz-opt input, .ts-col-opt input { accent-color: var(--text-2); }
@@ -3273,7 +3222,7 @@ label.full { margin-bottom: 16px; }
    their own weight (`font-normal`) at the call site, per DESIGN-LANGUAGE §3 weight
    discipline: a two-character number in a 16px pill does not need emphasis to be
    read. */
-.pill, .chip, .cal-stats-pill, .cal-week-days,
+.pill, .cal-stats-pill, .cal-week-days,
 .import-stat, .log-untagged, .tp-badge, .rp-dir, .prop-phase, .prop-mode,
 .conn, .auto-hint, .po-src, .precision-chip, .rule-chip, .prop-reason-chip {
   font-weight: var(--fw-semibold);
@@ -3448,7 +3397,7 @@ label.full { margin-bottom: 16px; }
    tiles cannot drift from the master card.
    ---- */
 
-/* The three-tab switcher. Stretched to full width because `.u-tabs`'s hairline stops
+/* The three-tab switcher. Stretched to full width because the Tabs rail stops
    at the last label, which reads as an underlined fragment rather than a nav bar. */
 .fin-tabs { display: flex; width: 100%; }
 
@@ -3509,8 +3458,7 @@ label.full { margin-bottom: 16px; }
 
 /* Four dimension labels have to fit a third-width card, so this tab row wraps — and
    a wrapped row loses the hairline it would otherwise draw through its own middle. */
-.fin-breakdown-tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; border-bottom: none; }
-.fin-breakdown-tabs .u-tab { padding: 6px 2px 8px; }
+.fin-breakdown-tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 
 .fin-ring { position: relative; margin-top: 4px; }
 .fin-ring-center {
@@ -3672,10 +3620,9 @@ label.full { margin-bottom: 16px; }
    rather than dividing the page. */
 .pa-tabs { align-self: flex-start; }
 .pa-slices { align-self: flex-start; margin-bottom: -4px; }
-/* `.u-tab` sets `font:` shorthand and is not a flex box, so a count pill inside
+/* HISTORICAL: `.u-tab` set a `font:` shorthand and was not a flex box, so a count pill inside
    it would sit on the text baseline. This only makes the row a flex line — the
    tab's own type, colour and underline treatment are untouched. */
-.pa-slices .u-tab { display: inline-flex; align-items: center; gap: 6px; }
 .pa-tab-count { flex: none; }
 
 /* Auto-fit rather than a fixed column count: the number of accounts is the
@@ -3769,7 +3716,6 @@ label.full { margin-bottom: 16px; }
    resolved yet. */
 .pa-equity { min-height: 0; }
 .pa-chart { height: 260px; min-width: 0; }
-.pa-equity .u-empty { flex: 1 1 auto; }
 .pa-viewall { font-size: 12px; color: var(--accent-on-surface); text-decoration: none; flex: none; }
 .pa-viewall:hover { text-decoration: underline; }
 
@@ -3810,12 +3756,11 @@ label.full { margin-bottom: 16px; }
 /* The prop-firm selector. Same treatment as the Accounts sub-tabs: it belongs to
    the sections beneath it rather than dividing the page, so it sits closer to them.
    Scrolls rather than wraps — a wrapped row would leave an active underline
-   floating mid-control, since `.u-tab::after` draws under its own tab. */
+   floating mid-control, since the tab underline draws under its own tab. */
 .pc-firms { align-self: flex-start; max-width: 100%; overflow-x: auto; margin-bottom: -4px; }
-/* `.u-tab` sets a `font:` shorthand and is not a flex box, so a count pill inside it
+/* HISTORICAL: `.u-tab` set a `font:` shorthand and was not a flex box, so a count pill inside it
    would sit on the text baseline. This only makes the row a flex line — the tab's
    own type, colour and underline treatment are untouched. */
-.pc-firms .u-tab { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 
 /* ---- one prop firm, and the challenges under it ---- */
 /* The firm sections are direct children of `.page-body`, so the locked 16px section
@@ -4024,8 +3969,8 @@ label.full { margin-bottom: 16px; }
    The `set-` namespace. As with the Prop OS modules, everything this one needs
    that already exists is REUSED rather than restated, and that is most of the
    page: every panel is the `Card` primitive on the preset's skin, the tab row is
-   `.u-tabs` via the Tabs primitive, the accounts table is `.prop-table` with the
-   `.fin-table` column model, empty states are `.u-empty`, badges are `.u-badge`
+   the Tabs primitive, the accounts table is `.prop-table` with the
+   `.fin-table` column model, empty states are the EmptyState primitive, badges are `.u-badge`
    and the plan pill is `.sb-plan-badge`. What is below is the section rail, the
    label/value rows, and what eight columns of account admin need on top of
    `.prop-table`.
@@ -4106,7 +4051,6 @@ label.full { margin-bottom: 16px; }
    one would sit on the text baseline. Makes the row a flex line and nothing else —
    the tab's type, colour and underline are untouched. Same two lines as
    `.pa-slices`. */
-.set-tabs .u-tab { display: inline-flex; align-items: center; gap: 6px; }
 .set-tab-count { flex: none; }
 .set-error { margin-bottom: 12px; }
 
@@ -4193,7 +4137,7 @@ label.full { margin-bottom: 16px; }
    accounts modal did through `.acct-list`'s own padding; this states it directly. */
 .acct-form-modal { padding: 0; }
 .acct-form-body { padding: 16px 24px; }
-.acct-form-body .acct-created { margin: 0 0 12px; }
+
 .acct-form-field {
   display: flex; flex-direction: column; gap: 4px;
   font-size: 12px; color: var(--muted); margin-top: 12px;
@@ -4255,7 +4199,7 @@ label.full { margin-bottom: 16px; }
 
   /* Touch targets. 44x44 is the floor; the rail's items are laid out for a
      mouse at rest. */
-  .sidebar .sb-item, .sidebar .sb-sub-item { min-height: 44px; }
+  
   .sb-collapse { min-width: 44px; min-height: 44px; }
 
   /* DENSE TABLES.
@@ -4277,8 +4221,14 @@ label.full { margin-bottom: 16px; }
   .log-panel .log-grid { table-layout: auto; min-width: 720px; }
 }
 
-/* The drawer slides; users who ask for less motion just get it. */
-@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .sidebar.is-drawer { animation: drawer-in var(--dur) var(--ease) both; }
-  @keyframes drawer-in { from { transform: translateX(-100%); } to { transform: none; } }
-}
+/* THE DRAWER'S SLIDE IS GONE, and with it the one rule that used this keyframe.
+   `.sidebar.is-drawer` was the phone-width navigation before the rail was rebuilt on the
+   generated Sidebar; the rail's drawer is a Sheet now, and nothing in the app renders
+   either class. The keyframe outlived its only caller by the length of a migration.
+
+   THE ACCESSIBILITY PROPERTY DID NOT GO WITH IT. This block was phrased as an opt-IN —
+   the animation only existed when motion was welcome — which was the right shape for a
+   hand-written rule. The Sheet is covered instead by the global reduce rule further up
+   this file (`*, *::before, *::after { animation-duration: .001ms !important }`), which
+   is stronger: it reaches every animation in the app rather than the one this block knew
+   about. design-b-a11y.test.js asserts that rule directly now. */

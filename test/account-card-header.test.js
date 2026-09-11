@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { readSrc, stripComments } from './helpers/src-files.js';
 import { legacyCss } from './helpers/app-css.js';
 
@@ -11,6 +13,14 @@ import { legacyCss } from './helpers/app-css.js';
 // denominator of zero.
 
 const dash = stripComments(readSrc('Dashboard.jsx'));
+/* The overflow menu's styling moved into the primitive on 2026-09-10 — see the
+   tests below. A PAGE cannot hold it: a Tailwind utility written outside
+   components/ emits no CSS at all, so migrating those five rules in place would
+   have unstyled the menu silently. */
+const account = readFileSync(
+  fileURLToPath(new URL('../frontend/src/components/primitives/account.jsx', import.meta.url)),
+  'utf8',
+);
 
 // ---------------------------------------------------------------------------
 // The overflow menu
@@ -26,7 +36,12 @@ test('the account overflow is the Menu primitive, not a hand-positioned panel', 
   const header = dash.slice(dash.indexOf('function AccountHeader'), dash.indexOf('function SetTargetModal'));
   assert.match(header, /<Menu>/);
   assert.match(header, /<MenuTrigger render=\{<AccountTabMore \/>\}>/);
-  assert.match(header, /<MenuContent align="start"/);
+  /* `align="start"` moved INTO the panel primitive on 2026-09-10 — it is not a
+     caller's choice, it is why the panel hangs under the chip's left edge instead
+     of being pushed off the card by the default end-alignment. Asserted where it
+     now lives. */
+  assert.match(header, /<AccountMenuPanel>/);
+  assert.match(account, /align="start"/, 'AccountMenuPanel dropped its start alignment');
   assert.match(header, /<MenuItem key=\{a\.account_id\}/);
 
   assert.equal(/wcz-menu/.test(header), false, 'the hand-rolled panel is gone');
@@ -47,22 +62,65 @@ test('a menu row carries the same three facts as the chip beside it', () => {
   // sizes rather than two designs for one thing.
   const header = dash.slice(dash.indexOf('function AccountHeader'), dash.indexOf('function SetTargetModal'));
   assert.match(header, /healthStatus\(a\.health\.score, a\.breach\.breached\)/);
-  assert.match(header, /dash-acct-menu-row prop-\$\{st\}/);
-  assert.match(header, /dash-acct-menu-dot/);
-  assert.match(header, /dash-acct-menu-name/);
-  assert.match(header, /dash-acct-menu-phase/);
+  /* Still true after the 09-10 migration — the three facts are the row
+     primitive's own anatomy now rather than three legacy classes at the call
+     site, which is the stronger place for them. */
+  assert.match(header, /<AccountMenuRow/);
+  assert.match(header, /tone=\{healthStatus/, 'the row no longer gets the health tone');
+  assert.match(header, /phase=\{a\.phase/, 'the row no longer gets the phase');
+
+  const row = account.slice(account.indexOf('export function AccountMenuRow'));
+  assert.match(row, /rounded-full/, 'the health dot is gone from the row');
+  assert.match(row, /truncate/, 'a long account label will wrap instead of ellipsing');
 });
 
-test('the menu CSS positions nothing — only how wide a row may be', () => {
-  const rule = legacyCss.match(/\.dash-acct-more-menu \{[^}]*\}/);
-  assert.ok(rule, '.dash-acct-more-menu must still declare a width');
-  assert.match(rule[0], /min-width/);
-  // The old `top`/`left`/`right` overrides fought the primitive for placement.
-  for (const prop of ['top:', 'left:', 'right:', 'position:']) {
-    assert.equal(rule[0].includes(prop), false, `${prop} belongs to the primitive now`);
+test('the row tone is the CHIP\'s tone function, not the legacy --status class', () => {
+  /* The legacy row set `--status` through a `prop-good|warn|bad` class and the dot
+   * read it. It now uses `toneColor`, the same function the chip's health RING
+   * uses — and the colours are IDENTICAL, which is what made the swap safe:
+   * --status-good IS var(--profit), --status-warn IS var(--warning), --status-bad
+   * IS var(--loss), and TONE maps to exactly those three.
+   *
+   * The `.prop-*` classes are NOT deleted — five other files set --status with
+   * them, so this migration stopped USING one rather than removing it. */
+  const row = account.slice(account.indexOf('export function AccountMenuRow'));
+  assert.match(row, /toneColor\(tone\)/, 'the row invented its own colour source');
+  assert.doesNotMatch(row, /prop-/, 'the row is back on the legacy tone class');
+  assert.match(legacyCss, /\.prop-good \{/, 'the shared --status classes went, and five files use them');
+});
+
+test('the menu positions nothing — only how wide it may be', () => {
+  /* THE SAME GUARANTEE, IN ITS NEW HOME (migrated 2026-09-10). The width is all
+   * that was ever ours: Base UI owns where a portaled menu goes, and MenuContent
+   * cancels the anchor width so it sizes to content — without a ceiling a long
+   * account label wraps to three lines, without a floor a short one looks like a
+   * tooltip.
+   *
+   * The old rule once carried top/left/right overrides that fought the primitive
+   * for placement, so this checks the new panel for positioning utilities too. */
+  /* SLICED TO THE FUNCTION, not to end-of-file. The first version ran the slice to
+     the end of account.jsx and caught `absolute` in a component several hundred
+     lines below — the over-broad-scan trap this cycle has now hit five times. */
+  const panelAt = account.indexOf('export function AccountMenuPanel');
+  const panel = account.slice(panelAt, account.indexOf('export function', panelAt + 1));
+  assert.match(panel, /min-w-\[240px\] max-w-\[320px\]/, 'the panel lost its width bounds');
+  for (const u of ['absolute', 'fixed', 'top-', 'left-', 'right-']) {
+    assert.equal(panel.includes(u), false, `${u} belongs to the primitive, not here`);
   }
-  // The dot reads the shared tone variable rather than naming a colour.
-  assert.match(legacyCss, /\.dash-acct-menu-dot \{[^}]*background: var\(--status\)/);
+
+  /* AND THE LEGACY RULES ARE GONE, not merely unused: legacy CSS may only shrink,
+     and a migrated screen deletes its rules in the same commit. */
+  for (const name of ['dash-acct-more', 'dash-acct-more-menu', 'dash-acct-menu-row',
+    'dash-acct-menu-dot', 'dash-acct-menu-name', 'dash-acct-menu-phase']) {
+    assert.equal(
+      legacyCss.includes(`.${name} `) || legacyCss.includes(`.${name},`)
+        || legacyCss.includes(`.${name}{`), false,
+      `.${name} is back in legacy/app.css — this menu is Tailwind now`,
+    );
+  }
+  /* `.dash-acct-tab-dot` STAYS: despite the name it is not a tab, it is Prop OS's
+     8px status dot in AccountWorkspace and ChallengeDetails. */
+  assert.match(legacyCss, /\.dash-acct-tab-dot \{/, 'Prop OS status dot deleted with the menu');
 });
 
 // ---------------------------------------------------------------------------

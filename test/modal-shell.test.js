@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { appCss } from './helpers/app-css.js';
+import { appCss, tokensCss } from './helpers/app-css.js';
 import { readSrc } from './helpers/src-files.js';
 
 // Phase 4b — the shared Modal shell, and every dialog in the app adopting it.
@@ -184,11 +184,28 @@ test("a dialog header takes the ALERT dialog's treatment, not the plain one's", 
   assert.match(wrapper, /DialogTitle|DialogDescription/,
     'both parts must be wrapped, not re-exported bare');
 
-  /* THE OVERRIDE MUST NOT HAVE LEAKED INTO THE BRIDGE. If someone "fixes" this by
-   * repointing muted-foreground globally, the wrapper above goes quiet and every screen
-   * in the app changes colour instead. */
-  assert.match(bridge, /--color-muted-foreground:\s*var\(--text-2\)/,
-    'muted-foreground stays on --text-2 app-wide; the dialog is the exception, not the rule');
+  /* THE OVERRIDE MUST NOT HAVE LEAKED INTO THE BRIDGE — and on 2026-09-09 the way to
+   * express that changed, so the assertion moved with it rather than being deleted.
+   *
+   * This used to require `--color-muted-foreground: var(--text-2)` verbatim, guarding
+   * against "someone fixes the dialog by repointing muted-foreground globally, and every
+   * screen in the app changes colour instead". That worry is still exactly right and is
+   * still what is asserted — it is just no longer the same string.
+   *
+   * `--color-muted-foreground` now points at `--chrome-label`, which is CONTEXTUAL: it is
+   * --text-2 on a card and the preset's --muted inside [data-overlay-surface]. So the app
+   * at large is unchanged (the thing this test protects) while a floating panel gets the
+   * preset's grey. The dialog is no longer "the exception" — it turned out three
+   * components had each written the same exception by hand, which is what made it a token.
+   * The literal above is now redundant and resolves to the same colour; it stays because
+   * this component is locked. */
+  assert.doesNotMatch(bridge, /--color-muted-foreground:\s*var\(--muted\)/,
+    'muted-foreground must NOT be repointed flatly at the preset grey — that changes every '
+    + 'card label in the app. It takes the contextual --chrome-label instead.');
+  assert.match(bridge, /--color-muted-foreground:\s*var\(--chrome-label\)/,
+    'muted-foreground resolves through --chrome-label, which is --text-2 on a card');
+  assert.match(tokensCss, /--chrome-label:\s*var\(--text-2\)/,
+    'and --chrome-label must still default to --text-2, or every card label moved');
 
   /* AND THE DIAGNOSIS: spacing was never the difference. */
   assert.match(bridgeSpacing, /--spacing:\s*var\(--s-1\)/,

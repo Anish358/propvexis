@@ -5,7 +5,9 @@
  */
 
 import React from 'react';
+import { Tabs as UITabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { PRESS, PRESS_MOTION } from './motion.js';
 
 /* THE PANEL — the dashboard's generic content card, on the 2026-08-28 Figma frame.
  *
@@ -45,7 +47,12 @@ export function PanelCard({ flush = false, narrow = false, className, children, 
     <section
       data-slot="panel"
       className={cn(
-        'flex min-w-0 flex-col rounded-[14px] border border-[var(--line)] bg-[var(--surface)]',
+        /* `rounded-card` — 24px, the preset's card step (owner, 2026-09-08). It was a
+           hand-typed `rounded-[14px]`, which is how `--r-2xl`, documented as "CARDS",
+           came to control no card at all: five surfaces each spelled the number out. The
+           token is `--r-card` and it is surface-named on purpose, per §6's assignment by
+           surface — see tokens.css. */
+        'flex min-w-0 flex-col rounded-card border border-[var(--line)] bg-[var(--surface)]',
         flush ? 'overflow-hidden' : 'gap-[18px] pt-[22px] pb-6',
         !flush && (narrow ? 'px-3.5' : 'px-6'),
         className,
@@ -131,7 +138,7 @@ export function PanelChip({ className, children, ...rest }) {
     <span
       data-slot="panel-chip"
       className={cn(
-        'shrink-0 rounded-[6px] border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
+        'shrink-0 rounded-full border border-[var(--line-chip)] bg-[var(--sel-bg)] px-[7px] py-0.5',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--muted)]',
         className,
       )}
@@ -284,7 +291,7 @@ export const PanelFill = React.forwardRef(function PanelFill({ className, childr
 export function PanelLink({ render, className, children, ...rest }) {
   const classes = cn(
     'flex items-center gap-1.5 px-4 pt-3 pb-3.5 text-xs leading-[15px] font-[550] no-underline',
-    'text-[var(--text-link)] transition-colors hover:text-[var(--text)]',
+    'text-[var(--text-link)] hover:text-[var(--text)]', PRESS_MOTION, PRESS,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     /* 14px, AND IT HAD NO SIZE AT ALL BEFORE — so the arrow rendered at lucide's
        default 24px beside 12.5px type, which is what made the link look like a button
@@ -309,43 +316,113 @@ export function PanelLink({ render, className, children, ...rest }) {
  *
  * UNDERLINED, NOT PILLED, and that is DESIGN-LANGUAGE's own documented tab rule rather
  * than something Rhea introduced: a thin light line under the active label, muted and
- * unlined when inactive. It is drawn here rather than reusing the shared `Tabs`
- * primitive because this strip is the panel's own top EDGE — it carries the card's
- * hairline and its 15px title weight — where `Tabs` is a control that sits inside
- * content. Same interaction rule, different member of the layout. */
-export function PanelTabs({ className, children, ...rest }) {
+ * unlined when inactive.
+ *
+ * ── 🔒 CYCLE 00, PIECE 7 (owner, 2026-09-10): ONE TAB STYLE, TWO SKINS ───────────────
+ *
+ * THIS IS NOW A COMPOSITION OF THE SHIPPED `Tabs`, NOT A COPY OF ITS RULES. It used to be
+ * a hand-written `<div role="tablist">` of hand-written `<button role="tab">`s, and the
+ * reason it gave for that had two halves, both now closed:
+ *
+ *   · "this strip is the panel's own top EDGE" — written 2026-09-07, when `Tabs` still
+ *     rendered legacy `.u-tabs`, so reusing it would have meant reusing legacy CSS. That
+ *     expired on 09-08 when Tabs moved to `@shadcn/tabs`. NINTH expired reason.
+ *   · THE ARRAY API — `Tabs` exposed only `tabs={[{value,label}]}`, so a caller could not
+ *     reach a trigger, and anything wanting different metrics was PHYSICALLY UNABLE to
+ *     use it. That is the real cause of this app having three tab implementations, and
+ *     piece 7 fixed it by exporting `TabsList`/`TabsTrigger` alongside the array.
+ *
+ * The owner ruled ONE STYLE WITH TWO SKINS, so the four differences that used to justify
+ * a second component are now four classes on a shipped trigger.
+ *
+ * ⚠ THE 2px ARITHMETIC, BECAUSE `border-b-2` AND `after:` ARE NOT INTERCHANGEABLE.
+ * The old underline was a real border and OCCUPIED SPACE: 15 top + 18 line + 13 bottom
+ * + 2 border = 48px. The registry draws its line with an ABSOLUTELY POSITIONED `after:`,
+ * which occupies none — so composing naively would have silently shortened this strip by
+ * two pixels on the locked dashboard. The bottom padding is therefore 15px, not 13, and
+ * the total is 48px exactly as before. Invisible in a diff, obvious side by side.
+ *
+ * ── WHAT THE REBUILD ADDS FOR FREE, AND IT IS NOT COSMETIC ──────────────────────────
+ *
+ * Base UI's Tabs brings ARROW-KEY NAVIGATION and a roving tabindex. The hand-written
+ * version had `role="tab"` and `role="tablist"` and neither — it announced itself as tabs
+ * to a screen reader and then did not behave like them, which is worse than not claiming
+ * the role at all.
+ *
+ * ⚠ THE CALL SITE CHANGED SHAPE, AND ONLY THE SHAPE. `PanelTab` took `selected` +
+ * `onClick`; it now takes `value`, and the strip owns the state — which is what Base UI
+ * needs in order to do the keyboard work. Dashboard.jsx is the only caller. Nothing about
+ * the appearance moves (§2), and that claim is the one thing here a test cannot check:
+ * the metrics are asserted, the RESULT has to be looked at.
+ *
+ * NOT INCLUDED: the Dashboard's account selector, still on five legacy `.dash-acct-tab*`
+ * rules. Rich content (a name, a status dot, figures) and a bigger change to a locked
+ * page; owner deferred it. See CYCLE-00-KIT-BRIEF.md §4.5. */
+export function PanelTabs({ value, onValueChange, className, children, ...rest }) {
   return (
-    <div
-      data-slot="panel-tabs"
-      role="tablist"
-      className={cn('flex gap-0.5 border-b border-[var(--line-inset)] px-2.5', className)}
-      {...rest}
-    >
-      {children}
-    </div>
+    <UITabs value={value} onValueChange={onValueChange} className="gap-0">
+      <TabsList
+        variant="line"
+        data-slot="panel-tabs"
+        className={cn(
+          /* The panel's own edge: the card hairline and the strip's inset. `w-full
+             justify-start` cancels the list's `w-fit`/`justify-center`, `p-0` its
+             `p-[3px]`, and the height override cancels its `h-8` — these triggers are
+             48px, not 32.
+
+             ⚠ THE HEIGHT OVERRIDE WEARS THE REGISTRY'S OWN MODIFIER, AND IT MUST
+             (2026-09-11). The registry writes that 32 as `group-data-horizontal/tabs:h-8`,
+             and tailwind-merge only drops a class whose MODIFIER SET MATCHES — so a plain
+             `h-auto` left it standing, and both then applied. NOT a specificity fight:
+             Tailwind wraps the group condition in `:where()`, so the two rules are dead
+             equal at (0,1,0) and it is SOURCE ORDER that decides — every qualified utility
+             is emitted after the plain ones, so the registry's 32 simply came last and
+             won. The strip rendered 33px instead of 49 and every row below it shifted up
+             16px, on the locked dashboard, with nothing in the diff to show it. Same trap
+             that killed the top bar's pill hover. THE RULE: where the registry qualifies a
+             class, our override wears the same qualifier — then twMerge deletes theirs and
+             the order stops mattering at all. */
+          'group-data-horizontal/tabs:h-auto w-full justify-start gap-0.5 rounded-none p-0',
+          'border-b border-[var(--line-inset)] px-2.5',
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </TabsList>
+    </UITabs>
   );
 }
 
-export function PanelTab({ selected = false, className, children, ...rest }) {
+/* One tab. Four classes on the shipped trigger, which is what the whole piece was for. */
+export function PanelTab({ className, children, ...rest }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={selected}
+    <TabsTrigger
       data-slot="panel-tab"
       className={cn(
-        // leading-[18px] is the prototype's — see PanelTableRow on why these are measured.
-        'border-b-2 px-3.5 pt-[15px] pb-[13px] text-base leading-[18px] font-semibold tracking-[-0.1px]',
-        'transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
-        selected
-          ? 'border-[var(--action-2)] text-[var(--text)]'
-          : 'border-transparent text-[var(--text-3)] hover:text-[var(--text-body)]',
+        /* leading-[18px] is the prototype's — see PanelTableRow on why these are measured.
+           pb is 15px rather than 13 to replace the 2px the old `border-b-2` occupied. */
+        /* `h-auto` cancels the registry's `h-[calc(100%-1px)]`, which is written for a
+           trigger inside a fixed 32px list. Here the height comes from the padding above,
+           so a percentage of the list is both wrong and circular — it left the button
+           31px tall with 48px of content spilling out of it, centred. PLAIN, because the
+           registry's is plain; see PanelTabs on why that distinction decides the fix. */
+        'h-auto flex-none rounded-none px-3.5 pt-[15px] pb-[15px]',
+        'text-base leading-[18px] font-semibold tracking-[-0.1px]',
+        /* The active line: ours, and on the button's own edge rather than the registry's
+           `bottom-[-5px]`, which is positioned for a list sitting above a rail. QUALIFIED,
+           because the registry qualifies it: a plain `after:bottom-0` does not displace
+           `group-data-horizontal/tabs:after:bottom-[-5px]` and then loses to it, which put
+           the underline 5px below the button — and 13px below the card's own hairline
+           once the height bug had the button hanging out of a 32px list. */
+        'group-data-horizontal/tabs:after:bottom-0 after:bg-[var(--action-2)]',
+        'text-[var(--text-3)] hover:text-[var(--text-body)] data-active:text-[var(--text)]',
         className,
       )}
       {...rest}
     >
       {children}
-    </button>
+    </TabsTrigger>
   );
 }
 
@@ -551,7 +628,10 @@ export function SkeletonLine({ w = '100%', h = '0.75rem', className, ...rest }) 
  * DOM, not by reading the markup, which looked entirely correct.
  *
  * Taking it as an inline style means a caller in any file gets the width it asked for. */
-export function SkeletonBlock({ h = '4rem', w, radius = 12, className, ...rest }) {
+/* `radius` defaults to the tile step rather than a bare 12 (2026-09-08). A skeleton
+ * stands in for a tile, so it should be shaped like one — and when the tile step moves,
+ * the placeholder moves with it instead of being found later. */
+export function SkeletonBlock({ h = '4rem', w, radius = 'var(--r-xl)', className, ...rest }) {
   return (
     <div
       data-slot="skeleton-block"

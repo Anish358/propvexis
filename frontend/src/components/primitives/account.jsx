@@ -6,6 +6,8 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { MenuContent } from './menu.jsx';
+import { PRESS, PRESS_MOTION } from './motion.js';
 
 /* ACCOUNT HEALTH — the card that says whether this account is about to die.
  * Base Rhea, 2026-08-29.
@@ -106,7 +108,12 @@ export function AccountCardShell({ critical = false, className, children, ...res
     <section
       data-slot="account-card"
       className={cn(
-        'flex flex-col overflow-hidden rounded-[14px] border bg-[var(--surface)]',
+        /* `rounded-card` — 24px, the preset's card step (owner, 2026-09-08). It was a
+           hand-typed `rounded-[14px]`, which is how `--r-2xl`, documented as "CARDS",
+           came to control no card at all: five surfaces each spelled the number out. The
+           token is `--r-card` and it is surface-named on purpose, per §6's assignment by
+           surface — see tokens.css. */
+        'flex flex-col overflow-hidden rounded-card border bg-[var(--surface)]',
         critical ? 'border-[var(--loss-deep)]' : 'border-[var(--line)]',
         className,
       )}
@@ -149,8 +156,8 @@ export function AccountTab({
       data-slot="account-tab"
       aria-pressed={selected}
       className={cn(
-        'flex shrink-0 items-center gap-3 rounded-[12px] border py-3 pr-6 pl-[18px] text-left whitespace-nowrap',
-        HOVER_MOTION,
+        'flex shrink-0 items-center gap-3 rounded-[var(--r-xl)] border py-3 pr-6 pl-[18px] text-left whitespace-nowrap',
+        PRESS_MOTION, PRESS,
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         selected
           ? 'border-[var(--line-selected)] bg-[var(--sel-well)]'
@@ -188,18 +195,100 @@ export function AccountTab({
   );
 }
 
+/* ── THE OVERFLOW MENU'S ROW, MIGRATED OFF LEGACY CSS 2026-09-10 ────────────────────
+ *
+ * WHY THESE ARE PRIMITIVES AND NOT CLASSES AT THE CALL SITE. They were five legacy
+ * rules written straight into `Dashboard.jsx` — `.dash-acct-more-menu`,
+ * `.dash-acct-menu-row`, `-dot`, `-name`, `-phase`. The obvious migration is to swap
+ * them for Tailwind in place, and it would have emitted NOTHING: `@source` covers
+ * `components/{ui,primitives}` only, so a utility written in a page compiles to no CSS
+ * at all and the menu would have arrived unstyled with no error. So the styling moves
+ * HERE and the page composes parts.
+ *
+ * ── HOW THIS SURVIVED THE MIGRATION THAT TOOK THE CHIPS ─────────────────────────────
+ *
+ * The chips beside it (`AccountTab`) have been Tailwind for some time. This menu only
+ * appears when you have MORE ACCOUNTS THAN FIT, so it was never on screen during any
+ * review — the visible surface got rebuilt and the overflow path was missed. Worth
+ * knowing as a shape rather than as one bug: a half-migration hides in the state nobody
+ * has while they are looking.
+ *
+ * ── THE ROW IS THE CHIP, SMALLER ────────────────────────────────────────────────────
+ *
+ * An account in this menu is the same object as one in the strip, so it carries the same
+ * three facts in the same order — health, name, phase — and the dot is the chip's health
+ * RING reduced to its inner mark.
+ *
+ * ⚠ THE TONE NO LONGER TRAVELS THROUGH `prop-*`. The legacy row set `--status` via a
+ * `prop-good|warn|bad` class and the dot read it. It now uses `toneColor`, the same
+ * function the chip's ring uses two components up — and the colours are IDENTICAL, which
+ * is why this is safe: `--status-good` IS `var(--profit)`, `--status-warn` IS
+ * `var(--warning)`, `--status-bad` IS `var(--loss)`, and `TONE` maps to exactly those.
+ * Two vocabularies for one set of three colours; the row now speaks the one its own
+ * component already spoke. The `.prop-*` classes stay — five other files use them.
+ *
+ * The phase is pushed to the far edge on purpose, so a column of them lines up and the
+ * eye reads the journey down the list rather than hunting after each name. `text-xs` is
+ * `--fs-label` through the bridge, which is the size the legacy rule asked for. */
+export function AccountMenuRow({ tone = 'good', phase, className, children, ...rest }) {
+  const hue = toneColor(tone) || 'var(--profit)';
+  return (
+    <span
+      data-slot="account-menu-row"
+      className={cn('flex w-full min-w-0 items-center gap-2.5', className)}
+      {...rest}
+    >
+      <span
+        aria-hidden="true"
+        className="size-[7px] shrink-0 rounded-full"
+        style={{ background: hue }}
+      />
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {phase ? (
+        <span className="shrink-0 text-xs text-[var(--muted)]">{phase}</span>
+      ) : null}
+    </span>
+  );
+}
+
+/* The panel the rows sit in. All that was ever ours here is HOW WIDE it may be: Base UI
+ * owns where a portaled menu goes, and `MenuContent` cancels the anchor width so it
+ * sizes to content — without a ceiling an account label can wrap to three lines, and
+ * without a floor a short one looks like a tooltip. */
+export function AccountMenuPanel({ className, ...rest }) {
+  return (
+    <MenuContent
+      align="start"
+      data-slot="account-menu-panel"
+      className={cn('min-w-[240px] max-w-[320px]', className)}
+      {...rest}
+    />
+  );
+}
+
 /* The overflow control — "+2 Accounts". Dashed and unfilled on purpose: it is not one
  * more account, it is a way to see the rest, and looking like a chip would make it read
  * as a selectable account that never selects. */
+/* THE OVERFLOW CHIP PRESSES LIKE ITS SIBLINGS (owner, 2026-09-11).
+ *
+ * It did not, for one round: every Base Rhea button excludes itself from the nudge when
+ * it carries `aria-haspopup`, and this one always does — it is only ever rendered as a
+ * `MenuTrigger`. The registry's reasoning is that a trigger bobbing while the menu it
+ * opened stays anchored reads as a missed click.
+ *
+ * The owner overrode it after seeing the consequence somewhere else: the ENTIRE top bar
+ * is triggers, so the exclusion left four controls with no click feedback at all. A rule
+ * that silently switches off a whole surface is the wrong rule, and a chip that answers
+ * a click beats one that is theoretically calmer. §10 records the reversal. */
 export function AccountTabMore({ className, children, ...rest }) {
   return (
     <button
       type="button"
       data-slot="account-tab-more"
       className={cn(
-        'flex shrink-0 items-center gap-1.5 rounded-[12px] border border-dashed border-[var(--line-strong)] px-4 py-3',
+        'flex shrink-0 items-center gap-1.5 rounded-[var(--r-xl)] border border-dashed border-[var(--line-strong)] px-4 py-3',
         'text-xs leading-4 font-[550] whitespace-nowrap text-[var(--text-3)]',
-        HOVER_MOTION,
+        PRESS_MOTION, PRESS,
         'hover:border-[var(--line-hover)] hover:text-[var(--text)]',
         'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
         '[&_svg]:size-3.5',
@@ -342,7 +431,7 @@ export function AccountBannerAction({ tone = 'breach', render, className, childr
   const classes = cn(
     'flex h-7 shrink-0 items-center gap-1 rounded-full border px-[11px] whitespace-nowrap',
     'text-xs leading-4 font-semibold no-underline',
-    HOVER_MOTION,
+    PRESS_MOTION, PRESS,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-60',
     /* The arrow on "View challenge →" is sized to the type. Lucide defaults to 24px,
@@ -456,7 +545,7 @@ export function Meter({
   return (
     <div
       data-slot="meter"
-      className={cn('flex min-w-0 flex-col gap-3.5 rounded-[12px] px-[22px] pt-5 pb-[21px]', STATE_MOTION, className)}
+      className={cn('flex min-w-0 flex-col gap-3.5 rounded-[var(--r-xl)] px-[22px] pt-5 pb-[21px]', STATE_MOTION, className)}
       style={{
         // A critical meter washes; every other state sits on the sunken surface. See
         // the header on why a quiet meter stays quiet.
@@ -591,7 +680,7 @@ export function AccountCardLink({ render, className, children, ...rest }) {
   const classes = cn(
     'flex shrink-0 items-center gap-1.5 rounded-sm text-sm leading-5 font-[550] no-underline',
     'text-[var(--text-link)] hover:text-[var(--text)]',
-    HOVER_MOTION,
+    PRESS_MOTION, PRESS,
     'focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:outline-none',
     /* 14px, NOT 16. The design draws this as a text arrow at the link's own 13px, so a
        16px icon beside 13px type reads as a button that lost its border — the glyph
